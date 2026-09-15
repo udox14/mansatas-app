@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition, useRef } from 'react'
+import { useCallback, useMemo, useState, useTransition, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -12,7 +12,7 @@ import { Plus, Trash2, Zap, Loader2, Search, Save, FileSpreadsheet, Upload } fro
 import { tambahSlotJadwal, hapusSlotJadwal, autoPlotting, saveManualPlotting } from '../actions'
 import type { Pendaftar } from './pmb-client'
 
-type Slot = { id: string; tanggal: string; sesi: string; ruang: string; kapasitas: number }
+type Slot = { id: string; tanggal: string; sesi: string; ruang: string; kapasitas: number; jalur?: 'REGULER' | 'PRESTASI' | null }
 
 type PlottingRow = {
   id: string; no_pendaftaran: string; nama_lengkap: string
@@ -28,22 +28,22 @@ export function JadwalPanel({ jadwal, pendaftar, onFlash }: {
   const importRef = useRef<HTMLInputElement>(null)
 
   // ── Slot form ──────────────────────────────────────────
-  const [form, setForm] = useState({ tanggal: '', sesi: '', ruang: '', kapasitas: '36' })
+  const [form, setForm] = useState({ tanggal: '', sesi: '', ruang: '', kapasitas: '36', jalur: 'REGULER' as 'REGULER' | 'PRESTASI' })
 
   function addSlot() {
     if (!form.tanggal || !form.sesi || !form.ruang) { onFlash({ error: 'Isi semua field slot' }); return }
     start(async () => {
       onFlash(await tambahSlotJadwal({ ...form, kapasitas: Number(form.kapasitas) || 36 }))
-      setForm({ tanggal: '', sesi: '', ruang: '', kapasitas: '36' })
+      setForm({ tanggal: '', sesi: '', ruang: '', kapasitas: '36', jalur: form.jalur })
     })
   }
   function removeSlot(id: string) {
     if (!confirm('Hapus slot ini?')) return
     start(async () => onFlash(await hapusSlotJadwal(id)))
   }
-  function doAutoPlot() {
-    if (!confirm('Auto-plotting: distribusikan semua pendaftar REGULER terverifikasi yang belum terjadwal. Lanjutkan?')) return
-    start(async () => onFlash(await autoPlotting()))
+  function doAutoPlot(jalur: 'REGULER' | 'PRESTASI') {
+    if (!confirm(`Auto-plotting: distribusikan pendaftar ${jalur} terverifikasi yang belum terjadwal. Lanjutkan?`)) return
+    start(async () => onFlash(await autoPlotting(jalur)))
   }
 
   // ── Slot occupancy stats ───────────────────────────────
@@ -80,9 +80,9 @@ export function JadwalPanel({ jadwal, pendaftar, onFlash }: {
       }))
   }, [pendaftar])
 
-  function getVal(id: string, field: 'tanggal_tes' | 'sesi_tes' | 'ruang_tes', fallback: string) {
+  const getVal = useCallback((id: string, field: 'tanggal_tes' | 'sesi_tes' | 'ruang_tes', fallback: string) => {
     return edits[id]?.[field] ?? fallback
-  }
+  }, [edits])
   function setEdit(id: string, field: 'tanggal_tes' | 'sesi_tes' | 'ruang_tes', val: string) {
     setEdits((prev) => ({ ...prev, [id]: { ...prev[id], [field]: val } }))
   }
@@ -98,7 +98,7 @@ export function JadwalPanel({ jadwal, pendaftar, onFlash }: {
       if (fRuang !== 'all' && ruang !== fRuang) return false
       return true
     })
-  }, [plottingRows, search, fTgl, fSesi, fRuang, edits])
+  }, [plottingRows, search, fTgl, fSesi, fRuang, getVal])
 
   async function saveChanges() {
     const changes = Object.entries(edits).map(([id, v]) => {
@@ -180,7 +180,7 @@ export function JadwalPanel({ jadwal, pendaftar, onFlash }: {
             <CardDescription>Definisikan slot tanggal/sesi/ruang untuk auto-plotting dan manual plotting.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 items-end">
+            <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 items-end">
               <div>
                 <Label className="text-xs mb-1 block">Tanggal</Label>
                 <Input type="date" value={form.tanggal} onChange={(e) => setForm({ ...form, tanggal: e.target.value })} />
@@ -197,6 +197,7 @@ export function JadwalPanel({ jadwal, pendaftar, onFlash }: {
                 <Label className="text-xs mb-1 block">Kapasitas</Label>
                 <Input type="number" min={1} value={form.kapasitas} onChange={(e) => setForm({ ...form, kapasitas: e.target.value })} />
               </div>
+              <div><Label className="text-xs mb-1 block">Jalur</Label><Select value={form.jalur} onValueChange={(value) => setForm({ ...form, jalur: value as 'REGULER' | 'PRESTASI' })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="REGULER">Reguler</SelectItem><SelectItem value="PRESTASI">Prestasi</SelectItem></SelectContent></Select></div>
               <Button onClick={addSlot} disabled={pending} className="mt-5">
                 {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}Tambah
               </Button>
@@ -207,9 +208,7 @@ export function JadwalPanel({ jadwal, pendaftar, onFlash }: {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between py-3">
             <CardTitle className="text-base">Slot Terdaftar ({jadwal.length})</CardTitle>
-            <Button variant="outline" size="sm" onClick={doAutoPlot} disabled={pending}>
-              <Zap className="h-4 w-4 mr-1 text-amber-500" />Auto-Plotting
-            </Button>
+            <div className="flex gap-1"><Button variant="outline" size="sm" onClick={() => doAutoPlot('REGULER')} disabled={pending}><Zap className="h-4 w-4 mr-1 text-amber-500" />Auto Reguler</Button><Button variant="outline" size="sm" onClick={() => doAutoPlot('PRESTASI')} disabled={pending}><Zap className="h-4 w-4 mr-1 text-purple-500" />Auto Prestasi</Button></div>
           </CardHeader>
           <CardContent className="p-0">
             {jadwal.length === 0 ? (
@@ -221,6 +220,7 @@ export function JadwalPanel({ jadwal, pendaftar, onFlash }: {
                     <TableHead className="text-xs">Tanggal</TableHead>
                     <TableHead className="text-xs">Sesi</TableHead>
                     <TableHead className="text-xs">Ruang</TableHead>
+                    <TableHead className="text-xs">Jalur</TableHead>
                     <TableHead className="text-xs text-center">Kapasitas</TableHead>
                     <TableHead className="text-xs text-center">Terisi</TableHead>
                     <TableHead className="text-xs text-center">Sisa</TableHead>
@@ -237,6 +237,7 @@ export function JadwalPanel({ jadwal, pendaftar, onFlash }: {
                         <TableCell className="text-sm">{s.tanggal}</TableCell>
                         <TableCell className="text-sm">{s.sesi}</TableCell>
                         <TableCell className="text-sm">{s.ruang}</TableCell>
+                        <TableCell className="text-sm">{s.jalur || 'Semua'}</TableCell>
                         <TableCell className="text-sm text-center">{s.kapasitas}</TableCell>
                         <TableCell className="text-center">
                           <span className={`text-sm font-semibold ${terisi > 0 ? 'text-blue-600' : 'text-slate-400'}`}>{terisi}</span>

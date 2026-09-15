@@ -10,6 +10,9 @@ import { getSession } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
 import { uploadKomiteQris } from '@/utils/r2'
 import { invalidateFinanceCache } from '@/lib/finance-cache'
+import { DSPT_SETTING_KEYS } from '@/lib/dspt-settings'
+import { dsptEntryModeSchema, dsptPackageSchema } from '@/lib/pmb-contract'
+import { logActivity } from '@/lib/activity-log'
 
 async function requirePengaturanKomite() {
   const session = await getSession()
@@ -69,6 +72,30 @@ export async function saveKomitePaymentSettings(formData: FormData) {
   revalidatePath('/dashboard/keuangan/pengaturan')
   revalidatePath('/portal-ortu')
   return { error: null, success: 'Pengaturan pembayaran komite berhasil disimpan.' }
+}
+
+export async function saveDsptSettings(input: { mode: string; defaultAmount: number; packages: unknown[]; allowOverride: boolean }) {
+  const { db, userId } = await requirePengaturanKomite()
+  if (!(await checkFeatureCrudAccess(db, userId, 'keuangan-pengaturan', 'update'))) return { error: 'Anda tidak memiliki izin mengubah pengaturan DSPT.', success: null }
+  const mode = dsptEntryModeSchema.safeParse(input.mode)
+  const packages = dsptPackageSchema.array().max(50).safeParse(input.packages)
+  const defaultAmount = Number(input.defaultAmount)
+  if (!mode.success || !packages.success || !Number.isSafeInteger(defaultAmount) || defaultAmount < 0) return { error: 'Pengaturan DSPT tidak valid.', success: null }
+  if (new Set(packages.data.map(item => item.id)).size !== packages.data.length) return { error: 'ID paket DSPT tidak boleh duplikat.', success: null }
+  const activeLabels = packages.data.filter(item => item.isActive).map(item => item.label.toLocaleLowerCase('id-ID'))
+  if (new Set(activeLabels).size !== activeLabels.length) return { error: 'Nama paket DSPT aktif tidak boleh duplikat.', success: null }
+  if (mode.data === 'default' && defaultAmount <= 0) return { error: 'Nominal default wajib lebih dari nol.', success: null }
+  if (mode.data === 'package' && !packages.data.some(item => item.isActive)) return { error: 'Minimal satu paket DSPT harus aktif.', success: null }
+  await setSystemSettings({
+    [DSPT_SETTING_KEYS.mode]: mode.data,
+    [DSPT_SETTING_KEYS.defaultAmount]: String(defaultAmount),
+    [DSPT_SETTING_KEYS.packages]: JSON.stringify(packages.data),
+    [DSPT_SETTING_KEYS.allowOverride]: input.allowOverride ? '1' : '0',
+  })
+  await logActivity({ db, module: 'keuangan-pengaturan', action: 'update_dspt_settings', summary: 'Memperbarui konfigurasi nominal DSPT', metadata: { mode: mode.data, defaultAmount, allowOverride: input.allowOverride, packageIds: packages.data.map(item => item.id) } })
+  revalidatePath('/dashboard/keuangan/pengaturan')
+  revalidatePath('/dashboard/keuangan/daftar-ulang')
+  return { error: null, success: 'Pengaturan nominal DSPT berhasil disimpan.' }
 }
 
 export async function uploadKomiteQrisAction(formData: FormData) {

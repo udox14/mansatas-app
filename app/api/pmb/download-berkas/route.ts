@@ -1,12 +1,10 @@
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { getCurrentUser, isCurrentUserPlayReviewer } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
-import { getUserRoles } from '@/lib/features'
-import { createZip } from '@/lib/zip'
+import { checkFeatureCrudAccess } from '@/lib/features'
+import { createZipStream, type ZipStreamEntry } from '@/lib/zip'
 
 export const dynamic = 'force-dynamic'
-
-const PMB_ROLES = ['super_admin', 'admin_tu', 'kepsek', 'wakamad']
 
 const URL_FIELDS = [
   { field: 'foto_url', label: 'foto' },
@@ -22,8 +20,12 @@ function urlToR2Key(url: string): string | null {
   const PREFIX = '/api/media/'
   const clean = url.split('?')[0]
   const idx = clean.indexOf(PREFIX)
-  if (idx === -1) return null
-  return clean.slice(idx + PREFIX.length)
+  let key = idx >= 0 ? clean.slice(idx + PREFIX.length) : ''
+  if (!key) {
+    try { const parsed = new URL(clean); const marker = '.r2.dev/'; const markerIndex = parsed.href.indexOf(marker); if (markerIndex >= 0) key = parsed.href.slice(markerIndex + marker.length) } catch { key = clean.startsWith('pmb/') ? clean : '' }
+  }
+  try { key = decodeURIComponent(key) } catch { return null }
+  return key.startsWith('pmb/') && !key.split('/').includes('..') ? key : null
 }
 
 function safeSeg(s: string) {
@@ -44,13 +46,14 @@ export async function GET(request: Request) {
   if (!user) return new Response('Unauthorized', { status: 401 })
 
   const db = await getDB()
-  const roles = await getUserRoles(db, user.id)
-  if (!roles.some((r) => PMB_ROLES.includes(r))) {
+  if (!(await checkFeatureCrudAccess(db, user.id, 'pmb', 'read'))) {
     return new Response('Forbidden', { status: 403 })
   }
 
   const url = new URL(request.url)
   const tahun = url.searchParams.get('tahun') || 'PMB'
+  const ids = (url.searchParams.get('ids') || '').split(',').map(value => value.trim()).filter(Boolean)
+  if (ids.length > 250) return new Response('Maksimal 250 pendaftar per arsip', { status: 400 })
   // UI mengirim '2026-2027'; DB menyimpan '2026/2027'.
   const tahunFilter = tahun.replace(/-/g, '/')
   const isYearPair = /^\d{4}\/\d{4}$/.test(tahunFilter)
@@ -58,29 +61,22 @@ export async function GET(request: Request) {
   const baseCols =
     'no_pendaftaran, nama_lengkap, foto_url, scan_kk_url, scan_akta_url, scan_ktp_ortu_url, scan_kelakuan_baik_url, scan_rapor_url, scan_sertifikat_prestasi_url'
 
-  // Filter per tahun ajaran untuk membatasi jumlah berkas per request.
-  // Bila tidak ada pendaftar yang cocok, fallback ke semua (perilaku lama)
-  // supaya fitur tidak berhenti bekerja.
   let rows: any[]
-  if (isYearPair) {
+  if (ids.length) {
+    rows = (await db.prepare(`SELECT id, ${baseCols} FROM pmb_pendaftar WHERE id IN (${ids.map(() => '?').join(',')}) ORDER BY no_pendaftaran`).bind(...ids).all<any>()).results
+  } else if (isYearPair) {
     rows = (await db.prepare(
       `SELECT ${baseCols} FROM pmb_pendaftar WHERE tahun_ajaran = ? ORDER BY no_pendaftaran`
     ).bind(tahunFilter).all<any>()).results
-    if (!rows?.length) {
-      rows = (await db.prepare(
-        `SELECT ${baseCols} FROM pmb_pendaftar ORDER BY no_pendaftaran`
-      ).all<any>()).results
-    }
   } else {
-    rows = (await db.prepare(
-      `SELECT ${baseCols} FROM pmb_pendaftar ORDER BY no_pendaftaran`
-    ).all<any>()).results
+    return new Response('Tahun PMB valid atau daftar ID wajib diberikan', { status: 400 })
   }
 
   if (!rows?.length) return new Response('Tidak ada data pendaftar', { status: 404 })
 
   const { env } = await getCloudflareContext({ async: true })
-  const entries: { name: string; bytes: Uint8Array }[] = []
+  const entries: ZipStreamEntry[] = []
+  const missing: string[] = []
 
   for (const row of rows) {
     const folder = `${safeSeg(row.no_pendaftaran)}_${safeSeg(row.nama_lengkap)}`
@@ -88,18 +84,22 @@ export async function GET(request: Request) {
       const fileUrl = row[field]
       if (!fileUrl) continue
       const key = urlToR2Key(fileUrl)
-      if (!key) continue
+      if (!key) { missing.push(`${folder}/${label}: URL tidak dikenali`); continue }
       const object = await env.R2.get(key)
-      if (!object) continue
-      const bytes = new Uint8Array(await object.arrayBuffer())
+      if (!object?.body) { missing.push(`${folder}/${label}: objek tidak ditemukan`); continue }
       const ext = extFrom(fileUrl)
-      entries.push({ name: `${folder}/${label}${ext}`, bytes })
+      entries.push({ name: `${folder}/${label}${ext}`, size: object.size, body: object.body as ReadableStream<Uint8Array> })
     }
+  }
+
+  if (missing.length) {
+    const bytes = new TextEncoder().encode(`Berkas yang tidak dapat dimasukkan:\n${missing.join('\n')}\n`)
+    entries.push({ name: '_manifest_berkas_tidak_ditemukan.txt', size: bytes.length, body: new Blob([bytes]).stream() })
   }
 
   if (entries.length === 0) return new Response('Tidak ada berkas tersimpan di R2', { status: 404 })
 
-  const zip = createZip(entries)
+  const zip = createZipStream(entries)
   const filename = `Berkas_PMB_${safeSeg(tahun)}.zip`
 
   return new Response(zip, {

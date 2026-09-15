@@ -31,6 +31,13 @@ CREATE TABLE IF NOT EXISTS pmb_pendaftar (
   berkas_ditolak               TEXT DEFAULT NULL,       -- alasan tolak berkas
   status_kelulusan             TEXT DEFAULT 'PENDING',  -- PENDING | DITERIMA | TIDAK DITERIMA
   daftar_ulang_status          TEXT DEFAULT NULL,       -- NULL | SELESAI
+  konfirmasi_daftar_ulang      TEXT,                    -- BERSEDIA | TIDAK_BERSEDIA
+  konfirmasi_rapat             TEXT,                    -- HADIR | TIDAK_HADIR
+  alasan_tidak_hadir           TEXT,
+  daftar_ulang_hardcopy_status TEXT,
+  daftar_ulang_hardcopy_at     TEXT,
+  daftar_ulang_diproses_at     TEXT,
+  daftar_ulang_diproses_oleh   TEXT,
   siswa_id                     TEXT,                    -- FK → siswa(id), diisi saat konversi
 
   -- ---- Data Diri ----
@@ -105,8 +112,24 @@ CREATE TABLE IF NOT EXISTS pmb_pendaftar (
   sesi_tes                     TEXT,
   ruang_tes                    TEXT,
   nilai_rapor                  REAL,
+  nilai_rapor_s1               REAL,
+  nilai_rapor_s2               REAL,
+  nilai_rapor_s3               REAL,
+  nilai_rapor_s4               REAL,
+  nilai_rapor_s5               REAL,
+  peringkat_rapor_s1           INTEGER,
+  peringkat_rapor_s2           INTEGER,
+  peringkat_rapor_s3           INTEGER,
+  peringkat_rapor_s4           INTEGER,
+  peringkat_rapor_s5           INTEGER,
+  avg_nilai_rapor              REAL,
+  integritas_rapor_at          TEXT,
 
-  FOREIGN KEY (siswa_id) REFERENCES siswa(id)
+  FOREIGN KEY (siswa_id) REFERENCES siswa(id),
+  FOREIGN KEY (daftar_ulang_diproses_oleh) REFERENCES "user"(id),
+  UNIQUE(tahun_ajaran, nisn),
+  UNIQUE(tahun_ajaran, nik),
+  UNIQUE(tahun_ajaran, no_pendaftaran)
 );
 
 CREATE INDEX IF NOT EXISTS idx_pmb_pendaftar_nisn        ON pmb_pendaftar(nisn);
@@ -152,6 +175,16 @@ INSERT OR IGNORE INTO pmb_pengaturan (key, value, is_active) VALUES
   ('teks_hero',            'Penerimaan Murid Baru MAN 1 Tasikmalaya', 1),
   ('link_grup_wa',         '',          1),
   ('kontak_wa',            '',          1);
+
+INSERT OR IGNORE INTO pmb_pengaturan (key, value, is_active) VALUES
+  ('jalur_reguler_dibuka', '1', 1), ('jalur_prestasi_dibuka', '1', 1),
+  ('kelulusan_aktif', '0', 1), ('cetak_kartu_aktif', '0', 1),
+  ('tanggal_pengumuman_reguler', '', 1), ('tanggal_pengumuman_prestasi', '', 1),
+  ('landing_popup_aktif', '0', 1), ('landing_popup_mode', 'instruksi', 1),
+  ('landing_popup_judul', '', 1), ('landing_popup_isi', '', 1),
+  ('landing_popup_tombol_text', '', 1), ('landing_popup_tombol_link', '', 1),
+  ('teks_batas_daftar_ulang', '', 1), ('link_berkas_pendukung', '', 1),
+  ('nama_kepala_madrasah', '', 1), ('nip_kepala_madrasah', '', 1);
 
 -- ============================================================
 -- pmb_jadwal_tes — config sesi tes utk plotting (admin)

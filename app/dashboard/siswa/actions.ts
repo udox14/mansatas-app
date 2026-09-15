@@ -98,6 +98,8 @@ export async function hapusSiswa(id: string) {
     .bind(id)
     .first<any>()
   if (!siswa) return { error: 'Siswa tidak ditemukan.' }
+  const pmbDspt = await db.prepare(`SELECT d.id FROM fin_dspt d LEFT JOIN pmb_pendaftar p ON p.siswa_id=d.siswa_id WHERE d.siswa_id=? AND (d.pmb_pendaftar_id IS NOT NULL OR p.id IS NOT NULL) LIMIT 1`).bind(id).first()
+  if (pmbDspt) return { error: 'Siswa memiliki target DSPT terkait PMB dan tidak dapat dihapus permanen. Gunakan status siswa keluar serta koreksi/void keuangan.' }
 
   // Bukti upload berada di R2 dan tidak ikut terhapus oleh foreign key DB.
   // Ambil URL sebelum baris pengajuan pembayaran dibersihkan.

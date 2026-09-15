@@ -24,6 +24,7 @@ import { ExportPanel } from './export-panel'
 import {
   verifikasiBerkas, setKelulusan, terimaJadiSiswa, bulkAlihReguler, importKelulusan, bulkTerimaJadiSiswa,
 } from '../actions'
+import { pmbRegistrationStage } from '@/lib/pmb-contract'
 
 export type Pendaftar = {
   id: string; no_pendaftaran: string; tahun_ajaran: string; jalur: string
@@ -31,7 +32,10 @@ export type Pendaftar = {
   siswa_id: string | null; nisn: string; nik: string; nama_lengkap: string; jenis_kelamin: string
   asal_sekolah: string; no_telepon_ortu: string; foto_url: string | null
   tanggal_tes: string | null; sesi_tes: string | null; ruang_tes: string | null
-  daftar_ulang_status: string | null; dspt_status: string | null; created_at: string
+  daftar_ulang_status: string | null; konfirmasi_daftar_ulang: string | null; konfirmasi_rapat: string | null
+  daftar_ulang_hardcopy_status: string | null; daftar_ulang_diproses_at: string | null
+  dspt_id: string | null; dspt_status: string | null; dspt_target: number | null
+  dspt_dibayar: number | null; dspt_diskon: number | null; created_at: string
 }
 
 type SortKey = 'nama_lengkap' | 'jalur' | 'asal_sekolah' | 'status_verifikasi' | 'status_kelulusan' | 'daftar_ulang_status'
@@ -69,8 +73,8 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
     diterima:       pendaftar.filter((p) => p.status_kelulusan === 'DITERIMA').length,
     tidakDiterima:  pendaftar.filter((p) => p.status_kelulusan === 'TIDAK DITERIMA').length,
     kelulusanPending: pendaftar.filter((p) => p.status_kelulusan === 'PENDING').length,
-    sudahDaftarUlang: pendaftar.filter((p) => p.daftar_ulang_status === 'SELESAI').length,
-    belumDaftarUlang: pendaftar.filter((p) => p.status_kelulusan === 'DITERIMA' && p.daftar_ulang_status !== 'SELESAI').length,
+    sudahDaftarUlang: pendaftar.filter((p) => Boolean(p.dspt_id)).length,
+    belumDaftarUlang: pendaftar.filter((p) => p.status_kelulusan === 'DITERIMA' && !p.dspt_id).length,
   }), [pendaftar])
 
   // ── Filter ────────────────────────────────────────────────────
@@ -84,7 +88,7 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
       }
       if (fLulus !== 'all' && p.status_kelulusan !== fLulus) return false
       if (fDaftarUlang !== 'all') {
-        const du = p.daftar_ulang_status === 'SELESAI' ? 'selesai' : 'belum'
+        const du = pmbRegistrationStage(p).toLowerCase()
         if (du !== fDaftarUlang) return false
       }
       if (fDspt !== 'all') {
@@ -289,7 +293,7 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
                     <div className="space-y-1">
                       <Label className="text-xs font-semibold text-slate-500">Daftar Ulang</Label>
                       <FilterSelect value={fDaftarUlang} onChange={(v) => { setFDaftarUlang(v); setPage(1) }} placeholder="Daftar Ulang"
-                        options={[['all', 'Semua DU'], ['selesai', 'Sudah DU'], ['belum', 'Belum DU']]} className="w-full" />
+                        options={[['all', 'Semua DU'], ['belum_konfirmasi', 'Belum Konfirmasi'], ['menunggu_konversi', 'Menunggu Konversi'], ['menunggu_kasir', 'Menunggu Kasir'], ['selesai', 'Selesai']]} className="w-full" />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs font-semibold text-slate-500">DSPT</Label>
@@ -328,7 +332,7 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
             <FilterSelect value={fLulus} onChange={(v) => { setFLulus(v); setPage(1) }} placeholder="Kelulusan"
               options={[['all', 'Semua Hasil'], ['PENDING', 'Pending'], ['DITERIMA', 'Diterima'], ['TIDAK DITERIMA', 'Tidak Diterima']]} />
             <FilterSelect value={fDaftarUlang} onChange={(v) => { setFDaftarUlang(v); setPage(1) }} placeholder="Daftar Ulang"
-              options={[['all', 'Semua DU'], ['selesai', 'Sudah DU'], ['belum', 'Belum DU']]} />
+              options={[['all', 'Semua DU'], ['belum_konfirmasi', 'Belum Konfirmasi'], ['menunggu_konversi', 'Menunggu Konversi'], ['menunggu_kasir', 'Menunggu Kasir'], ['selesai', 'Selesai']]} />
             <FilterSelect value={fDspt} onChange={(v) => { setFDspt(v); setPage(1) }} placeholder="DSPT"
               options={[['all', 'Semua DSPT'], ['lunas', 'Lunas'], ['nyicil', 'Nyicil'], ['belum_bayar', 'Belum Bayar'], ['null', 'Belum Diinput']]} />
             <Button variant="outline" size="sm" onClick={downloadTemplate} title="Download template Excel untuk import kelulusan" className="h-9">
@@ -454,12 +458,12 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
                           {p.tanggal_tes ? `${p.tanggal_tes} (${p.sesi_tes})` : 'Belum diplot'}
                         </span>
                         
-                        {p.status_kelulusan === 'DITERIMA' && !p.siswa_id && (
+                        {p.status_kelulusan === 'DITERIMA' && p.status_verifikasi === 1 && p.konfirmasi_daftar_ulang === 'BERSEDIA' && !p.siswa_id && (
                           <Button size="sm" variant="outline" className="h-6 px-2 text-[9px] font-bold" disabled={pending} onClick={() => doTerima(p.id)}>
                             <UserPlus className="h-3 w-3 mr-0.5" /> Siswa
                           </Button>
                         )}
-                        {p.siswa_id && <span className="text-[9px] text-emerald-600 font-bold flex items-center gap-0.5">✓ Siswa</span>}
+                        {p.siswa_id && !p.dspt_id && <Button asChild size="sm" variant="outline" className="h-6 px-2 text-[9px]"><a href={`/dashboard/keuangan/daftar-ulang?q=${encodeURIComponent(p.nisn)}`}>Buka Kasir</a></Button>}
                       </div>
                     </div>
                   </div>
@@ -530,30 +534,29 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
                         {p.tanggal_tes ? <><div>{p.tanggal_tes}</div><div className="opacity-70">{p.sesi_tes} · {p.ruang_tes}</div></> : <span className="text-slate-300">—</span>}
                       </TableCell>
                       <TableCell className="py-2">
-                        {p.daftar_ulang_status === 'SELESAI'
-                          ? <span className="text-xs text-emerald-600 font-semibold flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" />Selesai</span>
-                          : p.status_kelulusan === 'DITERIMA'
-                            ? <span className="text-xs text-amber-600">Belum</span>
-                            : <span className="text-xs text-slate-300">—</span>
-                        }
+                        <DaftarUlangBadge p={p} />
+                        <div className={`mt-1 text-[10px] ${p.daftar_ulang_hardcopy_status === 'DITERIMA' ? 'text-emerald-600' : 'text-slate-400'}`}>
+                          Hardcopy: {p.daftar_ulang_hardcopy_status === 'DITERIMA' ? 'diterima' : 'belum'}
+                        </div>
                       </TableCell>
                       <TableCell className="py-2"><DsptBadge s={p.dspt_status} /></TableCell>
                       <TableCell className="py-2 text-right">
                         <div className="flex gap-1 justify-end">
                           <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setDetailId(p.id)}><Eye className="h-4 w-4" /></Button>
-                          {p.status_kelulusan === 'DITERIMA' && !p.siswa_id && (
+                          {p.status_kelulusan === 'DITERIMA' && p.status_verifikasi === 1 && p.konfirmasi_daftar_ulang === 'BERSEDIA' && !p.siswa_id && (
                             <Button size="sm" variant="outline" className="h-7 text-xs" disabled={pending} onClick={() => doTerima(p.id)}>
                               <UserPlus className="h-3.5 w-3.5 mr-1" />Jadi Siswa
                             </Button>
                           )}
-                          {p.siswa_id && <span className="text-xs text-emerald-600 self-center px-1 font-semibold">✓ Siswa</span>}
+                          {p.siswa_id && !p.dspt_id && <Button asChild size="sm" variant="outline" className="h-7 text-xs"><a href={`/dashboard/keuangan/daftar-ulang?q=${encodeURIComponent(p.nisn)}`}>Kasir</a></Button>}
+                          {p.dspt_id && <span className="text-xs text-emerald-600 self-center px-1 font-semibold">✓ Diproses</span>}
                         </div>
                       </TableCell>
                     </TableRow>
                   ))}
                   {paginated.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center text-muted-foreground py-10 text-sm">
+                      <TableCell colSpan={10} className="text-center text-muted-foreground py-10 text-sm">
                         Tidak ada data sesuai filter
                       </TableCell>
                     </TableRow>
@@ -571,7 +574,7 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
 
         {/* ════════════════════════ TAB EXPORT ════════════════════════ */}
         <TabsContent value="export">
-          <ExportPanel pendaftar={pendaftar} pengaturan={pengaturan} onFlash={flash} />
+          <ExportPanel pendaftar={pendaftar} selectedIds={Array.from(selected)} pengaturan={pengaturan} onFlash={flash} />
         </TabsContent>
 
         {/* ════════════════════════ TAB PENGATURAN ════════════════════════ */}
@@ -653,4 +656,12 @@ export function DsptBadge({ s }: { s: string | null }) {
   if (s === 'nyicil') return <Badge className="text-[10px] bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-100">Nyicil</Badge>
   if (s === 'belum_bayar') return <Badge className="text-[10px] bg-red-100 text-red-700 border-red-300 hover:bg-red-100">Belum Bayar</Badge>
   return <span className="text-xs text-slate-300">—</span>
+}
+
+function DaftarUlangBadge({ p }: { p: Pendaftar }) {
+  const stage = pmbRegistrationStage(p)
+  if (stage === 'SELESAI') return <span className="text-xs text-emerald-600 font-semibold">Selesai</span>
+  if (stage === 'MENUNGGU_KASIR') return <span className="text-xs text-blue-600 font-semibold">Menunggu Kasir</span>
+  if (stage === 'MENUNGGU_KONVERSI') return <span className="text-xs text-amber-600 font-semibold">Menunggu Konversi</span>
+  return <span className="text-xs text-slate-400">Belum Konfirmasi</span>
 }

@@ -47,9 +47,21 @@ const FIELDS: [string, string, string][] = [
   ['tanggal_buka', 'Tanggal Buka', ''],
   ['tanggal_tutup', 'Tanggal Tutup', ''],
   ['tanggal_pengumuman', 'Tanggal Pengumuman', ''],
+  ['tanggal_pengumuman_reguler', 'Tanggal Pengumuman Reguler', ''],
+  ['tanggal_pengumuman_prestasi', 'Tanggal Pengumuman Prestasi', ''],
+  ['kelulusan_aktif', 'Pengumuman Kelulusan Aktif', '0'],
+  ['cetak_kartu_aktif', 'Cetak Kartu Aktif', '0'],
   ['teks_hero', 'Teks Hero Beranda', ''],
   ['link_grup_wa', 'Link Grup WhatsApp', ''],
   ['kontak_wa', 'Kontak WA (cth 628xxx)', ''],
+  ['link_berkas_pendukung', 'Link Berkas Pendukung', ''],
+  ['landing_popup_aktif', 'Popup Landing Aktif', '0'],
+  ['landing_popup_mode', 'Mode Popup', 'instruksi'],
+  ['landing_popup_judul', 'Judul Popup', ''],
+  ['landing_popup_isi', 'Isi Popup', ''],
+  ['landing_popup_tombol_text', 'Teks Tombol Popup', ''],
+  ['landing_popup_tombol_link', 'Tautan Tombol Popup', ''],
+  ['teks_batas_daftar_ulang', 'Batas Daftar Ulang', ''],
   ['teks_daftar_reg', 'Alur: Daftar Reguler', '20 April – 20 Mei 2026'],
   ['teks_tes_cbt', 'Alur: Tes CBT', '21 – 23 Mei 2026'],
   ['teks_pengumuman_reg', 'Alur: Pengumuman Reguler', '25 Mei 2026'],
@@ -64,6 +76,8 @@ const FIELDS: [string, string, string][] = [
   ['nama_ketua_pmb', 'Cetak: Nama Ketua PMB', 'Dede Fathul Umam, S.Pd.I.'],
   ['nip_ketua_pmb', 'Cetak: NIP Ketua PMB', '197809132009011011'],
   ['tanggal_rapat_komite', 'Cetak Surat: Tanggal', ''],
+  ['nama_kepala_madrasah', 'Nama Kepala Madrasah', ''],
+  ['nip_kepala_madrasah', 'NIP Kepala Madrasah', ''],
 ]
 
 type CategoryId = 'sistem' | 'landing' | 'reguler' | 'prestasi' | 'cetak'
@@ -114,7 +128,7 @@ export function PengaturanPanel({ pengaturan, onFlash }: {
   const [vals, setVals] = useState<Record<string, string>>(() => {
     const v: Record<string, string> = {}
     for (const [k] of FIELDS) {
-      v[k] = pengaturan[k] ?? (k === 'pmb_dibuka' || k === 'jalur_reguler_dibuka' || k === 'jalur_prestasi_dibuka' ? '1' : '')
+      v[k] = pengaturan[k] ?? FIELDS.find(([key]) => key === k)?.[2] ?? ''
     }
     return v
   })
@@ -226,6 +240,12 @@ export function PengaturanPanel({ pengaturan, onFlash }: {
                     </Select>
                   </div>
                 </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Pengumuman Kelulusan</Label><Select value={vals.kelulusan_aktif} onValueChange={(v) => setVals({ ...vals, kelulusan_aktif: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="1">Aktif</SelectItem><SelectItem value="0">Nonaktif</SelectItem></SelectContent></Select></div>
+                  <div className="space-y-2"><Label>Cetak Kartu Ujian</Label><Select value={vals.cetak_kartu_aktif} onValueChange={(v) => setVals({ ...vals, cetak_kartu_aktif: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="1">Aktif</SelectItem><SelectItem value="0">Nonaktif</SelectItem></SelectContent></Select></div>
+                  <div className="space-y-2"><Label>Pengumuman Reguler</Label><Input type="datetime-local" value={formatToDatetimeLocal(vals.tanggal_pengumuman_reguler)} onChange={(e) => setVals({ ...vals, tanggal_pengumuman_reguler: e.target.value })}/></div>
+                  <div className="space-y-2"><Label>Pengumuman Prestasi</Label><Input type="datetime-local" value={formatToDatetimeLocal(vals.tanggal_pengumuman_prestasi)} onChange={(e) => setVals({ ...vals, tanggal_pengumuman_prestasi: e.target.value })}/></div>
+                </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-2">
@@ -264,6 +284,16 @@ export function PengaturanPanel({ pengaturan, onFlash }: {
                     <Input id="teks_rapat" value={vals.teks_rapat} placeholder="6 Juni 2026" onChange={(e) => setVals({ ...vals, teks_rapat: e.target.value })} />
                   </div>
                 </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Link Berkas Pendukung</Label><Input value={vals.link_berkas_pendukung} onChange={(e) => setVals({ ...vals, link_berkas_pendukung: e.target.value })}/></div>
+                  <div className="space-y-2"><Label>Batas Daftar Ulang</Label><Input value={vals.teks_batas_daftar_ulang} onChange={(e) => setVals({ ...vals, teks_batas_daftar_ulang: e.target.value })}/></div>
+                  <div className="space-y-2"><Label>Popup Landing</Label><Select value={vals.landing_popup_aktif} onValueChange={(v) => setVals({ ...vals, landing_popup_aktif: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="1">Aktif</SelectItem><SelectItem value="0">Nonaktif</SelectItem></SelectContent></Select></div>
+                  <div className="space-y-2"><Label>Mode Popup</Label><Select value={vals.landing_popup_mode} onValueChange={(v) => setVals({ ...vals, landing_popup_mode: v })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="instruksi">Instruksi</SelectItem><SelectItem value="pengumuman">Pengumuman</SelectItem></SelectContent></Select></div>
+                  <div className="space-y-2"><Label>Judul Popup</Label><Input value={vals.landing_popup_judul} onChange={(e) => setVals({ ...vals, landing_popup_judul: e.target.value })}/></div>
+                  <div className="space-y-2"><Label>Teks Tombol Popup</Label><Input value={vals.landing_popup_tombol_text} onChange={(e) => setVals({ ...vals, landing_popup_tombol_text: e.target.value })}/></div>
+                  <div className="space-y-2 sm:col-span-2"><Label>Isi Popup</Label><Input value={vals.landing_popup_isi} onChange={(e) => setVals({ ...vals, landing_popup_isi: e.target.value })}/></div>
+                  <div className="space-y-2 sm:col-span-2"><Label>Tautan Tombol Popup</Label><Input value={vals.landing_popup_tombol_link} onChange={(e) => setVals({ ...vals, landing_popup_tombol_link: e.target.value })}/></div>
+                </div>
               </div>
             )}
 
@@ -272,6 +302,10 @@ export function PengaturanPanel({ pengaturan, onFlash }: {
                 <div className="space-y-2">
                   <Label htmlFor="teks_daftar_reg" className="text-xs font-semibold text-slate-700 dark:text-slate-300">Alur: Daftar Reguler</Label>
                   <Input id="teks_daftar_reg" value={vals.teks_daftar_reg} placeholder="20 April – 20 Mei 2026" onChange={(e) => setVals({ ...vals, teks_daftar_reg: e.target.value })} />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Nama Kepala Madrasah</Label><Input value={vals.nama_kepala_madrasah} onChange={(e) => setVals({ ...vals, nama_kepala_madrasah: e.target.value })}/></div>
+                  <div className="space-y-2"><Label>NIP Kepala Madrasah</Label><Input value={vals.nip_kepala_madrasah} onChange={(e) => setVals({ ...vals, nip_kepala_madrasah: e.target.value })}/></div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="teks_tes_cbt" className="text-xs font-semibold text-slate-700 dark:text-slate-300">Alur: Tes CBT</Label>

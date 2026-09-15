@@ -1,14 +1,15 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
-import { FileSpreadsheet, Archive, Download, Loader2 } from 'lucide-react'
+import { FileSpreadsheet, Archive, Download, Loader2, Printer } from 'lucide-react'
 import type { Pendaftar } from './pmb-client'
 import { getExportData } from '../actions'
 import { downloadBlobFile } from '@/lib/pdf/download'
+import { pmbRegistrationStage } from '@/lib/pmb-contract'
 
 const EXCEL_COLS = [
   { key: 'no_pendaftaran', label: 'No. Pendaftaran' },
@@ -29,6 +30,8 @@ const EXCEL_COLS = [
   { key: 'provinsi', label: 'Provinsi' },
   { key: 'kabupaten_kota', label: 'Kab/Kota' },
   { key: 'kecamatan', label: 'Kecamatan' },
+  { key: 'desa_kelurahan', label: 'Desa/Kelurahan' },
+  { key: 'rt', label: 'RT' }, { key: 'rw', label: 'RW' }, { key: 'kode_pos', label: 'Kode Pos' },
   { key: 'alamat_lengkap', label: 'Alamat' },
   { key: 'pilihan_pesantren', label: 'Pilihan Pesantren' },
   { key: 'status_verifikasi', label: 'Status Verifikasi' },
@@ -37,17 +40,38 @@ const EXCEL_COLS = [
   { key: 'sesi_tes', label: 'Sesi Tes' },
   { key: 'ruang_tes', label: 'Ruang Tes' },
   { key: 'daftar_ulang_status', label: 'Daftar Ulang' },
+  { key: 'konfirmasi_daftar_ulang', label: 'Konfirmasi Daftar Ulang' },
+  { key: 'daftar_ulang_hardcopy_status', label: 'Hardcopy Daftar Ulang' },
+  { key: 'dspt_target', label: 'Target DSPT' }, { key: 'dspt_dibayar', label: 'DSPT Dibayar' },
+  { key: 'dspt_diskon', label: 'DSPT Diskon' }, { key: 'dspt_status', label: 'Status DSPT' },
+  { key: 'nilai_rapor_s1', label: 'Nilai Rapor S1' }, { key: 'nilai_rapor_s2', label: 'Nilai Rapor S2' },
+  { key: 'nilai_rapor_s3', label: 'Nilai Rapor S3' }, { key: 'nilai_rapor_s4', label: 'Nilai Rapor S4' },
+  { key: 'nilai_rapor_s5', label: 'Nilai Rapor S5' }, { key: 'avg_nilai_rapor', label: 'Rata-rata Rapor' },
   { key: 'created_at', label: 'Tgl Daftar' },
 ]
 
-export function ExportPanel({ pendaftar, pengaturan, onFlash }: {
+export function ExportPanel({ pendaftar, selectedIds, pengaturan, onFlash }: {
   pendaftar: Pendaftar[]
+  selectedIds: string[]
   pengaturan: Record<string, string>
   onFlash: (r: { success?: string; error?: string }) => void
 }) {
   const [cols, setCols] = useState<Set<string>>(new Set(EXCEL_COLS.map((c) => c.key)))
   const [exporting, setExporting] = useState(false)
   const [zipping, setZipping] = useState(false)
+  const [printing, setPrinting] = useState(false)
+  const years = Array.from(new Set(pendaftar.map(item => item.tahun_ajaran).filter(Boolean)))
+  const [tahun, setTahun] = useState(pengaturan.tahun_pmb || years[0] || 'all')
+  const [jalur, setJalur] = useState('all')
+  const [gender, setGender] = useState('all')
+  const [verifikasi, setVerifikasi] = useState('all')
+  const [kelulusan, setKelulusan] = useState('all')
+  const [konversi, setKonversi] = useState('all')
+  const [daftarUlang, setDaftarUlang] = useState('all')
+  const [dspt, setDspt] = useState('all')
+  const [hardcopy, setHardcopy] = useState('all')
+  const [jadwalStatus, setJadwalStatus] = useState('all')
+  const filters = { tahun, jalur, gender, verifikasi, kelulusan, konversi, daftarUlang, dspt, hardcopy, jadwal: jadwalStatus, ids: selectedIds.length ? selectedIds : undefined }
 
   function toggleCol(key: string) {
     setCols((prev) => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n })
@@ -60,7 +84,7 @@ export function ExportPanel({ pendaftar, pengaturan, onFlash }: {
     if (!cols.size) { onFlash({ error: 'Pilih minimal 1 kolom' }); return }
     setExporting(true)
     try {
-      const res = await getExportData()
+      const res = await getExportData(filters)
       if (res.error || !res.data.length) { onFlash({ error: res.error || 'Tidak ada data' }); return }
       const XLSX = await import('xlsx')
       const selectedCols = EXCEL_COLS.filter((c) => cols.has(c.key))
@@ -80,9 +104,9 @@ export function ExportPanel({ pendaftar, pengaturan, onFlash }: {
       const colWidths = selectedCols.map((c) => ({ wch: Math.max(c.label.length, 14) }))
       ws['!cols'] = colWidths
       const wb = XLSX.utils.book_new()
-      const tahun = pengaturan.tahun_pmb || 'PMB'
-      XLSX.utils.book_append_sheet(wb, ws, `Data Pendaftar ${tahun}`)
-      XLSX.writeFile(wb, `Data_Pendaftar_PMB_${tahun.replace('/', '-')}.xlsx`)
+      const tahunLabel = tahun === 'all' ? 'Semua-Tahun' : tahun
+      XLSX.utils.book_append_sheet(wb, ws, `Data Pendaftar ${tahunLabel}`)
+      XLSX.writeFile(wb, `Data_Pendaftar_PMB_${tahunLabel.replace('/', '-')}.xlsx`)
       onFlash({ success: `${rows.length} baris diekspor ke Excel` })
     } catch (e) {
       onFlash({ error: 'Gagal ekspor Excel' })
@@ -94,16 +118,26 @@ export function ExportPanel({ pendaftar, pengaturan, onFlash }: {
   async function exportZip() {
     setZipping(true)
     try {
-      const tahun = (pengaturan.tahun_pmb || 'PMB').replace('/', '-')
-      const res = await fetch(`/api/pmb/download-berkas?tahun=${encodeURIComponent(tahun)}`)
-      if (!res.ok) {
-        const msg = await res.text()
-        onFlash({ error: msg || 'Gagal membuat ZIP' })
-        return
+      const matchingIds = selectedIds.length ? selectedIds : pendaftar.filter(item =>
+        (tahun === 'all' || item.tahun_ajaran === tahun) && (jalur === 'all' || item.jalur === jalur) &&
+        (gender === 'all' || item.jenis_kelamin === gender) &&
+        (verifikasi === 'all' || (verifikasi === 'pending' ? item.status_verifikasi === null : item.status_verifikasi === (verifikasi === 'ok' ? 1 : 0))) &&
+        (kelulusan === 'all' || item.status_kelulusan === kelulusan) &&
+        (konversi === 'all' || (konversi === 'sudah') === Boolean(item.siswa_id)) &&
+        (daftarUlang === 'all' || pmbRegistrationStage(item).toLowerCase() === daftarUlang) &&
+        (dspt === 'all' || (dspt === 'null' ? !item.dspt_id : item.dspt_status === dspt)) &&
+        (hardcopy === 'all' || (hardcopy === 'sudah') === (item.daftar_ulang_hardcopy_status === 'DITERIMA')) &&
+        (jadwalStatus === 'all' || (jadwalStatus === 'sudah') === Boolean(item.tanggal_tes))
+      ).map(item => item.id)
+      if (!matchingIds.length) { onFlash({ error: 'Tidak ada pendaftar sesuai filter.' }); return }
+      const chunks = Array.from({ length: Math.ceil(matchingIds.length / 250) }, (_, index) => matchingIds.slice(index * 250, (index + 1) * 250))
+      const tahunLabel = (tahun === 'all' ? 'Pilihan' : tahun).replace('/', '-')
+      for (let index = 0; index < chunks.length; index++) {
+        const res = await fetch(`/api/pmb/download-berkas?tahun=${encodeURIComponent(tahunLabel)}&ids=${encodeURIComponent(chunks[index].join(','))}`)
+        if (!res.ok) { onFlash({ error: await res.text() || 'Gagal membuat ZIP' }); return }
+        await downloadBlobFile(await res.blob(), `Berkas_PMB_${tahunLabel}_bagian-${index + 1}.zip`)
       }
-      const blob = await res.blob()
-      await downloadBlobFile(blob, `Berkas_PMB_${tahun}.zip`)
-      onFlash({ success: 'ZIP berhasil diunduh' })
+      onFlash({ success: `${chunks.length} arsip ZIP berhasil diunduh` })
     } catch (e) {
       onFlash({ error: 'Gagal membuat ZIP' })
     } finally {
@@ -111,7 +145,34 @@ export function ExportPanel({ pendaftar, pengaturan, onFlash }: {
     }
   }
 
+  async function printPdf(type: 'kartu' | 'prestasi') {
+    const matched = await getExportData(filters)
+    if (matched.error) { onFlash({ error: matched.error }); return }
+    const ids = matched.data.map((item: any) => item.id)
+    if (!ids.length || ids.length > 250) { onFlash({ error: 'Pilih atau filter maksimal 250 pendaftar untuk satu PDF.' }); return }
+    setPrinting(true)
+    try {
+      const response = await fetch(`/api/pmb/print?type=${type}&ids=${encodeURIComponent(ids.join(','))}`)
+      if (!response.ok) { onFlash({ error: await response.text() }); return }
+      await downloadBlobFile(await response.blob(), `PMB_${type}.pdf`)
+      onFlash({ success: 'PDF berhasil dibuat.' })
+    } finally { setPrinting(false) }
+  }
+
   return (
+    <div className="space-y-4">
+      <Card><CardContent className="pt-4"><div className="grid gap-2 md:grid-cols-3 lg:grid-cols-5">
+        <Filter label="Tahun" value={tahun} set={setTahun} options={[['all','Semua Tahun'], ...years.map(value => [value,value] as [string,string])]} />
+        <Filter label="Jalur" value={jalur} set={setJalur} options={[['all','Semua'],['REGULER','Reguler'],['PRESTASI','Prestasi']]} />
+        <Filter label="Gender" value={gender} set={setGender} options={[['all','Semua'],['LAKI_LAKI','Laki-laki'],['PEREMPUAN','Perempuan']]} />
+        <Filter label="Verifikasi" value={verifikasi} set={setVerifikasi} options={[['all','Semua'],['pending','Menunggu'],['ok','Terverifikasi'],['tolak','Ditolak']]} />
+        <Filter label="Kelulusan" value={kelulusan} set={setKelulusan} options={[['all','Semua'],['PENDING','Pending'],['DITERIMA','Diterima'],['TIDAK DITERIMA','Tidak Diterima']]} />
+        <Filter label="Konversi" value={konversi} set={setKonversi} options={[['all','Semua'],['sudah','Sudah jadi siswa'],['belum','Belum']]} />
+        <Filter label="Daftar Ulang" value={daftarUlang} set={setDaftarUlang} options={[['all','Semua'],['belum_konfirmasi','Belum konfirmasi'],['menunggu_konversi','Menunggu konversi'],['menunggu_kasir','Menunggu kasir'],['selesai','Selesai']]} />
+        <Filter label="DSPT" value={dspt} set={setDspt} options={[['all','Semua'],['null','Belum Diinput'],['belum_bayar','Belum Bayar'],['nyicil','Nyicil'],['lunas','Lunas']]} />
+        <Filter label="Hardcopy" value={hardcopy} set={setHardcopy} options={[['all','Semua'],['sudah','Sudah diterima'],['belum','Belum']]} />
+        <Filter label="Jadwal" value={jadwalStatus} set={setJadwalStatus} options={[['all','Semua'],['sudah','Sudah terjadwal'],['belum','Belum']]} />
+      </div>{selectedIds.length > 0 && <p className="mt-2 text-xs text-blue-600">Export dibatasi ke {selectedIds.length} pendaftar terpilih.</p>}</CardContent></Card>
     <div className="grid gap-4 md:grid-cols-2">
       {/* ── Export Excel ── */}
       <Card>
@@ -178,6 +239,11 @@ export function ExportPanel({ pendaftar, pengaturan, onFlash }: {
           </Button>
         </CardContent>
       </Card>
-    </div>
+      <Card className="md:col-span-2"><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Printer className="h-5 w-5"/>Cetak Massal PDF</CardTitle><CardDescription>Gunakan data terpilih; jika tidak ada, gunakan filter tahun dan jalur.</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-2"><Button disabled={printing} onClick={() => printPdf('kartu')}><Printer className="mr-2 h-4 w-4"/>Kartu Ujian</Button><Button disabled={printing} variant="outline" onClick={() => printPdf('prestasi')}><Printer className="mr-2 h-4 w-4"/>Form Verifikasi Prestasi</Button></CardContent></Card>
+    </div></div>
   )
+}
+
+function Filter({ label, value, set, options }: { label: string; value: string; set: (value: string) => void; options: [string,string][] }) {
+  return <label className="space-y-1 text-xs"><span className="font-medium">{label}</span><select className="h-9 w-full rounded-md border bg-background px-2" value={value} onChange={event => set(event.target.value)}>{options.map(([key,text]) => <option key={key} value={key}>{text}</option>)}</select></label>
 }

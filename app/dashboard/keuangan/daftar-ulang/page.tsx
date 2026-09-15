@@ -6,6 +6,7 @@ import { checkFeatureAccess } from '@/lib/features'
 import { PageLoading } from '@/components/layout/page-loading'
 import { PageHeader } from '@/components/layout/page-header'
 import { DaftarUlangClient } from './daftar-ulang-client'
+import { getDsptSettings } from '@/lib/dspt-settings'
 
 export const metadata = { title: 'Kasir Daftar Ulang — Keuangan' }
 export const dynamic = 'force-dynamic'
@@ -18,9 +19,10 @@ async function DaftarUlangDataFetcher() {
   const allowed = await checkFeatureAccess(db, user.id, 'keuangan-daftar-ulang')
   if (!allowed) redirect('/dashboard')
 
-  const [taAktif, userRow] = await Promise.all([
+  const [taAktif, userRow, dsptSettings] = await Promise.all([
     db.prepare('SELECT id, nama FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string; nama: string }>(),
     db.prepare('SELECT nama_lengkap FROM "user" WHERE id = ?').bind(user.id).first<{ nama_lengkap: string | null }>(),
+    getDsptSettings(),
   ])
   const namaPetugas = userRow?.nama_lengkap?.trim() || 'Petugas'
 
@@ -34,6 +36,7 @@ async function DaftarUlangDataFetcher() {
         tahunAjaranId={taAktif?.id ?? ''}
         tahunAjaranNama={taAktif?.nama ?? '-'}
         namaPetugas={namaPetugas}
+        dsptSettings={dsptSettings}
       />
     </>
   )

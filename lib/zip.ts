@@ -29,6 +29,13 @@ function crc32(bytes: Uint8Array) {
   return (crc ^ 0xffffffff) >>> 0
 }
 
+function crc32Update(crc: number, chunk: Uint8Array) {
+  const table = getCrcTable()
+  let value = crc
+  for (let i = 0; i < chunk.length; i++) value = table[(value ^ chunk[i]) & 0xff] ^ (value >>> 8)
+  return value
+}
+
 function dosDateTime(date = new Date()) {
   const year = Math.max(1980, date.getFullYear())
   const dosTime = (date.getHours() << 11) | (date.getMinutes() << 5) | Math.floor(date.getSeconds() / 2)
@@ -120,4 +127,46 @@ export function createZip(entries: ZipEntry[]) {
   ])
 
   return concat([...localParts, ...centralParts, end])
+}
+
+export type ZipStreamEntry = { name: string; size: number; body: ReadableStream<Uint8Array> }
+
+// Streaming ZIP (store/no compression) using data descriptors. File bodies are
+// never collected into one Worker-sized buffer.
+export function createZipStream(entries: ZipStreamEntry[]): ReadableStream<Uint8Array> {
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const centralParts: Uint8Array[] = []
+      const { dosDate, dosTime } = dosDateTime()
+      let offset = 0
+      try {
+        for (const entry of entries) {
+          const nameBytes = encoder.encode(entry.name)
+          const localHeader = bytes([...u32(0x04034b50), ...u16(20), ...u16(0x0808), ...u16(0), ...u16(dosTime), ...u16(dosDate), ...u32(0), ...u32(0), ...u32(0), ...u16(nameBytes.length), ...u16(0)])
+          controller.enqueue(localHeader); controller.enqueue(nameBytes)
+          let crc = 0xffffffff
+          let size = 0
+          const reader = entry.body.getReader()
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            crc = crc32Update(crc, value); size += value.length; controller.enqueue(value)
+          }
+          crc = (crc ^ 0xffffffff) >>> 0
+          const descriptor = bytes([...u32(0x08074b50), ...u32(crc), ...u32(size), ...u32(size)])
+          controller.enqueue(descriptor)
+          const centralHeader = bytes([
+            ...u32(0x02014b50), ...u16(20), ...u16(20), ...u16(0x0808), ...u16(0), ...u16(dosTime), ...u16(dosDate),
+            ...u32(crc), ...u32(size), ...u32(size), ...u16(nameBytes.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(offset),
+          ])
+          centralParts.push(centralHeader, nameBytes)
+          offset += localHeader.length + nameBytes.length + size + descriptor.length
+        }
+        const centralSize = centralParts.reduce((sum, part) => sum + part.length, 0)
+        for (const part of centralParts) controller.enqueue(part)
+        controller.enqueue(bytes([...u32(0x06054b50), ...u16(0), ...u16(0), ...u16(entries.length), ...u16(entries.length), ...u32(centralSize), ...u32(offset), ...u16(0)]))
+        controller.close()
+      } catch (error) { controller.error(error) }
+    },
+  })
 }

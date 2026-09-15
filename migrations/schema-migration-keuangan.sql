@@ -13,10 +13,22 @@ CREATE TABLE IF NOT EXISTS fin_dspt (
   -- status: belum_bayar | nyicil | lunas
   status           TEXT NOT NULL DEFAULT 'belum_bayar',
   catatan          TEXT,
+  pmb_pendaftar_id TEXT UNIQUE REFERENCES pmb_pendaftar(id),
+  nominal_mode     TEXT NOT NULL DEFAULT 'manual',
+  nominal_package_id TEXT,
+  nominal_override_reason TEXT,
   created_at       TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at       TEXT NOT NULL DEFAULT (datetime('now')),
   UNIQUE(siswa_id)
 );
+
+CREATE TABLE IF NOT EXISTS fin_operation_idempotency (
+  request_key TEXT PRIMARY KEY,
+  operation_type TEXT NOT NULL,
+  actor_id TEXT REFERENCES "user"(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_fin_operation_idempotency_created ON fin_operation_idempotency(created_at);
 CREATE INDEX IF NOT EXISTS idx_fin_dspt_siswa ON fin_dspt(siswa_id);
 CREATE INDEX IF NOT EXISTS idx_fin_dspt_status ON fin_dspt(status);
 

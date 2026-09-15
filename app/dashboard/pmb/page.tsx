@@ -17,8 +17,11 @@ async function PmbFetcher() {
     db.prepare(
       `SELECT p.id, p.no_pendaftaran, p.tahun_ajaran, p.jalur, p.status_verifikasi, p.status_kelulusan,
         p.berkas_ditolak, p.siswa_id, p.nisn, p.nik, p.nama_lengkap, p.jenis_kelamin, p.asal_sekolah,
-        p.no_telepon_ortu, p.tanggal_tes, p.sesi_tes, p.ruang_tes, p.daftar_ulang_status, p.created_at, p.foto_url,
-        d.status AS dspt_status
+        p.no_telepon_ortu, p.tanggal_tes, p.sesi_tes, p.ruang_tes, p.daftar_ulang_status,
+        p.konfirmasi_daftar_ulang, p.konfirmasi_rapat, p.daftar_ulang_hardcopy_status,
+        p.daftar_ulang_diproses_at, p.created_at, p.foto_url,
+        d.id AS dspt_id, d.status AS dspt_status, d.nominal_target AS dspt_target,
+        d.total_dibayar AS dspt_dibayar, d.total_diskon AS dspt_diskon
        FROM pmb_pendaftar p
        LEFT JOIN fin_dspt d ON p.siswa_id IS NOT NULL AND d.siswa_id = p.siswa_id
        ORDER BY p.no_pendaftaran`,

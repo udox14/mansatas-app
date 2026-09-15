@@ -1,30 +1,26 @@
 'use server'
 
 import { getDB } from '@/utils/db-server'
-import { getSession } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
-import { checkFeatureAccess } from '@/lib/features'
 import { dateInputWIB, todayWIB } from '@/lib/time'
 import { getKuitansiTahunAjaran } from '@/lib/tahun-ajaran'
 import type { KuitansiData } from '../components/kuitansi-print'
 import { invalidateFinanceCache } from '@/lib/finance-cache'
+import { requireActionAccess } from '@/lib/action-security'
+import { getDsptSettings } from '@/lib/dspt-settings'
+import { calculateDsptStatus, resolveDsptNominal, type DsptEntryMode } from '@/lib/pmb-contract'
 
 function generateId() { return crypto.randomUUID() }
 
 function recalcStatusVal(totalDibayar: number, totalDiskon: number, nominal: number): string {
-  const sisa = nominal - totalDibayar - totalDiskon
-  if (sisa <= 0) return 'lunas'
-  if (totalDibayar > 0) return 'nyicil'
-  return 'belum_bayar'
+  return calculateDsptStatus(nominal, totalDibayar, totalDiskon)
 }
 
-async function requireAuth() {
-  const session = await getSession()
-  if (!session?.user) throw new Error('Unauthorized')
+async function requireAuth(action: 'read' | 'create' | 'update' | 'delete' = 'read') {
+  const actor = await requireActionAccess('keuangan-daftar-ulang', action)
+  if (actor.kind !== 'staff') throw new Error('Forbidden')
   const db = await getDB()
-  const allowed = await checkFeatureAccess(db, session.user.id, 'keuangan-daftar-ulang')
-  if (!allowed) throw new Error('Forbidden')
-  return { db, userId: session.user.id }
+  return { db, userId: actor.id }
 }
 
 async function recalcItem(db: D1Database, refId: string) {
@@ -36,32 +32,8 @@ async function recalcItem(db: D1Database, refId: string) {
   await db.prepare("UPDATE fin_dspt SET status = ?, updated_at = datetime('now') WHERE id = ?").bind(status, refId).run()
 }
 
-async function logDsptNominalAudit(db: D1Database, payload: {
-  dsptId: string
-  siswaId: string
-  oldValue: number | null
-  newValue: number
-  action: 'create' | 'update'
-  userId: string
-}) {
-  if (payload.action === 'update' && payload.oldValue === payload.newValue) return
-  await db.prepare(`
-    INSERT INTO fin_dspt_audit_log (
-      id, dspt_id, siswa_id, field_name, old_value, new_value, action, source, dibuat_oleh
-    )
-    VALUES (?, ?, ?, 'nominal_target', ?, ?, ?, 'kasir_daftar_ulang', ?)
-  `).bind(
-    generateId(),
-    payload.dsptId,
-    payload.siswaId,
-    payload.oldValue,
-    payload.newValue,
-    payload.action,
-    payload.userId,
-  ).run()
-}
-
 export interface DaftarUlangParams {
+  requestId: string
   siswaId: string
   tahunAjaranId: string
   dspt: {
@@ -71,6 +43,9 @@ export interface DaftarUlangParams {
     diskon: number
     alasanDiskon: string
     existingDsptId: string | null
+    nominalMode?: DsptEntryMode
+    packageId?: string | null
+    overrideReason?: string
   }
 }
 
@@ -96,9 +71,9 @@ function siswaBaruWhere(q?: string) {
   const params: any[] = []
   let where = "WHERE s.kelas_id IS NULL AND s.status = 'aktif'"
   if (q?.trim()) {
-    where += ' AND (s.nama_lengkap LIKE ? OR s.nisn LIKE ? OR s.asal_sekolah LIKE ?)'
+    where += ' AND (s.nama_lengkap LIKE ? OR s.nisn LIKE ? OR s.asal_sekolah LIKE ? OR EXISTS (SELECT 1 FROM pmb_pendaftar p WHERE p.siswa_id=s.id AND p.no_pendaftaran LIKE ?))'
     const term = `%${q.trim()}%`
-    params.push(term, term, term)
+    params.push(term, term, term, term)
   }
   return { where, params }
 }
@@ -109,6 +84,7 @@ function revalidateDsptViews(siswaId?: string) {
   revalidatePath('/dashboard/keuangan/dspt')
   revalidatePath('/dashboard/keuangan/transaksi')
   revalidatePath('/dashboard/keuangan/daftar-ulang')
+  revalidatePath('/dashboard/pmb')
   if (siswaId) revalidatePath(`/dashboard/keuangan/siswa/${siswaId}`)
 }
 
@@ -130,16 +106,17 @@ export async function searchSiswaBaruDaftarUlang(q: string) {
   if (!q || q.trim().length < 2) return { data: [] }
   const term = `%${q.trim()}%`
   const result = await db.prepare(`
-    SELECT s.id, s.nama_lengkap, s.nisn,
+    SELECT s.id, s.nama_lengkap, s.nisn, p.no_pendaftaran, p.jalur, p.tahun_ajaran, p.konfirmasi_daftar_ulang,
            NULL AS tingkat, NULL AS nomor_kelas, NULL AS kelompok,
            s.tahun_masuk
     FROM siswa s
+    LEFT JOIN pmb_pendaftar p ON p.siswa_id=s.id
     WHERE s.kelas_id IS NULL
       AND s.status = 'aktif'
-      AND (s.nama_lengkap LIKE ? OR s.nisn LIKE ?)
+      AND (s.nama_lengkap LIKE ? OR s.nisn LIKE ? OR p.no_pendaftaran LIKE ?)
     ORDER BY s.nama_lengkap ASC
     LIMIT 20
-  `).bind(term, term).all<any>()
+  `).bind(term, term, term).all<any>()
   return { data: result.results ?? [] }
 }
 
@@ -158,10 +135,12 @@ export async function getSiswaBaruDsptPage(params: SiswaBaruDsptPageParams = {})
   let query = `
     SELECT
       s.id AS siswa_id, s.nama_lengkap, s.nisn, s.jenis_kelamin,
-      s.asal_sekolah, s.tahun_masuk,
+      s.asal_sekolah, s.tahun_masuk, p.id AS pmb_pendaftar_id, p.no_pendaftaran,
+      p.jalur AS pmb_jalur, p.tahun_ajaran AS pmb_tahun_ajaran, p.konfirmasi_daftar_ulang,
       d.id AS dspt_id, d.nominal_target, d.total_dibayar, d.total_diskon,
       COALESCE(d.status, 'tidak_ada') AS status
     FROM siswa s
+    LEFT JOIN pmb_pendaftar p ON p.siswa_id = s.id
     LEFT JOIN fin_dspt d ON d.siswa_id = s.id
     ${where}
     ORDER BY s.nama_lengkap ASC
@@ -184,7 +163,9 @@ export async function getSiswaBaruDsptPage(params: SiswaBaruDsptPageParams = {})
 }
 
 export async function upsertSiswaBaruDsptTarget(siswaId: string, nominalTarget: number) {
-  const { db, userId } = await requireAuth()
+  const { db, userId } = await requireAuth('update')
+  const settings = await getDsptSettings()
+  if (settings.mode !== 'manual') return { error: 'Mode DSPT aktif harus diproses melalui tab Kasir agar default/paket dan audit diterapkan.', data: null }
   const siswa = await db.prepare(`
     SELECT id
     FROM siswa
@@ -192,7 +173,8 @@ export async function upsertSiswaBaruDsptTarget(siswaId: string, nominalTarget: 
   `).bind(siswaId).first<{ id: string }>()
   if (!siswa) return { error: 'Siswa baru tidak ditemukan atau sudah memiliki kelas', data: null }
 
-  const nominal = Math.max(0, nominalTarget || 0)
+  const nominal = Number(nominalTarget)
+  if (!Number.isSafeInteger(nominal) || nominal <= 0) return { error: 'Nominal target harus berupa bilangan bulat positif.', data: null }
   const existing = await db.prepare(`
     SELECT id, nominal_target, total_dibayar, total_diskon
     FROM fin_dspt
@@ -202,28 +184,17 @@ export async function upsertSiswaBaruDsptTarget(siswaId: string, nominalTarget: 
   let dsptId = existing?.id as string | undefined
   const oldNominal = existing ? Number(existing.nominal_target ?? 0) : null
   const status = recalcStatusVal(existing?.total_dibayar ?? 0, existing?.total_diskon ?? 0, nominal)
+  const pmb = await db.prepare('SELECT id FROM pmb_pendaftar WHERE siswa_id=? LIMIT 1').bind(siswaId).first<{ id: string }>()
+  const stmts: D1PreparedStatement[] = []
   if (dsptId) {
-    await db.prepare(`
-      UPDATE fin_dspt
-      SET nominal_target = ?, status = ?, updated_at = datetime('now')
-      WHERE id = ?
-    `).bind(nominal, status, dsptId).run()
+    stmts.push(db.prepare(`UPDATE fin_dspt SET nominal_target=?,status=?,nominal_mode='manual',pmb_pendaftar_id=COALESCE(pmb_pendaftar_id,?),updated_at=datetime('now') WHERE id=? AND siswa_id=?`).bind(nominal, status, pmb?.id || null, dsptId, siswaId))
   } else {
     dsptId = generateId()
-    await db.prepare(`
-      INSERT INTO fin_dspt (id, siswa_id, nominal_target, total_dibayar, total_diskon, status)
-      VALUES (?, ?, ?, 0, 0, ?)
-    `).bind(dsptId, siswaId, nominal, status).run()
+    stmts.push(db.prepare(`INSERT INTO fin_dspt (id,siswa_id,nominal_target,total_dibayar,total_diskon,status,pmb_pendaftar_id,nominal_mode) VALUES (?,?,?,0,0,?,?,'manual')`).bind(dsptId, siswaId, nominal, status, pmb?.id || null))
   }
-
-  await logDsptNominalAudit(db, {
-    dsptId,
-    siswaId,
-    oldValue: oldNominal,
-    newValue: nominal,
-    action: oldNominal === null ? 'create' : 'update',
-    userId,
-  })
+  stmts.push(db.prepare(`INSERT INTO fin_dspt_audit_log (id,dspt_id,siswa_id,field_name,old_value,new_value,action,source,dibuat_oleh,metadata) VALUES (?,?,?,'nominal_target',?,?,?,'kasir_daftar_ulang',?,?)`).bind(generateId(), dsptId, siswaId, oldNominal, nominal, oldNominal === null ? 'create' : 'update', userId, JSON.stringify({ mode: 'manual', quickEdit: true })))
+  if (pmb?.id) stmts.push(db.prepare(`UPDATE pmb_pendaftar SET daftar_ulang_status='SELESAI',daftar_ulang_diproses_at=datetime('now'),daftar_ulang_diproses_oleh=?,updated_at=datetime('now') WHERE id=? AND siswa_id=?`).bind(userId, pmb.id, siswaId))
+  await db.batch(stmts)
 
   const row = await db.prepare(`
     SELECT
@@ -296,7 +267,7 @@ export async function getDaftarUlangTransaksiPage(params: DaftarUlangTransaksiPa
 }
 
 export async function voidDaftarUlangTransaksi(transaksiId: string, alasan: string) {
-  const { db, userId } = await requireAuth()
+  const { db, userId } = await requireAuth('update')
   const cleanAlasan = alasan.trim()
   if (cleanAlasan.length < 5) return { error: 'Alasan void wajib diisi minimal 5 karakter', success: null }
 
@@ -345,9 +316,11 @@ export async function getDaftarUlangSiswaData(siswaId: string, tahunAjaranId: st
 
   const [siswa, dspt] = await Promise.all([
     db.prepare(`
-      SELECT s.id, s.nama_lengkap, s.nisn, s.tahun_masuk,
+      SELECT s.id, s.nama_lengkap, s.nisn, s.tahun_masuk, p.id AS pmb_pendaftar_id,
+             p.no_pendaftaran, p.jalur AS pmb_jalur, p.tahun_ajaran AS pmb_tahun_ajaran,
              k.tingkat, k.nomor_kelas, k.kelompok
       FROM siswa s
+      LEFT JOIN pmb_pendaftar p ON p.siswa_id=s.id
       LEFT JOIN kelas k ON k.id = s.kelas_id
       WHERE s.id = ?
         AND s.kelas_id IS NULL
@@ -425,7 +398,7 @@ export async function getDaftarUlangKuitansi(transaksiId: string): Promise<{ err
 export async function processDaftarUlang(
   params: DaftarUlangParams,
 ): Promise<DaftarUlangResult> {
-  const { db, userId } = await requireAuth()
+  const { db, userId } = await requireAuth('update')
 
   try {
     const tanggal = todayWIB()
@@ -443,6 +416,24 @@ export async function processDaftarUlang(
     `).bind(params.siswaId).first<any>()
     if (!siswa) return { error: 'Siswa baru tidak ditemukan atau sudah memiliki kelas', kuitansiDspt: null }
 
+    const requestId = String(params.requestId || '').trim()
+    if (!/^[0-9a-f-]{36}$/i.test(requestId)) return { error: 'Kunci permintaan transaksi tidak valid. Muat ulang halaman.', kuitansiDspt: null }
+    const pmb = await db.prepare(`SELECT id, no_pendaftaran FROM pmb_pendaftar WHERE siswa_id=? LIMIT 1`).bind(params.siswaId).first<any>()
+    const settings = await getDsptSettings()
+    const mode = settings.mode
+    const nominalTarget = Number(params.dspt.nominalTarget)
+    const bayarSekarang = Number(params.dspt.bayarSekarang || 0)
+    const diskon = Number(params.dspt.diskon || 0)
+    if (!Number.isSafeInteger(nominalTarget) || nominalTarget <= 0) return { error: 'Nominal target DSPT wajib berupa bilangan bulat positif.', kuitansiDspt: null }
+    if (![bayarSekarang, diskon].every(value => Number.isSafeInteger(value) && value >= 0)) return { error: 'Nominal pembayaran atau diskon tidak valid.', kuitansiDspt: null }
+    if (diskon > 0 && String(params.dspt.alasanDiskon || '').trim().length < 5) return { error: 'Alasan diskon minimal 5 karakter.', kuitansiDspt: null }
+
+    const resolvedNominal = resolveDsptNominal({ mode, requested: nominalTarget, defaultAmount: settings.defaultAmount, packages: settings.packages, packageId: params.dspt.packageId, allowOverride: settings.allowOverride, overrideReason: params.dspt.overrideReason })
+    if (resolvedNominal.error) return { error: resolvedNominal.error, kuitansiDspt: null }
+    const selectedPackage = resolvedNominal.packageId ? settings.packages.find(item => item.id === resolvedNominal.packageId) : null
+    const isOverride = Boolean(resolvedNominal.overrideReason)
+    const overrideReason = resolvedNominal.overrideReason || ''
+
     const kelas = siswa.tingkat
       ? `${siswa.tingkat}-${siswa.nomor_kelas}${siswa.kelompok ? ' ' + siswa.kelompok : ''}`
       : '-'
@@ -457,53 +448,53 @@ export async function processDaftarUlang(
       nomorDspt = `KWT-DSPT-${year}-${String(seq?.counter ?? 0).padStart(5, '0')}`
     }
 
-    const stmts: D1PreparedStatement[] = []
-
+    const stmts: D1PreparedStatement[] = [
+      db.prepare(`INSERT INTO fin_operation_idempotency (request_key,operation_type,actor_id) VALUES (?,'kasir_daftar_ulang',?)`).bind(requestId, userId),
+    ]
     let dsptId = params.dspt.existingDsptId
     let oldNominal: number | null = null
+    const existingDspt = dsptId
+      ? await db.prepare(`SELECT * FROM fin_dspt WHERE id=? AND siswa_id=?`).bind(dsptId, params.siswaId).first<any>()
+      : await db.prepare(`SELECT * FROM fin_dspt WHERE siswa_id=?`).bind(params.siswaId).first<any>()
+    if (dsptId && !existingDspt) return { error: 'Data DSPT tidak cocok dengan siswa yang dipilih.', kuitansiDspt: null }
+    if (!dsptId && existingDspt) dsptId = existingDspt.id
+    oldNominal = existingDspt ? Number(existingDspt.nominal_target || 0) : null
+    const totalDibayar = Number(existingDspt?.total_dibayar || 0) + bayarSekarang
+    const totalDiskon = Number(existingDspt?.total_diskon || 0) + diskon
+    if (nominalTarget < totalDibayar + totalDiskon) return { error: 'Target DSPT tidak boleh lebih kecil dari total pembayaran dan diskon.', kuitansiDspt: null }
+    const finalStatus = recalcStatusVal(totalDibayar, totalDiskon, nominalTarget)
+
     if (!dsptId) {
       dsptId = generateId()
       stmts.push(db.prepare(
-        'INSERT INTO fin_dspt (id, siswa_id, nominal_target) VALUES (?, ?, ?)'
-      ).bind(dsptId, params.siswaId, params.dspt.nominalTarget))
+        `INSERT INTO fin_dspt (id,siswa_id,nominal_target,total_dibayar,total_diskon,status,pmb_pendaftar_id,nominal_mode,nominal_package_id,nominal_override_reason)
+         VALUES (?,?,?,?,?,?,?,?,?,?)`
+      ).bind(dsptId, params.siswaId, nominalTarget, totalDibayar, totalDiskon, finalStatus, pmb?.id || null, mode, selectedPackage?.id || null, isOverride ? overrideReason : null))
     } else {
-      const existingDspt = await db.prepare(`
-        SELECT nominal_target, total_dibayar, total_diskon
-        FROM fin_dspt
-        WHERE id = ?
-      `).bind(dsptId).first<any>()
-      oldNominal = existingDspt ? Number(existingDspt.nominal_target ?? 0) : null
-      const sisaSetelahTarget = Math.max(
-        0,
-        Number(params.dspt.nominalTarget || 0) -
-          Number(existingDspt?.total_dibayar || 0) -
-          Number(existingDspt?.total_diskon || 0),
-      )
-      if (sisaSetelahTarget <= 0 && params.dspt.bayarSekarang <= 0) {
+      const sisaSetelahTarget = Math.max(0, nominalTarget - Number(existingDspt?.total_dibayar || 0) - Number(existingDspt?.total_diskon || 0))
+      if (sisaSetelahTarget <= 0 && bayarSekarang <= 0 && diskon <= 0 && nominalTarget === oldNominal) {
         return { error: 'DSPT sudah lunas. Kasir tidak bisa mencetak kuitansi baru tanpa pembayaran baru.', kuitansiDspt: null }
       }
       stmts.push(db.prepare(
-        "UPDATE fin_dspt SET nominal_target = ?, updated_at = datetime('now') WHERE id = ?"
-      ).bind(params.dspt.nominalTarget, dsptId))
+        `UPDATE fin_dspt SET nominal_target=?,total_dibayar=?,total_diskon=?,status=?,
+         pmb_pendaftar_id=COALESCE(pmb_pendaftar_id,?),nominal_mode=?,nominal_package_id=?,nominal_override_reason=?,updated_at=datetime('now') WHERE id=? AND siswa_id=?`
+      ).bind(nominalTarget, totalDibayar, totalDiskon, finalStatus, pmb?.id || null, mode, selectedPackage?.id || null, isOverride ? overrideReason : null, dsptId, params.siswaId))
     }
 
-    if (params.dspt.diskon > 0) {
+    if (diskon > 0) {
       stmts.push(db.prepare(
         "INSERT INTO fin_diskon (id, siswa_id, target_type, target_id, jumlah, alasan, dibuat_oleh) VALUES (?, ?, 'dspt', ?, ?, ?, ?)"
       ).bind(
         generateId(),
         params.siswaId,
         dsptId,
-        params.dspt.diskon,
+        diskon,
         params.dspt.alasanDiskon || 'Keringanan daftar ulang',
         userId,
       ))
-      stmts.push(db.prepare(
-        "UPDATE fin_dspt SET total_diskon = COALESCE(total_diskon, 0) + ?, updated_at = datetime('now') WHERE id = ?"
-      ).bind(params.dspt.diskon, dsptId))
     }
 
-    if (params.dspt.bayarSekarang > 0 && nomorDspt) {
+    if (bayarSekarang > 0 && nomorDspt) {
       const transaksiDsptId = generateId()
       stmts.push(db.prepare(
         'INSERT INTO fin_transaksi (id, siswa_id, kategori, metode_bayar, jumlah_total, input_oleh, nomor_kuitansi) VALUES (?, ?, ?, ?, ?, ?, ?)'
@@ -512,32 +503,19 @@ export async function processDaftarUlang(
         params.siswaId,
         'dspt',
         params.dspt.metode,
-        params.dspt.bayarSekarang,
+        bayarSekarang,
         userId,
         nomorDspt,
       ))
       stmts.push(db.prepare(
         "INSERT INTO fin_transaksi_detail (id, transaksi_id, ref_type, ref_id, jumlah) VALUES (?, ?, 'dspt', ?, ?)"
-      ).bind(generateId(), transaksiDsptId, dsptId, params.dspt.bayarSekarang))
-      stmts.push(db.prepare(
-        "UPDATE fin_dspt SET total_dibayar = COALESCE(total_dibayar, 0) + ?, updated_at = datetime('now') WHERE id = ?"
-      ).bind(params.dspt.bayarSekarang, dsptId))
+      ).bind(generateId(), transaksiDsptId, dsptId, bayarSekarang))
     }
 
-    if (stmts.length > 0) await db.batch(stmts)
-    await logDsptNominalAudit(db, {
-      dsptId,
-      siswaId: params.siswaId,
-      oldValue: oldNominal,
-      newValue: params.dspt.nominalTarget,
-      action: oldNominal === null ? 'create' : 'update',
-      userId,
-    })
-    if (dsptId) await recalcItem(db, dsptId)
-
-    if (!params.dspt.existingDsptId && params.dspt.bayarSekarang === 0 && dsptId) {
-      await db.prepare("UPDATE fin_dspt SET status='belum_bayar' WHERE id = ?").bind(dsptId).run()
-    }
+    stmts.push(db.prepare(`INSERT INTO fin_dspt_audit_log (id,dspt_id,siswa_id,field_name,old_value,new_value,action,source,dibuat_oleh,reason,metadata) VALUES (?,?,?,'nominal_target',?,?,?,'kasir_daftar_ulang',?,?,?)`)
+      .bind(generateId(), dsptId, params.siswaId, oldNominal, nominalTarget, oldNominal === null ? 'create' : 'update', userId, isOverride ? overrideReason : null, JSON.stringify({ mode, packageId: selectedPackage?.id || null, bayarSekarang, diskon })))
+    if (pmb?.id) stmts.push(db.prepare(`UPDATE pmb_pendaftar SET daftar_ulang_status='SELESAI',daftar_ulang_diproses_at=datetime('now'),daftar_ulang_diproses_oleh=?,updated_at=datetime('now') WHERE id=? AND siswa_id=?`).bind(userId, pmb.id, params.siswaId))
+    await db.batch(stmts)
 
     revalidateDsptViews(params.siswaId)
 
@@ -569,6 +547,7 @@ export async function processDaftarUlang(
     return { error: null, kuitansiDspt }
   } catch (e: any) {
     console.error('[processDaftarUlang]', e)
-    return { error: e.message ?? 'Terjadi kesalahan sistem', kuitansiDspt: null }
+    const message = e?.message ?? 'Terjadi kesalahan sistem'
+    return { error: /unique.*request_key|fin_operation_idempotency/i.test(message) ? 'Permintaan ini sudah diproses. Muat ulang data sebelum transaksi berikutnya.' : message, kuitansiDspt: null }
   }
 }

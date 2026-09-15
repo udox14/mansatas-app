@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useCallback, useEffect, useState, useTransition } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,7 +17,7 @@ import {
 } from 'lucide-react'
 import {
   getDetailPendaftar, editPendaftar, verifikasiBerkas, setKelulusan,
-  bulkAlihReguler, setJadwalPendaftar, setFlagBerkas,
+  bulkAlihReguler, setJadwalPendaftar, setFlagBerkas, setHardcopyDaftarUlang,
 } from '../actions'
 import { JalurBadge, VerifBadge, LulusBadge } from './pmb-client'
 import type { Pendaftar } from './pmb-client'
@@ -106,12 +106,12 @@ export function DetailModal({ id, pendaftar, onClose, onFlash }: {
 
   const summary = pendaftar.find((p) => p.id === id)
 
-  function loadData() {
+  const loadData = useCallback(() => {
     getDetailPendaftar(id).then((r) => {
       setData({ pendaftar: r.pendaftar, prestasi: r.prestasi || [] })
       try {
         const parsed = r.pendaftar?.berkas_ditolak ? JSON.parse(r.pendaftar.berkas_ditolak) : []
-        setFlaggedBerkas(Array.isArray(parsed) ? parsed : [])
+        setFlaggedBerkas(Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.files) ? parsed.files : []))
       } catch {
         setFlaggedBerkas([])
       }
@@ -121,9 +121,9 @@ export function DetailModal({ id, pendaftar, onClose, onFlash }: {
         ruang_tes: r.pendaftar?.ruang_tes || '',
       })
     })
-  }
+  }, [id])
 
-  useEffect(() => { loadData() }, [id])
+  useEffect(() => { loadData() }, [loadData])
 
   const p = data?.pendaftar
   const bebasCBT = p?.jalur === 'PRESTASI' && p?.status_verifikasi === 1 && p?.status_kelulusan !== 'TIDAK DITERIMA'
@@ -144,7 +144,9 @@ export function DetailModal({ id, pendaftar, onClose, onFlash }: {
   }
 
   function doVerif(ok: boolean | null) {
-    startT(async () => { onFlash(await verifikasiBerkas([id], ok)); loadData() })
+    const alasan = ok === false ? prompt('Alasan penolakan berkas (minimal 5 karakter):') : undefined
+    if (ok === false && !alasan) return
+    startT(async () => { onFlash(await verifikasiBerkas([id], ok, alasan || undefined)); loadData() })
   }
 
   function doLulus(s: 'DITERIMA' | 'TIDAK DITERIMA' | 'PENDING') {
@@ -182,15 +184,6 @@ export function DetailModal({ id, pendaftar, onClose, onFlash }: {
       const res = await setJadwalPendaftar(id, jadwalDraft)
       onFlash(res)
       if (!res.error) { setJadwalEdit(false); loadData() }
-    })
-  }
-
-  function toggleDaftarUlang() {
-    const cur = p?.daftar_ulang_status
-    startT(async () => {
-      const res = await editPendaftar(id, { daftar_ulang_status: cur === 'SELESAI' ? null : 'SELESAI' })
-      onFlash(res)
-      if (!res.error) loadData()
     })
   }
 
@@ -286,6 +279,7 @@ export function DetailModal({ id, pendaftar, onClose, onFlash }: {
                         Simpan
                       </Button>
                     </div>
+
                   ) : (
                     <Button size="sm" variant="outline" onClick={() => startEdit(p)}>
                       <Edit2 className="h-4 w-4 mr-1" />Edit
@@ -502,33 +496,42 @@ export function DetailModal({ id, pendaftar, onClose, onFlash }: {
                       </TableBody>
                     </Table>
 
-                    {/* Daftar ulang toggle */}
+                    {/* Status daftar ulang hanya dapat diselesaikan oleh pencatatan target DSPT di kasir. */}
                     <div className="flex items-center justify-between pt-2 border-t">
                       <div>
                         <p className="text-xs font-semibold">Daftar Ulang</p>
                         <p className="text-[10px] text-muted-foreground">
-                          {p.daftar_ulang_status === 'SELESAI' ? 'Sudah selesai' : 'Belum dilakukan'}
+                          {p.dspt_id ? 'Target DSPT sudah dicatat' : 'Belum diproses kasir'}
                         </p>
                       </div>
-                      <Button
-                        size="sm" disabled={pend}
-                        variant={p.daftar_ulang_status === 'SELESAI' ? 'default' : 'outline'}
-                        onClick={toggleDaftarUlang}
-                        className={p.daftar_ulang_status === 'SELESAI' ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}
-                      >
-                        {p.daftar_ulang_status === 'SELESAI' ? <><CheckCircle2 className="h-3.5 w-3.5 mr-1" />SELESAI</> : 'Tandai Selesai'}
+                      <Badge variant="outline" className={p.dspt_id ? 'border-emerald-300 text-emerald-700' : ''}>
+                        {p.dspt_id ? 'SELESAI OLEH KASIR' : 'Menunggu proses'}
+                      </Badge>
+                    </div>
+
+                    {p.dspt_id && <div className="grid grid-cols-2 gap-2 rounded-md bg-slate-50 p-2 text-xs dark:bg-slate-900">
+                      <span>Target: <strong>Rp {Number(p.dspt_target || 0).toLocaleString('id-ID')}</strong></span>
+                      <span>Status: <strong>{p.dspt_status}</strong></span>
+                      <span>Dibayar: Rp {Number(p.dspt_dibayar || 0).toLocaleString('id-ID')}</span>
+                      <span>Diskon: Rp {Number(p.dspt_diskon || 0).toLocaleString('id-ID')}</span>
+                    </div>}
+
+                    <div className="flex items-center justify-between pt-2 border-t">
+                      <div>
+                        <p className="text-xs font-semibold">Hardcopy Daftar Ulang</p>
+                        <p className="text-[10px] text-muted-foreground">{p.daftar_ulang_hardcopy_at || 'Belum diterima'}</p>
+                      </div>
+                      <Button size="sm" variant="outline" disabled={pend} onClick={() => startT(async () => { const res = await setHardcopyDaftarUlang(id, p.daftar_ulang_hardcopy_status !== 'DITERIMA'); onFlash(res); if (!res.error) loadData() })}>
+                        {p.daftar_ulang_hardcopy_status === 'DITERIMA' ? 'Batalkan Hardcopy' : 'Terima Hardcopy'}
                       </Button>
                     </div>
 
                     {/* Nilai rapor */}
-                    {p.nilai_rapor != null && (
-                      <div className="flex items-center justify-between pt-2 border-t">
-                        <p className="text-xs font-semibold">Nilai Rapor (Rata-rata)</p>
-                        <Badge className="bg-blue-100 text-blue-800 border-blue-200 text-sm font-bold px-3">
-                          {Number(p.nilai_rapor).toFixed(2)}
-                        </Badge>
-                      </div>
-                    )}
+                    {(p.avg_nilai_rapor != null || p.nilai_rapor != null) && <div className="space-y-2 pt-2 border-t">
+                      <div className="flex items-center justify-between"><p className="text-xs font-semibold">Nilai Rapor</p><Badge className="bg-blue-100 text-blue-800 border-blue-200 text-sm font-bold px-3">Rata-rata {Number(p.avg_nilai_rapor ?? p.nilai_rapor).toFixed(2)}</Badge></div>
+                      {p.avg_nilai_rapor != null && <div className="grid grid-cols-5 gap-1 text-center text-[10px]">{[1,2,3,4,5].map(semester => <div key={semester} className="rounded border p-1"><strong>S{semester}</strong><br/>{p[`nilai_rapor_s${semester}`]} / #{p[`peringkat_rapor_s${semester}`]}</div>)}</div>}
+                      <p className="text-[10px] text-muted-foreground">Integritas: {p.integritas_rapor_at ? `disetujui ${p.integritas_rapor_at}` : 'data lama / belum disetujui'}</p>
+                    </div>}
                   </CardContent>
                 </Card>
 

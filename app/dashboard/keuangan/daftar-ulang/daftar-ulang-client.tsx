@@ -31,6 +31,8 @@ import {
 } from './actions'
 import { KuitansiModal } from '../components/kuitansi-print'
 import type { KuitansiData } from '../components/kuitansi-print'
+import type { DsptEntryMode, DsptPackage } from '@/lib/pmb-contract'
+import { useSearchParams } from 'next/navigation'
 
 interface SiswaResult {
   id: string
@@ -40,6 +42,8 @@ interface SiswaResult {
   nomor_kelas: number | null
   kelompok: string | null
   tahun_masuk: number | null
+  no_pendaftaran?: string | null
+  jalur?: string | null
 }
 
 interface DsptForm {
@@ -57,6 +61,10 @@ interface SiswaBaruDsptRow {
   jenis_kelamin: 'L' | 'P' | string | null
   asal_sekolah: string | null
   tahun_masuk: number | null
+  pmb_pendaftar_id: string | null
+  no_pendaftaran: string | null
+  pmb_jalur: string | null
+  pmb_tahun_ajaran: string | null
   dspt_id: string | null
   nominal_target: number | null
   total_dibayar: number | null
@@ -177,13 +185,6 @@ function InlineDsptInput({
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSavedRef = useRef(row.nominal_target ?? 0)
 
-  useEffect(() => {
-    const next = row.nominal_target ?? 0
-    lastSavedRef.current = next
-    setValue(next > 0 ? String(next) : '')
-    setState('idle')
-  }, [row.siswa_id, row.nominal_target])
-
   const save = useCallback(async (raw: string) => {
     const nominal = parseNum(raw)
     if (nominal === lastSavedRef.current) return
@@ -232,7 +233,7 @@ function InlineDsptInput({
   )
 }
 
-function SiswaBaruDsptTab() {
+function SiswaBaruDsptTab({ mode }: { mode: DsptEntryMode }) {
   const [rows, setRows] = useState<SiswaBaruDsptRow[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -304,6 +305,11 @@ function SiswaBaruDsptTab() {
           {error}
         </div>
       )}
+      {mode !== 'manual' && (
+        <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-700 dark:border-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-300">
+          Mode {mode === 'default' ? 'Default' : 'Paket'} aktif. Tetapkan target melalui tab Kasir agar pilihan nominal dan audit diterapkan.
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <Table>
@@ -345,6 +351,7 @@ function SiswaBaruDsptTab() {
                     <div>
                       <p className="font-semibold text-slate-900 dark:text-slate-50">{row.nama_lengkap}</p>
                       <p className="text-[11px] text-slate-400">NISN: {row.nisn ?? '-'}</p>
+                      <p className="text-[11px] text-slate-400">{row.pmb_pendaftar_id ? `PMB ${row.no_pendaftaran} · ${row.pmb_jalur} · ${row.pmb_tahun_ajaran}` : 'Siswa baru non-PMB'}</p>
                     </div>
                   </TableCell>
                   <TableCell className="text-center">
@@ -356,7 +363,7 @@ function SiswaBaruDsptTab() {
                     {row.asal_sekolah ?? '-'}
                   </TableCell>
                   <TableCell>
-                    <InlineDsptInput row={row} onSaved={handleSaved} />
+                    {mode === 'manual' ? <InlineDsptInput key={`${row.siswa_id}:${row.nominal_target ?? 0}`} row={row} onSaved={handleSaved} /> : <span className="text-xs text-slate-500">Proses lewat tab Kasir</span>}
                   </TableCell>
                   <TableCell>
                     <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-[11px] font-semibold ${info.cls}`}>
@@ -617,11 +624,16 @@ export function DaftarUlangClient({
   tahunAjaranId,
   tahunAjaranNama,
   namaPetugas,
+  dsptSettings,
 }: {
   tahunAjaranId: string
   tahunAjaranNama: string
   namaPetugas: string
+  dsptSettings: { mode: DsptEntryMode; defaultAmount: number; packages: DsptPackage[]; allowOverride: boolean }
 }) {
+  const searchParams = useSearchParams()
+  const requestIdRef = useRef(crypto.randomUUID())
+  const deepLinkAppliedRef = useRef(false)
   const [query, setQuery] = useState('')
   const [searchResults, setSearchResults] = useState<SiswaResult[]>([])
   const [isSearching, setIsSearching] = useState(false)
@@ -641,6 +653,8 @@ export function DaftarUlangClient({
   const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [kuitansiDspt, setKuitansiDspt] = useState<KuitansiData | null>(null)
   const [showKuitansi, setShowKuitansi] = useState(false)
+  const [packageId, setPackageId] = useState('')
+  const [overrideReason, setOverrideReason] = useState('')
 
   useEffect(() => {
     function handle(e: MouseEvent) {
@@ -669,6 +683,15 @@ export function DaftarUlangClient({
     }, 300)
   }, [])
 
+  useEffect(() => {
+    if (deepLinkAppliedRef.current) return
+    const initial = searchParams.get('q')?.trim()
+    if (!initial) return
+    deepLinkAppliedRef.current = true
+    const timer = window.setTimeout(() => handleSearch(initial), 0)
+    return () => window.clearTimeout(timer)
+  }, [handleSearch, searchParams])
+
   async function handleSelectSiswa(s: SiswaResult) {
     setSelectedSiswa(s)
     setQuery('')
@@ -678,6 +701,8 @@ export function DaftarUlangClient({
     setIsLoadingData(true)
     setExistingDsptId(null)
     setExistingDspt(null)
+    setPackageId('')
+    setOverrideReason('')
 
     const data = await getDaftarUlangSiswaData(s.id, tahunAjaranId)
     setIsLoadingData(false)
@@ -697,6 +722,8 @@ export function DaftarUlangClient({
         total_diskon: Number(data.dspt.total_diskon || 0),
         status: String(data.dspt.status || ''),
       })
+      setPackageId(String(data.dspt.nominal_package_id || ''))
+      setOverrideReason(String(data.dspt.nominal_override_reason || ''))
       setDspt(prev => ({
         ...prev,
         nominalTarget: String(data.dspt.nominal_target),
@@ -706,7 +733,8 @@ export function DaftarUlangClient({
       }))
     } else {
       setExistingDspt(null)
-      setDspt({ nominalTarget: '', bayarSekarang: '', metode: 'tunai', diskon: '', alasanDiskon: '' })
+      const initialTarget = dsptSettings.mode === 'default' && dsptSettings.defaultAmount > 0 ? String(dsptSettings.defaultAmount) : ''
+      setDspt({ nominalTarget: initialTarget, bayarSekarang: '', metode: 'tunai', diskon: '', alasanDiskon: '' })
     }
   }
 
@@ -714,7 +742,9 @@ export function DaftarUlangClient({
     setSelectedSiswa(null)
     setExistingDsptId(null)
     setExistingDspt(null)
-    setDspt({ nominalTarget: '', bayarSekarang: '', metode: 'tunai', diskon: '', alasanDiskon: '' })
+    setDspt({ nominalTarget: dsptSettings.mode === 'default' ? String(dsptSettings.defaultAmount || '') : '', bayarSekarang: '', metode: 'tunai', diskon: '', alasanDiskon: '' })
+    setPackageId('')
+    setOverrideReason('')
     setMsg(null)
     setKuitansiDspt(null)
     setShowKuitansi(false)
@@ -730,13 +760,22 @@ export function DaftarUlangClient({
   const isExistingDsptPaidOff = Boolean(existingDsptId) && dsptSisaSaatIni <= 0
   const blocksPaidOffReceipt = isExistingDsptPaidOff && dsptBayar <= 0
   const canSubmit = !!selectedSiswa && dsptTarget > 0 && !blocksPaidOffReceipt
+    && (dsptSettings.mode !== 'package' || Boolean(packageId))
+  const configuredTarget = dsptSettings.mode === 'default'
+    ? dsptSettings.defaultAmount
+    : dsptSettings.mode === 'package'
+      ? (dsptSettings.packages.find(item => item.id === packageId)?.amount || 0)
+      : dsptTarget
+  const isNominalOverride = dsptSettings.mode !== 'manual' && configuredTarget > 0 && dsptTarget !== configuredTarget
+  const canSubmitWithOverride = canSubmit && (!isNominalOverride || (dsptSettings.allowOverride && overrideReason.trim().length >= 10))
 
   function handleSubmit() {
-    if (!selectedSiswa || !canSubmit) return
+    if (!selectedSiswa || !canSubmitWithOverride) return
     setMsg(null)
 
     startTransition(async () => {
       const result = await processDaftarUlang({
+        requestId: requestIdRef.current,
         siswaId: selectedSiswa.id,
         tahunAjaranId,
         dspt: {
@@ -746,6 +785,9 @@ export function DaftarUlangClient({
           diskon: dsptDiskon,
           alasanDiskon: dspt.alasanDiskon,
           existingDsptId,
+          nominalMode: dsptSettings.mode,
+          packageId: packageId || null,
+          overrideReason,
         },
       })
 
@@ -755,6 +797,7 @@ export function DaftarUlangClient({
       }
 
       setMsg({ type: 'success', text: 'Data berhasil disimpan!' })
+      requestIdRef.current = crypto.randomUUID()
       if (result.kuitansiDspt) {
         setKuitansiDspt(result.kuitansiDspt)
         setShowKuitansi(true)
@@ -899,6 +942,22 @@ export function DaftarUlangClient({
             )}
 
             <div className="p-4 space-y-3">
+              <div className="rounded-md border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-700 dark:border-indigo-900 dark:bg-indigo-950/30 dark:text-indigo-300">
+                Mode nominal aktif: <strong>{dsptSettings.mode === 'manual' ? 'Manual' : dsptSettings.mode === 'default' ? 'Nominal Default' : 'Paket'}</strong>
+              </div>
+              {dsptSettings.mode === 'package' && (
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">Paket DSPT</Label>
+                  <Select value={packageId} onValueChange={(value) => {
+                    setPackageId(value)
+                    const selected = dsptSettings.packages.find(item => item.id === value)
+                    if (selected) setDspt(current => ({ ...current, nominalTarget: String(selected.amount) }))
+                  }}>
+                    <SelectTrigger><SelectValue placeholder="Pilih paket" /></SelectTrigger>
+                    <SelectContent>{dsptSettings.packages.filter(item => item.isActive).map(item => <SelectItem key={item.id} value={item.id}>{item.label} — {formatRupiah(item.amount)}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              )}
               <NumInput
                 label="Nominal Target DSPT (Rp)"
                 value={dspt.nominalTarget}
@@ -906,6 +965,12 @@ export function DaftarUlangClient({
                 placeholder="Contoh: 2.500.000"
                 hint="Sesuai kesepakatan dengan orang tua/wali"
               />
+              {isNominalOverride && (
+                <div className="space-y-1">
+                  <Label className="text-xs font-medium">Alasan Override Nominal</Label>
+                  <Input value={overrideReason} onChange={event => setOverrideReason(event.target.value)} placeholder="Minimal 10 karakter" disabled={!dsptSettings.allowOverride} />
+                </div>
+              )}
               <NumInput
                 label="Bayar Sekarang (Rp)"
                 value={dspt.bayarSekarang}
@@ -1037,7 +1102,7 @@ export function DaftarUlangClient({
               variant="outline"
               className="h-9 text-xs gap-1.5"
               onClick={handlePreviewKuitansi}
-              disabled={!canSubmit || isPending}
+              disabled={!canSubmitWithOverride || dsptBayar <= 0 || isPending}
             >
               <Eye className="h-3.5 w-3.5" /> Preview Kuitansi
             </Button>
@@ -1045,12 +1110,12 @@ export function DaftarUlangClient({
               size="sm"
               className="h-9 text-sm gap-2 px-6 bg-indigo-600 hover:bg-indigo-700"
               onClick={handleSubmit}
-              disabled={!canSubmit || isPending}
+              disabled={!canSubmitWithOverride || isPending}
             >
               {isPending ? (
                 <><div className="h-3.5 w-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> Menyimpan...</>
               ) : (
-                <><Printer className="h-4 w-4" /> Simpan &amp; Cetak Kuitansi</>
+                <>{dsptBayar > 0 ? <Printer className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />} {dsptBayar > 0 ? 'Simpan & Cetak Kuitansi' : 'Simpan Target DSPT'}</>
               )}
             </Button>
           </div>
@@ -1058,7 +1123,7 @@ export function DaftarUlangClient({
           </TabsContent>
 
           <TabsContent value="siswa-baru" className="space-y-4">
-            <SiswaBaruDsptTab />
+            <SiswaBaruDsptTab mode={dsptSettings.mode} />
           </TabsContent>
 
           <TabsContent value="riwayat" className="space-y-4">
