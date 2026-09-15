@@ -1,22 +1,20 @@
 'use client'
 
-import { useState, useTransition, useMemo, useEffect } from 'react'
-import { Save, Loader2, UserCheck, ArrowLeft, Plus, CheckCircle2, ChevronRight, GraduationCap, X } from 'lucide-react'
+import { useState, useTransition, useEffect } from 'react'
+import { Save, Loader2, UserCheck, ArrowLeft, ChevronRight, GraduationCap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { getJadwalGuruUtama, simpanMappingPPL, getMappingPPL } from '../actions'
-import type { GuruInfo, JadwalGuruUtama, MappingPPL, JadwalKBM, PplWithSummary } from '../actions'
+import type { GuruInfo, JadwalGuruUtama, MappingPPL, PplWithSummary } from '../actions'
 
 const HARI_NAMES = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
 
-function getGroupedKBM(kbm: JadwalKBM[]) {
-  const groups: Record<number, JadwalKBM[]> = {}
-  for (const k of kbm) {
-    if (!groups[k.hari]) groups[k.hari] = []
-    groups[k.hari].push(k)
-  }
-  return groups
+function formatJadwalLabel(raw: string) {
+  return raw.split(',').map(item => {
+    const [hari, jam] = item.split(':').map(Number)
+    return `${HARI_NAMES[hari] || 'Hari'} jam ${jam}`
+  }).join(', ')
 }
 
 // ============================================================
@@ -118,18 +116,12 @@ function PplEditor({
   onBack: () => void 
 }) {
   // State for which Guru Utama is currently being edited in the view
-  const [activeTab, setActiveTab] = useState<string>('')
+  const [activeTab, setActiveTab] = useState<string>(ppl.substitutions[0]?.guruUtamaId || '')
   
   // Combine existing substitution IDs and initialize activeTab
   const [activeUtamaIds, setActiveUtamaIds] = useState<string[]>(
     ppl.substitutions.map(s => s.guruUtamaId)
   )
-
-  useEffect(() => {
-    if (activeUtamaIds.length > 0 && !activeTab) {
-      setActiveTab(activeUtamaIds[0])
-    }
-  }, [activeUtamaIds, activeTab])
 
   // Unselected Guru Utama options for dropdown
   const availableUtama = guruUtamaList.filter(g => !activeUtamaIds.includes(g.id))
@@ -265,7 +257,7 @@ function UtamaScheduleEditor({
       const msKbm = new Set<string>()
       const msPiket = new Set<string>()
       for (const m of mData) {
-        if (m.jadwal_mengajar_id) msKbm.add(m.jadwal_mengajar_id)
+        if (m.penugasan_mengajar_id) msKbm.add(m.penugasan_mengajar_id)
         if (m.jadwal_piket_id) msPiket.add(m.jadwal_piket_id)
       }
       setSelKbm(msKbm)
@@ -276,14 +268,13 @@ function UtamaScheduleEditor({
     return () => { mounted = false }
   }, [guruUtamaId, guruPplId])
 
-  const groupedKBM = useMemo(() => getGroupedKBM(jadwal.kbm), [jadwal.kbm])
-
   const toggleKbm = (id: string) => { const s = new Set(selKbm); s.has(id) ? s.delete(id) : s.add(id); setSelKbm(s) }
   const togglePiket = (id: string) => { const s = new Set(selPiket); s.has(id) ? s.delete(id) : s.add(id); setSelPiket(s) }
 
   const handleSave = () => {
     const mappings: MappingPPL[] = []
-    Array.from(selPiket).forEach(id => mappings.push({ jadwal_mengajar_id: null, jadwal_piket_id: id }))
+    Array.from(selKbm).forEach(id => mappings.push({ penugasan_mengajar_id: id, jadwal_piket_id: null }))
+    Array.from(selPiket).forEach(id => mappings.push({ penugasan_mengajar_id: null, jadwal_piket_id: id }))
     
     startTransition(async () => {
       const res = await simpanMappingPPL(guruPplId, guruUtamaId, mappings)
@@ -353,14 +344,7 @@ function UtamaScheduleEditor({
             <p className="text-sm text-slate-400 italic">Tidak ada jadwal KBM.</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {Object.keys(groupedKBM).sort((a, b) => Number(a) - Number(b)).map(hariStr => {
-                const hariNum = parseInt(hariStr)
-                return (
-                  <div key={hariNum} className="space-y-2 bg-slate-50 dark:bg-slate-800/30 p-3 rounded-xl border border-slate-100 dark:border-slate-800/60">
-                    <div className="font-bold text-slate-700 dark:text-slate-300 text-sm mb-2 px-1">
-                      Hari {HARI_NAMES[hariNum]}
-                    </div>
-                    {groupedKBM[hariNum].map(k => (
+              {jadwal.kbm.map(k => (
                       <label key={k.id} className="flex items-start gap-3 p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 cursor-pointer transition-colors group shadow-sm">
                         <Checkbox checked={selKbm.has(k.id)} onCheckedChange={() => toggleKbm(k.id)} className="mt-0.5 shrink-0 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600" />
                         <div className="flex flex-col">
@@ -368,15 +352,12 @@ function UtamaScheduleEditor({
                             {k.mapel_nama}
                           </span>
                           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-1.5">
-                            <span className="bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-400 px-1.5 py-0.5 rounded font-mono font-medium">Jam {k.jam_ke}</span>
                             <span className="font-medium">Kelas {k.kelas_label}</span>
+                            <span>{formatJadwalLabel(k.jadwal_label)}</span>
                           </div>
                         </div>
                       </label>
-                    ))}
-                  </div>
-                )
-              })}
+              ))}
             </div>
           )}
         </div>

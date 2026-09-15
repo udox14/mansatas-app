@@ -521,6 +521,7 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
                     <TableCell className="text-xs text-slate-500 dark:text-slate-400">{item.jam_label}<br /><span className="text-[10px]">{item.slot_mulai}-{item.slot_selesai}</span></TableCell>
                     <TableCell>
                       <StatusBadge status={item.kepentingan_sekolah ? 'IZIN_SEKOLAH' : item.status} /><TeacherLeaveBadge data={item} />
+                      {item.ppl_nama && <p className="mt-0.5 text-[10px] text-violet-500">Diisi oleh {item.ppl_nama} (PPL)</p>}
                       {item.alasan_ketidakhadiran && item.pelaksana_nama && (
                         <p className="text-[10px] text-violet-500 mt-0.5">Pelaksana: {item.pelaksana_nama}</p>
                       )}
@@ -576,6 +577,7 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
                 <div className="min-w-0 text-xs text-slate-600 dark:text-slate-300">
                   <p className="truncate font-medium">{item.kelas_label}</p>
                   <p className="text-[11px] text-slate-400">{item.jam_label} &middot; {item.slot_mulai}-{item.slot_selesai}</p>
+                  {item.ppl_nama && <p className="mt-0.5 truncate text-[11px] text-violet-500">Diisi oleh {item.ppl_nama} (PPL)</p>}
                   {item.alasan_ketidakhadiran && item.pelaksana_nama && (
                     <p className="mt-0.5 truncate text-[11px] text-violet-500">Pelaksana: {item.pelaksana_nama}</p>
                   )}
@@ -1177,7 +1179,7 @@ tr { break-inside: avoid; page-break-inside: avoid; }
                       <td style={{ border: '1px solid #000', padding: '4px 6px' }} className={statusClass}>
                         {item.kepentingan_sekolah ? 'IS' : STATUS_STYLE[item.status]?.label || item.status}
                       </td>
-                      <td style={{ border: '1px solid #000', padding: '4px 6px' }}>{[item.kepentingan_sekolah ? 'Kepentingan Sekolah' : null, item.alasan_izin_guru_nama, item.keterangan].filter(Boolean).join(' — ') || '-'}</td>
+                      <td style={{ border: '1px solid #000', padding: '4px 6px' }}>{[item.ppl_nama ? `Diisi oleh ${item.ppl_nama} (PPL)` : null, item.kepentingan_sekolah ? 'Kepentingan Sekolah' : null, item.alasan_izin_guru_nama, item.keterangan].filter(Boolean).join(' — ') || '-'}</td>
                     </tr>
                   )
                 })}
@@ -1281,7 +1283,7 @@ function LegacyAgendaPrintDocument({ data, scope, scopeLabel, periodLabel }: {
               <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{item.jam_ke_mulai === item.jam_ke_selesai ? item.jam_ke_mulai : `${item.jam_ke_mulai}-${item.jam_ke_selesai}`}</td>
               <td style={{ ...agendaPrintCell, overflowWrap: 'break-word' }}>{item.materi || '-'}</td>
               <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{item.kepentingan_sekolah ? 'IS' : STATUS_STYLE[item.status]?.label || item.status}</td>
-              <td style={{ ...agendaPrintCell, overflowWrap: 'break-word' }}>{[item.kepentingan_sekolah ? 'Kepentingan Sekolah' : null, item.alasan_izin_guru_nama, item.keterangan].filter(Boolean).join(' — ') || '-'}</td>
+              <td style={{ ...agendaPrintCell, overflowWrap: 'break-word' }}>{[item.ppl_nama ? `Diisi oleh ${item.ppl_nama} (PPL)` : null, item.kepentingan_sekolah ? 'Kepentingan Sekolah' : null, item.alasan_izin_guru_nama, item.keterangan].filter(Boolean).join(' — ') || '-'}</td>
             </tr>
           ))}
         </tbody>
@@ -1455,7 +1457,7 @@ function TeacherAttendanceAttachment({ teacher, periodLabel }: {
               <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{item.jam_ke_mulai === item.jam_ke_selesai ? item.jam_ke_mulai : `${item.jam_ke_mulai}-${item.jam_ke_selesai}`}</td>
               <td style={{ ...agendaPrintCell, overflowWrap: 'break-word' }}>{item.materi || '-'}</td>
               <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{item.kepentingan_sekolah ? 'IS' : STATUS_STYLE[item.status]?.label || item.status}</td>
-              <td style={{ ...agendaPrintCell, overflowWrap: 'break-word' }}>{[item.kepentingan_sekolah ? 'Kepentingan Sekolah' : null, item.alasan_izin_guru_nama, item.keterangan].filter(Boolean).join(' — ') || '-'}</td>
+              <td style={{ ...agendaPrintCell, overflowWrap: 'break-word' }}>{[item.ppl_nama ? `Diisi oleh ${item.ppl_nama} (PPL)` : null, item.kepentingan_sekolah ? 'Kepentingan Sekolah' : null, item.alasan_izin_guru_nama, item.keterangan].filter(Boolean).join(' — ') || '-'}</td>
             </tr>
           ))}
         </tbody>

@@ -25,6 +25,8 @@ export type AgendaPrintSession = TeacherLeaveMetadata & {
   materi?: string | null
   status: string
   keterangan?: string | null
+  ppl_user_id?: string | null
+  ppl_nama?: string | null
 }
 
 export type AttendanceCounts = {

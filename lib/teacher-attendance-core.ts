@@ -30,6 +30,8 @@ export type TeacherAttendanceItem = TeacherLeaveMetadata & {
   materi: string | null
   waktuInput: string | null
   catatan: string | null
+  pplUserId?: string | null
+  pplNama?: string | null
 }
 
 export type TeacherAttendanceResult = {

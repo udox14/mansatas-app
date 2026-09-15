@@ -152,8 +152,8 @@ async function getCurrentAssignmentId(
     JOIN kelas k ON k.id = pm.kelas_id
     WHERE jm.tahun_ajaran_id = ? AND jm.hari = ?
       AND jm.jam_ke IN (${placeholders})
-      AND (pm.guru_id = ? OR jm.id IN (
-        SELECT jadwal_mengajar_id FROM guru_ppl_mapping WHERE guru_ppl_id = ?
+      AND (pm.guru_id = ? OR pm.id IN (
+        SELECT penugasan_mengajar_id FROM guru_ppl_mapping WHERE guru_ppl_id = ?
       ))
       AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
     ORDER BY jm.jam_ke ASC
@@ -196,12 +196,7 @@ export async function getTeacherAttendanceReport(input: {
       JOIN kelas k ON k.id = pm.kelas_id
       JOIN tahun_ajaran ta ON ta.id = pm.tahun_ajaran_id
       WHERE pm.guru_id = ?
-         OR EXISTS (
-           SELECT 1
-           FROM jadwal_mengajar jm_access
-           JOIN guru_ppl_mapping gpm ON gpm.jadwal_mengajar_id = jm_access.id
-           WHERE jm_access.penugasan_id = pm.id AND gpm.guru_ppl_id = ?
-         )
+         OR pm.id IN (SELECT penugasan_mengajar_id FROM guru_ppl_mapping WHERE guru_ppl_id = ?)
       ORDER BY ta.is_active DESC, ta.nama DESC, ta.semester DESC, k.tingkat, k.kelompok,
         CAST(k.nomor_kelas AS INTEGER), mp.nama_mapel
     `).bind(guruId, guruId).all<AssignmentRow>(),

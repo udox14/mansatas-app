@@ -71,7 +71,9 @@ beforeEach(() => {
   for (const file of ['schema-migration-agenda.sql', 'schema-migration-delegasi-tugas.sql', '0094_teacher_leave_reasons.sql']) {
     sqlite.exec(readFileSync(new URL(`../migrations/${file}`, import.meta.url), 'utf8'))
   }
-  sqlite.exec(`INSERT INTO alasan_izin_guru (id, nama, kepentingan_sekolah) VALUES ('rapat', 'Rapat', 1);
+  sqlite.exec(`ALTER TABLE agenda_guru ADD COLUMN ppl_user_id TEXT REFERENCES "user"(id);
+    INSERT INTO "user" (id, nama_lengkap) VALUES ('ppl', 'PPL Satu');
+    INSERT INTO alasan_izin_guru (id, nama, kepentingan_sekolah) VALUES ('rapat', 'Rapat', 1);
     INSERT INTO delegasi_tugas (id, dari_user_id, tanggal, alasan_ketidakhadiran, deskripsi_ketidakhadiran)
       VALUES ('d1', 'guru', '2026-08-03', 'IZIN', 'Deskripsi lama');
     INSERT INTO delegasi_tugas_kelas (id, delegasi_id, penugasan_mengajar_id, kelas_id, tugas)
@@ -152,6 +154,20 @@ describe('master dan pemetaan izin guru dengan migrasi SQLite', () => {
 })
 
 describe('performa konsisten di dashboard dan cetak', () => {
+  it('agenda PPL tetap menjadi kehadiran guru utama dan membawa informasi pelaksana', async () => {
+    sqlite.exec(`INSERT INTO agenda_guru (guru_id, penugasan_id, tanggal, jam_ke_mulai, jam_ke_selesai, status, materi, ppl_user_id)
+      VALUES ('guru', 'p1', '2026-08-03', 1, 2, 'TEPAT_WAKTU', 'Materi oleh PPL', 'ppl');`)
+    const print = await getDataCetakLaporan('2026-08-03', '2026-08-03')
+    const daily = await getMonitoringHarian('2026-08-03', 'semua')
+    expect(print.find(row => row.penugasan_id === 'p1')).toMatchObject({
+      guru_id: 'guru', status: 'TEPAT_WAKTU', ppl_user_id: 'ppl', ppl_nama: 'PPL Satu',
+    })
+    expect(daily.data.find(row => row.penugasan_id === 'p1')).toMatchObject({
+      guru_id: 'guru', status: 'TEPAT_WAKTU', ppl_user_id: 'ppl', ppl_nama: 'PPL Satu',
+    })
+    expect(aggregateTeacherAttendance(print, 'excused_penalized')[0]).toMatchObject({ hadir: 1, performa: 50 })
+  })
+
   it('query harian, rekap, cetak, dan dashboard menghasilkan dua sesi yang sama setelah koreksi', async () => {
     await mapTeacherLeaveReasons([{ delegasi_id: 'd1' }], 'rapat')
     await mapTeacherLeaveReasons([{ penugasan_id: 'p1', tanggal: '2026-08-03' }], 'izin-guru-lainnya')

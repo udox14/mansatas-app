@@ -96,12 +96,7 @@ async function getAllowedRppmMapelOptions(db: D1Database, userId: string): Promi
     WHERE pm.tahun_ajaran_id = ?
       AND (
         pm.guru_id = ?
-        OR pm.id IN (
-          SELECT DISTINCT jm.penugasan_id
-          FROM jadwal_mengajar jm
-          JOIN guru_ppl_mapping gpm ON gpm.jadwal_mengajar_id = jm.id
-          WHERE gpm.guru_ppl_id = ?
-        )
+        OR pm.id IN (SELECT penugasan_mengajar_id FROM guru_ppl_mapping WHERE guru_ppl_id = ?)
       )
     ORDER BY mp.nama_mapel ASC
   `).bind(ta.id, userId, userId).all<RppmMapelOption>()

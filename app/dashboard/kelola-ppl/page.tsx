@@ -25,11 +25,11 @@ export default async function KelolaPPLPage() {
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
       <PageHeader
         title="Manajemen Spesifik Guru PPL"
-        description="Atur pendelegasian komponen tugas secara spesifik (jadwal atau piket) dari guru kepada PPL."
+        description="Atur pendelegasian mapel–kelas atau jadwal piket dari guru utama kepada PPL."
       />
       <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-lg text-sm mb-4 flex items-start gap-2">
         <Users className="h-5 w-5 shrink-0 mt-0.5 text-amber-600" />
-        <p>Silakan pilih Guru PPL di bawah, kemudian pilih Guru Utama yang digantikan. Setelah itu, PPL dapat mengakses modul KBM dan Nilai Harian sesuai jadwal yang dituju.</p>
+        <p>Silakan pilih Guru PPL dan Guru Utama yang digantikan. PPL kemudian dapat mengisi agenda, absensi siswa, catatan siswa, dan nilai untuk mapel–kelas yang dipilih; seluruh data resmi tetap atas nama Guru Utama.</p>
       </div>
 
       <KelolaPplClient pplList={pplList} guruUtamaList={guruUtamaList} />

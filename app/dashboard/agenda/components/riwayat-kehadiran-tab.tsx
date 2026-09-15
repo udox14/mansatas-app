@@ -205,6 +205,7 @@ export function RiwayatKehadiranTab({ result }: { result: TeacherAttendancePubli
                               </>
                             )}
                           </div>
+                          {item.pplNama && <p className="mt-1 text-[11px] font-medium text-violet-600 dark:text-violet-400">Diisi oleh {item.pplNama} (PPL)</p>}
                         </div>
                       </div>
 

@@ -7,6 +7,7 @@ import { checkFeatureAccess } from '@/lib/features'
 import { logActivity } from '@/lib/activity-log'
 import { STUDENT_NOTE_MAX_LENGTH } from '@/lib/student-note-shared'
 import { formatNamaKelas } from '@/lib/utils'
+import { resolveTeachingAssignmentAccess } from '@/lib/guru-ppl-access'
 
 type ActionResult = { success?: string; error?: string }
 
@@ -36,6 +37,8 @@ export async function createStudentNote(formData: FormData): Promise<ActionResul
   const validation = validateContent(formData.get('isi'))
   if ('error' in validation) return validation
   if (!siswaId || !penugasanId) return { error: 'Penugasan dan siswa wajib dipilih.' }
+  const access = await resolveTeachingAssignmentAccess(db, user.id, penugasanId)
+  if (!access) return { error: 'Akses ditolak. Penugasan tidak ditugaskan kepada Anda.' }
 
   const context = await db.prepare(`
     SELECT pm.id AS penugasan_id, pm.kelas_id, pm.mapel_id,
@@ -49,15 +52,9 @@ export async function createStudentNote(formData: FormData): Promise<ActionResul
     JOIN kelas k ON k.id = pm.kelas_id
     JOIN siswa s ON s.id = ? AND s.kelas_id = pm.kelas_id AND s.status = 'aktif'
     JOIN "user" u ON u.id = ?
-    WHERE pm.id = ? AND (
-      pm.guru_id = ? OR pm.id IN (
-        SELECT DISTINCT jm.penugasan_id FROM jadwal_mengajar jm
-        JOIN guru_ppl_mapping gpm ON gpm.jadwal_mengajar_id = jm.id
-        WHERE gpm.guru_ppl_id = ?
-      )
-    )
+    WHERE pm.id = ? AND pm.guru_id = ?
     LIMIT 1
-  `).bind(siswaId, user.id, penugasanId, user.id, user.id).first<any>()
+  `).bind(siswaId, user.id, penugasanId, access.guruUtamaId).first<any>()
   if (!context) return { error: 'Akses ditolak. Siswa bukan bagian dari penugasan aktif Anda.' }
 
   const id = crypto.randomUUID()

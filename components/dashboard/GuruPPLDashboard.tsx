@@ -19,7 +19,7 @@ export async function GuruPPLDashboard({ userId, nama, namaDepan, avatarUrl, rol
   
   // Ambil data mapping substitusi
   const { results: rawMappings } = await db.prepare(`
-    SELECT m.jadwal_mengajar_id, m.jadwal_piket_id, 
+    SELECT m.penugasan_mengajar_id, m.jadwal_piket_id,
            u.nama_lengkap as guru_utama
     FROM guru_ppl_mapping m
     JOIN "user" u ON m.guru_utama_id = u.id
@@ -27,7 +27,7 @@ export async function GuruPPLDashboard({ userId, nama, namaDepan, avatarUrl, rol
   `).bind(userId).all<any>()
 
   const mappings = rawMappings || []
-  const tkbm = mappings.filter(m => m.jadwal_mengajar_id !== null).length
+  const tkbm = mappings.filter(m => m.penugasan_mengajar_id !== null).length
   const tpiket = mappings.filter(m => m.jadwal_piket_id !== null).length
 
   // Ambil list guru utama yang digantikan (unik)
@@ -68,7 +68,7 @@ export async function GuruPPLDashboard({ userId, nama, namaDepan, avatarUrl, rol
           <div className="grid grid-cols-3 gap-2">
             <div className="bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 p-2 text-center">
               <p className="text-xl font-bold text-slate-800 dark:text-slate-200">{tkbm}</p>
-              <p className="text-[10px] text-slate-500">Sesi KBM</p>
+              <p className="text-[10px] text-slate-500">Mapel–Kelas</p>
             </div>
             <div className="bg-white dark:bg-slate-800 rounded border border-slate-200 dark:border-slate-700 p-2 text-center">
               <p className="text-xl font-bold text-slate-800 dark:text-slate-200">{tpiket}</p>

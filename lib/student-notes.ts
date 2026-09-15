@@ -33,12 +33,7 @@ export async function getStudentNoteAssignments(db: D1Database, userId: string):
     JOIN mata_pelajaran mp ON mp.id = pm.mapel_id
     JOIN kelas k ON k.id = pm.kelas_id
     WHERE pm.guru_id = ?
-       OR pm.id IN (
-         SELECT DISTINCT jm.penugasan_id
-         FROM jadwal_mengajar jm
-         JOIN guru_ppl_mapping gpm ON gpm.jadwal_mengajar_id = jm.id
-         WHERE gpm.guru_ppl_id = ?
-       )
+       OR pm.id IN (SELECT penugasan_mengajar_id FROM guru_ppl_mapping WHERE guru_ppl_id = ?)
   `).bind(userId, userId).all<any>()
 
   return (rows.results || []).map(row => {
@@ -93,8 +88,8 @@ export async function getCurrentStudentNoteAssignmentId(
     JOIN kelas k ON k.id = pm.kelas_id
     WHERE jm.tahun_ajaran_id = ? AND jm.hari = ?
       AND jm.jam_ke IN (${slotPlaceholders})
-      AND (pm.guru_id = ? OR jm.id IN (
-        SELECT jadwal_mengajar_id FROM guru_ppl_mapping WHERE guru_ppl_id = ?
+      AND (pm.guru_id = ? OR pm.id IN (
+        SELECT penugasan_mengajar_id FROM guru_ppl_mapping WHERE guru_ppl_id = ?
       ))
       AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
     ORDER BY jm.jam_ke ASC
@@ -127,9 +122,7 @@ export async function getAccessibleStudentNoteClasses(
       FROM penugasan_mengajar pm
       JOIN tahun_ajaran ta ON ta.id = pm.tahun_ajaran_id AND ta.is_active = 1
       WHERE pm.guru_id = ? OR pm.id IN (
-        SELECT DISTINCT jm.penugasan_id FROM jadwal_mengajar jm
-        JOIN guru_ppl_mapping gpm ON gpm.jadwal_mengajar_id = jm.id
-        WHERE gpm.guru_ppl_id = ?
+        SELECT penugasan_mengajar_id FROM guru_ppl_mapping WHERE guru_ppl_id = ?
       )
     `).bind(userId, userId).all<{ id: string }>(),
     db.prepare('SELECT id FROM kelas WHERE wali_kelas_id = ?').bind(userId).all<{ id: string }>(),
@@ -179,9 +172,7 @@ export async function getStudentsWithNotes(
       JOIN tahun_ajaran ta ON ta.id = pm.tahun_ajaran_id AND ta.is_active = 1
       WHERE pm.kelas_id = s.kelas_id AND (
         pm.guru_id = ? OR pm.id IN (
-          SELECT DISTINCT jm.penugasan_id FROM jadwal_mengajar jm
-          JOIN guru_ppl_mapping gpm ON gpm.jadwal_mengajar_id = jm.id
-          WHERE gpm.guru_ppl_id = ?
+          SELECT penugasan_mengajar_id FROM guru_ppl_mapping WHERE guru_ppl_id = ?
         )
       )
     )
@@ -239,9 +230,7 @@ export async function canReadStudentNotes(
         JOIN tahun_ajaran ta ON ta.id = pm.tahun_ajaran_id AND ta.is_active = 1
         WHERE pm.kelas_id = s.kelas_id AND (
           pm.guru_id = ? OR pm.id IN (
-            SELECT DISTINCT jm.penugasan_id FROM jadwal_mengajar jm
-            JOIN guru_ppl_mapping gpm ON gpm.jadwal_mengajar_id = jm.id
-            WHERE gpm.guru_ppl_id = ?
+            SELECT penugasan_mengajar_id FROM guru_ppl_mapping WHERE guru_ppl_id = ?
           )
         )
       )

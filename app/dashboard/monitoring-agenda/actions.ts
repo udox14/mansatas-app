@@ -119,6 +119,8 @@ export async function getMonitoringHarian(
       ag.status,
       ag.waktu_input,
       ag.catatan_admin,
+      ag.ppl_user_id,
+      u_ppl.nama_lengkap as ppl_nama,
       dtk.id as delegasi_kelas_id,
       dt_info.alasan_ketidakhadiran,
       dt_info.deskripsi_ketidakhadiran,
@@ -129,6 +131,7 @@ export async function getMonitoringHarian(
     JOIN mata_pelajaran mp ON pm.mapel_id = mp.id
     JOIN kelas k ON pm.kelas_id = k.id
     LEFT JOIN agenda_guru ag ON ag.penugasan_id = jm.penugasan_id AND ag.tanggal = ?
+    LEFT JOIN "user" u_ppl ON u_ppl.id = ag.ppl_user_id
     LEFT JOIN delegasi_tugas_kelas dtk ON dtk.penugasan_mengajar_id = jm.penugasan_id
       AND dtk.delegasi_id IN (SELECT dt.id FROM delegasi_tugas dt WHERE dt.dari_user_id = pm.guru_id AND dt.tanggal = ?)
     LEFT JOIN delegasi_tugas dt_info ON dtk.delegasi_id = dt_info.id
@@ -222,6 +225,8 @@ export async function getMonitoringHarian(
       status,
       waktu_input: first.waktu_input,
       catatan_admin: first.catatan_admin,
+      ppl_user_id: first.ppl_user_id || null,
+      ppl_nama: first.ppl_nama || null,
       pelaksana_nama: first.pelaksana_nama || null,
       alasan_ketidakhadiran: first.alasan_ketidakhadiran || null,
       deskripsi_ketidakhadiran: first.deskripsi_ketidakhadiran || null,
@@ -319,6 +324,8 @@ type CanonicalTeacherSession = TeacherLeaveMetadata & {
   waktu_input: string | null
   catatan_admin: string | null
   keterangan: string | null
+  ppl_user_id: string | null
+  ppl_nama: string | null
   sumber: 'AGENDA' | 'OVERRIDE' | 'PENUGASAN' | 'OTOMATIS'
 }
 
@@ -386,8 +393,9 @@ async function getCanonicalTeacherSessions(
 
   const agendaParams: unknown[] = [ta.id, tanggalMulai, tanggalSelesai]
   let agendaSql = `
-    SELECT ag.* FROM agenda_guru ag
+    SELECT ag.*, u_ppl.nama_lengkap AS ppl_nama FROM agenda_guru ag
     JOIN penugasan_mengajar pm ON pm.id = ag.penugasan_id
+    LEFT JOIN "user" u_ppl ON u_ppl.id = ag.ppl_user_id
     WHERE pm.tahun_ajaran_id = ? AND ag.guru_id = pm.guru_id
       AND ag.tanggal BETWEEN ? AND ?
   `
@@ -484,6 +492,8 @@ async function getCanonicalTeacherSessions(
         waktu_input: agenda?.waktu_input || null,
         catatan_admin: agenda?.catatan_admin || null,
         keterangan: agenda?.catatan_admin || delegation?.deskripsi_ketidakhadiran || null,
+        ppl_user_id: agenda?.ppl_user_id || null,
+        ppl_nama: agenda?.ppl_nama || null,
         sumber: agenda
           ? (agenda.diubah_oleh && !agenda.waktu_input ? 'OVERRIDE' : 'AGENDA')
           : delegation ? 'PENUGASAN' : 'OTOMATIS',

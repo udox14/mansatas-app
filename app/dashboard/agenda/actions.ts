@@ -16,6 +16,7 @@ import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
 import { nowWIB, currentTimeWIB, nowWIBISO } from '@/lib/time'
 import { formatNamaKelas } from '@/lib/utils'
 import { getEffectiveUser, getActAsDate } from '@/lib/act-as'
+import { resolveTeachingAssignmentAccess } from '@/lib/guru-ppl-access'
 import { getSystemSetting, getSystemSettingBoolean, getSystemSettingNumber, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 import {
   getKbmExceptionsForDate,
@@ -87,14 +88,10 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized', blocks: [], slots: [], tanggal: '', hari: 0 }
 
-  // Gunakan guruIdOverride jika tersedia (dari Act As), atau cek cookie act-as, fallback ke user.id
-  let guruId = guruIdOverride || user.id
-  if (!guruIdOverride) {
-    const effective = await getEffectiveUser()
-    if (effective?.isActingAs) {
-      guruId = effective.effectiveUserId
-    }
-  }
+  // Override hanya boleh sama dengan identitas efektif yang sudah divalidasi oleh Act As.
+  const effective = await getEffectiveUser()
+  const effectiveGuruId = effective?.effectiveUserId || user.id
+  const guruId = guruIdOverride === effectiveGuruId ? guruIdOverride : effectiveGuruId
 
   const db = await getDB()
 
@@ -168,7 +165,7 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
       )
     LEFT JOIN delegasi_tugas dt ON dt.id = dtk.delegasi_id
     WHERE jm.tahun_ajaran_id = ? AND jm.hari = ? 
-      AND (pm.guru_id = ? OR jm.id IN (SELECT jadwal_mengajar_id FROM guru_ppl_mapping WHERE guru_ppl_id = ?))
+      AND (pm.guru_id = ? OR pm.id IN (SELECT penugasan_mengajar_id FROM guru_ppl_mapping WHERE guru_ppl_id = ?))
       AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
     ORDER BY jm.jam_ke ASC
   `).bind(tanggal, tanggal, ta.id, hari, guruId, guruId, tanggal).all<any>()
@@ -256,6 +253,7 @@ function parseAgendaLateThresholdByJam(raw: string): Record<string, number> {
 export async function submitAgenda(formData: FormData): Promise<{ error?: string; success?: string }> {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
+  await requireActionAccess('agenda', 'create')
 
   // Cek act-as: jika super admin, gunakan guru_id dari jadwal
   const effective = await getEffectiveUser()
@@ -273,6 +271,9 @@ export async function submitAgenda(formData: FormData): Promise<{ error?: string
   if (!penugasanId || !materi || !tanggal) return { error: 'Materi wajib diisi.' }
 
   const db = await getDB()
+  const actingUserId = effective?.effectiveUserId || user.id
+  const assignmentAccess = await resolveTeachingAssignmentAccess(db, actingUserId, penugasanId)
+  if (!assignmentAccess) return { error: 'Anda tidak memiliki akses ke penugasan ini.' }
   const calendarStatus = await getKalenderDateStatus(db, tanggal)
   if (!calendarStatus.isEffective) {
     return { error: `Tanggal ini tidak efektif pembelajaran${calendarStatus.reason ? `: ${calendarStatus.reason}` : ''}. Agenda tidak perlu disimpan.` }
@@ -386,11 +387,17 @@ export async function submitAgenda(formData: FormData): Promise<{ error?: string
   const expectedJamMulai = slotState.activeJamKe[0]
   const expectedJamSelesai = slotState.activeJamKe[slotState.activeJamKe.length - 1]
   if (jamKeMulai !== expectedJamMulai || jamKeSelesai !== expectedJamSelesai) {
-    return { error: `Jam efektif agenda berubah menjadi jam ke--. Silakan refresh halaman.` }
+    return { error: `Jam efektif agenda berubah menjadi jam ke-${expectedJamMulai}-${expectedJamSelesai}. Silakan refresh halaman.` }
+  }
+  const canonicalSlots = getPolaHariIni(penugasan.jam_pelajaran || '[]', hari)
+  const canonicalMulai = canonicalSlots.find(slot => slot.id === expectedJamMulai)?.mulai
+  const canonicalSelesai = canonicalSlots.find(slot => slot.id === expectedJamSelesai)?.selesai
+  if (!canonicalMulai || !canonicalSelesai || slotMulai !== canonicalMulai || slotSelesai !== canonicalSelesai) {
+    return { error: 'Waktu jadwal berubah. Silakan refresh halaman sebelum mengisi agenda.' }
   }
 
   // guru_id yang disimpan harus guru utama pemilik penugasan
-  const guruId = penugasan.guru_id
+  const guruId = assignmentAccess.guruUtamaId
 
   const payload = {
     guru_id: guruId,
@@ -403,6 +410,7 @@ export async function submitAgenda(formData: FormData): Promise<{ error?: string
     status,
     waktu_input: nowWIBISO(),
     diubah_oleh: effective?.realUserId || user.id, // audit trail: siapa admin yang input
+    ppl_user_id: assignmentAccess.actorKind === 'PPL' && !isActingAs ? user.id : null,
   }
 
   const result = await dbInsert(db, 'agenda_guru', payload)

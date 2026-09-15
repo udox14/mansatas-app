@@ -25,8 +25,7 @@ export type JadwalKBM = {
   id: string
   mapel_nama: string
   kelas_label: string
-  hari: number
-  jam_ke: number
+  jadwal_label: string
 }
 
 export type JadwalPiket = {
@@ -42,7 +41,7 @@ export type JadwalGuruUtama = {
 }
 
 export type MappingPPL = {
-  jadwal_mengajar_id: string | null
+  penugasan_mengajar_id: string | null
   jadwal_piket_id: string | null
 }
 
@@ -83,7 +82,7 @@ export async function getDaftarGuruPPLWithSummary(): Promise<PplWithSummary[]> {
       m.guru_ppl_id,
       m.guru_utama_id,
       u.nama_lengkap as guru_utama_nama,
-      SUM(CASE WHEN m.jadwal_mengajar_id IS NOT NULL THEN 1 ELSE 0 END) as kbm,
+      SUM(CASE WHEN m.penugasan_mengajar_id IS NOT NULL THEN 1 ELSE 0 END) as kbm,
       SUM(CASE WHEN m.jadwal_piket_id IS NOT NULL THEN 1 ELSE 0 END) as piket
     FROM guru_ppl_mapping m
     JOIN "user" u ON u.id = m.guru_utama_id
@@ -121,9 +120,8 @@ export async function getDaftarGuruUtama(): Promise<GuruInfo[]> {
     SELECT DISTINCT u.id, u.nama_lengkap, u.role
     FROM "user" u
     LEFT JOIN user_roles ur ON ur.user_id = u.id
-    WHERE u.id NOT IN (
-      SELECT id FROM "user" WHERE role = 'guru_ppl'
-    )
+    WHERE u.role <> 'guru_ppl'
+    AND NOT EXISTS (SELECT 1 FROM user_roles ppl_role WHERE ppl_role.user_id = u.id AND ppl_role.role = 'guru_ppl')
     AND (u.role IN ('guru', 'wali_kelas', 'guru_bk', 'guru_piket', 'wakamad', 'kepsek') 
          OR ur.role IN ('guru', 'wali_kelas', 'guru_bk', 'guru_piket', 'wakamad', 'kepsek'))
     ORDER BY u.nama_lengkap ASC
@@ -141,21 +139,22 @@ export async function getJadwalGuruUtama(guruUtamaId: string): Promise<JadwalGur
 
   // Jadwal KBM (jadwal_mengajar)
   const kbmRes = await db.prepare(`
-    SELECT jm.id, mp.nama_mapel, k.tingkat, k.nomor_kelas, k.kelompok, jm.hari, jm.jam_ke
-    FROM jadwal_mengajar jm
-    JOIN penugasan_mengajar pm ON pm.id = jm.penugasan_id
+    SELECT pm.id, mp.nama_mapel, k.tingkat, k.nomor_kelas, k.kelompok,
+      GROUP_CONCAT(jm.hari || ':' || jm.jam_ke) AS jadwal_label
+    FROM penugasan_mengajar pm
+    JOIN jadwal_mengajar jm ON jm.penugasan_id = pm.id
     JOIN mata_pelajaran mp ON mp.id = pm.mapel_id
     JOIN kelas k ON k.id = pm.kelas_id
     WHERE pm.guru_id = ? AND pm.tahun_ajaran_id = ?
-    ORDER BY jm.hari ASC, jm.jam_ke ASC
+    GROUP BY pm.id, mp.nama_mapel, k.tingkat, k.nomor_kelas, k.kelompok
+    ORDER BY k.tingkat, k.kelompok, CAST(k.nomor_kelas AS INTEGER), mp.nama_mapel
   `).bind(guruUtamaId, ta.id).all<any>()
 
   const kbm: JadwalKBM[] = (kbmRes.results || []).map(r => ({
     id: r.id,
     mapel_nama: r.nama_mapel,
     kelas_label: formatNamaKelas(r.tingkat, r.nomor_kelas, r.kelompok),
-    hari: r.hari,
-    jam_ke: r.jam_ke
+    jadwal_label: r.jadwal_label || ''
   }))
 
   // Jadwal Piket
@@ -183,7 +182,7 @@ export async function getJadwalGuruUtama(guruUtamaId: string): Promise<JadwalGur
 export async function getMappingPPL(guruPplId: string, guruUtamaId: string): Promise<MappingPPL[]> {
   const db = await getDB()
   const { results } = await db.prepare(`
-    SELECT jadwal_mengajar_id, jadwal_piket_id FROM guru_ppl_mapping
+    SELECT penugasan_mengajar_id, jadwal_piket_id FROM guru_ppl_mapping
     WHERE guru_ppl_id = ? AND guru_utama_id = ?
   `).bind(guruPplId, guruUtamaId).all<any>()
   
@@ -202,32 +201,45 @@ export async function simpanMappingPPL(
     const user = await getCurrentUser()
     if (!user) return { error: 'Unauthorized' }
 
-    const db = await getDB()
+    await requireActionAccess('kelola-ppl', 'update')
+    const db = await getRawDB()
+    if (guruPplId === guruUtamaId) return { error: 'Guru PPL tidak dapat menggantikan dirinya sendiri.' }
 
-    // Hapus mapping existing untuk pasangan PPL & Guru Utama ini
-    await db.prepare(`DELETE FROM guru_ppl_mapping WHERE guru_ppl_id = ? AND guru_utama_id = ?`).bind(guruPplId, guruUtamaId).run()
+    const [pplValid, guruValid] = await Promise.all([
+      db.prepare(`SELECT 1 FROM "user" u LEFT JOIN user_roles ur ON ur.user_id=u.id WHERE u.id=? AND (u.role='guru_ppl' OR ur.role='guru_ppl') LIMIT 1`).bind(guruPplId).first(),
+      db.prepare(`SELECT 1 FROM "user" u LEFT JOIN user_roles ur ON ur.user_id=u.id WHERE u.id=? AND (u.role IN ('guru','wali_kelas','guru_bk','guru_piket','wakamad','kepsek') OR ur.role IN ('guru','wali_kelas','guru_bk','guru_piket','wakamad','kepsek')) AND u.role <> 'guru_ppl' AND NOT EXISTS (SELECT 1 FROM user_roles pr WHERE pr.user_id=u.id AND pr.role='guru_ppl') LIMIT 1`).bind(guruUtamaId).first(),
+    ])
+    if (!pplValid || !guruValid) return { error: 'Pasangan Guru PPL dan Guru Utama tidak valid.' }
 
-    if (data.length === 0) {
-      revalidatePath('/dashboard/kelola-ppl')
-      return { success: true }
+    const invalidShape = data.some(m => (!!m.penugasan_mengajar_id) === (!!m.jadwal_piket_id))
+    if (invalidShape) return { error: 'Setiap mapping harus berisi tepat satu penugasan KBM atau jadwal piket.' }
+    const penugasanIds = [...new Set(data.flatMap(m => m.penugasan_mengajar_id ? [m.penugasan_mengajar_id] : []))]
+    const piketIds = [...new Set(data.flatMap(m => m.jadwal_piket_id ? [m.jadwal_piket_id] : []))]
+    if (penugasanIds.length) {
+      const rows = await db.prepare(`SELECT pm.id FROM penugasan_mengajar pm JOIN tahun_ajaran ta ON ta.id=pm.tahun_ajaran_id AND ta.is_active=1 WHERE pm.guru_id=? AND pm.id IN (${penugasanIds.map(() => '?').join(',')})`).bind(guruUtamaId, ...penugasanIds).all<any>()
+      if ((rows.results || []).length !== penugasanIds.length) return { error: 'Ada penugasan KBM yang bukan milik Guru Utama.' }
+    }
+    if (piketIds.length) {
+      const rows = await db.prepare(`SELECT id FROM jadwal_guru_piket WHERE user_id=? AND id IN (${piketIds.map(() => '?').join(',')})`).bind(guruUtamaId, ...piketIds).all<any>()
+      if ((rows.results || []).length !== piketIds.length) return { error: 'Ada jadwal piket yang bukan milik Guru Utama.' }
     }
 
-    // Insert new mappings
-    const stmts = data.map(m => 
+    const normalized: MappingPPL[] = [
+      ...penugasanIds.map(id => ({ penugasan_mengajar_id: id, jadwal_piket_id: null })),
+      ...piketIds.map(id => ({ penugasan_mengajar_id: null, jadwal_piket_id: id })),
+    ]
+    const stmts = normalized.map(m =>
       db.prepare(`
-        INSERT INTO guru_ppl_mapping (id, guru_ppl_id, guru_utama_id, jadwal_mengajar_id, jadwal_piket_id)
+        INSERT INTO guru_ppl_mapping (id, guru_ppl_id, guru_utama_id, penugasan_mengajar_id, jadwal_piket_id)
         VALUES (lower(hex(randomblob(16))), ?, ?, ?, ?)
       `).bind(
         guruPplId, guruUtamaId, 
-        m.jadwal_mengajar_id || null, 
+        m.penugasan_mengajar_id || null,
         m.jadwal_piket_id || null
       )
     )
-
-    // Run in chunks of 50
-    for (let i = 0; i < stmts.length; i += 50) {
-      await db.batch(stmts.slice(i, i + 50))
-    }
+    const remove = db.prepare(`DELETE FROM guru_ppl_mapping WHERE guru_ppl_id = ? AND guru_utama_id = ?`).bind(guruPplId, guruUtamaId)
+    await db.batch([remove, ...stmts])
 
     revalidatePath('/dashboard/kelola-ppl')
     return { success: true }

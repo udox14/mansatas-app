@@ -784,6 +784,7 @@ export async function simpanAbsensiDelegasi(
     INSERT INTO absensi_sesi_guru (penugasan_id, tanggal, submitted_at, diinput_oleh, updated_at)
     VALUES (?, ?, datetime('now'), ?, datetime('now'))
     ON CONFLICT(penugasan_id, tanggal) DO UPDATE SET
+      diinput_oleh = excluded.diinput_oleh,
       updated_at = excluded.updated_at
   `).bind(penugasanMengajarId, tanggal, user.id)
 

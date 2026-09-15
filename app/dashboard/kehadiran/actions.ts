@@ -7,12 +7,14 @@ import { revalidatePath } from 'next/cache'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
 import { formatNamaKelas } from '@/lib/utils'
 import { getEffectiveUser, getActAsDate } from '@/lib/act-as'
+import { resolveTeachingAssignmentAccess } from '@/lib/guru-ppl-access'
 import { currentTimeWIB, todayWIB, nowWIB } from '@/lib/time'
 import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 import { enqueueAttendanceAlfaNotifications } from '@/lib/whatsapp'
 import { notifyParentsAttendanceConfigured, notifyParentsDailyAttendanceFinal } from '@/lib/notification-engine'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
 import { invalidateAttendanceCache } from '@/lib/attendance-cache'
+import { requireActionAccess } from '@/lib/action-security'
 import {
   getKbmExceptionsForDate,
   getKalenderDateStatus,
@@ -139,22 +141,10 @@ async function getAccessiblePenugasan(
   penugasanId: string,
   guruId: string
 ): Promise<{ kelas_id: string; tingkat: number; kbm_nonaktif_mulai: string | null } | null> {
-  return db.prepare(`
-    SELECT k.id AS kelas_id, k.tingkat, k.kbm_nonaktif_mulai
-    FROM penugasan_mengajar pm
-    JOIN kelas k ON pm.kelas_id = k.id
-    WHERE pm.id = ?
-      AND (
-        pm.guru_id = ?
-        OR EXISTS (
-          SELECT 1
-          FROM jadwal_mengajar jm_access
-          JOIN guru_ppl_mapping gpm ON gpm.jadwal_mengajar_id = jm_access.id
-          WHERE jm_access.penugasan_id = pm.id AND gpm.guru_ppl_id = ?
-        )
-      )
-    LIMIT 1
-  `).bind(penugasanId, guruId, guruId).first<any>()
+  const access = await resolveTeachingAssignmentAccess(db, guruId, penugasanId)
+  if (!access) return null
+  return db.prepare(`SELECT id AS kelas_id, tingkat, kbm_nonaktif_mulai FROM kelas WHERE id = ? LIMIT 1`)
+    .bind(access.kelasId).first<any>()
 }
 
 // ============================================================
@@ -236,12 +226,7 @@ export async function getBlokMengajarHariIni(guruIdOverride?: string, dateOverri
     WHERE jm.tahun_ajaran_id = ? AND jm.hari = ?
       AND (
         pm.guru_id = ?
-        OR pm.id IN (
-          SELECT DISTINCT jm2.penugasan_id
-          FROM jadwal_mengajar jm2
-          JOIN guru_ppl_mapping jpp ON jpp.jadwal_mengajar_id = jm2.id
-          WHERE jpp.guru_ppl_id = ?
-        )
+        OR pm.id IN (SELECT penugasan_mengajar_id FROM guru_ppl_mapping WHERE guru_ppl_id = ?)
       )
       AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
     ORDER BY jm.jam_ke
@@ -411,6 +396,7 @@ export async function simpanAbsensi(
 ): Promise<{ error?: string; success?: string }> {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
+  await requireActionAccess('kehadiran', 'create')
 
   // Cek act-as: gunakan real user ID untuk audit trail
   const effective = await getEffectiveUser()
@@ -428,6 +414,23 @@ export async function simpanAbsensi(
   if (!penugasan) return { error: 'Penugasan tidak ditemukan atau bukan sesi mengajar Anda.' }
   if (penugasan.kbm_nonaktif_mulai && penugasan.kbm_nonaktif_mulai <= tanggal) {
     return { error: 'Kelas ini sudah dinonaktifkan dari kewajiban KBM. Absensi tidak perlu disimpan.' }
+  }
+  const validStatuses = new Set(['HADIR', 'SAKIT', 'IZIN', 'ALFA'])
+  const uniqueStudentIds = [...new Set(dataAbsen.map(row => row.siswa_id))]
+  if (
+    dataAbsen.length === 0 ||
+    uniqueStudentIds.length !== dataAbsen.length ||
+    dataAbsen.some(row => !row.siswa_id || !validStatuses.has(row.status))
+  ) {
+    return { error: 'Data siswa atau status absensi tidak valid.' }
+  }
+  const studentPlaceholders = uniqueStudentIds.map(() => '?').join(',')
+  const students = await db.prepare(`
+    SELECT id FROM siswa
+    WHERE kelas_id = ? AND status = 'aktif' AND id IN (${studentPlaceholders})
+  `).bind(penugasan.kelas_id, ...uniqueStudentIds).all<{ id: string }>()
+  if ((students.results || []).length !== uniqueStudentIds.length) {
+    return { error: 'Ada siswa yang tidak aktif atau tidak berada di kelas sesi ini.' }
   }
   const tanggalDate = new Date(tanggal + 'T00:00:00')
   const hari = tanggalDate.getDay() === 0 ? 7 : tanggalDate.getDay()
@@ -499,6 +502,7 @@ export async function simpanAbsensi(
     INSERT INTO absensi_sesi_guru (penugasan_id, tanggal, submitted_at, diinput_oleh, updated_at)
     VALUES (?, ?, datetime('now'), ?, datetime('now'))
     ON CONFLICT(penugasan_id, tanggal) DO UPDATE SET
+      diinput_oleh = excluded.diinput_oleh,
       updated_at = excluded.updated_at
   `).bind(penugasanId, tanggal, diinputOleh)
 
@@ -559,6 +563,7 @@ export async function koreksiAbsensiDariRekap(
 ): Promise<{ error?: string; success?: string }> {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
+  await requireActionAccess('kehadiran', 'create')
   if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal) || changes.length === 0) return { error: 'Data koreksi tidak valid.' }
   const date = new Date(`${tanggal}T00:00:00`)
   const hari = date.getDay() === 0 ? 7 : date.getDay()

@@ -28,6 +28,8 @@ type AgendaRow = {
   materi: string | null
   waktu_input: string | null
   catatan_admin: string | null
+  ppl_user_id: string | null
+  ppl_nama: string | null
 }
 
 type DelegationRow = {
@@ -130,9 +132,11 @@ export async function getTeacherAttendance(
       ORDER BY jm.hari ASC, jm.jam_ke ASC
     `).bind(ta.id, guruId).all<ScheduleRow>(),
     db.prepare(`
-      SELECT id, penugasan_id, tanggal, status, materi, waktu_input, catatan_admin
-      FROM agenda_guru
-      WHERE guru_id = ? AND tanggal BETWEEN ? AND ?
+      SELECT ag.id, ag.penugasan_id, ag.tanggal, ag.status, ag.materi, ag.waktu_input,
+        ag.catatan_admin, ag.ppl_user_id, u_ppl.nama_lengkap AS ppl_nama
+      FROM agenda_guru ag
+      LEFT JOIN "user" u_ppl ON u_ppl.id = ag.ppl_user_id
+      WHERE ag.guru_id = ? AND ag.tanggal BETWEEN ? AND ?
     `).bind(guruId, range.start, range.end).all<AgendaRow>(),
     db.prepare(`
       SELECT dtk.penugasan_mengajar_id, dt.tanggal,
@@ -227,6 +231,8 @@ export async function getTeacherAttendance(
         materi: agenda?.materi || null,
         waktuInput: agenda?.waktu_input || null,
         catatan: agenda?.catatan_admin || delegation?.deskripsi_ketidakhadiran || null,
+        pplUserId: agenda?.ppl_user_id || null,
+        pplNama: agenda?.ppl_nama || null,
       })
     }
   }
