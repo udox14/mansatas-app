@@ -1,4 +1,10 @@
 -- Riwayat penugasan, kampus asal, dan koreksi kehadiran Guru PPL.
+--
+-- PENTING: file ini memuat compound statement CREATE TRIGGER (BEGIN ... END).
+-- Terapkan sebagai file utuh melalui Wrangler/D1 migrations. Jangan mengeksekusi
+-- trigger per potongan statement pada editor Console D1 karena titik koma di
+-- dalam body trigger dapat dibaca sebagai akhir query dan menghasilkan
+-- "incomplete input".
 
 -- Feature ini sudah lama ada di role_features pada sebagian instalasi, tetapi
 -- permission CRUD bisa belum tersalin jika hardening diterapkan sesudah seed.

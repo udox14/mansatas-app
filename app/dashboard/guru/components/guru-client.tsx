@@ -15,11 +15,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Search, UserPlus, Trash2, ShieldAlert, Loader2, Mail, FileSpreadsheet,
   Download, KeyRound, Pencil, AlertCircle, Users, CheckCircle2, FileText,
-  PlusCircle, X, Shield, SlidersHorizontal, Check, Camera, LayoutGrid, List, Phone
+  PlusCircle, X, Shield, SlidersHorizontal, Check, Camera, LayoutGrid, List, Phone, PenLine
 } from 'lucide-react'
 import {
   tambahPegawai, hapusPegawai, importPegawaiMassal,
-  editPegawai, resetPasswordPegawai, setUserRoles, uploadFotoPegawaiAction
+  deleteSignaturePegawaiAction, editPegawai, resetPasswordPegawai, setUserRoles,
+  uploadFotoPegawaiAction, uploadSignaturePegawaiAction
 } from '../actions'
 import {
   getUserFeatureOverridesAction, setUserFeatureOverride
@@ -32,6 +33,7 @@ type MasterJabatanStruktural = { id: string; nama: string; urutan: number }
 type ProfilType = {
   id: string, nama_lengkap: string, role: string, roles: string[], email: string,
   avatar_url?: string | null,
+  signature_url?: string | null,
   nip?: string | null,
   jabatan_cetak?: string | null,
   nomor_whatsapp?: string | null,
@@ -66,6 +68,35 @@ const compressImage = async (file: File): Promise<File> => {
           if (blob) resolve(new File([blob], file.name.replace(/\.[^/.]+$/, '') + '.jpg', { type: 'image/jpeg' }))
           else resolve(file)
         }, 'image/jpeg', 0.8)
+      }
+      img.onerror = reject
+    }
+    reader.onerror = reject
+  })
+}
+
+const compressSignaturePng = async (file: File): Promise<File> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.readAsDataURL(file)
+    reader.onload = event => {
+      const img = new Image()
+      img.src = event.target?.result as string
+      img.onload = () => {
+        const canvas = document.createElement('canvas')
+        const MAX_WIDTH = 900
+        const MAX_HEIGHT = 360
+        let width = img.width
+        let height = img.height
+        if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH }
+        if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT }
+        canvas.width = Math.max(1, Math.round(width))
+        canvas.height = Math.max(1, Math.round(height))
+        canvas.getContext('2d')?.drawImage(img, 0, 0, canvas.width, canvas.height)
+        canvas.toBlob(blob => {
+          if (blob) resolve(new File([blob], 'signature.png', { type: 'image/png' }))
+          else resolve(file)
+        }, 'image/png')
       }
       img.onerror = reject
     }
@@ -148,6 +179,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES, masterJab
   const [importLogs, setImportLogs] = useState<string[]>([])
   const [viewMode, setViewMode] = useState<'table' | 'gallery'>('table')
   const [uploadingId, setUploadingId] = useState<string | null>(null)
+  const [isManagingSignature, setIsManagingSignature] = useState(false)
   const [exportScope, setExportScope] = useState<'filtered' | 'all'>('filtered')
 
   // Multi-role modal
@@ -231,6 +263,44 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES, masterJab
       if (res.error) alert(res.error)
     } catch { alert('Gagal memproses gambar.') }
     finally { setUploadingId(null); e.target.value = '' }
+  }
+
+  const handleUploadSignature = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !editingPegawai) return
+    setIsManagingSignature(true)
+    try {
+      const compressedFile = await compressSignaturePng(file)
+      const fd = new FormData()
+      fd.append('signature', compressedFile)
+      const res = await uploadSignaturePegawaiAction(editingPegawai.id, fd)
+      if (res.error) alert(res.error)
+      else if (res.url) {
+        setEditingPegawai(current => current ? { ...current, signature_url: res.url } : current)
+        alert(res.success)
+      }
+    } catch {
+      alert('Gagal memproses tanda tangan.')
+    } finally {
+      setIsManagingSignature(false)
+      e.target.value = ''
+    }
+  }
+
+  const handleDeleteSignature = async () => {
+    if (!editingPegawai?.signature_url) return
+    if (!confirm(`Hapus tanda tangan ${editingPegawai.nama_lengkap}?`)) return
+    setIsManagingSignature(true)
+    try {
+      const res = await deleteSignaturePegawaiAction(editingPegawai.id)
+      if (res.error) alert(res.error)
+      else {
+        setEditingPegawai(current => current ? { ...current, signature_url: null } : current)
+        alert(res.success)
+      }
+    } finally {
+      setIsManagingSignature(false)
+    }
   }
 
   // Multi-role handlers
@@ -549,7 +619,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES, masterJab
 
       {/* MODAL EDIT PROFIL */}
       <Dialog open={!!editingPegawai} onOpenChange={open => !open && setEditingPegawai(null)}>
-        <DialogContent className="sm:max-w-md rounded-xl">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md rounded-xl">
           <DialogHeader className="border-b pb-3"><DialogTitle className="text-sm font-semibold">Edit Profil Pegawai</DialogTitle></DialogHeader>
           <form onSubmit={handleEditSubmit} className="space-y-3 pt-1">
             <input type="hidden" name="id" value={editingPegawai?.id} />
@@ -585,7 +655,39 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES, masterJab
               <Label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Jabatan Cetak CKH / Surat</Label>
               <Input name="jabatan_cetak" defaultValue={editingPegawai?.jabatan_cetak || ''} className="h-9 text-sm rounded-lg" placeholder="Contoh: Guru Bahasa Arab / Wakamad Bidang Kurikulum" />
             </div>
-            <Button type="submit" disabled={isPending} className="w-full h-9 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg">
+            <div className="space-y-2 rounded-lg border border-surface bg-surface-2 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <Label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    <PenLine className="h-3.5 w-3.5 text-emerald-600" /> Tanda Tangan
+                  </Label>
+                  <p className="mt-0.5 text-[10px] text-slate-500">PNG, JPG, atau WebP. Maksimal 2 MB.</p>
+                </div>
+                <div className="flex shrink-0 gap-1.5">
+                  {editingPegawai?.signature_url && (
+                    <Button type="button" size="sm" variant="outline" disabled={isManagingSignature} onClick={handleDeleteSignature} className="h-8 gap-1 text-xs text-rose-600 hover:text-rose-700">
+                      <Trash2 className="h-3.5 w-3.5" /> Hapus
+                    </Button>
+                  )}
+                  <label className={cn(
+                    'inline-flex h-8 cursor-pointer items-center gap-1 rounded-md border border-input bg-background px-3 text-xs font-medium shadow-sm hover:bg-accent hover:text-accent-foreground',
+                    isManagingSignature && 'pointer-events-none opacity-50'
+                  )}>
+                    {isManagingSignature ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PenLine className="h-3.5 w-3.5" />}
+                    {editingPegawai?.signature_url ? 'Ganti' : 'Upload'}
+                    <input type="file" className="hidden" accept="image/png,image/webp,image/jpeg" disabled={isManagingSignature} onChange={handleUploadSignature} />
+                  </label>
+                </div>
+              </div>
+              <div className="flex min-h-20 items-center justify-center rounded-md border border-dashed border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-900">
+                {editingPegawai?.signature_url ? (
+                  <img src={editingPegawai.signature_url} alt={`Tanda tangan ${editingPegawai.nama_lengkap}`} className="max-h-20 max-w-full object-contain" />
+                ) : (
+                  <span className="text-[11px] text-slate-400">Belum ada tanda tangan</span>
+                )}
+              </div>
+            </div>
+            <Button type="submit" disabled={isPending || isManagingSignature} className="w-full h-9 text-sm bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg">
               {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Simpan Perubahan'}
             </Button>
           </form>

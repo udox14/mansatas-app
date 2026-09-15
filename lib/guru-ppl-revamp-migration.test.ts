@@ -34,11 +34,19 @@ beforeEach(() => {
   `)
   sqlite.exec(readFileSync(new URL('../migrations/0105_consolidate_guru_ppl_delegation.sql', import.meta.url), 'utf8'))
   sqlite.exec(readFileSync(new URL('../migrations/0106_revamp_guru_ppl.sql', import.meta.url), 'utf8'))
+  // Simulasikan migrasi yang terputus di Console D1 dan kehilangan trigger INSERT.
+  sqlite.exec('DROP TRIGGER trg_guru_ppl_mapping_validate_insert')
+  sqlite.exec(readFileSync(new URL('../migrations/0107_finish_guru_ppl_revamp.sql', import.meta.url), 'utf8'))
 })
 
 afterEach(() => sqlite.close())
 
 describe('migrasi revamp Guru PPL', () => {
+  it('memulihkan kedua trigger validasi setelah eksekusi Console D1 terputus', () => {
+    expect(sqlite.prepare(`SELECT count(*) AS total FROM sqlite_master WHERE type='trigger' AND name IN ('trg_guru_ppl_mapping_validate_insert','trg_guru_ppl_mapping_validate_update')`).get())
+      .toMatchObject({ total: 2 })
+  })
+
   it('memigrasikan tanggal lama dan menjaga satu kampus per akun', () => {
     expect(sqlite.prepare('SELECT berlaku_mulai, berlaku_selesai FROM guru_ppl_mapping WHERE id=?').get('lama'))
       .toMatchObject({ berlaku_mulai: '2026-01-02', berlaku_selesai: null })

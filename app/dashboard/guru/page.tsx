@@ -22,7 +22,7 @@ async function GuruDataFetcher() {
 
   const [usersResult, userRolesResult, masterRolesResult, masterJabatanResult] = await Promise.all([
     db.prepare(`
-      SELECT u.id, u.email, u.name, u.role, u.nama_lengkap, u.avatar_url, u.nip, u.jabatan_cetak, u.nomor_whatsapp,
+      SELECT u.id, u.email, u.name, u.role, u.nama_lengkap, u.avatar_url, u.signature_url, u.nip, u.jabatan_cetak, u.nomor_whatsapp,
         u.jabatan_struktural_id, mjs.nama AS jabatan_struktural_nama
       FROM "user" u
       LEFT JOIN master_jabatan_struktural mjs ON u.jabatan_struktural_id = mjs.id
@@ -50,6 +50,7 @@ async function GuruDataFetcher() {
     nama_lengkap: u.nama_lengkap || u.name || '',
     role: u.role || '',
     avatar_url: u.avatar_url || null,
+    signature_url: u.signature_url || null,
     nip: u.nip || null,
     jabatan_cetak: u.jabatan_cetak || null,
     nomor_whatsapp: u.nomor_whatsapp || null,

@@ -6,7 +6,7 @@ import { getDB } from '@/utils/db-server'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { createAuth, hashPassword } from '@/utils/auth'
 import { revalidatePath } from 'next/cache'
-import { uploadFotoSiswa, validateImageFile } from '@/utils/r2'
+import { deleteFromR2, uploadFotoSiswa, uploadSignature, validateImageFile } from '@/utils/r2'
 import { getCurrentUser, isCurrentUserPlayReviewer } from '@/utils/auth/server'
 import { getUserRoles } from '@/lib/features'
 import { createActivityDiff, logActivity } from '@/lib/activity-log'
@@ -432,4 +432,100 @@ export async function uploadFotoPegawaiAction(userId: string, formData: FormData
 
   revalidatePath('/dashboard/guru')
   return { success: 'Foto berhasil diperbarui!', url: versionedUrl }
+}
+
+// ============================================================
+// KELOLA TANDA TANGAN PEGAWAI
+// ============================================================
+export async function uploadSignaturePegawaiAction(userId: string, formData: FormData) {
+  if (!(await verifyStaffAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.' }
+
+  const file = formData.get('signature') as File
+  if (!file || file.size === 0) return { error: 'Tidak ada file tanda tangan yang dipilih.' }
+
+  const validationError = validateImageFile(file)
+  if (validationError) return { error: validationError }
+
+  const db = await getDB()
+  const before = await db.prepare(
+    'SELECT id, nama_lengkap, name, signature_url FROM "user" WHERE id = ?'
+  ).bind(userId).first<any>()
+  if (!before) return { error: 'Pegawai tidak ditemukan.' }
+
+  const { url, error: uploadError } = await uploadSignature(userId, file)
+  if (uploadError || !url) return { error: uploadError || 'Upload tanda tangan gagal.' }
+
+  const versionedUrl = `${url}${url.includes('?') ? '&' : '?'}v=${Date.now()}`
+  const result = await dbUpdate(
+    db,
+    '"user"',
+    { signature_url: versionedUrl, updatedAt: new Date().toISOString() },
+    { id: userId }
+  )
+  if (result.error) return { error: result.error }
+
+  await logActivity({
+    db,
+    module: 'pegawai',
+    action: 'upload_signature',
+    summary: `Mengganti tanda tangan pegawai ${before.nama_lengkap || before.name || userId}`,
+    entityType: 'user',
+    entityId: userId,
+    entityLabel: before.nama_lengkap || before.name || userId,
+    before: { signature_url: before.signature_url ?? null },
+    after: { signature_url: versionedUrl },
+    diff: createActivityDiff(
+      { signature_url: before.signature_url ?? null },
+      { signature_url: versionedUrl }
+    ),
+  })
+
+  revalidatePath('/dashboard/guru')
+  revalidatePath('/dashboard/ckh-generator')
+  revalidatePath('/dashboard/agenda-kelas')
+  return { success: 'Tanda tangan pegawai berhasil diperbarui!', url: versionedUrl }
+}
+
+export async function deleteSignaturePegawaiAction(userId: string) {
+  if (!(await verifyStaffAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.' }
+
+  const db = await getDB()
+  const before = await db.prepare(
+    'SELECT id, nama_lengkap, name, signature_url FROM "user" WHERE id = ?'
+  ).bind(userId).first<any>()
+  if (!before) return { error: 'Pegawai tidak ditemukan.' }
+  if (!before.signature_url) return { success: 'Pegawai belum memiliki tanda tangan.' }
+
+  const result = await dbUpdate(
+    db,
+    '"user"',
+    { signature_url: null, updatedAt: new Date().toISOString() },
+    { id: userId }
+  )
+  if (result.error) return { error: result.error }
+
+  const deletion = await deleteFromR2(before.signature_url)
+  await logActivity({
+    db,
+    module: 'pegawai',
+    action: 'delete_signature',
+    severity: 'warning',
+    summary: `Menghapus tanda tangan pegawai ${before.nama_lengkap || before.name || userId}`,
+    entityType: 'user',
+    entityId: userId,
+    entityLabel: before.nama_lengkap || before.name || userId,
+    before: { signature_url: before.signature_url },
+    after: { signature_url: null },
+    diff: createActivityDiff({ signature_url: before.signature_url }, { signature_url: null }),
+    metadata: deletion.error ? { storage_cleanup_error: deletion.error } : undefined,
+  })
+
+  revalidatePath('/dashboard/guru')
+  revalidatePath('/dashboard/ckh-generator')
+  revalidatePath('/dashboard/agenda-kelas')
+  return {
+    success: deletion.error
+      ? 'Tanda tangan dihapus dari profil, tetapi file lama gagal dibersihkan dari penyimpanan.'
+      : 'Tanda tangan pegawai berhasil dihapus.',
+  }
 }
