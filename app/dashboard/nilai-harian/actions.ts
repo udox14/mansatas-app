@@ -66,7 +66,9 @@ export async function getPenugasanGuru(guruIdOverride?: string): Promise<Penugas
     JOIN kelas k ON pm.kelas_id = k.id
     LEFT JOIN nilai_harian_kkm nhk ON nhk.penugasan_id = pm.id
     WHERE (pm.guru_id = ? OR pm.id IN (
-      SELECT penugasan_mengajar_id FROM guru_ppl_mapping WHERE guru_ppl_id = ?
+      SELECT penugasan_mengajar_id FROM guru_ppl_mapping
+      WHERE guru_ppl_id = ? AND berlaku_mulai <= date('now', '+7 hours')
+        AND (berlaku_selesai IS NULL OR berlaku_selesai >= date('now', '+7 hours'))
     )) AND pm.tahun_ajaran_id = ?
     ORDER BY k.tingkat ASC, k.nomor_kelas ASC, mp.nama_mapel ASC
   `).bind(guruId, guruId, ta.id).all<any>()

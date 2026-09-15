@@ -133,7 +133,9 @@ async function getGuruPiketHariIni(db: D1Database, hari: number, excludeUserId?:
      JOIN guru_ppl_mapping jpp ON jpp.guru_ppl_id = u.id
      JOIN jadwal_guru_piket j ON j.id = jpp.jadwal_piket_id
      JOIN pengaturan_shift_piket sp ON j.shift_id = sp.id
-     WHERE j.hari = ? AND u.banned = 0 ${excludeSql}
+     WHERE j.hari = ? AND u.banned = 0
+       AND jpp.berlaku_mulai <= date('now', '+7 hours')
+       AND (jpp.berlaku_selesai IS NULL OR jpp.berlaku_selesai >= date('now', '+7 hours')) ${excludeSql}
      ORDER BY sp.jam_mulai ASC, u.nama_lengkap ASC`
   ).bind(hari, ...excludeArgs).all<any>()
 
@@ -163,6 +165,8 @@ async function isGuruPiketPadaHari(db: D1Database, userId: string, hari: number)
      JOIN jadwal_guru_piket j ON j.id = jpp.jadwal_piket_id
      JOIN "user" u ON u.id = jpp.guru_ppl_id
      WHERE j.hari = ? AND jpp.guru_ppl_id = ? AND u.banned = 0
+       AND jpp.berlaku_mulai <= date('now', '+7 hours')
+       AND (jpp.berlaku_selesai IS NULL OR jpp.berlaku_selesai >= date('now', '+7 hours'))
      LIMIT 1`
   ).bind(hari, userId).first<any>()
   return !!ppl

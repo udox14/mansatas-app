@@ -24,7 +24,9 @@ export async function GuruPPLDashboard({ userId, nama, namaDepan, avatarUrl, rol
     FROM guru_ppl_mapping m
     JOIN "user" u ON m.guru_utama_id = u.id
     WHERE m.guru_ppl_id = ?
-  `).bind(userId).all<any>()
+      AND m.berlaku_mulai <= ?
+      AND (m.berlaku_selesai IS NULL OR m.berlaku_selesai >= ?)
+  `).bind(userId, today, today).all<any>()
 
   const mappings = rawMappings || []
   const tkbm = mappings.filter(m => m.penugasan_mengajar_id !== null).length

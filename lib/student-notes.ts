@@ -33,7 +33,9 @@ export async function getStudentNoteAssignments(db: D1Database, userId: string):
     JOIN mata_pelajaran mp ON mp.id = pm.mapel_id
     JOIN kelas k ON k.id = pm.kelas_id
     WHERE pm.guru_id = ?
-       OR pm.id IN (SELECT penugasan_mengajar_id FROM guru_ppl_mapping WHERE guru_ppl_id = ?)
+       OR pm.id IN (SELECT penugasan_mengajar_id FROM guru_ppl_mapping WHERE guru_ppl_id = ?
+         AND berlaku_mulai <= date('now', '+7 hours')
+         AND (berlaku_selesai IS NULL OR berlaku_selesai >= date('now', '+7 hours')))
   `).bind(userId, userId).all<any>()
 
   return (rows.results || []).map(row => {
@@ -90,6 +92,8 @@ export async function getCurrentStudentNoteAssignmentId(
       AND jm.jam_ke IN (${slotPlaceholders})
       AND (pm.guru_id = ? OR pm.id IN (
         SELECT penugasan_mengajar_id FROM guru_ppl_mapping WHERE guru_ppl_id = ?
+          AND berlaku_mulai <= date('now', '+7 hours')
+          AND (berlaku_selesai IS NULL OR berlaku_selesai >= date('now', '+7 hours'))
       ))
       AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
     ORDER BY jm.jam_ke ASC
@@ -123,6 +127,8 @@ export async function getAccessibleStudentNoteClasses(
       JOIN tahun_ajaran ta ON ta.id = pm.tahun_ajaran_id AND ta.is_active = 1
       WHERE pm.guru_id = ? OR pm.id IN (
         SELECT penugasan_mengajar_id FROM guru_ppl_mapping WHERE guru_ppl_id = ?
+          AND berlaku_mulai <= date('now', '+7 hours')
+          AND (berlaku_selesai IS NULL OR berlaku_selesai >= date('now', '+7 hours'))
       )
     `).bind(userId, userId).all<{ id: string }>(),
     db.prepare('SELECT id FROM kelas WHERE wali_kelas_id = ?').bind(userId).all<{ id: string }>(),
@@ -173,6 +179,8 @@ export async function getStudentsWithNotes(
       WHERE pm.kelas_id = s.kelas_id AND (
         pm.guru_id = ? OR pm.id IN (
           SELECT penugasan_mengajar_id FROM guru_ppl_mapping WHERE guru_ppl_id = ?
+            AND berlaku_mulai <= date('now', '+7 hours')
+            AND (berlaku_selesai IS NULL OR berlaku_selesai >= date('now', '+7 hours'))
         )
       )
     )
@@ -231,6 +239,8 @@ export async function canReadStudentNotes(
         WHERE pm.kelas_id = s.kelas_id AND (
           pm.guru_id = ? OR pm.id IN (
             SELECT penugasan_mengajar_id FROM guru_ppl_mapping WHERE guru_ppl_id = ?
+              AND berlaku_mulai <= date('now', '+7 hours')
+              AND (berlaku_selesai IS NULL OR berlaku_selesai >= date('now', '+7 hours'))
           )
         )
       )

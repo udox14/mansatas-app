@@ -23,10 +23,13 @@ beforeEach(() => {
     CREATE TABLE "user" (id TEXT PRIMARY KEY, role TEXT);
     CREATE TABLE user_roles (user_id TEXT, role TEXT);
     CREATE TABLE penugasan_mengajar (id TEXT PRIMARY KEY, guru_id TEXT, kelas_id TEXT, tahun_ajaran_id TEXT);
-    CREATE TABLE guru_ppl_mapping (guru_ppl_id TEXT, guru_utama_id TEXT, penugasan_mengajar_id TEXT);
+    CREATE TABLE guru_ppl_mapping (
+      guru_ppl_id TEXT, guru_utama_id TEXT, penugasan_mengajar_id TEXT,
+      berlaku_mulai TEXT, berlaku_selesai TEXT
+    );
     INSERT INTO "user" VALUES ('guru', 'guru'), ('ppl', 'guru_ppl'), ('asing', 'guru_ppl');
     INSERT INTO penugasan_mengajar VALUES ('penugasan', 'guru', 'kelas', 'ta');
-    INSERT INTO guru_ppl_mapping VALUES ('ppl', 'guru', 'penugasan');
+    INSERT INTO guru_ppl_mapping VALUES ('ppl', 'guru', 'penugasan', '2026-01-01', '2026-12-31');
   `)
 })
 
@@ -57,5 +60,11 @@ describe('resolveTeachingAssignmentAccess', () => {
   it('mencabut akses mapping lama ketika akun bukan lagi ber-role PPL', async () => {
     sqlite.exec(`UPDATE "user" SET role = 'guru' WHERE id = 'ppl'`)
     await expect(resolveTeachingAssignmentAccess(d1(), 'ppl', 'penugasan')).resolves.toBeNull()
+  })
+
+  it('membatasi akses PPL pada rentang tanggal mapping', async () => {
+    await expect(resolveTeachingAssignmentAccess(d1(), 'ppl', 'penugasan', '2025-12-31')).resolves.toBeNull()
+    await expect(resolveTeachingAssignmentAccess(d1(), 'ppl', 'penugasan', '2026-06-01')).resolves.toMatchObject({ actorKind: 'PPL' })
+    await expect(resolveTeachingAssignmentAccess(d1(), 'ppl', 'penugasan', '2027-01-01')).resolves.toBeNull()
   })
 })

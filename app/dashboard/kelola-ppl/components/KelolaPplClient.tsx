@@ -1,392 +1,86 @@
 'use client'
 
-import { useState, useTransition, useEffect } from 'react'
-import { Save, Loader2, UserCheck, ArrowLeft, ChevronRight, GraduationCap } from 'lucide-react'
+import { forwardRef, useMemo, useRef, useState, useTransition } from 'react'
+import Image from 'next/image'
+import { useReactToPrint } from 'react-to-print'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
-import { getJadwalGuruUtama, simpanMappingPPL, getMappingPPL } from '../actions'
-import type { GuruInfo, JadwalGuruUtama, MappingPPL, PplWithSummary } from '../actions'
+import { Combobox } from '@/components/ui/combobox'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { DataPagination, usePagination } from '@/components/ui/data-pagination'
+import { Building2, ClipboardCheck, Edit3, History, Loader2, Pencil, Plus, Printer, Save, Search, Tags, Trash2, UserCog, X } from 'lucide-react'
+import {
+  batchSetPplCampus, clearPplAttendanceOverride, createPplMappings, deletePplCampus,
+  endPplMapping, getDaftarGuruPPLWithSummary, getPplAttendance, getPplCampuses,
+  getPplWorkspace, savePplCampus, setPplAttendanceOverride, updatePplMappingPeriod,
+  type PplDutyOption, type PplMappingRow, type PplWithSummary,
+} from '../actions'
+import type { PplAttendanceItem, PplAttendanceStatus, PplAttendanceSummary, PplCampus } from '@/lib/guru-ppl-attendance'
+import { formatTimeWIB, todayWIB } from '@/lib/time'
 
-const HARI_NAMES = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
+const STATUS_LABEL: Record<string,string> = { aktif:'Aktif', akan_datang:'Akan datang', berakhir:'Berakhir', belum_ditugaskan:'Belum ditugaskan', HADIR:'Tepat waktu', TELAT:'Telat', SAKIT:'Sakit', IZIN:'Izin', ALFA:'Alfa', DIAMBIL_GURU:'Diambil guru' }
+const STATUS_CLASS: Record<string,string> = { aktif:'bg-emerald-50 text-emerald-700 border-emerald-200', akan_datang:'bg-blue-50 text-blue-700 border-blue-200', berakhir:'bg-slate-100 text-slate-600', belum_ditugaskan:'bg-amber-50 text-amber-700 border-amber-200', HADIR:'bg-emerald-50 text-emerald-700 border-emerald-200', TELAT:'bg-amber-50 text-amber-700 border-amber-200', SAKIT:'bg-blue-50 text-blue-700 border-blue-200', IZIN:'bg-violet-50 text-violet-700 border-violet-200', ALFA:'bg-rose-50 text-rose-700 border-rose-200', DIAMBIL_GURU:'bg-slate-100 text-slate-600' }
+const HARI = ['', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min']
 
-function formatJadwalLabel(raw: string) {
-  return raw.split(',').map(item => {
-    const [hari, jam] = item.split(':').map(Number)
-    return `${HARI_NAMES[hari] || 'Hari'} jam ${jam}`
-  }).join(', ')
+function campusLabel(campus: PplCampus) { return campus.singkatan ? `${campus.singkatan} — ${campus.nama}` : campus.nama }
+function scheduleLabel(raw:string){return raw.split(',').filter(Boolean).map(v=>{const[h,j]=v.split(':').map(Number);return `${HARI[h]||'Hari'} ${j}`}).join(', ')}
+function notify(result:{error?:string;success?:string}){alert(result.error||result.success||'Selesai')}
+
+export function KelolaPplClient({pplList:initialPpl,campuses:initialCampuses}:{pplList:PplWithSummary[];campuses:PplCampus[]}){
+  const [pplList,setPplList]=useState(initialPpl),[campuses,setCampuses]=useState(initialCampuses)
+  const refresh=async()=>{const[p,c]=await Promise.all([getDaftarGuruPPLWithSummary(),getPplCampuses()]);setPplList(p);setCampuses(c)}
+  return <Tabs defaultValue="penugasan" className="space-y-4"><TabsList className="grid h-auto w-full max-w-md grid-cols-2 p-1"><TabsTrigger value="penugasan"><UserCog className="mr-2 h-4 w-4"/>Penugasan PPL</TabsTrigger><TabsTrigger value="monitoring"><ClipboardCheck className="mr-2 h-4 w-4"/>Monitoring Kehadiran</TabsTrigger></TabsList><TabsContent value="penugasan"><AssignmentTab pplList={pplList} campuses={campuses} refresh={refresh}/></TabsContent><TabsContent value="monitoring"><MonitoringTab campuses={campuses} pplList={pplList}/></TabsContent></Tabs>
 }
 
-// ============================================================
-// MAIN COMPONENT
-// ============================================================
-export function KelolaPplClient({ 
-  pplList, 
-  guruUtamaList 
-}: { 
-  pplList: PplWithSummary[], 
-  guruUtamaList: GuruInfo[] 
-}) {
-  const [editingPplId, setEditingPplId] = useState<string | null>(null)
-
-  // MAIN VIEW
-  if (!editingPplId) {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {pplList.length === 0 ? (
-          <div className="col-span-full py-16 text-center text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm">
-            Tida ada Guru PPL yang terdaftar.
-          </div>
-        ) : (
-          pplList.map(ppl => (
-            <div key={ppl.id} className="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm hover:shadow-md hover:border-indigo-200 dark:hover:border-indigo-800 transition-all flex flex-col group">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-inner">
-                  {ppl.nama_lengkap.charAt(0)}
-                </div>
-                <div>
-                  <h3 className="font-bold text-slate-800 dark:text-slate-200 leading-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                    {ppl.nama_lengkap}
-                  </h3>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800 px-1.5 py-0.5 rounded w-fit mt-1">Guru PPL</p>
-                </div>
-              </div>
-
-              <div className="flex-1 mb-5">
-                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2 uppercase tracking-wide">Status Substitusi</p>
-                {ppl.substitutions.length === 0 ? (
-                  <p className="text-sm text-slate-400 italic">Belum ada tugas.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {ppl.substitutions.map(sub => (
-                      <div key={sub.guruUtamaId} className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-2.5 border border-slate-100 dark:border-slate-800/60">
-                        <p className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate mb-1.5">
-                          {sub.guruUtamaNama}
-                        </p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {sub.kbm > 0 && <span className="text-[10px] bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 rounded font-medium">{sub.kbm} KBM</span>}
-                          {sub.piket > 0 && <span className="text-[10px] bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded font-medium">{sub.piket} Piket</span>}
-
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <Button 
-                onClick={() => setEditingPplId(ppl.id)} 
-                variant="outline" 
-                className="w-full justify-between hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 dark:hover:bg-indigo-900/40 dark:hover:border-indigo-800"
-              >
-                Kelola Penugasan
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          ))
-        )}
-      </div>
-    )
-  }
-
-  const selectedPpl = pplList.find(p => p.id === editingPplId)
-  if (!selectedPpl) return null
-
-  // EDITOR VIEW
-  return (
-    <PplEditor 
-      ppl={selectedPpl} 
-      guruUtamaList={guruUtamaList} 
-      onBack={() => setEditingPplId(null)}
-    />
-  )
+function AssignmentTab({pplList,campuses,refresh}:{pplList:PplWithSummary[];campuses:PplCampus[];refresh:()=>Promise<void>}){
+  const [query,setQuery]=useState(''),[campus,setCampus]=useState('semua'),[status,setStatus]=useState('semua'),[sort,setSort]=useState('nama'),[selected,setSelected]=useState<Set<string>>(new Set()),[batchCampus,setBatchCampus]=useState(''),[editing,setEditing]=useState<PplWithSummary|null>(null),[campusOpen,setCampusOpen]=useState(false),[pending,startTransition]=useTransition();const pg=usePagination(20)
+  const filtered=useMemo(()=>{const q=query.toLowerCase();return [...pplList].filter(p=>(!q||p.nama_lengkap.toLowerCase().includes(q)||(p.kampus_nama||'').toLowerCase().includes(q))&&(campus==='semua'||p.kampus_id===campus)&&(status==='semua'||p.status===status)).sort((a,b)=>sort==='kbm'?b.totalKbm-a.totalKbm:sort==='kampus'?(a.kampus_nama||'').localeCompare(b.kampus_nama||'', 'id-ID'):a.nama_lengkap.localeCompare(b.nama_lengkap,'id-ID'))},[pplList,query,campus,status,sort])
+  const pageRows=pg.paginate(filtered),allChecked=pageRows.length>0&&pageRows.every(p=>selected.has(p.id));const toggle=(id:string)=>setSelected(s=>{const n=new Set(s);n.has(id)?n.delete(id):n.add(id);return n})
+  const applyCampus=(value:string|null)=>startTransition(async()=>{const result=await batchSetPplCampus([...selected],value);notify(result);if(!result.error){setSelected(new Set());setBatchCampus('');await refresh()}})
+  return <div className="space-y-3">
+    <div className="flex flex-col gap-2 rounded-xl border bg-white p-3 dark:bg-slate-900 lg:flex-row lg:items-center"><div className="relative min-w-0 flex-1"><Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400"/><Input value={query} onChange={e=>{setQuery(e.target.value);pg.reset()}} placeholder="Cari nama PPL atau kampus..." className="pl-9"/></div><Select value={campus} onValueChange={v=>{setCampus(v);pg.reset()}}><SelectTrigger className="lg:w-56"><SelectValue placeholder="Semua kampus"/></SelectTrigger><SelectContent><SelectItem value="semua">Semua kampus</SelectItem>{campuses.map(c=><SelectItem key={c.id} value={c.id}>{campusLabel(c)}</SelectItem>)}</SelectContent></Select><Select value={status} onValueChange={v=>{setStatus(v);pg.reset()}}><SelectTrigger className="lg:w-44"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="semua">Semua status</SelectItem>{['aktif','akan_datang','berakhir','belum_ditugaskan'].map(s=><SelectItem key={s} value={s}>{STATUS_LABEL[s]}</SelectItem>)}</SelectContent></Select><Select value={sort} onValueChange={setSort}><SelectTrigger className="lg:w-44"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="nama">Nama A–Z</SelectItem><SelectItem value="kampus">Kampus A–Z</SelectItem><SelectItem value="kbm">KBM terbanyak</SelectItem></SelectContent></Select><Button variant="outline" onClick={()=>setCampusOpen(true)}><Building2 className="h-4 w-4"/>Kelola Kampus</Button></div>
+    {selected.size>0&&<div className="flex flex-wrap items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 p-3 dark:border-indigo-900 dark:bg-indigo-950/30"><Badge>{selected.size} dipilih</Badge><div className="min-w-52 flex-1 sm:max-w-sm"><Combobox options={campuses.map(c=>({value:c.id,label:campusLabel(c)}))} value={batchCampus} onValueChange={setBatchCampus} placeholder="Pilih tag kampus..." searchPlaceholder="Cari kampus..."/></div><Button size="sm" disabled={!batchCampus||pending} onClick={()=>applyCampus(batchCampus)}><Tags className="h-4 w-4"/>Terapkan</Button><Button size="sm" variant="outline" disabled={pending} onClick={()=>applyCampus(null)}><X className="h-4 w-4"/>Hapus tag</Button></div>}
+    <div className="overflow-hidden rounded-xl border bg-white dark:bg-slate-900"><div className="overflow-x-auto"><Table><TableHeader><TableRow className="bg-slate-50 dark:bg-slate-800/60"><TableHead className="w-10"><Checkbox checked={allChecked} onCheckedChange={()=>{const n=new Set(selected);pageRows.forEach(p=>allChecked?n.delete(p.id):n.add(p.id));setSelected(n)}}/></TableHead><TableHead>Nama PPL</TableHead><TableHead>Kampus</TableHead><TableHead>Periode aktif</TableHead><TableHead>Guru utama</TableHead><TableHead className="text-center">KBM</TableHead><TableHead className="text-center">Piket</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader><TableBody>{pageRows.length?pageRows.map(p=><TableRow key={p.id}><TableCell><Checkbox checked={selected.has(p.id)} onCheckedChange={()=>toggle(p.id)}/></TableCell><TableCell className="font-medium">{p.nama_lengkap}</TableCell><TableCell>{p.kampus_nama?<Badge variant="outline" className="whitespace-nowrap"><Building2 className="mr-1 h-3 w-3"/>{p.kampus_singkatan||p.kampus_nama}</Badge>:<span className="text-xs text-slate-400">Belum ditag</span>}</TableCell><TableCell className="whitespace-nowrap text-xs">{p.berlaku_mulai?`${p.berlaku_mulai} — ${p.berlaku_selesai||'terbuka'}`:'—'}</TableCell><TableCell className="max-w-60"><span className="line-clamp-2 text-xs">{p.substitutions.map(s=>s.guruUtamaNama).join(', ')||'—'}</span></TableCell><TableCell className="text-center tabular-nums">{p.totalKbm}</TableCell><TableCell className="text-center tabular-nums">{p.totalPiket}</TableCell><TableCell><Badge variant="outline" className={STATUS_CLASS[p.status]}>{STATUS_LABEL[p.status]}</Badge></TableCell><TableCell className="text-right"><Button size="sm" variant="outline" onClick={()=>setEditing(p)}><UserCog className="h-4 w-4"/>Kelola</Button></TableCell></TableRow>):<TableRow><TableCell colSpan={9} className="h-28 text-center text-slate-500">Tidak ada akun PPL yang sesuai filter.</TableCell></TableRow>}</TableBody></Table></div><DataPagination total={filtered.length} page={pg.page} pageSize={pg.pageSize} onPageChange={pg.setPage} onPageSizeChange={pg.setPageSize} entityLabel="akun PPL"/></div>
+    <CampusDialog open={campusOpen} onOpenChange={setCampusOpen} campuses={campuses} refresh={refresh}/><AssignmentSheet ppl={editing} open={!!editing} onOpenChange={o=>!o&&setEditing(null)} refresh={refresh}/>
+  </div>
 }
 
-
-// ============================================================
-// EDITOR COMPONENT
-// ============================================================
-function PplEditor({ 
-  ppl, 
-  guruUtamaList,
-  onBack
-}: { 
-  ppl: PplWithSummary, 
-  guruUtamaList: GuruInfo[],
-  onBack: () => void 
-}) {
-  // State for which Guru Utama is currently being edited in the view
-  const [activeTab, setActiveTab] = useState<string>(ppl.substitutions[0]?.guruUtamaId || '')
-  
-  // Combine existing substitution IDs and initialize activeTab
-  const [activeUtamaIds, setActiveUtamaIds] = useState<string[]>(
-    ppl.substitutions.map(s => s.guruUtamaId)
-  )
-
-  // Unselected Guru Utama options for dropdown
-  const availableUtama = guruUtamaList.filter(g => !activeUtamaIds.includes(g.id))
-
-  const handleAddUtama = (id: string) => {
-    if (!id || activeUtamaIds.includes(id)) return
-    setActiveUtamaIds([...activeUtamaIds, id])
-    setActiveTab(id)
-  }
-
-  return (
-    <div className="space-y-4 animate-in slide-in-from-right-8 duration-300">
-      {/* Header Panel */}
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={onBack} className="rounded-full bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 shrink-0">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h2 className="font-bold text-lg text-slate-800 dark:text-slate-200 dark:text-slate-100 leading-tight">Penugasan Substitusi</h2>
-            <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">{ppl.nama_lengkap}</p>
-          </div>
-        </div>
-        
-        {/* Add Guru Utama Dropdown */}
-        <div className="flex items-center gap-2">
-          <Select onValueChange={handleAddUtama} value="">
-            <SelectTrigger className="w-[240px] bg-slate-50 dark:bg-slate-800">
-              <SelectValue placeholder="Tambahkan Guru Utama..." />
-            </SelectTrigger>
-            <SelectContent>
-              {availableUtama.map(g => (
-                <SelectItem key={g.id} value={g.id}>{g.nama_lengkap}</SelectItem>
-              ))}
-              {availableUtama.length === 0 && (
-                <SelectItem value="_disabled" disabled>Semua guru sudah ditambahkan</SelectItem>
-              )}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {activeUtamaIds.length === 0 ? (
-        <div className="py-24 text-center text-slate-400 bg-white dark:bg-slate-900/50 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800">
-          <UserCheck className="h-10 w-10 mx-auto mb-4 opacity-30" />
-          <p className="text-sm font-medium">Belum ada penugasan guru pengganti.</p>
-          <p className="text-xs mt-1">Pilih Guru Utama dari menu dropdown di atas.</p>
-        </div>
-      ) : (
-        <div className="flex flex-col md:flex-row gap-4 lg:gap-6 items-start">
-          {/* Sidebar Tabs */}
-          <div className="w-full md:w-64 lg:w-72 flex flex-col gap-2 shrink-0">
-            {activeUtamaIds.map(guId => {
-              const guInfo = guruUtamaList.find(g => g.id === guId)
-              const isSelected = activeTab === guId
-              return (
-                <button
-                  key={guId}
-                  onClick={() => setActiveTab(guId)}
-                  className={`flex items-center justify-between p-3.5 rounded-xl border transition-all text-left group ${
-                    isSelected 
-                      ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800 shadow-sm' 
-                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-                  }`}
-                >
-                  <div className="flex-1 min-w-0 pr-3">
-                    <p className={`text-sm font-semibold truncate ${isSelected ? 'text-indigo-900 dark:text-indigo-100' : 'text-slate-700 dark:text-slate-300'}`}>
-                      {guInfo?.nama_lengkap || 'Unknown'}
-                    </p>
-                  </div>
-                  <ChevronRight className={`h-4 w-4 shrink-0 transition-transform ${isSelected ? 'text-indigo-500' : 'text-slate-300 group-hover:text-slate-400'}`} />
-                </button>
-              )
-            })}
-          </div>
-
-          {/* Tab Content */}
-          <div className="flex-1 w-full min-w-0 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
-            {activeTab && (
-              <UtamaScheduleEditor 
-                key={activeTab} // Force remount if tab changes for proper loading state
-                guruPplId={ppl.id} 
-                guruUtamaId={activeTab} 
-                guruUtamaNama={guruUtamaList.find(g => g.id === activeTab)?.nama_lengkap || ''}
-                onRemove={() => {
-                  const nu = activeUtamaIds.filter(id => id !== activeTab)
-                  setActiveUtamaIds(nu)
-                  setActiveTab(nu.length > 0 ? nu[0] : '')
-                }}
-              />
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  )
+function CampusDialog({open,onOpenChange,campuses,refresh}:{open:boolean;onOpenChange:(v:boolean)=>void;campuses:PplCampus[];refresh:()=>Promise<void>}){
+  const [id,setId]=useState<string|undefined>(),[nama,setNama]=useState(''),[singkatan,setSingkatan]=useState(''),[pending,startTransition]=useTransition();const reset=()=>{setId(undefined);setNama('');setSingkatan('')}
+  const save=()=>startTransition(async()=>{const r=await savePplCampus({id,nama,singkatan});notify(r);if(!r.error){reset();await refresh()}})
+  const remove=(campus:PplCampus)=>{if(!confirm(`Hapus kampus ${campus.nama}?`))return;startTransition(async()=>{const r=await deletePplCampus(campus.id);notify(r);if(!r.error)await refresh()})}
+  return <Dialog open={open} onOpenChange={value=>{if(!value)reset();onOpenChange(value)}}><DialogContent><DialogHeader><DialogTitle>Master Kampus PPL</DialogTitle><DialogDescription>Nama dan singkatan dipakai sebagai tag serta filter monitoring.</DialogDescription></DialogHeader><div className="grid gap-3 sm:grid-cols-[1fr_140px_auto]"><Input value={nama} onChange={e=>setNama(e.target.value)} placeholder="Nama kampus"/><Input value={singkatan} onChange={e=>setSingkatan(e.target.value)} placeholder="Singkatan"/><Button disabled={!nama.trim()||pending} onClick={save}>{pending?<Loader2 className="h-4 w-4 animate-spin"/>:<Save className="h-4 w-4"/>}{id?'Ubah':'Tambah'}</Button></div><div className="max-h-72 overflow-y-auto rounded-lg border"><Table><TableHeader><TableRow><TableHead>Nama</TableHead><TableHead>Singkatan</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader><TableBody>{campuses.map(c=><TableRow key={c.id}><TableCell>{c.nama}</TableCell><TableCell>{c.singkatan||'—'}</TableCell><TableCell className="text-right"><Button size="icon" variant="ghost" onClick={()=>{setId(c.id);setNama(c.nama);setSingkatan(c.singkatan||'')}}><Pencil className="h-4 w-4"/></Button><Button size="icon" variant="ghost" onClick={()=>remove(c)}><Trash2 className="h-4 w-4 text-rose-500"/></Button></TableCell></TableRow>)}</TableBody></Table></div>{id&&<DialogFooter><Button variant="ghost" onClick={reset}>Batal mengubah</Button></DialogFooter>}</DialogContent></Dialog>
 }
 
-// ============================================================
-// INDIVIDUAL SCHEDULE EDITOR
-// ============================================================
-function UtamaScheduleEditor({ 
-  guruPplId, 
-  guruUtamaId, 
-  guruUtamaNama,
-  onRemove
-}: { 
-  guruPplId: string
-  guruUtamaId: string
-  guruUtamaNama: string
-  onRemove: () => void
-}) {
-  const [isLoading, setIsLoading] = useState(true)
-  const [isPending, startTransition] = useTransition()
-  
-  const [jadwal, setJadwal] = useState<JadwalGuruUtama>({ kbm: [], piket: [] })
-  const [selKbm, setSelKbm] = useState<Set<string>>(new Set())
-  const [selPiket, setSelPiket] = useState<Set<string>>(new Set())
-
-  // Load data immediately on mount
-  useEffect(() => {
-    let mounted = true
-    const load = async () => {
-      setIsLoading(true)
-      const [jData, mData] = await Promise.all([
-        getJadwalGuruUtama(guruUtamaId),
-        getMappingPPL(guruPplId, guruUtamaId)
-      ])
-      
-      if (!mounted) return
-      setJadwal(jData)
-      
-      const msKbm = new Set<string>()
-      const msPiket = new Set<string>()
-      for (const m of mData) {
-        if (m.penugasan_mengajar_id) msKbm.add(m.penugasan_mengajar_id)
-        if (m.jadwal_piket_id) msPiket.add(m.jadwal_piket_id)
-      }
-      setSelKbm(msKbm)
-      setSelPiket(msPiket)
-      setIsLoading(false)
-    }
-    load()
-    return () => { mounted = false }
-  }, [guruUtamaId, guruPplId])
-
-  const toggleKbm = (id: string) => { const s = new Set(selKbm); s.has(id) ? s.delete(id) : s.add(id); setSelKbm(s) }
-  const togglePiket = (id: string) => { const s = new Set(selPiket); s.has(id) ? s.delete(id) : s.add(id); setSelPiket(s) }
-
-  const handleSave = () => {
-    const mappings: MappingPPL[] = []
-    Array.from(selKbm).forEach(id => mappings.push({ penugasan_mengajar_id: id, jadwal_piket_id: null }))
-    Array.from(selPiket).forEach(id => mappings.push({ penugasan_mengajar_id: null, jadwal_piket_id: id }))
-    
-    startTransition(async () => {
-      const res = await simpanMappingPPL(guruPplId, guruUtamaId, mappings)
-      if (res.error) {
-        alert(res.error)
-      } else {
-        alert('Tugas PPL Untuk Guru: ' + guruUtamaNama + ' berhasil disimpan!')
-        // Since revalidatePath is called in server action, next.js will auto refresh route
-      }
-    })
-  }
-
-  const handleRemoveAll = () => {
-    if (!confirm('Hapus Guru Utama ini dari tanggungan PPL ini? (Belum tersimpan ke server sebelum klik Simpan)')) return
-    setSelKbm(new Set())
-    setSelPiket(new Set())
-    onRemove() // Just remove from tab list visually, the real delete requires save or explicitly calling api.
-    
-    // Auto trigger save to clear DB
-    startTransition(async () => {
-      await simpanMappingPPL(guruPplId, guruUtamaId, [])
-    })
-  }
-
-  if (isLoading) {
-    return (
-      <div className="flex flex-col py-20 items-center justify-center text-slate-400 gap-3">
-        <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
-        <p className="text-sm font-medium">Memuat jadwal {guruUtamaNama}...</p>
-      </div>
-    )
-  }
-
-
-  return (
-    <div className="flex flex-col h-full animate-in fade-in duration-300">
-      {/* Header Inside Editor */}
-      <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 dark:bg-slate-800/20">
-        <div>
-          <h3 className="font-bold text-lg text-slate-800 dark:text-slate-200">Jadwal {guruUtamaNama}</h3>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-            <span className="font-semibold text-indigo-600 dark:text-indigo-400">{selKbm.size + selPiket.size}</span> Sesi Dipilih
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="ghost" onClick={handleRemoveAll} disabled={isPending} className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30">
-            Hapus Guru
-          </Button>
-          <Button onClick={handleSave} disabled={isPending} className="bg-indigo-600 hover:bg-indigo-700 shadow-md">
-            {isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-            Simpan Kelas Ini
-          </Button>
-        </div>
-      </div>
-
-      <div className="p-5 space-y-8">
-        {/* KBM */}
-        <div>
-          <div className="flex items-center gap-2 mb-4 border-b border-slate-100 dark:border-slate-800 pb-2">
-            <GraduationCap className="h-5 w-5 text-indigo-500" />
-            <h4 className="text-sm font-bold text-slate-600 dark:text-slate-400 dark:text-slate-300 uppercase tracking-wider">
-              Jadwal KBM ({jadwal.kbm.length})
-            </h4>
-          </div>
-          
-          {jadwal.kbm.length === 0 ? (
-            <p className="text-sm text-slate-400 italic">Tidak ada jadwal KBM.</p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {jadwal.kbm.map(k => (
-                      <label key={k.id} className="flex items-start gap-3 p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 dark:border-slate-700 hover:border-indigo-300 dark:hover:border-indigo-700 cursor-pointer transition-colors group shadow-sm">
-                        <Checkbox checked={selKbm.has(k.id)} onCheckedChange={() => toggleKbm(k.id)} className="mt-0.5 shrink-0 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600" />
-                        <div className="flex flex-col">
-                          <span className="text-sm font-bold truncate text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                            {k.mapel_nama}
-                          </span>
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-1.5">
-                            <span className="font-medium">Kelas {k.kelas_label}</span>
-                            <span>{formatJadwalLabel(k.jadwal_label)}</span>
-                          </div>
-                        </div>
-                      </label>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
-          {/* Piket */}
-          <div className="bg-slate-50 dark:bg-slate-800/30 p-4 rounded-xl border border-slate-100 dark:border-slate-800/60">
-            <h4 className="text-sm font-bold text-amber-600 dark:text-amber-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-              Tugas Piket ({jadwal.piket.length})
-            </h4>
-            {jadwal.piket.length === 0 ? (
-              <p className="text-sm text-slate-400 italic">Tidak ada tugas piket.</p>
-            ) : (
-              <div className="space-y-2">
-                {jadwal.piket.map(p => (
-                  <label key={p.id} className="flex items-center gap-3 p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 dark:border-slate-700 hover:border-amber-300 cursor-pointer shadow-sm">
-                    <Checkbox checked={selPiket.has(p.id)} onCheckedChange={() => togglePiket(p.id)} className="data-[state=checked]:bg-amber-500 data-[state=checked]:border-amber-500" />
-                    <div>
-                      <p className="text-sm font-bold text-slate-800 dark:text-slate-200">Piket Hari {HARI_NAMES[p.hari]}</p>
-                      <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">{p.shift_nama}</p>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            )}
-          </div>
-
-        </div>
-      </div>
-    </div>
-  )
+function AssignmentSheet({ppl,open,onOpenChange,refresh}:{ppl:PplWithSummary|null;open:boolean;onOpenChange:(v:boolean)=>void;refresh:()=>Promise<void>}){
+  const [loading,setLoading]=useState(false),[options,setOptions]=useState<PplDutyOption[]>([]),[mappings,setMappings]=useState<PplMappingRow[]>([]),[jenis,setJenis]=useState<'KBM'|'PIKET'>('KBM'),[teacher,setTeacher]=useState('semua'),[selected,setSelected]=useState<Set<string>>(new Set()),[mulai,setMulai]=useState(todayWIB()),[selesai,setSelesai]=useState(todayWIB()),[pending,startTransition]=useTransition()
+  const load=async()=>{if(!ppl)return;setLoading(true);const data=await getPplWorkspace(ppl.id);setOptions(data.options);setMappings(data.mappings);setSelected(new Set());setLoading(false)}
+  const visible=options.filter(o=>o.jenis===jenis&&(teacher==='semua'||o.guru_utama_id===teacher)),teachers=[...new Map(options.map(o=>[o.guru_utama_id,o.guru_utama_nama])).entries()]
+  const save=()=>ppl&&startTransition(async()=>{const r=await createPplMappings({pplUserId:ppl.id,dutyIds:[...selected],jenis,mulai,selesai});notify(r);if(!r.error){await load();await refresh()}})
+  return <Sheet open={open} onOpenChange={v=>{onOpenChange(v);if(v)void load()}}><SheetContent className="w-[96vw] overflow-y-auto sm:max-w-4xl"><SheetHeader><SheetTitle>Kelola Penugasan — {ppl?.nama_lengkap}</SheetTitle><SheetDescription>Tambah periode baru, tinjau tugas aktif, dan pertahankan riwayat lama.</SheetDescription></SheetHeader>{loading?<div className="grid h-60 place-items-center"><Loader2 className="h-7 w-7 animate-spin"/></div>:<div className="mt-5 space-y-5"><div className="grid gap-3 rounded-xl border bg-slate-50 p-3 dark:bg-slate-900 sm:grid-cols-2 lg:grid-cols-5"><div><Label>Jenis tugas</Label><Select value={jenis} onValueChange={v=>{setJenis(v as 'KBM'|'PIKET');setSelected(new Set())}}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="KBM">KBM</SelectItem><SelectItem value="PIKET">Piket</SelectItem></SelectContent></Select></div><div><Label>Guru utama</Label><Select value={teacher} onValueChange={setTeacher}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="semua">Semua guru</SelectItem>{teachers.map(([id,n])=><SelectItem key={id} value={id}>{n}</SelectItem>)}</SelectContent></Select></div><div><Label>Mulai</Label><Input type="date" value={mulai} onChange={e=>setMulai(e.target.value)}/></div><div><Label>Selesai</Label><Input type="date" value={selesai} onChange={e=>setSelesai(e.target.value)}/></div><div className="flex items-end"><Button className="w-full" disabled={!selected.size||pending} onClick={save}>{pending?<Loader2 className="h-4 w-4 animate-spin"/>:<Plus className="h-4 w-4"/>}Tambahkan ({selected.size})</Button></div></div><div className="max-h-72 overflow-auto rounded-xl border"><Table><TableHeader><TableRow><TableHead className="w-10"></TableHead><TableHead>Tugas</TableHead><TableHead>Guru utama</TableHead><TableHead>Jadwal</TableHead><TableHead>Konflik aktif</TableHead></TableRow></TableHeader><TableBody>{visible.map(o=>{const own=o.conflict_ppl_id===ppl?.id||o.conflict_ppl_nama===ppl?.nama_lengkap,disabled=!!o.conflict_ppl_nama;return <TableRow key={`${o.jenis}-${o.id}`}><TableCell><Checkbox disabled={disabled} checked={selected.has(o.id)} onCheckedChange={()=>setSelected(s=>{const n=new Set(s);n.has(o.id)?n.delete(o.id):n.add(o.id);return n})}/></TableCell><TableCell className="font-medium">{o.label}</TableCell><TableCell className="text-xs">{o.guru_utama_nama}</TableCell><TableCell className="max-w-64 text-xs">{o.jenis==='KBM'?scheduleLabel(o.jadwal_label):o.jadwal_label}</TableCell><TableCell>{o.conflict_ppl_nama?<Badge variant="outline" className={disabled?'border-rose-200 text-rose-600':'border-emerald-200 text-emerald-600'}>{own?'Milik akun ini':o.conflict_ppl_nama}</Badge>:'—'}</TableCell></TableRow>})}</TableBody></Table></div><div><div className="mb-2 flex items-center gap-2"><History className="h-4 w-4"/><h3 className="font-semibold">Riwayat penugasan</h3></div><div className="overflow-x-auto rounded-xl border"><Table><TableHeader><TableRow><TableHead>Jenis</TableHead><TableHead>Tugas</TableHead><TableHead>Guru utama</TableHead><TableHead>Mulai</TableHead><TableHead>Selesai</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader><TableBody>{mappings.map(m=><MappingPeriodRow key={m.id} row={m} reload={async()=>{await load();await refresh()}}/>)}{!mappings.length&&<TableRow><TableCell colSpan={6} className="text-center text-slate-500">Belum ada riwayat.</TableCell></TableRow>}</TableBody></Table></div></div></div>}</SheetContent></Sheet>
 }
+
+function MappingPeriodRow({row,reload}:{row:PplMappingRow;reload:()=>Promise<void>}){const[mulai,setMulai]=useState(row.berlaku_mulai),[selesai,setSelesai]=useState(row.berlaku_selesai||''),[editing,setEditing]=useState(false),[pending,startTransition]=useTransition();const run=(fn:()=>Promise<{error?:string;success?:string}>)=>startTransition(async()=>{const r=await fn();notify(r);if(!r.error){setEditing(false);await reload()}});return <TableRow><TableCell><Badge variant="outline">{row.jenis}</Badge></TableCell><TableCell className="min-w-48 text-xs font-medium">{row.label}</TableCell><TableCell className="text-xs">{row.guru_utama_nama}</TableCell><TableCell>{editing?<Input type="date" value={mulai} onChange={e=>setMulai(e.target.value)} className="w-36"/>:<span className="text-xs">{row.berlaku_mulai}</span>}</TableCell><TableCell>{editing?<Input type="date" value={selesai} onChange={e=>setSelesai(e.target.value)} className="w-36"/>:<span className="text-xs">{row.berlaku_selesai||'Terbuka'}</span>}</TableCell><TableCell className="whitespace-nowrap text-right">{editing?<><Button size="icon" variant="ghost" disabled={pending} onClick={()=>run(()=>updatePplMappingPeriod(row.id,mulai,selesai||null))}><Save className="h-4 w-4"/></Button><Button size="icon" variant="ghost" onClick={()=>setEditing(false)}><X className="h-4 w-4"/></Button></>:<><Button size="icon" variant="ghost" onClick={()=>setEditing(true)}><Edit3 className="h-4 w-4"/></Button><Button size="sm" variant="ghost" disabled={pending||!!row.berlaku_selesai&&row.berlaku_selesai<todayWIB()} onClick={()=>run(()=>endPplMapping(row.id))}>Akhiri</Button></>}</TableCell></TableRow>}
+
+type AttendanceData={items:PplAttendanceItem[];summaries:PplAttendanceSummary[];school:Record<string,string>}
+function MonitoringTab({campuses,pplList}:{campuses:PplCampus[];pplList:PplWithSummary[]}){
+  const month=todayWIB().slice(0,7),[start,setStart]=useState(`${month}-01`),[end,setEnd]=useState(todayWIB()),[campus,setCampus]=useState('semua'),[pplId,setPplId]=useState('semua'),[jenis,setJenis]=useState('semua'),[status,setStatus]=useState('semua'),[data,setData]=useState<AttendanceData|null>(null),[pplOptions,setPplOptions]=useState<{id:string;nama_lengkap:string}[]>(pplList.map(({id,nama_lengkap})=>({id,nama_lengkap}))),[busy,setBusy]=useState(false),[detail,setDetail]=useState<PplAttendanceSummary|null>(null),[correction,setCorrection]=useState<PplAttendanceItem|null>(null);const printRef=useRef<HTMLDivElement>(null);const print=useReactToPrint({contentRef:printRef,documentTitle:`Rekap-PPL-${start}-${end}`})
+  const load=async()=>{setBusy(true);const result=await getPplAttendance({start,end,campusId:campus==='semua'?undefined:campus,pplUserId:pplId==='semua'?undefined:pplId,jenis,status});setBusy(false);if(result.error){alert(result.error);return}setData({items:result.items,summaries:result.summaries,school:result.school});setPplOptions(result.ppl)}
+  return <div className="space-y-3"><div className="grid gap-3 rounded-xl border bg-white p-3 dark:bg-slate-900 sm:grid-cols-2 lg:grid-cols-7"><div><Label>Mulai</Label><Input type="date" value={start} onChange={e=>setStart(e.target.value)}/></div><div><Label>Selesai</Label><Input type="date" value={end} onChange={e=>setEnd(e.target.value)}/></div><div><Label>Kampus</Label><Select value={campus} onValueChange={setCampus}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="semua">Semua</SelectItem>{campuses.map(c=><SelectItem key={c.id} value={c.id}>{c.singkatan||c.nama}</SelectItem>)}</SelectContent></Select></div><div><Label>PPL</Label><Select value={pplId} onValueChange={setPplId}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="semua">Semua</SelectItem>{pplOptions.map(p=><SelectItem key={p.id} value={p.id}>{p.nama_lengkap}</SelectItem>)}</SelectContent></Select></div><div><Label>Jenis</Label><Select value={jenis} onValueChange={setJenis}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="semua">Semua</SelectItem><SelectItem value="KBM">KBM</SelectItem><SelectItem value="PIKET">Piket</SelectItem></SelectContent></Select></div><div><Label>Status</Label><Select value={status} onValueChange={setStatus}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="semua">Semua</SelectItem>{['HADIR','TELAT','SAKIT','IZIN','ALFA','DIAMBIL_GURU'].map(s=><SelectItem key={s} value={s}>{STATUS_LABEL[s]}</SelectItem>)}</SelectContent></Select></div><div className="flex items-end gap-2"><Button className="flex-1" onClick={load} disabled={busy}>{busy?<Loader2 className="h-4 w-4 animate-spin"/>:<Search className="h-4 w-4"/>}Tampilkan</Button><Button variant="outline" disabled={!data} onClick={()=>print()}><Printer className="h-4 w-4"/>Cetak Rekap</Button></div></div>
+    <div className="overflow-hidden rounded-xl border bg-white dark:bg-slate-900"><div className="overflow-x-auto"><Table><TableHeader><TableRow className="bg-slate-50 dark:bg-slate-800/60"><TableHead>Nama PPL</TableHead><TableHead>Kampus</TableHead><TableHead className="text-center">Wajib</TableHead><TableHead className="text-center">Tepat</TableHead><TableHead className="text-center">Telat</TableHead><TableHead className="text-center">Sakit</TableHead><TableHead className="text-center">Izin</TableHead><TableHead className="text-center">Alfa</TableHead><TableHead className="text-center">Diambil guru</TableHead><TableHead className="text-center">Kehadiran</TableHead><TableHead></TableHead></TableRow></TableHeader><TableBody>{data?.summaries.length?data.summaries.map(s=><TableRow key={s.ppl_user_id}><TableCell className="font-medium">{s.ppl_nama}</TableCell><TableCell>{s.kampus_singkatan||s.kampus_nama||'—'}</TableCell>{[s.kewajiban,s.tepat_waktu,s.telat,s.sakit,s.izin,s.alfa,s.diambil_guru].map((n,i)=><TableCell key={i} className="text-center tabular-nums">{n}</TableCell>)}<TableCell className="text-center font-semibold">{s.persentase.toFixed(2)}%</TableCell><TableCell><Button size="sm" variant="ghost" onClick={()=>setDetail(s)}>Detail</Button></TableCell></TableRow>):<TableRow><TableCell colSpan={11} className="h-32 text-center text-slate-500">{data?'Tidak ada kewajiban pada filter ini.':'Pilih filter lalu klik Tampilkan.'}</TableCell></TableRow>}</TableBody></Table></div></div>
+    <AttendanceDetail open={!!detail} onOpenChange={o=>!o&&setDetail(null)} summary={detail} items={(data?.items||[]).filter(i=>i.ppl_user_id===detail?.ppl_user_id)} onCorrect={setCorrection}/><CorrectionDialog item={correction} open={!!correction} onOpenChange={o=>!o&&setCorrection(null)} reload={async()=>{setCorrection(null);await load()}}/><div className="fixed -left-[10000px] top-0"><PplPrint ref={printRef} data={data} start={start} end={end} filters={{kampus:campus==='semua'?'Semua kampus':campuses.find(item=>item.id===campus)?.nama||'Kampus terpilih',ppl:pplId==='semua'?'Semua PPL':pplOptions.find(item=>item.id===pplId)?.nama_lengkap||'PPL terpilih',jenis:jenis==='semua'?'Semua jenis':jenis,status:status==='semua'?'Semua status':STATUS_LABEL[status]||status}}/></div>
+  </div>
+}
+
+function AttendanceDetail({open,onOpenChange,summary,items,onCorrect}:{open:boolean;onOpenChange:(v:boolean)=>void;summary:PplAttendanceSummary|null;items:PplAttendanceItem[];onCorrect:(i:PplAttendanceItem)=>void}){return <Sheet open={open} onOpenChange={onOpenChange}><SheetContent className="w-[96vw] overflow-y-auto sm:max-w-5xl"><SheetHeader><SheetTitle>Detail Kehadiran — {summary?.ppl_nama}</SheetTitle><SheetDescription>{summary?.kampus_nama||'Kampus belum ditag'} · {summary?.persentase.toFixed(2)}% hadir</SheetDescription></SheetHeader><div className="mt-5 overflow-x-auto rounded-xl border"><Table><TableHeader><TableRow><TableHead>Tanggal</TableHead><TableHead>Jenis</TableHead><TableHead>Tugas</TableHead><TableHead>Guru utama</TableHead><TableHead>Jam</TableHead><TableHead>Submit</TableHead><TableHead>Status</TableHead><TableHead>Catatan</TableHead><TableHead></TableHead></TableRow></TableHeader><TableBody>{items.map(i=><TableRow key={i.key}><TableCell className="whitespace-nowrap">{i.tanggal}</TableCell><TableCell><Badge variant="outline">{i.jenis}</Badge></TableCell><TableCell className="min-w-52 text-xs font-medium">{i.tugas_label}</TableCell><TableCell className="text-xs">{i.guru_utama_nama}</TableCell><TableCell className="whitespace-nowrap text-xs">{i.jadwal_label}</TableCell><TableCell className="whitespace-nowrap text-xs">{i.waktu_submit?formatTimeWIB(i.waktu_submit,{legacyShiftedWIB:true}):'—'}</TableCell><TableCell><Badge variant="outline" className={STATUS_CLASS[i.status]}>{STATUS_LABEL[i.status]}</Badge>{i.is_override&&<span className="ml-1 text-[10px] text-violet-600">Koreksi</span>}</TableCell><TableCell className="max-w-52 text-xs">{i.catatan||'—'}{i.is_override&&i.override_actor_name&&<span className="block text-[10px] text-violet-600">oleh {i.override_actor_name}</span>}</TableCell><TableCell><Button size="icon" variant="ghost" onClick={()=>onCorrect(i)}><Edit3 className="h-4 w-4"/></Button></TableCell></TableRow>)}</TableBody></Table></div></SheetContent></Sheet>}
+
+function CorrectionDialog({item,open,onOpenChange,reload}:{item:PplAttendanceItem|null;open:boolean;onOpenChange:(v:boolean)=>void;reload:()=>Promise<void>}){const[status,setStatus]=useState<Exclude<PplAttendanceStatus,'DIAMBIL_GURU'>>('HADIR'),[note,setNote]=useState(''),[pending,startTransition]=useTransition();const save=()=>item&&startTransition(async()=>{const r=await setPplAttendanceOverride({mappingId:item.mapping_id,tanggal:item.tanggal,status,catatan:note});notify(r);if(!r.error)await reload()});const clear=()=>item&&startTransition(async()=>{const r=await clearPplAttendanceOverride(item.mapping_id,item.tanggal);notify(r);if(!r.error)await reload()});return <Dialog open={open} onOpenChange={v=>{onOpenChange(v);if(v&&item){setStatus(item.status==='DIAMBIL_GURU'?'HADIR':item.status);setNote(item.catatan||'')}}}><DialogContent><DialogHeader><DialogTitle>Koreksi Kehadiran PPL</DialogTitle><DialogDescription>{item?.ppl_nama} · {item?.tanggal} · {item?.tugas_label}</DialogDescription></DialogHeader><div className="space-y-3"><div><Label>Status</Label><Select value={status} onValueChange={v=>setStatus(v as typeof status)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{['HADIR','TELAT','SAKIT','IZIN','ALFA'].map(s=><SelectItem key={s} value={s}>{STATUS_LABEL[s]}</SelectItem>)}</SelectContent></Select></div><div><Label>Catatan audit</Label><Input value={note} onChange={e=>setNote(e.target.value)} placeholder="Alasan koreksi..."/></div></div><DialogFooter>{item?.is_override&&<Button variant="outline" disabled={pending} onClick={clear}><Trash2 className="h-4 w-4"/>Hapus koreksi</Button>}<Button disabled={pending||!note.trim()} onClick={save}>{pending?<Loader2 className="h-4 w-4 animate-spin"/>:<Save className="h-4 w-4"/>}Simpan</Button></DialogFooter></DialogContent></Dialog>}
+
+const PplPrint=forwardRef<HTMLDivElement,{data:AttendanceData|null;start:string;end:string;filters?:{kampus:string;ppl:string;jenis:string;status:string}}>(({data,start,end,filters},ref)=><div ref={ref} className="w-[210mm] bg-white p-[12mm] text-black"><style>{`@page{size:A4 landscape;margin:10mm} @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.ppl-page{break-after:page}.ppl-page:last-child{break-after:auto}}`}</style><section className="ppl-page min-h-[180mm]"><Image src="/kopsurat.png" alt="Kop surat" width={1200} height={180} className="mb-4 h-auto w-full" loading="eager" unoptimized/><h1 className="text-center text-lg font-bold uppercase">Rekap Kehadiran Guru PPL</h1><p className="mb-5 text-center text-xs">{data?.school.nama_madrasah||data?.school.school_name||'MAN 1 Tasikmalaya'} · Periode {start} s.d. {end}</p><p className="mb-5 text-center text-[9px]">Filter: {filters?.kampus||'Semua kampus'} · {filters?.ppl||'Semua PPL'} · {filters?.jenis||'Semua jenis'} · {filters?.status||'Semua status'}</p><table className="w-full border-collapse text-[9px]"><thead><tr>{['No','Nama PPL','Kampus','Wajib','Tepat','Telat','Sakit','Izin','Alfa','Diambil Guru','Kehadiran'].map(h=><th key={h} className="border border-black bg-slate-100 p-1">{h}</th>)}</tr></thead><tbody>{data?.summaries.map((s,n)=><tr key={s.ppl_user_id}><td className="border border-black p-1 text-center">{n+1}</td><td className="border border-black p-1">{s.ppl_nama}</td><td className="border border-black p-1">{s.kampus_singkatan||s.kampus_nama||'—'}</td>{[s.kewajiban,s.tepat_waktu,s.telat,s.sakit,s.izin,s.alfa,s.diambil_guru].map((v,i)=><td key={i} className="border border-black p-1 text-center">{v}</td>)}<td className="border border-black p-1 text-center font-bold">{s.persentase.toFixed(2)}%</td></tr>)}</tbody></table><p className="mt-3 text-[8px]">Catatan: status “Diambil Guru” tidak masuk denominator kewajiban PPL. Telat tetap dihitung hadir.</p></section>{data?.summaries.map(s=><section key={s.ppl_user_id} className="ppl-page min-h-[180mm]"><Image src="/kopsurat.png" alt="Kop surat" width={1200} height={180} className="mb-3 h-auto w-full" loading="eager" unoptimized/><h2 className="text-center text-sm font-bold uppercase">Lampiran Kehadiran PPL</h2><p className="mb-3 text-center text-[9px]">{s.ppl_nama} · {s.kampus_nama||'Kampus belum ditag'} · {start} s.d. {end}</p><table className="w-full border-collapse text-[8px]"><thead><tr>{['No','Tanggal','Jenis','Tugas / Kelas / Shift','Guru Utama','Jam','Waktu Input','Status','Catatan'].map(h=><th key={h} className="border border-black bg-slate-100 p-1">{h}</th>)}</tr></thead><tbody>{data.items.filter(i=>i.ppl_user_id===s.ppl_user_id).map((i,n)=><tr key={i.key}><td className="border border-black p-1 text-center">{n+1}</td><td className="border border-black p-1">{i.tanggal}</td><td className="border border-black p-1">{i.jenis}</td><td className="border border-black p-1">{i.tugas_label}</td><td className="border border-black p-1">{i.guru_utama_nama}</td><td className="border border-black p-1">{i.jadwal_label}</td><td className="border border-black p-1">{i.waktu_submit?formatTimeWIB(i.waktu_submit,{legacyShiftedWIB:true}):'—'}</td><td className="border border-black p-1">{STATUS_LABEL[i.status]}</td><td className="border border-black p-1">{i.catatan||'—'}{i.is_override&&i.override_actor_name?` (Koreksi: ${i.override_actor_name})`:''}</td></tr>)}</tbody></table></section>)}</div>);PplPrint.displayName='PplPrint'

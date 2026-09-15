@@ -1,3 +1,5 @@
+import { todayWIB } from './time'
+
 export type TeachingAssignmentActorKind = 'GURU' | 'PPL'
 
 export type TeachingAssignmentAccess = {
@@ -17,7 +19,9 @@ export async function resolveTeachingAssignmentAccess(
   db: D1Database,
   actorId: string,
   penugasanId: string,
+  effectiveDate?: string,
 ): Promise<TeachingAssignmentAccess | null> {
+  const accessDate = effectiveDate || todayWIB()
   const row = await db.prepare(`
     SELECT pm.id, pm.guru_id, pm.kelas_id, pm.tahun_ajaran_id,
       CASE
@@ -27,6 +31,8 @@ export async function resolveTeachingAssignmentAccess(
           WHERE gpm.guru_ppl_id = ?
             AND gpm.guru_utama_id = pm.guru_id
             AND gpm.penugasan_mengajar_id = pm.id
+            AND gpm.berlaku_mulai <= ?
+            AND (gpm.berlaku_selesai IS NULL OR gpm.berlaku_selesai >= ?)
             AND EXISTS (
               SELECT 1
               FROM "user" ppl
@@ -40,7 +46,7 @@ export async function resolveTeachingAssignmentAccess(
     FROM penugasan_mengajar pm
     WHERE pm.id = ?
     LIMIT 1
-  `).bind(actorId, actorId, penugasanId).first<any>()
+  `).bind(actorId, actorId, accessDate, accessDate, penugasanId).first<any>()
 
   if (!row?.actor_kind) return null
   return {

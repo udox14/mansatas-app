@@ -969,7 +969,7 @@ export async function getMonitoringPiketHarian(tanggal: string) {
     FROM jadwal_guru_piket j
     JOIN pengaturan_shift_piket s ON j.shift_id = s.id
     JOIN "user" u ON j.user_id = u.id
-    LEFT JOIN agenda_piket ap ON ap.jadwal_id = j.id AND ap.tanggal = ?
+    LEFT JOIN agenda_piket ap ON ap.jadwal_id = j.id AND ap.tanggal = ? AND ap.user_id = j.user_id
     WHERE j.hari = ?
     ORDER BY u.nama_lengkap ASC, s.id ASC
   `).bind(tanggal, hari).all<any>()

@@ -139,9 +139,10 @@ function jamBeririsan(jamIzin: number[] | null, jamKeMulai?: number, jamKeSelesa
 async function getAccessiblePenugasan(
   db: D1Database,
   penugasanId: string,
-  guruId: string
+  guruId: string,
+  tanggal?: string,
 ): Promise<{ kelas_id: string; tingkat: number; kbm_nonaktif_mulai: string | null } | null> {
-  const access = await resolveTeachingAssignmentAccess(db, guruId, penugasanId)
+  const access = await resolveTeachingAssignmentAccess(db, guruId, penugasanId, tanggal)
   if (!access) return null
   return db.prepare(`SELECT id AS kelas_id, tingkat, kbm_nonaktif_mulai FROM kelas WHERE id = ? LIMIT 1`)
     .bind(access.kelasId).first<any>()
@@ -226,11 +227,15 @@ export async function getBlokMengajarHariIni(guruIdOverride?: string, dateOverri
     WHERE jm.tahun_ajaran_id = ? AND jm.hari = ?
       AND (
         pm.guru_id = ?
-        OR pm.id IN (SELECT penugasan_mengajar_id FROM guru_ppl_mapping WHERE guru_ppl_id = ?)
+        OR pm.id IN (
+          SELECT penugasan_mengajar_id FROM guru_ppl_mapping
+          WHERE guru_ppl_id = ? AND berlaku_mulai <= ?
+            AND (berlaku_selesai IS NULL OR berlaku_selesai >= ?)
+        )
       )
       AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
     ORDER BY jm.jam_ke
-  `).bind(ta.id, hari, guruId, guruId, tanggal).all<any>()).results || []
+  `).bind(ta.id, hari, guruId, guruId, tanggal, tanggal, tanggal).all<any>()).results || []
 
   if (!rows.length) return { error: null, blocks: [], tanggal, hari, hariNama: HARI[hari] }
 
@@ -303,7 +308,7 @@ export async function loadSiswaAbsensi(penugasanId: string, kelasId: string, tan
   const db = await getDB()
   const effective = await getEffectiveUser()
   const guruId = effective?.effectiveUserId || user.id
-  const accessiblePenugasan = await getAccessiblePenugasan(db, penugasanId, guruId)
+  const accessiblePenugasan = await getAccessiblePenugasan(db, penugasanId, guruId, tanggal)
   if (!accessiblePenugasan || accessiblePenugasan.kelas_id !== kelasId) {
     return { error: 'Penugasan tidak ditemukan atau bukan sesi mengajar Anda.', siswa: [] }
   }
@@ -410,7 +415,7 @@ export async function simpanAbsensi(
     return { error: `Tanggal ini tidak efektif pembelajaran${calendarStatus.reason ? `: ${calendarStatus.reason}` : ''}. Absensi tidak perlu disimpan.` }
   }
 
-  const penugasan = await getAccessiblePenugasan(db, penugasanId, guruId)
+  const penugasan = await getAccessiblePenugasan(db, penugasanId, guruId, tanggal)
   if (!penugasan) return { error: 'Penugasan tidak ditemukan atau bukan sesi mengajar Anda.' }
   if (penugasan.kbm_nonaktif_mulai && penugasan.kbm_nonaktif_mulai <= tanggal) {
     return { error: 'Kelas ini sudah dinonaktifkan dari kewajiban KBM. Absensi tidak perlu disimpan.' }
@@ -573,7 +578,7 @@ export async function koreksiAbsensiDariRekap(
   const db = await getDB()
   await ensureSchemaOnce('absensi-session', () => ensureAbsensiSessionTable(db))
 
-  const penugasan = await getAccessiblePenugasan(db, penugasanId, guruId)
+  const penugasan = await getAccessiblePenugasan(db, penugasanId, guruId, tanggal)
   if (!penugasan) return { error: 'Penugasan tidak ditemukan atau bukan sesi mengajar Anda.' }
   const session = await db.prepare(`
     SELECT 1 FROM absensi_sesi_guru WHERE penugasan_id = ? AND tanggal = ?

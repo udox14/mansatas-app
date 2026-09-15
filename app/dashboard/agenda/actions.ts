@@ -165,10 +165,14 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
       )
     LEFT JOIN delegasi_tugas dt ON dt.id = dtk.delegasi_id
     WHERE jm.tahun_ajaran_id = ? AND jm.hari = ? 
-      AND (pm.guru_id = ? OR pm.id IN (SELECT penugasan_mengajar_id FROM guru_ppl_mapping WHERE guru_ppl_id = ?))
+      AND (pm.guru_id = ? OR pm.id IN (
+        SELECT penugasan_mengajar_id FROM guru_ppl_mapping
+        WHERE guru_ppl_id = ? AND berlaku_mulai <= ?
+          AND (berlaku_selesai IS NULL OR berlaku_selesai >= ?)
+      ))
       AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
     ORDER BY jm.jam_ke ASC
-  `).bind(tanggal, tanggal, ta.id, hari, guruId, guruId, tanggal).all<any>()
+  `).bind(tanggal, tanggal, ta.id, hari, guruId, guruId, tanggal, tanggal, tanggal).all<any>()
 
   const rows = result.results || []
   if (rows.length === 0) return { error: null, blocks: [], slots, tanggal, hari }
@@ -272,7 +276,7 @@ export async function submitAgenda(formData: FormData): Promise<{ error?: string
 
   const db = await getDB()
   const actingUserId = effective?.effectiveUserId || user.id
-  const assignmentAccess = await resolveTeachingAssignmentAccess(db, actingUserId, penugasanId)
+  const assignmentAccess = await resolveTeachingAssignmentAccess(db, actingUserId, penugasanId, tanggal)
   if (!assignmentAccess) return { error: 'Anda tidak memiliki akses ke penugasan ini.' }
   const calendarStatus = await getKalenderDateStatus(db, tanggal)
   if (!calendarStatus.isEffective) {

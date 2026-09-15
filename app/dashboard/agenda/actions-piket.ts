@@ -10,6 +10,7 @@ import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
 import { nowWIB, currentTimeWIB, nowWIBISO } from '@/lib/time'
 import { getEffectiveUser, getActAsDate } from '@/lib/act-as'
 import { getKalenderDateStatus } from '@/lib/kalender-pendidikan'
+import { requireActionAccess } from '@/lib/action-security'
 
 // ============================================================
 // TYPES
@@ -63,10 +64,11 @@ export async function getJadwalPiketHariIni(dateOverride?: string): Promise<{
   tanggal: string
   hari: number
   calendarStatus?: { isEffective: boolean; reason: string | null; category: string | null }
-}> {
+  }> {
   try {
     const user = await getCurrentUser()
     if (!user) return { error: 'Unauthorized', shifts: [], tanggal: '', hari: 0 }
+    await requireActionAccess('agenda', 'read')
 
     // Cek act-as
     const effective = await getEffectiveUser()
@@ -134,15 +136,24 @@ export async function getJadwalPiketHariIni(dateOverride?: string): Promise<{
       WHERE j.hari = ?
         AND (
           j.user_id = ?
-          OR j.id IN (
+      OR j.id IN (
             SELECT jadwal_piket_id
             FROM guru_ppl_mapping
             WHERE guru_ppl_id = ?
               AND jadwal_piket_id IS NOT NULL
+              AND guru_utama_id = j.user_id
+              AND berlaku_mulai <= ?
+              AND (berlaku_selesai IS NULL OR berlaku_selesai >= ?)
+              AND EXISTS (
+                SELECT 1 FROM "user" ppl
+                LEFT JOIN user_roles ur ON ur.user_id = ppl.id
+                WHERE ppl.id = guru_ppl_mapping.guru_ppl_id
+                  AND (ppl.role = 'guru_ppl' OR ur.role = 'guru_ppl')
+              )
           )
         )
       ORDER BY s.id ASC
-    `).bind(tanggal, userId, hari, userId, userId).all<any>()
+    `).bind(tanggal, userId, hari, userId, userId, tanggal, tanggal).all<any>()
 
     const rows = result.results || []
     if (rows.length === 0) return { error: null, shifts: [], tanggal, hari }
@@ -185,6 +196,7 @@ export async function getJadwalPiketHariIni(dateOverride?: string): Promise<{
 export async function submitAgendaPiket(formData: FormData): Promise<{ error?: string; success?: string }> {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
+  await requireActionAccess('agenda', 'create')
 
   const effective = await getEffectiveUser()
   const isActingAs = effective?.isActingAs || false
@@ -193,11 +205,9 @@ export async function submitAgendaPiket(formData: FormData): Promise<{ error?: s
   const jadwalId = formData.get('jadwal_id') as string
   const shiftId = parseInt(formData.get('shift_id') as string)
   const tanggal = formData.get('tanggal') as string
-  const slotMulai = formData.get('slot_mulai') as string   // HH:mm
-  const slotSelesai = formData.get('slot_selesai') as string
   const foto = formData.get('foto') as File | null
 
-  if (!jadwalId || !tanggal) return { error: 'Data tidak lengkap.' }
+  if (!jadwalId || !tanggal || !Number.isInteger(shiftId)) return { error: 'Data tidak lengkap.' }
   if (!foto || foto.size === 0) return { error: 'Foto wajib diambil sebagai bukti kehadiran.' }
 
   const db = await getDB()
@@ -206,10 +216,41 @@ export async function submitAgendaPiket(formData: FormData): Promise<{ error?: s
     return { error: `Tanggal ini tidak efektif pembelajaran${calendarStatus.reason ? `: ${calendarStatus.reason}` : ''}. Agenda piket tidak perlu disimpan.` }
   }
 
+  const scheduled = await db.prepare(`
+    SELECT j.hari, j.shift_id, s.jam_mulai, s.jam_selesai
+    FROM jadwal_guru_piket j
+    JOIN pengaturan_shift_piket s ON s.id = j.shift_id
+    WHERE j.id = ? AND j.shift_id = ? AND (
+      j.user_id = ? OR EXISTS (
+        SELECT 1 FROM guru_ppl_mapping m
+        WHERE m.jadwal_piket_id = j.id AND m.guru_ppl_id = ?
+          AND m.guru_utama_id = j.user_id
+          AND m.berlaku_mulai <= ?
+          AND (m.berlaku_selesai IS NULL OR m.berlaku_selesai >= ?)
+          AND EXISTS (
+            SELECT 1 FROM "user" ppl
+            LEFT JOIN user_roles ur ON ur.user_id = ppl.id
+            WHERE ppl.id = m.guru_ppl_id
+              AND (ppl.role = 'guru_ppl' OR ur.role = 'guru_ppl')
+          )
+      )
+    )
+  `).bind(jadwalId, shiftId, userId, userId, tanggal, tanggal).first<any>()
+  const tanggalDate = new Date(`${tanggal}T00:00:00Z`)
+  if (!scheduled || getHariNumber(tanggalDate) !== Number(scheduled.hari)) {
+    return { error: 'Jadwal piket tidak tersedia untuk akun atau tanggal ini.' }
+  }
+
+  const activeTa = await db.prepare('SELECT jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<any>()
+  const serverSlots = getPolaHariIni(activeTa?.jam_pelajaran || '[]', Number(scheduled.hari))
+  const slotMulai = serverSlots.find(slot => slot.id === Number(scheduled.jam_mulai))?.mulai
+  const slotSelesai = serverSlots.find(slot => slot.id === Number(scheduled.jam_selesai))?.selesai
+  if (!slotMulai || !slotSelesai) return { error: 'Rentang waktu jadwal piket belum valid.' }
+
   // Cek apakah sudah diisi
   const existing = await db.prepare(
-    'SELECT id FROM agenda_piket WHERE jadwal_id = ? AND tanggal = ?'
-  ).bind(jadwalId, tanggal).first<any>()
+    'SELECT id FROM agenda_piket WHERE jadwal_id = ? AND tanggal = ? AND user_id = ?'
+  ).bind(jadwalId, tanggal, userId).first<any>()
   if (existing) return { error: 'Agenda piket hari ini sudah diisi.' }
 
   const { hhmm: currentTime } = currentTimeWIB()

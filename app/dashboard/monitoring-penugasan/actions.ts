@@ -60,8 +60,10 @@ export async function getPetugasPiketMonitoring(tanggal: string): Promise<Monito
       JOIN jadwal_guru_piket j ON j.id = jpp.jadwal_piket_id
       JOIN pengaturan_shift_piket sp ON sp.id = j.shift_id
       WHERE j.hari = ? AND u.banned = 0
+        AND jpp.berlaku_mulai <= ?
+        AND (jpp.berlaku_selesai IS NULL OR jpp.berlaku_selesai >= ?)
       ORDER BY sp.jam_mulai, u.nama_lengkap
-    `).bind(hari).all<any>(),
+    `).bind(hari, tanggal, tanggal).all<any>(),
   ])
 
   const seen = new Set<string>()

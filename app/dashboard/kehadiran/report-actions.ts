@@ -154,10 +154,11 @@ async function getCurrentAssignmentId(
       AND jm.jam_ke IN (${placeholders})
       AND (pm.guru_id = ? OR pm.id IN (
         SELECT penugasan_mengajar_id FROM guru_ppl_mapping WHERE guru_ppl_id = ?
+          AND berlaku_mulai <= ? AND (berlaku_selesai IS NULL OR berlaku_selesai >= ?)
       ))
       AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
     ORDER BY jm.jam_ke ASC
-  `).bind(ta.id, hari, ...activeSlotIds, guruId, guruId, tanggal).all<{ penugasan_id: string; jam_ke: number }>()
+  `).bind(ta.id, hari, ...activeSlotIds, guruId, guruId, tanggal, tanggal, tanggal).all<{ penugasan_id: string; jam_ke: number }>()
 
   return (rows.results || []).find(row => allowedIds.has(row.penugasan_id))?.penugasan_id || null
 }
@@ -196,10 +197,11 @@ export async function getTeacherAttendanceReport(input: {
       JOIN kelas k ON k.id = pm.kelas_id
       JOIN tahun_ajaran ta ON ta.id = pm.tahun_ajaran_id
       WHERE pm.guru_id = ?
-         OR pm.id IN (SELECT penugasan_mengajar_id FROM guru_ppl_mapping WHERE guru_ppl_id = ?)
+         OR pm.id IN (SELECT penugasan_mengajar_id FROM guru_ppl_mapping WHERE guru_ppl_id = ?
+           AND berlaku_mulai <= ? AND (berlaku_selesai IS NULL OR berlaku_selesai >= ?))
       ORDER BY ta.is_active DESC, ta.nama DESC, ta.semester DESC, k.tingkat, k.kelompok,
         CAST(k.nomor_kelas AS INTEGER), mp.nama_mapel
-    `).bind(guruId, guruId).all<AssignmentRow>(),
+    `).bind(guruId, guruId, endDate, startDate).all<AssignmentRow>(),
   ])
 
   const assignmentRaw = assignmentRes.results || []
