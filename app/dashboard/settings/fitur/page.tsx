@@ -24,7 +24,7 @@ export default async function FiturPage() {
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
       <PageHeader
         title="Manajemen Fitur"
-        description="Atur fitur mana saja yang bisa diakses oleh setiap role. Buat role baru sesuai kebutuhan."
+        description="Atur akses fitur, struktur sidebar, dan bottom navbar default untuk setiap role."
       />
       <FiturClient
         initialMatrix={matrix}

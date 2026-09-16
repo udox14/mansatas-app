@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition, type Dispatch, type SetStateAction } from 'react'
+import { createElement, useMemo, useState, useTransition, type Dispatch, type SetStateAction } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   DEFAULT_SIDEBAR_GROUPS,
@@ -25,6 +25,9 @@ import {
   type CrudPermission,
 } from './actions'
 import { cn } from '@/lib/utils'
+import { getIconComponent } from '@/lib/icons'
+import { MAX_ROLE_MOBILE_NAV_ITEMS, moveRoleMobileNavItem } from '@/lib/role-mobile-nav'
+import { House } from '@phosphor-icons/react'
 import {
   AlertCircle,
   ArrowDown,
@@ -909,8 +912,8 @@ function MobileNavPanel({
 
   const addNavLink = (featureId: string) => {
     if (featureId === '__empty') return
-    if (currentNavLinks.length >= 5) {
-      alert('Maksimal 5 menu navigasi agar tidak padat di layar mobile.')
+    if (currentNavLinks.length >= MAX_ROLE_MOBILE_NAV_ITEMS) {
+      alert(`Maksimal ${MAX_ROLE_MOBILE_NAV_ITEMS} menu karena tombol Home selalu tampil di tengah.`)
       return
     }
     if (!currentNavLinks.includes(featureId)) updateNavLinks([...currentNavLinks, featureId])
@@ -926,11 +929,22 @@ function MobileNavPanel({
       <div className="flex items-center gap-2 border-b border-surface-2 px-4 py-3">
         <Smartphone className="h-4 w-4 text-violet-500" />
         <div>
-          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Bottom Nav: {selectedRole.label}</p>
-          <p className="text-[10px] text-slate-400">Maksimal 5 jalan pintas layar HP.</p>
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Bottom Navbar Default: {selectedRole.label}</p>
+          <p className="text-[10px] text-slate-400">Maksimal 4 menu, Home selalu di tengah.</p>
         </div>
       </div>
       <div className="space-y-4 p-4">
+        <div className="mx-auto w-full max-w-md overflow-hidden rounded-2xl border-[5px] border-slate-800 bg-slate-100 pt-12 shadow-sm dark:bg-slate-900">
+          <div className="grid h-20 grid-cols-5 items-end gap-1 border-t border-slate-200 bg-white px-2 pb-1 dark:border-slate-800 dark:bg-slate-950">
+            {[0, 1].map(index => <MobileNavPreviewItem key={index} featureId={currentNavLinks[index]} featureLabels={featureLabels} />)}
+            <div className="flex min-w-0 flex-col items-center gap-1">
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl border-4 border-white bg-emerald-600 text-white shadow-md dark:border-slate-950"><House weight="fill" className="h-5 w-5" /></span>
+              <span className="text-[9px] font-semibold text-emerald-700 dark:text-emerald-400">Home</span>
+            </div>
+            {[2, 3].map(index => <MobileNavPreviewItem key={index} featureId={currentNavLinks[index]} featureLabels={featureLabels} />)}
+          </div>
+        </div>
+        <p className="text-center text-[10px] text-slate-400">Urutan mengikuti posisi kiri ke kanan. Pengaturan pribadi user tetap menjadi prioritas.</p>
         <div className="flex flex-wrap gap-2">
           {currentNavLinks.length === 0 ? (
             <p className="text-xs italic text-slate-400">Belum ada jalan pintas.</p>
@@ -942,6 +956,8 @@ function MobileNavPanel({
                 <span className="w-3 text-[10px] font-bold opacity-50">{index + 1}.</span>
                 <span className="text-xs font-medium">{item ? (featureLabels[item.id] || item.title) : id}</span>
                 {revoked && <AlertCircle className="h-3 w-3" />}
+                <IconButton title="Geser ke kiri" onClick={() => updateNavLinks(moveRoleMobileNavItem(currentNavLinks, index, -1))} icon={ArrowUp} disabled={index === 0} />
+                <IconButton title="Geser ke kanan" onClick={() => updateNavLinks(moveRoleMobileNavItem(currentNavLinks, index, 1))} icon={ArrowDown} disabled={index === currentNavLinks.length - 1} />
                 <button onClick={() => updateNavLinks(currentNavLinks.filter(link => link !== id))} className="ml-1 text-slate-400 hover:text-rose-500">
                   <X className="h-3 w-3" />
                 </button>
@@ -949,22 +965,33 @@ function MobileNavPanel({
             )
           })}
         </div>
-        <Select onValueChange={addNavLink} value="" disabled={currentNavLinks.length >= 5}>
+        <Select onValueChange={addNavLink} value="" disabled={currentNavLinks.length >= MAX_ROLE_MOBILE_NAV_ITEMS}>
           <SelectTrigger className="h-9 w-full rounded-lg border-surface-2 bg-surface text-xs sm:w-[320px]">
             <div className="flex items-center gap-2 text-slate-500">
-              <Plus className="h-3.5 w-3.5" /> {currentNavLinks.length >= 5 ? 'Kapasitas penuh' : 'Pilih fitur yang diizinkan'}
+              <Plus className="h-3.5 w-3.5" /> {currentNavLinks.length >= MAX_ROLE_MOBILE_NAV_ITEMS ? 'Kapasitas penuh' : 'Pilih fitur yang diizinkan'}
             </div>
           </SelectTrigger>
           <SelectContent>
-            {MENU_ITEMS.filter(item => allowedSet.has(item.id) && !currentNavLinks.includes(item.id)).map(item => (
+            {MENU_ITEMS.filter(item => item.id !== 'dashboard' && allowedSet.has(item.id) && !currentNavLinks.includes(item.id)).map(item => (
               <SelectItem key={item.id} value={item.id} className="text-xs">{featureLabels[item.id] || item.title}</SelectItem>
             ))}
-            {MENU_ITEMS.filter(item => allowedSet.has(item.id) && !currentNavLinks.includes(item.id)).length === 0 && (
+            {MENU_ITEMS.filter(item => item.id !== 'dashboard' && allowedSet.has(item.id) && !currentNavLinks.includes(item.id)).length === 0 && (
               <SelectItem value="__empty" disabled className="text-xs text-slate-400">Tidak ada fitur tersisa</SelectItem>
             )}
           </SelectContent>
         </Select>
       </div>
+    </div>
+  )
+}
+
+function MobileNavPreviewItem({ featureId, featureLabels }: { featureId?: string; featureLabels: Record<string, string> }) {
+  const feature = featureId ? MENU_ITEMS.find(item => item.id === featureId) : undefined
+  if (!feature) return <div className="min-w-0" aria-hidden="true" />
+  return (
+    <div className="flex min-w-0 flex-col items-center justify-center gap-1 pb-1 text-slate-500 dark:text-slate-400">
+      {createElement(getIconComponent(feature.icon), { className: 'h-5 w-5' })}
+      <span className="line-clamp-2 text-center text-[8px] leading-[10px]">{featureLabels[feature.id] || feature.title}</span>
     </div>
   )
 }

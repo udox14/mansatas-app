@@ -25,6 +25,7 @@ import {
   type SidebarRoleOverrideConfig,
 } from '@/config/menu'
 import { createActivityDiff, logActivity } from '@/lib/activity-log'
+import { validateRoleMobileNav } from '@/lib/role-mobile-nav'
 
 const SIDEBAR_TEMPLATE_KEY = 'default'
 
@@ -693,7 +694,19 @@ export async function setRoleMobileNav(value: string, navLinks: string[]) {
   const userRow = await db.prepare('SELECT role FROM "user" WHERE id = ?').bind(user.id).first<any>()
   if (userRow?.role !== 'super_admin') return { error: 'Hanya Super Admin yang bisa mengedit role.' }
 
-  const before = await db.prepare('SELECT value, label, mobile_nav_links FROM master_roles WHERE value = ?').bind(value).first<any>()
+  const [before, allowedRows] = await Promise.all([
+    db.prepare('SELECT value, label, mobile_nav_links FROM master_roles WHERE value = ?').bind(value).first<any>(),
+    db.prepare('SELECT feature_id FROM role_features WHERE role = ?').bind(value).all<{ feature_id: string }>(),
+  ])
+  if (!before) return { error: 'Role tidak ditemukan.' }
+
+  const validationError = validateRoleMobileNav(
+    navLinks,
+    (allowedRows.results ?? []).map(row => row.feature_id),
+    MENU_ITEMS.map(item => item.id),
+  )
+  if (validationError) return { error: validationError }
+
   const jsonStr = JSON.stringify(navLinks)
   await db.prepare(
     'UPDATE master_roles SET mobile_nav_links = ? WHERE value = ?'
