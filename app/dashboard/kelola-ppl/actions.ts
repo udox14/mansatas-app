@@ -72,7 +72,7 @@ export async function getDaftarGuruPPL(): Promise<GuruInfo[]> {
 }
 
 export async function getDaftarGuruUtama(): Promise<GuruInfo[]> {
-  const db=await getDB(); const result=await db.prepare(`SELECT DISTINCT u.id,u.nama_lengkap,u.role FROM "user" u LEFT JOIN user_roles ur ON ur.user_id=u.id WHERE u.role<>'guru_ppl' AND NOT EXISTS(SELECT 1 FROM user_roles x WHERE x.user_id=u.id AND x.role='guru_ppl') AND (u.role IN ('guru','wali_kelas','guru_bk','guru_piket','wakamad','kepsek') OR ur.role IN ('guru','wali_kelas','guru_bk','guru_piket','wakamad','kepsek')) ORDER BY u.nama_lengkap`).all<GuruInfo>(); return result.results||[]
+  const db=await getDB(); const result=await db.prepare(`SELECT DISTINCT u.id,u.nama_lengkap,u.role FROM "user" u WHERE u.role<>'guru_ppl' AND NOT EXISTS(SELECT 1 FROM user_roles x WHERE x.user_id=u.id AND x.role='guru_ppl') AND (EXISTS(SELECT 1 FROM penugasan_mengajar pm JOIN tahun_ajaran ta ON ta.id=pm.tahun_ajaran_id AND ta.is_active=1 WHERE pm.guru_id=u.id) OR EXISTS(SELECT 1 FROM jadwal_guru_piket jp WHERE jp.user_id=u.id)) ORDER BY u.nama_lengkap`).all<GuruInfo>(); return result.results||[]
 }
 
 export async function getPplCampuses(): Promise<PplCampus[]> { const db=await getDB();return (await db.prepare('SELECT id,nama,singkatan FROM guru_ppl_kampus ORDER BY nama').all<PplCampus>()).results||[] }
