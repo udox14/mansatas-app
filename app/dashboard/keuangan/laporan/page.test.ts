@@ -11,7 +11,8 @@ describe('Laporan Keuangan page queries', () => {
 
   beforeEach(() => {
     db = new DatabaseSync(':memory:')
-    for (const file of ['schema.sql', 'schema-migration-keuangan.sql', '0099_add_arus_kas.sql']) {
+    // fin_dspt references pmb_pendaftar, so load the parent PMB schema first.
+    for (const file of ['schema.sql', 'schema-migration-pmb.sql', 'schema-migration-keuangan.sql', '0099_add_arus_kas.sql']) {
       const migration = readFileSync(new URL(`../../../../migrations/${file}`, import.meta.url), 'utf8')
       for (const statement of migration.matchAll(/CREATE TABLE IF NOT EXISTS[\s\S]*?;/g)) {
         db.exec(statement[0])

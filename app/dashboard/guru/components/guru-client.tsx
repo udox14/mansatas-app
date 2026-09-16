@@ -360,11 +360,17 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES, masterJab
     const XLSX = (window as any).XLSX
     if (!XLSX) return alert('Library belum siap.')
     const ws = XLSX.utils.json_to_sheet([
-      { NAMA_LENGKAP: 'Budi Santoso, S.Pd', EMAIL: 'budi@man1tasikmalaya.sch.id', JABATAN: 'guru', NIP: '199001012020121001', JABATAN_CETAK: 'GURU BAHASA ARAB' },
-      { NAMA_LENGKAP: 'Siti Aminah, M.Pd', EMAIL: 'siti@man1tasikmalaya.sch.id', JABATAN: 'wakamad', NIP: '198501012010012001', JABATAN_CETAK: 'WAKIL KEPALA MADRASAH', NOMOR_WHATSAPP: '081234567890' },
+      { NAMA_LENGKAP: 'Budi Santoso, S.Pd', EMAIL: 'budi@man1tasikmalaya.sch.id', ROLE: 'guru', NIP: '199001012020121001', JABATAN_CETAK: 'GURU BAHASA ARAB' },
+      { NAMA_LENGKAP: 'Siti Aminah, M.Pd', EMAIL: 'siti@man1tasikmalaya.sch.id', ROLE: 'guru_ppl', NIP: '198501012010012001', JABATAN_CETAK: 'GURU PPL', NOMOR_WHATSAPP: '081234567890' },
+      { NAMA_LENGKAP: 'Ahmad Hidayat', EMAIL: 'ahmad@man1tasikmalaya.sch.id', ROLE: 'pramubakti', NIP: '', JABATAN_CETAK: 'PRAMUBAKTI' },
     ])
+    const roleSheet = XLSX.utils.json_to_sheet(masterRoles.map(role => ({
+      VALUE_ROLE: role.value,
+      LABEL_ROLE: role.label,
+    })))
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Data_Pegawai')
+    XLSX.utils.book_append_sheet(wb, roleSheet, 'Daftar_Role')
     XLSX.writeFile(wb, 'Template_Import_Pegawai.xlsx')
   }
 
@@ -846,7 +852,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES, masterJab
                   </div>
                   <div className="bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100 p-3 rounded-lg text-xs text-emerald-800 dark:text-emerald-400 space-y-1">
                     <p className="flex items-center gap-1.5 font-medium"><KeyRound className="h-3.5 w-3.5 text-emerald-600" />Password otomatis: <strong className="font-mono bg-surface px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">mansatas2026</strong></p>
-                    <p>Kolom: <strong>NAMA_LENGKAP</strong>, <strong>EMAIL</strong>, <strong>JABATAN</strong></p>
+                    <p>Kolom: <strong>NAMA_LENGKAP</strong>, <strong>EMAIL</strong>, <strong>ROLE</strong>. Kolom lama <strong>JABATAN</strong> tetap didukung.</p>
                   </div>
                   <Input type="file" accept=".xlsx,.xls" onChange={handleFileUpload} disabled={isImporting} className="h-9 text-xs rounded-lg cursor-pointer" />
                   {isImporting && <div className="flex items-center text-xs font-medium text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 p-2.5 rounded-lg animate-pulse"><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Sedang membuat akun...</div>}

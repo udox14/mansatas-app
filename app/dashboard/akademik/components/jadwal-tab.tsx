@@ -4,6 +4,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Combobox } from '@/components/ui/combobox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -1020,16 +1021,17 @@ export function JadwalTab({
               </SelectContent>
             </Select>
           ) : (
-            <Select value={selectedGuru} onValueChange={handleSelectGuru}>
-              <SelectTrigger className="h-8 flex-1 text-xs rounded-lg border-surface">
-                <SelectValue placeholder="Pilih guru..." />
-              </SelectTrigger>
-              <SelectContent className="max-h-64">
-                {guruList.map(g => (
-                  <SelectItem key={g.id} value={g.id} className="text-xs">{g.nama_lengkap}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Combobox
+              value={selectedGuru}
+              onValueChange={handleSelectGuru}
+              options={guruList.map(guru => ({ value: guru.id, label: guru.nama_lengkap }))}
+              placeholder="Pilih guru mata pelajaran..."
+              searchPlaceholder="Cari nama guru..."
+              emptyText="Guru mata pelajaran tidak ditemukan"
+              className="flex-1"
+              triggerClassName="h-8 rounded-lg border-surface text-xs"
+              maxResults={80}
+            />
           )}
 
           {/* Reset jadwal kelas — hanya muncul kalau ada data */}

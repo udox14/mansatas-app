@@ -11,6 +11,7 @@ import { getCurrentUser, isCurrentUserPlayReviewer } from '@/utils/auth/server'
 import { getUserRoles } from '@/lib/features'
 import { createActivityDiff, logActivity } from '@/lib/activity-log'
 import { ensureJabatanStrukturalSchema } from '@/lib/jabatan-struktural-service'
+import { normalizePegawaiImportRow, resolveImportedRoles } from '@/lib/pegawai-import'
 
 async function getAuth() {
   const { env } = await getCloudflareContext({ async: true })
@@ -284,31 +285,30 @@ export async function importPegawaiMassal(dataExcel: any[]) {
   const db = await getDB()
   const errorLogs: string[] = []
 
-  const users: Array<{ nama_lengkap: string; email: string; role: string; nip: string | null; jabatan_cetak: string | null; nomor_whatsapp: string | null }> = []
+  const masterRolesResult = await db.prepare('SELECT value, label FROM master_roles').all<{ value: string; label: string }>()
+  const masterRoles = masterRolesResult.results || []
+  const users: Array<{ nama_lengkap: string; email: string; role: string; roles: string[]; nip: string | null; jabatan_cetak: string | null; nomor_whatsapp: string | null }> = []
 
-  for (const row of dataExcel) {
+  for (const [index, sourceRow] of dataExcel.entries()) {
+    const row = normalizePegawaiImportRow(sourceRow)
     const nama_lengkap = String(row.NAMA_LENGKAP || '').trim()
     const email = String(row.EMAIL || '').trim().toLowerCase()
-    const rawJabatan = String(row.JABATAN || 'guru').toLowerCase().trim()
+    const rawRole = row.ROLE ?? row.ROLES ?? row.JABATAN ?? ''
     const nip = String(row.NIP || '').trim() || null
     const jabatan_cetak = String(row.JABATAN_CETAK || row.JABATAN_PRINT || row.JABATAN || '').trim() || null
     const nomor_whatsapp = String(row.NOMOR_WHATSAPP || row.NOMOR_TELEPON || row.NOMOR_TELP || row.NO_HP || row.NO_WA || '').trim() || null
     if (!nama_lengkap || !email) continue
 
-    let role = 'guru'
-    if (rawJabatan.includes('bk')) role = 'guru_bk'
-    else if (rawJabatan.includes('piket')) role = 'guru_piket'
-    else if (rawJabatan.includes('waka') || rawJabatan.includes('wakil')) role = 'wakamad'
-    else if (rawJabatan.includes('kepala')) role = 'kepsek'
-    else if (rawJabatan.includes('tu') || rawJabatan.includes('tata')) role = 'admin_tu'
-    else if (rawJabatan.includes('resepsionis')) role = 'resepsionis'
-    else if (rawJabatan.includes('ppl') || rawJabatan.includes('praktek')) role = 'guru_ppl'
-    else if (rawJabatan.includes('wali kelas') || rawJabatan.includes('walas')) role = 'wali_kelas'
+    const resolved = resolveImportedRoles(rawRole, masterRoles)
+    if (resolved.invalid.length > 0 || resolved.roles.length === 0) {
+      errorLogs.push(`Baris ${index + 2} — ${nama_lengkap}: Role tidak dikenal (${resolved.invalid.join(', ') || String(rawRole)}). Gunakan value/label dari Daftar Role.`)
+      continue
+    }
 
-    users.push({ nama_lengkap, email, role, nip, jabatan_cetak, nomor_whatsapp })
+    users.push({ nama_lengkap, email, role: resolved.roles[0], roles: resolved.roles, nip, jabatan_cetak, nomor_whatsapp })
   }
 
-  if (users.length === 0) return { success: null, error: 'Data kosong atau format tidak sesuai.', logs: [] }
+  if (users.length === 0) return { success: null, error: 'Data kosong, role tidak valid, atau format tidak sesuai.', logs: errorLogs }
 
   // Hash SEKALI
   const passwordHash = await hashPassword('mansatas2026')
@@ -359,10 +359,14 @@ export async function importPegawaiMassal(dataExcel: any[]) {
         `INSERT OR IGNORE INTO account (id, accountId, providerId, userId, password, createdAt, updatedAt) VALUES ${accPlaceholders}`
       ).bind(...accValues).run()
 
-      // Insert ke user_roles juga
-      const roleStmts = newUsers.results.map((u: any) =>
-        db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role) VALUES (?, ?)').bind(u.id, u.role)
-      )
+      // Insert seluruh role dari Excel ke user_roles; role pertama menjadi role utama.
+      const importedByEmail = new Map(chunk.map(user => [user.email, user]))
+      const roleStmts = newUsers.results.flatMap((u: any) => {
+        const imported = importedByEmail.get(String(u.email).toLowerCase())
+        return (imported?.roles || [u.role]).map(role =>
+          db.prepare('INSERT OR IGNORE INTO user_roles (user_id, role) VALUES (?, ?)').bind(u.id, role)
+        )
+      })
       if (roleStmts.length > 0) {
         await db.batch(roleStmts)
       }

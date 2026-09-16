@@ -37,7 +37,19 @@ async function AkademikDataFetcher({ userRole, userId, canManageAkademik }: {
   const [taAktif, mapelResult, guruResult] = await Promise.all([
     db.prepare('SELECT id, nama, semester, daftar_jurusan, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1').first<any>(),
     db.prepare('SELECT id, nama_mapel, kode_mapel, kode_asc, kelompok, tingkat, kategori FROM mata_pelajaran ORDER BY nama_mapel ASC').all<any>(),
-    db.prepare(`SELECT id, nama_lengkap FROM "user" WHERE nama_lengkap IS NOT NULL ORDER BY nama_lengkap ASC`).all<any>(),
+    db.prepare(`
+      SELECT u.id, u.nama_lengkap
+      FROM "user" u
+      WHERE u.nama_lengkap IS NOT NULL
+        AND (
+          u.role = 'guru'
+          OR EXISTS (
+            SELECT 1 FROM user_roles ur
+            WHERE ur.user_id = u.id AND ur.role = 'guru'
+          )
+        )
+      ORDER BY u.nama_lengkap ASC
+    `).all<any>(),
   ])
 
   let penugasanData: any[] = []

@@ -323,6 +323,21 @@ export async function tambahPenugasan(prevState: any, formData: FormData) {
   }
   if (!payload.guru_id || !payload.mapel_id || !payload.kelas_id) return { error: 'Semua field wajib diisi.' }
 
+  const isGuruMapel = await db.prepare(`
+    SELECT 1
+    FROM "user" u
+    WHERE u.id = ?
+      AND (
+        u.role = 'guru'
+        OR EXISTS (
+          SELECT 1 FROM user_roles ur
+          WHERE ur.user_id = u.id AND ur.role = 'guru'
+        )
+      )
+    LIMIT 1
+  `).bind(payload.guru_id).first()
+  if (!isGuruMapel) return { error: 'Pengajar harus memiliki role Guru Mata Pelajaran.' }
+
   const result = await dbInsert(db, 'penugasan_mengajar', payload)
   if (result.error) {
     return { error: result.error.includes('UNIQUE') ? 'Penugasan ini sudah ada.' : result.error }
@@ -594,7 +609,14 @@ async function importPenugasanASCUnsafe(dataExcel: any[]) {
   if (!ta) return { error: 'Tahun Ajaran aktif belum diatur.', success: null, logs: [] }
 
   const [guruAll, mapelAll, kelasAll] = await Promise.all([
-    db.prepare('SELECT id, LOWER(TRIM(nama_lengkap)) as nama FROM "user" WHERE nama_lengkap IS NOT NULL').all<any>(),
+    db.prepare(`
+      SELECT u.id, LOWER(TRIM(u.nama_lengkap)) AS nama
+      FROM "user" u
+      WHERE u.nama_lengkap IS NOT NULL
+        AND (u.role = 'guru' OR EXISTS (
+          SELECT 1 FROM user_roles ur WHERE ur.user_id = u.id AND ur.role = 'guru'
+        ))
+    `).all<any>(),
     db.prepare('SELECT id, LOWER(TRIM(nama_mapel)) as nama FROM mata_pelajaran').all<any>(),
     db.prepare('SELECT id, CAST(tingkat AS INTEGER) as tingkat, TRIM(nomor_kelas) as nomor_kelas FROM kelas').all<any>(),
   ])
@@ -801,7 +823,14 @@ async function validateRows(db: D1Database, sessionId: string, stepKey: Academic
   `).bind(sessionId, stepKey).all<WizardRowRecord>()
 
   const [guruAll, mapelAll, kelasAll] = await Promise.all([
-    db.prepare('SELECT id, LOWER(TRIM(nama_lengkap)) as nama FROM "user" WHERE nama_lengkap IS NOT NULL').all<any>(),
+    db.prepare(`
+      SELECT u.id, LOWER(TRIM(u.nama_lengkap)) AS nama
+      FROM "user" u
+      WHERE u.nama_lengkap IS NOT NULL
+        AND (u.role = 'guru' OR EXISTS (
+          SELECT 1 FROM user_roles ur WHERE ur.user_id = u.id AND ur.role = 'guru'
+        ))
+    `).all<any>(),
     db.prepare('SELECT id, LOWER(TRIM(nama_mapel)) as nama, kode_asc FROM mata_pelajaran').all<any>(),
     db.prepare('SELECT id, CAST(tingkat AS INTEGER) as tingkat, TRIM(nomor_kelas) as nomor FROM kelas').all<any>(),
   ])

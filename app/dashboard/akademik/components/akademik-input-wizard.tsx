@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { Combobox } from '@/components/ui/combobox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn, formatNamaKelas } from '@/lib/utils'
 import {
@@ -469,6 +470,24 @@ export function AkademikInputWizard({
     </Select>
   )
 
+  const renderGuruCombobox = (
+    value: any,
+    options: Array<{ value: string; label: string }>,
+    onChange: (value: string) => void
+  ) => (
+    <Combobox
+      value={value ? String(value) : ''}
+      onValueChange={onChange}
+      options={options}
+      placeholder="Pilih guru mata pelajaran"
+      searchPlaceholder="Cari nama guru..."
+      emptyText="Guru mata pelajaran tidak ditemukan"
+      className="min-w-[200px]"
+      triggerClassName="h-8 rounded-md text-xs"
+      maxResults={80}
+    />
+  )
+
   const renderCellInput = (row: Record<string, any>, rowIndex: number, column: string) => {
     const value = row[column] ?? ''
 
@@ -485,7 +504,7 @@ export function AkademikInputWizard({
     }
 
     if (activeStep === 'penugasan') {
-      if (column === 'NAMA_GURU') return renderSelectCell(value, 'Pilih guru', guruOptions, selected => updateRow(rowIndex, column, selected))
+      if (column === 'NAMA_GURU') return renderGuruCombobox(value, guruOptions, selected => updateRow(rowIndex, column, selected))
       if (column === 'NAMA_MAPEL') return renderSelectCell(value, 'Pilih mapel', mapelOptions, selected => updateRow(rowIndex, column, selected))
       if (column === 'NAMA_KELAS') return renderSelectCell(value, 'Pilih kelas', kelasOptions, selected => updateRow(rowIndex, column, selected))
     }
@@ -525,7 +544,7 @@ export function AkademikInputWizard({
           updateRowPatch(rowIndex, patch)
         })
       }
-      if (column === 'NAMA_GURU') return renderSelectCell(value, 'Pilih guru', guruSelectOptions, selected => updateRow(rowIndex, column, selected))
+      if (column === 'NAMA_GURU') return renderGuruCombobox(value, guruSelectOptions, selected => updateRow(rowIndex, column, selected))
       if (column === 'HARI') {
         return renderSelectCell(
           value,
