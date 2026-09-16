@@ -921,7 +921,7 @@ export function JadwalTab({
       </Dialog>
 
       {/* TOOLBAR */}
-      <div className="bg-surface border border-surface rounded-xl overflow-hidden">
+      <div className="relative z-20 overflow-visible rounded-xl border border-surface bg-surface">
 
         {/* Baris 1: toggle + aksi kanan */}
         <div className="flex items-center gap-2 px-3 py-2 border-b border-surface-2">
@@ -997,7 +997,7 @@ export function JadwalTab({
         </div>
 
         {/* Baris 2: dropdown + reset */}
-        <div className="flex items-center gap-2 px-3 py-2">
+        <div className="flex items-center gap-2 px-3 py-3">
           {viewMode === 'kelas' ? (
             <Select value={selectedKelas} onValueChange={handleSelectKelas}>
               <SelectTrigger className="h-8 flex-1 text-xs rounded-lg border-surface">
@@ -1029,7 +1029,8 @@ export function JadwalTab({
               searchPlaceholder="Cari nama guru..."
               emptyText="Guru mata pelajaran tidak ditemukan"
               className="flex-1"
-              triggerClassName="h-8 rounded-lg border-surface text-xs"
+              triggerClassName="h-10 rounded-lg border-surface px-3 text-sm"
+              contentClassName="shadow-xl"
               maxResults={80}
             />
           )}

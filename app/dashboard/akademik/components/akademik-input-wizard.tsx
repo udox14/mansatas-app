@@ -483,7 +483,8 @@ export function AkademikInputWizard({
       searchPlaceholder="Cari nama guru..."
       emptyText="Guru mata pelajaran tidak ditemukan"
       className="min-w-[200px]"
-      triggerClassName="h-8 rounded-md text-xs"
+      triggerClassName="h-10 rounded-md px-3 text-sm"
+      contentClassName="shadow-xl"
       maxResults={80}
     />
   )

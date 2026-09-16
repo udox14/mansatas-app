@@ -329,7 +329,9 @@ export async function importPegawaiMassal(dataExcel: any[]) {
     return { success: null, error: 'Semua email sudah terdaftar.', logs: errorLogs }
   }
 
-  const chunkSize = 20
+  // INSERT user memakai 7 binding per baris. Batasi 10 akun (70 binding)
+  // agar aman pada D1/SQLite environment yang membatasi sekitar 100 variable.
+  const chunkSize = 10
   let successCount = 0
 
   for (let i = 0; i < toInsert.length; i += chunkSize) {
