@@ -29,7 +29,7 @@ beforeEach(() => {
     );
     INSERT INTO "user" VALUES ('guru', 'guru'), ('ppl', 'guru_ppl'), ('asing', 'guru_ppl');
     INSERT INTO penugasan_mengajar VALUES ('penugasan', 'guru', 'kelas', 'ta');
-    INSERT INTO guru_ppl_mapping VALUES ('ppl', 'guru', 'penugasan', '2026-01-01', '2026-12-31');
+    INSERT INTO guru_ppl_mapping VALUES ('ppl', 'guru', 'penugasan', '0001-01-01', NULL);
   `)
 })
 
@@ -62,9 +62,10 @@ describe('resolveTeachingAssignmentAccess', () => {
     await expect(resolveTeachingAssignmentAccess(d1(), 'ppl', 'penugasan')).resolves.toBeNull()
   })
 
-  it('membatasi akses PPL pada rentang tanggal mapping', async () => {
-    await expect(resolveTeachingAssignmentAccess(d1(), 'ppl', 'penugasan', '2025-12-31')).resolves.toBeNull()
-    await expect(resolveTeachingAssignmentAccess(d1(), 'ppl', 'penugasan', '2026-06-01')).resolves.toMatchObject({ actorKind: 'PPL' })
-    await expect(resolveTeachingAssignmentAccess(d1(), 'ppl', 'penugasan', '2027-01-01')).resolves.toBeNull()
+  it('memberi akses tanpa periode selama mapping masih aktif', async () => {
+    await expect(resolveTeachingAssignmentAccess(d1(), 'ppl', 'penugasan', '2025-12-31')).resolves.toMatchObject({ actorKind: 'PPL' })
+    await expect(resolveTeachingAssignmentAccess(d1(), 'ppl', 'penugasan', '2027-01-01')).resolves.toMatchObject({ actorKind: 'PPL' })
+    sqlite.exec(`UPDATE guru_ppl_mapping SET berlaku_selesai = '2026-01-01' WHERE guru_ppl_id = 'ppl'`)
+    await expect(resolveTeachingAssignmentAccess(d1(), 'ppl', 'penugasan')).resolves.toBeNull()
   })
 })
