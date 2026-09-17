@@ -62,8 +62,132 @@ export function calculateAgendaAccessRisk(input: {
   return { score, level: riskLevelForScore(score) }
 }
 
+export async function isGuruMapelAndGuruPplPair(db: D1Database, userAId: string, userBId: string): Promise<boolean> {
+  if (!userAId || !userBId || userAId === userBId) return false
+  try {
+    const row = await db.prepare(`
+      SELECT
+        EXISTS(
+          SELECT 1 FROM guru_ppl_mapping
+          WHERE (guru_ppl_id = ?1 AND guru_utama_id = ?2)
+             OR (guru_ppl_id = ?2 AND guru_utama_id = ?1)
+        ) AS is_mapped,
+        EXISTS(
+          SELECT 1 FROM "user" u
+          LEFT JOIN user_roles ur ON ur.user_id = u.id
+          LEFT JOIN guru_ppl_mapping gpm ON gpm.guru_ppl_id = u.id
+          LEFT JOIN guru_ppl_profile gpp ON gpp.user_id = u.id
+          WHERE u.id = ?1 AND (u.role = 'guru_ppl' OR ur.role = 'guru_ppl' OR gpm.id IS NOT NULL OR gpp.user_id IS NOT NULL)
+        ) AS is_a_ppl,
+        EXISTS(
+          SELECT 1 FROM "user" u
+          LEFT JOIN user_roles ur ON ur.user_id = u.id
+          LEFT JOIN penugasan_mengajar pm ON pm.guru_id = u.id
+          LEFT JOIN guru_ppl_mapping gpm ON gpm.guru_utama_id = u.id
+          WHERE u.id = ?1
+            AND (
+              u.role IN ('guru', 'guru_mapel', 'wali_kelas', 'guru_piket', 'guru_bk')
+              OR ur.role IN ('guru', 'guru_mapel')
+              OR pm.id IS NOT NULL
+              OR gpm.id IS NOT NULL
+            )
+            AND u.role <> 'guru_ppl'
+            AND (ur.role IS NULL OR ur.role <> 'guru_ppl')
+        ) AS is_a_guru,
+        EXISTS(
+          SELECT 1 FROM "user" u
+          LEFT JOIN user_roles ur ON ur.user_id = u.id
+          LEFT JOIN guru_ppl_mapping gpm ON gpm.guru_ppl_id = u.id
+          LEFT JOIN guru_ppl_profile gpp ON gpp.user_id = u.id
+          WHERE u.id = ?2 AND (u.role = 'guru_ppl' OR ur.role = 'guru_ppl' OR gpm.id IS NOT NULL OR gpp.user_id IS NOT NULL)
+        ) AS is_b_ppl,
+        EXISTS(
+          SELECT 1 FROM "user" u
+          LEFT JOIN user_roles ur ON ur.user_id = u.id
+          LEFT JOIN penugasan_mengajar pm ON pm.guru_id = u.id
+          LEFT JOIN guru_ppl_mapping gpm ON gpm.guru_utama_id = u.id
+          WHERE u.id = ?2
+            AND (
+              u.role IN ('guru', 'guru_mapel', 'wali_kelas', 'guru_piket', 'guru_bk')
+              OR ur.role IN ('guru', 'guru_mapel')
+              OR pm.id IS NOT NULL
+              OR gpm.id IS NOT NULL
+            )
+            AND u.role <> 'guru_ppl'
+            AND (ur.role IS NULL OR ur.role <> 'guru_ppl')
+        ) AS is_b_guru
+    `).bind(userAId, userBId).first<{
+      is_mapped: number
+      is_a_ppl: number
+      is_a_guru: number
+      is_b_ppl: number
+      is_b_guru: number
+    }>()
+
+    if (!row) return false
+    if (Boolean(row.is_mapped)) return true
+    const aPpl = Boolean(row.is_a_ppl)
+    const bPpl = Boolean(row.is_b_ppl)
+    const aGuru = Boolean(row.is_a_guru && !aPpl)
+    const bGuru = Boolean(row.is_b_guru && !bPpl)
+    return (aPpl && bGuru) || (bPpl && aGuru)
+  } catch (error) {
+    console.error('Gagal mengecek pasangan guru mapel dan PPL:', error)
+    return false
+  }
+}
+
+export async function cleanupGuruMapelAndPplAlerts(db: D1Database): Promise<void> {
+  try {
+    await db.prepare(`
+      DELETE FROM agenda_access_alerts
+      WHERE EXISTS (
+        SELECT 1 FROM guru_ppl_mapping gpm
+        WHERE (gpm.guru_ppl_id = agenda_access_alerts.user_a_id AND gpm.guru_utama_id = agenda_access_alerts.user_b_id)
+           OR (gpm.guru_ppl_id = agenda_access_alerts.user_b_id AND gpm.guru_utama_id = agenda_access_alerts.user_a_id)
+      )
+      OR (
+        user_a_id IN (
+          SELECT u.id FROM "user" u LEFT JOIN user_roles ur ON ur.user_id = u.id
+          WHERE u.role = 'guru_ppl' OR ur.role = 'guru_ppl'
+        )
+        AND
+        user_b_id IN (
+          SELECT u.id FROM "user" u LEFT JOIN user_roles ur ON ur.user_id = u.id
+          LEFT JOIN penugasan_mengajar pm ON pm.guru_id = u.id
+          LEFT JOIN guru_ppl_mapping gpm ON gpm.guru_utama_id = u.id
+          WHERE (u.role IN ('guru', 'guru_mapel', 'wali_kelas', 'guru_piket', 'guru_bk')
+                 OR ur.role IN ('guru', 'guru_mapel')
+                 OR pm.id IS NOT NULL OR gpm.id IS NOT NULL)
+            AND u.role <> 'guru_ppl'
+            AND (ur.role IS NULL OR ur.role <> 'guru_ppl')
+        )
+      )
+      OR (
+        user_b_id IN (
+          SELECT u.id FROM "user" u LEFT JOIN user_roles ur ON ur.user_id = u.id
+          WHERE u.role = 'guru_ppl' OR ur.role = 'guru_ppl'
+        )
+        AND
+        user_a_id IN (
+          SELECT u.id FROM "user" u LEFT JOIN user_roles ur ON ur.user_id = u.id
+          LEFT JOIN penugasan_mengajar pm ON pm.guru_id = u.id
+          LEFT JOIN guru_ppl_mapping gpm ON gpm.guru_utama_id = u.id
+          WHERE (u.role IN ('guru', 'guru_mapel', 'wali_kelas', 'guru_piket', 'guru_bk')
+                 OR ur.role IN ('guru', 'guru_mapel')
+                 OR pm.id IS NOT NULL OR gpm.id IS NOT NULL)
+            AND u.role <> 'guru_ppl'
+            AND (ur.role IS NULL OR ur.role <> 'guru_ppl')
+        )
+      )
+    `).run()
+  } catch (error) {
+    console.error('Gagal membersihkan alert guru mapel dan PPL:', error)
+  }
+}
+
 export async function ensureAgendaAccessAuditSchema(db: D1Database) {
-  await ensureSchemaOnce('agenda-access-audit-v1', async () => {
+  await ensureSchemaOnce('agenda-access-audit-v2', async () => {
     try {
       await db.prepare('ALTER TABLE activity_logs ADD COLUMN device_id TEXT').run()
     } catch {
@@ -104,6 +228,7 @@ export async function ensureAgendaAccessAuditSchema(db: D1Database) {
         status TEXT NOT NULL DEFAULT 'running', error_message TEXT
       )`),
     ])
+    await cleanupGuruMapelAndPplAlerts(db)
   })
 }
 
@@ -129,6 +254,10 @@ export async function recordLoginAccessAudit(db: D1Database, input: {
       ORDER BY created_at DESC LIMIT 1
     `).bind(deviceId, input.userId, cutoff).first<any>()
     if (!previous) return null
+
+    if (await isGuruMapelAndGuruPplPair(db, String(previous.actor_user_id), input.userId)) {
+      return null
+    }
 
     const logoutCutoff = new Date(now.getTime() - LOGOUT_WINDOW_MS).toISOString()
     const recentLogout = previous.action === 'logout' ? previous : await db.prepare(`
@@ -225,6 +354,9 @@ export async function recordAgendaAccessAudit(db: D1Database, input: {
   if (input.isActingAs) return
   try {
     await ensureAgendaAccessAuditSchema(db)
+    if (input.actorUserId !== input.ownerUserId && await isGuruMapelAndGuruPplPair(db, input.actorUserId, input.ownerUserId)) {
+      return
+    }
     const hdrs = await headers()
     const deviceId = getDeviceId(hdrs)
     if (!deviceId) return
@@ -237,6 +369,7 @@ export async function recordAgendaAccessAudit(db: D1Database, input: {
       ORDER BY last_event_at DESC LIMIT 1
     `).bind(deviceId, cutoff, input.actorUserId, input.actorUserId).first<any>()
     if (!alert) return
+    if (await isGuruMapelAndGuruPplPair(db, alert.user_a_id, alert.user_b_id)) return
 
     const reasons = parseJsonArray<AgendaAccessReason>(alert.reasons_json)
     const evidence = parseJsonArray<AgendaAccessEvidence>(alert.evidence_json)
@@ -273,13 +406,22 @@ export async function getAgendaAccessWarningForUser(db: D1Database, userId: stri
   const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
   const [alert, block] = await Promise.all([
     db.prepare(`
-      SELECT detected_at, risk_level FROM agenda_access_alerts
+      SELECT detected_at, risk_level, user_a_id, user_b_id FROM agenda_access_alerts
       WHERE source = 'live' AND (user_a_id = ? OR user_b_id = ?) AND last_event_at >= ?
       ORDER BY last_event_at DESC LIMIT 1
-    `).bind(userId, userId, cutoff).first<{ detected_at: string; risk_level: 'low' | 'medium' | 'high' }>(),
+    `).bind(userId, userId, cutoff).first<{ detected_at: string; risk_level: 'low' | 'medium' | 'high'; user_a_id: string; user_b_id: string }>(),
     getAgendaAccessBlock(db, userId),
   ])
   if (!alert && !block) return null
+  if (alert && await isGuruMapelAndGuruPplPair(db, alert.user_a_id, alert.user_b_id)) {
+    if (!block) return null
+    return {
+      detectedAt: block.blocked_at,
+      riskLevel: 'high',
+      isBlocked: true,
+      blockReason: block.reason,
+    }
+  }
   return {
     detectedAt: alert?.detected_at || block!.blocked_at,
     riskLevel: alert?.risk_level || 'high',

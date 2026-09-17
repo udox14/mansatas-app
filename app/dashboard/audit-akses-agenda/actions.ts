@@ -84,6 +84,23 @@ export async function getAgendaAuditData(filters: AuditAccessFilters = {}) {
     const query = `%${filters.teacher.trim()}%`
     params.push(query, query)
   }
+  where.push(`NOT (
+    EXISTS (
+      SELECT 1 FROM guru_ppl_mapping gpm
+      WHERE (gpm.guru_ppl_id = a.user_a_id AND gpm.guru_utama_id = a.user_b_id)
+         OR (gpm.guru_ppl_id = a.user_b_id AND gpm.guru_utama_id = a.user_a_id)
+    )
+    OR (
+      (ua.role = 'guru_ppl' OR EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id = ua.id AND ur.role = 'guru_ppl'))
+      AND (ub.role IN ('guru', 'guru_mapel', 'wali_kelas', 'guru_piket', 'guru_bk') OR EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id = ub.id AND ur.role IN ('guru', 'guru_mapel')) OR EXISTS (SELECT 1 FROM penugasan_mengajar pm WHERE pm.guru_id = ub.id) OR EXISTS (SELECT 1 FROM guru_ppl_mapping gpm WHERE gpm.guru_utama_id = ub.id))
+      AND ub.role <> 'guru_ppl'
+    )
+    OR (
+      (ub.role = 'guru_ppl' OR EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id = ub.id AND ur.role = 'guru_ppl'))
+      AND (ua.role IN ('guru', 'guru_mapel', 'wali_kelas', 'guru_piket', 'guru_bk') OR EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id = ua.id AND ur.role IN ('guru', 'guru_mapel')) OR EXISTS (SELECT 1 FROM penugasan_mengajar pm WHERE pm.guru_id = ua.id) OR EXISTS (SELECT 1 FROM guru_ppl_mapping gpm WHERE gpm.guru_utama_id = ua.id))
+      AND ua.role <> 'guru_ppl'
+    )
+  )`)
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
   const pageSize = Math.max(10, Math.min(100, Number(filters.pageSize) || 25))
   const page = Math.max(1, Number(filters.page) || 1)
@@ -207,7 +224,7 @@ export async function runHistoricalAgendaAccessScan() {
     .bind(runId, scanKey, startedAt, startDate, endDate, ctx.user.id).run()
 
   try {
-    const [eventResult, agendaResult] = await Promise.all([
+    const [eventResult, agendaResult, pplRows, guruRows, mappingRows] = await Promise.all([
       ctx.db.prepare(`SELECT id, created_at, actor_user_id, actor_name, session_id, action, summary, ip_address, user_agent
         FROM activity_logs
         WHERE module='auth' AND action IN ('login','logout') AND created_at >= ?
@@ -216,7 +233,43 @@ export async function runHistoricalAgendaAccessScan() {
       ctx.db.prepare(`SELECT id, waktu_input, diubah_oleh, guru_id, tanggal, penugasan_id
         FROM agenda_guru WHERE tanggal >= ? AND waktu_input IS NOT NULL ORDER BY waktu_input ASC`)
         .bind(startDate).all<any>(),
+      ctx.db.prepare(`
+        SELECT DISTINCT u.id
+        FROM "user" u
+        LEFT JOIN user_roles ur ON ur.user_id = u.id
+        WHERE u.role = 'guru_ppl' OR ur.role = 'guru_ppl'
+      `).all<{ id: string }>(),
+      ctx.db.prepare(`
+        SELECT DISTINCT u.id
+        FROM "user" u
+        LEFT JOIN user_roles ur ON ur.user_id = u.id
+        LEFT JOIN penugasan_mengajar pm ON pm.guru_id = u.id
+        LEFT JOIN guru_ppl_mapping gpm ON gpm.guru_utama_id = u.id
+        WHERE (u.role IN ('guru', 'guru_mapel', 'wali_kelas', 'guru_piket', 'guru_bk')
+               OR ur.role IN ('guru', 'guru_mapel')
+               OR pm.id IS NOT NULL OR gpm.id IS NOT NULL)
+          AND u.role <> 'guru_ppl'
+          AND (ur.role IS NULL OR ur.role <> 'guru_ppl')
+      `).all<{ id: string }>(),
+      ctx.db.prepare(`
+        SELECT guru_ppl_id, guru_utama_id FROM guru_ppl_mapping
+      `).all<{ guru_ppl_id: string; guru_utama_id: string }>(),
     ])
+
+    const pplSet = new Set(pplRows.results?.map(r => r.id) || [])
+    const guruSet = new Set(guruRows.results?.map(r => r.id) || [])
+    const mappingPairs = new Set(
+      (mappingRows.results || []).flatMap(r => [`${r.guru_ppl_id}:${r.guru_utama_id}`, `${r.guru_utama_id}:${r.guru_ppl_id}`])
+    )
+    const isPairIgnored = (idA: string, idB: string) => {
+      if (mappingPairs.has(`${idA}:${idB}`)) return true
+      const aPpl = pplSet.has(idA)
+      const bPpl = pplSet.has(idB)
+      const aGuru = guruSet.has(idA) && !aPpl
+      const bGuru = guruSet.has(idB) && !bPpl
+      return (aPpl && bGuru) || (bPpl && aGuru)
+    }
+
     const agendasByActor = new Map<string, any[]>()
     for (const agenda of agendaResult.results || []) {
       const actor = String(agenda.diubah_oleh || agenda.guru_id || '')
@@ -238,6 +291,7 @@ export async function runHistoricalAgendaAccessScan() {
         continue
       }
       if (!previous || previous.actor_user_id === event.actor_user_id) continue
+      if (isPairIgnored(String(previous.actor_user_id), String(event.actor_user_id))) continue
       const currentAt = new Date(event.created_at).getTime()
       const previousAt = new Date(previous.created_at).getTime()
       if (!Number.isFinite(currentAt) || currentAt - previousAt > 30 * 60 * 1000) continue
