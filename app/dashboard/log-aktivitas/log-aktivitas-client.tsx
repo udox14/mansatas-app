@@ -245,6 +245,7 @@ export function LogAktivitasClient({ logs, total, modules, actions, entityTypes,
                 <Info label="Aksi" value={selected.action} />
                 <Info label="Entity" value={[selected.entity_type, selected.entity_label || selected.entity_id].filter(Boolean).join(' - ') || '-'} />
                 <Info label="IP" value={selected.ip_address || '-'} />
+                <Info label="Perangkat" value={selected.device_id ? selected.device_id.slice(0, 8) : '-'} />
               </div>
               <div className="space-y-3">
                 <JsonPanel title="Perubahan" value={selected.diff_json} />

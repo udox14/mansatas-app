@@ -4,6 +4,7 @@ import { getDB } from '@/utils/db-server'
 import { getSession } from '@/utils/auth/server'
 import { getUserRoles } from '@/lib/features'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
+import { getDeviceId } from '@/lib/device-identity'
 
 export type ActivitySeverity = 'info' | 'warning' | 'danger'
 
@@ -67,7 +68,8 @@ export async function ensureActivityLogTables(db?: D1Database) {
         diff_json          TEXT,
         metadata_json      TEXT,
         ip_address         TEXT,
-        user_agent         TEXT
+        user_agent         TEXT,
+        device_id          TEXT
       )
     `),
     database.prepare('CREATE INDEX IF NOT EXISTS idx_activity_logs_created_at ON activity_logs(created_at)'),
@@ -104,6 +106,12 @@ export async function ensureActivityLogTables(db?: D1Database) {
     `),
     database.prepare('CREATE INDEX IF NOT EXISTS idx_activity_log_purge_runs_created_at ON activity_log_purge_runs(created_at)'),
   ])
+  try {
+    await database.prepare('ALTER TABLE activity_logs ADD COLUMN device_id TEXT').run()
+  } catch {
+    // Kolom sudah tersedia pada database yang telah dimigrasikan.
+  }
+  await database.prepare('CREATE INDEX IF NOT EXISTS idx_activity_logs_device ON activity_logs(device_id, created_at)').run()
 }
 
 export function redactForActivityLog(value: unknown, keyName = ''): unknown {
@@ -140,7 +148,7 @@ export function createActivityDiff(before: Record<string, unknown> | null | unde
   return diff
 }
 
-export async function logActivity(input: ActivityLogInput) {
+export async function logActivity(input: ActivityLogInput): Promise<string | null> {
   try {
     const db = input.db ?? await getDB()
     await ensureSchemaOnce('activity-log', () => ensureActivityLogTables(db))
@@ -171,8 +179,8 @@ export async function logActivity(input: ActivityLogInput) {
       INSERT INTO activity_logs (
         id, created_at, actor_user_id, actor_name, actor_email, actor_roles, session_id,
         module, action, severity, summary, entity_type, entity_id, entity_label,
-        before_json, after_json, diff_json, metadata_json, ip_address, user_agent
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        before_json, after_json, diff_json, metadata_json, ip_address, user_agent, device_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       id,
       new Date().toISOString(),
@@ -194,6 +202,7 @@ export async function logActivity(input: ActivityLogInput) {
       metadata,
       getIpAddress(hdrs),
       hdrs?.get('user-agent') ?? null,
+      getDeviceId(hdrs),
     ).run()
 
     const targets = input.targets ?? []
@@ -215,8 +224,10 @@ export async function logActivity(input: ActivityLogInput) {
         await db.batch(statements.slice(i, i + 100))
       }
     }
+    return id
   } catch (error) {
     console.error('Gagal mencatat activity log:', error)
+    return null
   }
 }
 

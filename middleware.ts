@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { rejectCrossSiteMutation } from '@/lib/request-security'
+import { DEVICE_ID_COOKIE } from '@/lib/device-identity'
+
+const DEVICE_COOKIE_MAX_AGE = 365 * 24 * 60 * 60
 
 function createNonce() {
   const bytes = new Uint8Array(16)
@@ -38,6 +41,15 @@ export function middleware(request: NextRequest) {
   // Next.js reads this request header to apply the nonce to framework-generated scripts.
   requestHeaders.set('Content-Security-Policy', csp)
   const response = NextResponse.next({ request: { headers: requestHeaders } })
+  if (!request.cookies.get(DEVICE_ID_COOKIE)?.value) {
+    response.cookies.set(DEVICE_ID_COOKIE, crypto.randomUUID(), {
+      path: '/',
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: DEVICE_COOKIE_MAX_AGE,
+    })
+  }
   response.headers.set(
     String(process.env.CSP_ENFORCE) === 'true' ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only',
     csp

@@ -4,6 +4,8 @@
 import { dbInsert, dbUpdate } from '@/utils/db'
 import { getDB as getRawDB } from '@/utils/db-server'
 import { requireActionAccess } from '@/lib/action-security'
+import { logActivity } from '@/lib/activity-log'
+import { getAgendaAccessBlock, recordAgendaAccessAudit } from '@/lib/agenda-access-audit'
 
 async function getDB() {
   await requireActionAccess('agenda', 'read')
@@ -275,6 +277,12 @@ export async function submitAgenda(formData: FormData): Promise<{ error?: string
   if (!penugasanId || !materi || !tanggal) return { error: 'Materi wajib diisi.' }
 
   const db = await getDB()
+  if (!isActingAs) {
+    const accessBlock = await getAgendaAccessBlock(db, user.id)
+    if (accessBlock) {
+      return { error: `Pengisian Agenda Guru untuk akun Anda sedang diblokir. Alasan: ${accessBlock.reason}` }
+    }
+  }
   const actingUserId = effective?.effectiveUserId || user.id
   const assignmentAccess = await resolveTeachingAssignmentAccess(db, actingUserId, penugasanId, tanggal)
   if (!assignmentAccess) return { error: 'Anda tidak memiliki akses ke penugasan ini.' }
@@ -417,10 +425,46 @@ export async function submitAgenda(formData: FormData): Promise<{ error?: string
     ppl_user_id: assignmentAccess.actorKind === 'PPL' && !isActingAs ? user.id : null,
   }
 
-  const result = await dbInsert(db, 'agenda_guru', payload)
+  const result = await dbInsert<any>(db, 'agenda_guru', payload)
   if (result.error) {
     if (result.error.includes('UNIQUE')) return { error: 'Agenda sudah diisi untuk jadwal ini.' }
     return { error: result.error }
+  }
+
+  const agendaId = String(result.data?.id || '')
+  const actorName = (user as any).nama_lengkap || user.name || user.email || 'Guru'
+  const summary = `${actorName} mengisi Agenda Guru untuk ${tanggal}, jam ke-${jamKeMulai}-${jamKeSelesai}`
+  const activityLogId = await logActivity({
+    db,
+    module: 'agenda',
+    action: 'create',
+    summary,
+    entityType: 'agenda_guru',
+    entityId: agendaId || null,
+    entityLabel: `${tanggal} jam ke-${jamKeMulai}-${jamKeSelesai}`,
+    metadata: {
+      ownerUserId: guruId,
+      actorUserId: user.id,
+      penugasanId,
+      tanggal,
+      jamKeMulai,
+      jamKeSelesai,
+      status,
+      kelasId: penugasan.kelas_id,
+      actorKind: assignmentAccess.actorKind,
+      isActingAs,
+    },
+  })
+  if (agendaId) {
+    await recordAgendaAccessAudit(db, {
+      activityLogId,
+      agendaId,
+      actorUserId: user.id,
+      actorName,
+      ownerUserId: guruId,
+      summary,
+      isActingAs,
+    })
   }
 
   revalidatePath('/dashboard/agenda')

@@ -3,6 +3,7 @@
 // Hanya pakai Web Crypto (PBKDF2) + D1 — zero external dependencies
 
 import { logActivity } from '@/lib/activity-log'
+import { recordLoginAccessAudit } from '@/lib/agenda-access-audit'
 import {
   COOKIE_NAME,
   extractToken,
@@ -268,7 +269,7 @@ export function createAuth(db: D1Database) {
           `INSERT INTO session (id, token, userId, expiresAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)`
         ).bind(sessionId, token, user.id, expiresAt, now, now).run()
 
-        await logActivity({
+        const loginActivityId = await logActivity({
           db,
           module: 'auth',
           action: 'login',
@@ -284,6 +285,14 @@ export function createAuth(db: D1Database) {
             sessionId,
           },
         })
+        if (loginActivityId) {
+          await recordLoginAccessAudit(db, {
+            activityLogId: loginActivityId,
+            userId: user.id,
+            userName: user.nama_lengkap || user.name || user.email,
+            sessionId,
+          })
+        }
 
         const setCookie = buildSetCookie(token, SESSION_MAX_AGE_SECONDS)
 

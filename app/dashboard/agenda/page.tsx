@@ -17,6 +17,8 @@ import { getEffectiveUser, getActAsUserList, getActAsDate } from '@/lib/act-as'
 import { ActAsBanner } from '@/components/layout/act-as-banner'
 import { getTeacherAttendance } from '@/lib/teacher-attendance'
 import { toTeacherAttendancePublicResult } from '@/lib/teacher-attendance-core'
+import { getAgendaAccessWarningForUser } from '@/lib/agenda-access-audit'
+import { AgendaAccessSecurityBanner } from '@/components/shared/AgendaAccessSecurityBanner'
 
 export const metadata = { title: 'Agenda Guru - MANSATAS App' }
 
@@ -75,6 +77,7 @@ export default async function AgendaPage({
   // Check super admin untuk fitur Act As
   const userRoles = await getUserRoles(db, user.id)
   const isSuperAdmin = userRoles.includes('super_admin')
+  const accessWarning = await getAgendaAccessWarningForUser(db, user.id).catch(() => null)
 
   const effective = await getEffectiveUser()
   const effectiveUserId = effective?.effectiveUserId || user.id
@@ -112,6 +115,7 @@ export default async function AgendaPage({
         title="Agenda Guru"
         description="Isi agenda mengajar dan catat kehadiran piket sesuai jadwal Anda hari ini."
       />
+      <AgendaAccessSecurityBanner warning={accessWarning} />
 
       {/* Act As Banner — hanya untuk super admin */}
       {isSuperAdmin && (

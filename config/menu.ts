@@ -286,6 +286,14 @@ export const MENU_ITEMS: MenuItem[] = [
     desc: 'Memantau tingkat kepatuhan pengisian agenda mengajar guru, rekap kehadiran, dan cetak laporan'
   },
   {
+    id: 'audit-akses-agenda',
+    title: 'Audit Akses Agenda',
+    href: '/dashboard/audit-akses-agenda',
+    icon: AlertTriangle,
+    roles: ['super_admin', 'kepsek', 'wakamad'],
+    desc: 'Mendeteksi pergantian akun pada perangkat yang sama dan meninjau bukti akses Agenda Guru'
+  },
+  {
     id: 'monitoring-penugasan',
     title: 'Monitoring Penugasan',
     href: '/dashboard/monitoring-penugasan',
@@ -575,7 +583,7 @@ export const DEFAULT_SIDEBAR_GROUPS: SidebarGroupConfig[] = [
   { id: 'data-master', label: 'Data Master', items: ['siswa', 'guru', 'kelas', 'plotting', 'ekstrakurikuler-master', 'pmb'] },
   { id: 'tugas-harian-guru', label: 'Tugas Harian Guru', items: ['agenda', 'catatan-siswa', 'agenda-kelas', 'ckh-generator', 'rppm-generator', 'kehadiran', 'nilai-harian', 'penugasan', 'ekstrakurikuler'] },
   { id: 'monitoring-akademik', label: 'Monitoring Akademik', items: ['akademik', 'kalender-pendidikan', 'analitik', 'verifikasi-siswa'] },
-  { id: 'monitoring-rekap', label: 'Monitoring & Rekap', items: ['monitoring-agenda', 'monitoring-penugasan', 'monitoring-kedisiplinan', 'rekap-absensi', 'akademik-nilai'] },
+  { id: 'monitoring-rekap', label: 'Monitoring & Rekap', items: ['monitoring-agenda', 'audit-akses-agenda', 'monitoring-penugasan', 'monitoring-kedisiplinan', 'rekap-absensi', 'akademik-nilai'] },
   { id: 'program-khusus', label: 'Program Khusus', items: ['tahfidz'] },
   { id: 'kesiswaan-bk', label: 'Kesiswaan & BK', items: ['kelas-binaan', 'keterangan-absensi', 'jadwal-piket', 'izin', 'kedisiplinan', 'sp', 'bk', 'psikotes', 'tka', 'penerimaan-pt'] },
   { id: 'administrasi-hr', label: 'Administrasi & HR', items: ['tpg-dokumen', 'documentation', 'surat', 'rapat', 'sarpras', 'kelola-ppl', 'buku-tamu'] },

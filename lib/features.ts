@@ -98,6 +98,7 @@ export async function getUserAllowedFeatures(db: D1Database, userId: string): Pr
   if (roles.includes('wakamad') && !roles.some(r => ['super_admin', 'admin_tu', 'kepsek'].includes(r))) {
     const structural = await db.prepare('SELECT jabatan_struktural_id FROM "user" WHERE id=?').bind(userId).first<{ jabatan_struktural_id: string | null }>()
     if (structural?.jabatan_struktural_id !== 'jbt_waka_sarpras') allowed.delete('monitoring-pramubakti')
+    if (structural?.jabatan_struktural_id !== 'jbt_waka_kurikulum') allowed.delete('audit-akses-agenda')
   }
 
   // Add grants

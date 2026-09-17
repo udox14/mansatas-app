@@ -23,6 +23,8 @@ import { WelcomeStrip } from '@/components/dashboard/shared/WelcomeStrip'
 import { DASHBOARD_VISIBILITY_KEY, dashboardKeyForRole, parseVisibility } from '@/lib/dashboard-visibility'
 import { DASHBOARD_WIDGETS_CONFIG_KEY, parseWidgetsConfig, getWidgetMeta } from '@/lib/dashboard-widgets-meta'
 import { WIDGET_COMPONENTS } from '@/lib/dashboard-widgets'
+import { getAgendaAccessWarningForUser } from '@/lib/agenda-access-audit'
+import { AgendaAccessSecurityBanner } from '@/components/shared/AgendaAccessSecurityBanner'
 
 export const metadata = { title: 'Dashboard - MANSATAS App' }
 export const dynamic  = 'force-dynamic'
@@ -76,13 +78,14 @@ export default async function DashboardPage({
   const db = await getDB()
 
   // Shared minimal fetch — masing-masing dashboard komponen query sendiri
-  const [freshUser, taAktif, userRoles, allowedFeatures] = await Promise.all([
+  const [freshUser, taAktif, userRoles, allowedFeatures, accessWarning] = await Promise.all([
     db.prepare('SELECT nama_lengkap, role, avatar_url FROM "user" WHERE id = ?')
       .bind(user.id).first<{ nama_lengkap: string; role: string; avatar_url: string | null }>(),
     db.prepare('SELECT id, nama, semester, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1')
       .first<{ id: string; nama: string; semester: number; jam_pelajaran: string }>(),
     getUserRoles(db, user.id),
     getUserAllowedFeatures(db, user.id),
+    getAgendaAccessWarningForUser(db, user.id).catch(() => null),
   ])
 
   const userRole    = freshUser?.role || (user as any).role || 'guru'
@@ -212,6 +215,8 @@ export default async function DashboardPage({
   ) : null
 
   return (
+    <>
+      <AgendaAccessSecurityBanner warning={accessWarning} />
       <DashboardSPAShell
         heroNode={<WelcomeStrip {...commonProps} />}
         polaJam={polaJam}
@@ -225,5 +230,6 @@ export default async function DashboardPage({
         )}
         {extraWidgetsNode}
       </DashboardSPAShell>
+    </>
   )
 }

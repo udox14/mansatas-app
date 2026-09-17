@@ -27,6 +27,7 @@ export type ActivityLogRow = {
   metadata_json: string | null
   ip_address: string | null
   user_agent: string | null
+  device_id: string | null
   target_count: number
 }
 
