@@ -133,27 +133,9 @@ export async function getJadwalPiketHariIni(dateOverride?: string): Promise<{
       JOIN pengaturan_shift_piket s ON j.shift_id = s.id
       JOIN "user" u ON j.user_id = u.id
       LEFT JOIN agenda_piket ap ON ap.jadwal_id = j.id AND ap.tanggal = ? AND ap.user_id = ?
-      WHERE j.hari = ?
-        AND (
-          j.user_id = ?
-      OR j.id IN (
-            SELECT jadwal_piket_id
-            FROM guru_ppl_mapping
-            WHERE guru_ppl_id = ?
-              AND jadwal_piket_id IS NOT NULL
-              AND guru_utama_id = j.user_id
-              AND berlaku_mulai <= ?
-              AND (berlaku_selesai IS NULL OR berlaku_selesai >= ?)
-              AND EXISTS (
-                SELECT 1 FROM "user" ppl
-                LEFT JOIN user_roles ur ON ur.user_id = ppl.id
-                WHERE ppl.id = guru_ppl_mapping.guru_ppl_id
-                  AND (ppl.role = 'guru_ppl' OR ur.role = 'guru_ppl')
-              )
-          )
-        )
+      WHERE j.hari = ? AND j.user_id = ?
       ORDER BY s.id ASC
-    `).bind(tanggal, userId, hari, userId, userId, tanggal, tanggal).all<any>()
+    `).bind(tanggal, userId, hari, userId).all<any>()
 
     const rows = result.results || []
     if (rows.length === 0) return { error: null, shifts: [], tanggal, hari }
@@ -220,22 +202,8 @@ export async function submitAgendaPiket(formData: FormData): Promise<{ error?: s
     SELECT j.hari, j.shift_id, s.jam_mulai, s.jam_selesai
     FROM jadwal_guru_piket j
     JOIN pengaturan_shift_piket s ON s.id = j.shift_id
-    WHERE j.id = ? AND j.shift_id = ? AND (
-      j.user_id = ? OR EXISTS (
-        SELECT 1 FROM guru_ppl_mapping m
-        WHERE m.jadwal_piket_id = j.id AND m.guru_ppl_id = ?
-          AND m.guru_utama_id = j.user_id
-          AND m.berlaku_mulai <= ?
-          AND (m.berlaku_selesai IS NULL OR m.berlaku_selesai >= ?)
-          AND EXISTS (
-            SELECT 1 FROM "user" ppl
-            LEFT JOIN user_roles ur ON ur.user_id = ppl.id
-            WHERE ppl.id = m.guru_ppl_id
-              AND (ppl.role = 'guru_ppl' OR ur.role = 'guru_ppl')
-          )
-      )
-    )
-  `).bind(jadwalId, shiftId, userId, userId, tanggal, tanggal).first<any>()
+    WHERE j.id = ? AND j.shift_id = ? AND j.user_id = ?
+  `).bind(jadwalId, shiftId, userId).first<any>()
   const tanggalDate = new Date(`${tanggal}T00:00:00Z`)
   if (!scheduled || getHariNumber(tanggalDate) !== Number(scheduled.hari)) {
     return { error: 'Jadwal piket tidak tersedia untuk akun atau tanggal ini.' }

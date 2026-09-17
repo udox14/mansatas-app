@@ -38,6 +38,7 @@ beforeEach(() => {
   sqlite.exec('DROP TRIGGER trg_guru_ppl_mapping_validate_insert')
   sqlite.exec(readFileSync(new URL('../migrations/0107_finish_guru_ppl_revamp.sql', import.meta.url), 'utf8'))
   sqlite.exec(readFileSync(new URL('../migrations/0108_simplify_guru_ppl_mapping.sql', import.meta.url), 'utf8'))
+  sqlite.exec(readFileSync(new URL('../migrations/0109_remove_ppl_piket_mapping.sql', import.meta.url), 'utf8'))
 })
 
 afterEach(() => sqlite.close())
@@ -55,22 +56,20 @@ describe('migrasi revamp Guru PPL', () => {
       .toMatchObject({ jadwal_snapshot: '[{"hari":1,"jamKe":1}]' })
     expect(sqlite.prepare('SELECT diinput_oleh, diubah_oleh FROM nilai_harian_header WHERE id=?').get('nilai'))
       .toMatchObject({ diinput_oleh: 'guru', diubah_oleh: 'guru' })
-    expect(sqlite.prepare('SELECT jadwal_snapshot FROM guru_ppl_mapping WHERE id=?').get('piket-lama'))
-      .toMatchObject({ jadwal_snapshot: '[{"hari":1,"jamMulai":1,"jamSelesai":5,"shift":"Shift 1"}]' })
+    expect(sqlite.prepare('SELECT id FROM guru_ppl_mapping WHERE id=?').get('piket-lama')).toBeUndefined()
     sqlite.exec(`INSERT INTO guru_ppl_kampus(id,nama,singkatan) VALUES ('k1','Universitas Contoh','UC')`)
     sqlite.exec(`INSERT INTO guru_ppl_profile(user_id,kampus_id) VALUES ('ppl-a','k1')`)
     expect(() => sqlite.exec(`INSERT INTO guru_ppl_profile(user_id,kampus_id) VALUES ('ppl-a',NULL)`)).toThrow()
     expect(() => sqlite.exec(`INSERT INTO guru_ppl_kampus(id,nama) VALUES ('k2','universitas contoh')`)).toThrow()
   })
 
-  it('menjaga satu PPL aktif per KBM dan mengizinkan beberapa PPL pada piket yang sama', () => {
+  it('menjaga satu PPL aktif per KBM dan menolak mapping piket', () => {
     expect(() => sqlite.exec(`INSERT INTO guru_ppl_mapping(id,guru_ppl_id,guru_utama_id,penugasan_mengajar_id,berlaku_mulai,berlaku_selesai) VALUES ('bentrok','ppl-b','guru','pen','0001-01-01',NULL)`)).toThrow(/UNIQUE/)
-    expect(() => sqlite.exec(`INSERT INTO guru_ppl_mapping(id,guru_ppl_id,guru_utama_id,jadwal_piket_id,berlaku_mulai,berlaku_selesai) VALUES ('piket-b','ppl-b','guru','piket','0001-01-01',NULL)`)).not.toThrow()
-    expect(() => sqlite.exec(`INSERT INTO guru_ppl_mapping(id,guru_ppl_id,guru_utama_id,jadwal_piket_id,berlaku_mulai,berlaku_selesai) VALUES ('piket-a-overlap','ppl-a','guru','piket','0001-01-01',NULL)`)).toThrow(/UNIQUE/)
+    expect(() => sqlite.exec(`INSERT INTO guru_ppl_mapping(id,guru_ppl_id,guru_utama_id,jadwal_piket_id,berlaku_mulai,berlaku_selesai) VALUES ('piket-b','ppl-b','guru','piket','0001-01-01',NULL)`)).toThrow(/hanya menerima penugasan KBM/)
   })
 
   it('menjaga validitas pemilik tugas dan audit koreksi unik per kewajiban', () => {
-    expect(() => sqlite.exec(`INSERT INTO guru_ppl_mapping(id,guru_ppl_id,guru_utama_id,jadwal_piket_id,berlaku_mulai,berlaku_selesai) VALUES ('diri','guru','guru','piket','0001-01-01',NULL)`)).toThrow(/dirinya sendiri/)
+    expect(() => sqlite.exec(`INSERT INTO guru_ppl_mapping(id,guru_ppl_id,guru_utama_id,penugasan_mengajar_id,berlaku_mulai,berlaku_selesai) VALUES ('diri','guru','guru','pen','0001-01-01',NULL)`)).toThrow(/dirinya sendiri/)
     sqlite.exec(`INSERT INTO guru_ppl_kehadiran_override(id,mapping_id,tanggal,status,catatan,diubah_oleh) VALUES ('o1','lama','2026-01-05','IZIN','Surat kampus','admin')`)
     expect(() => sqlite.exec(`INSERT INTO guru_ppl_kehadiran_override(id,mapping_id,tanggal,status,diubah_oleh) VALUES ('o2','lama','2026-01-05','HADIR','admin')`)).toThrow()
   })

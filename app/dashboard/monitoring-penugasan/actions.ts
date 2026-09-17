@@ -44,31 +44,18 @@ export async function getPetugasPiketMonitoring(tanggal: string): Promise<Monito
   if (!(await checkFeatureAccess(db, user.id, 'monitoring-penugasan'))) return []
 
   const hari = getHariFromDate(tanggal)
-  const [regular, ppl] = await Promise.all([
-    db.prepare(`
+  const result = await db.prepare(`
       SELECT u.id, u.nama_lengkap, sp.nama_shift, sp.jam_mulai
       FROM "user" u
       JOIN jadwal_guru_piket j ON j.user_id = u.id
       JOIN pengaturan_shift_piket sp ON sp.id = j.shift_id
       WHERE j.hari = ? AND u.banned = 0
       ORDER BY sp.jam_mulai, u.nama_lengkap
-    `).bind(hari).all<any>(),
-    db.prepare(`
-      SELECT u.id, u.nama_lengkap || ' (PPL)' AS nama_lengkap, sp.nama_shift, sp.jam_mulai
-      FROM "user" u
-      JOIN guru_ppl_mapping jpp ON jpp.guru_ppl_id = u.id
-      JOIN jadwal_guru_piket j ON j.id = jpp.jadwal_piket_id
-      JOIN pengaturan_shift_piket sp ON sp.id = j.shift_id
-      WHERE j.hari = ? AND u.banned = 0
-        AND jpp.berlaku_mulai <= ?
-        AND (jpp.berlaku_selesai IS NULL OR jpp.berlaku_selesai >= ?)
-      ORDER BY sp.jam_mulai, u.nama_lengkap
-    `).bind(hari, tanggal, tanggal).all<any>(),
-  ])
+    `).bind(hari).all<any>()
 
   const seen = new Set<string>()
   const petugas: MonitoringPetugasPiket[] = []
-  for (const row of [...(regular.results || []), ...(ppl.results || [])]) {
+  for (const row of result.results || []) {
     if (seen.has(row.id)) continue
     seen.add(row.id)
     petugas.push({

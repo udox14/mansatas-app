@@ -243,15 +243,11 @@ export async function hapusJadwalPiketMassal(ids: string[]): Promise<{ error?: s
   }
   if (!before.length) return { error: 'Jadwal yang dipilih tidak ditemukan.' }
 
-  const [hasAgendaPiket, hasGuruPplMapping] = await Promise.all([
-    tableExists(db, 'agenda_piket'),
-    tableExists(db, 'guru_ppl_mapping'),
-  ])
+  const hasAgendaPiket = await tableExists(db, 'agenda_piket')
   for (const idChunk of idChunks) {
     const placeholders = idChunk.map(() => '?').join(', ')
     const statements = []
     if (hasAgendaPiket) statements.push(db.prepare(`DELETE FROM agenda_piket WHERE jadwal_id IN (${placeholders})`).bind(...idChunk))
-    if (hasGuruPplMapping) statements.push(db.prepare(`DELETE FROM guru_ppl_mapping WHERE jadwal_piket_id IN (${placeholders})`).bind(...idChunk))
     statements.push(db.prepare(`DELETE FROM jadwal_guru_piket WHERE id IN (${placeholders})`).bind(...idChunk))
     await db.batch(statements)
   }
@@ -343,20 +339,13 @@ export async function hapusJadwalPiket(id: string): Promise<{ error?: string, su
       WHERE j.id = ?
     `).bind(id).first<any>()
 
-    const [hasAgendaPiket, hasGuruPplMapping] = await Promise.all([
-      tableExists(db, 'agenda_piket'),
-      tableExists(db, 'guru_ppl_mapping'),
-    ])
+    const hasAgendaPiket = await tableExists(db, 'agenda_piket')
 
     // Bersihkan relasi turunan lebih dulu agar tidak bergantung penuh pada
     // cascade FK di environment yang schema-nya belum lengkap.
     if (hasAgendaPiket) {
       await db.prepare('DELETE FROM agenda_piket WHERE jadwal_id = ?').bind(id).run()
     }
-    if (hasGuruPplMapping) {
-      await db.prepare('DELETE FROM guru_ppl_mapping WHERE jadwal_piket_id = ?').bind(id).run()
-    }
-
     const res = await dbDelete(db, 'jadwal_guru_piket', { id })
     if (res.error) return { error: res.error }
 

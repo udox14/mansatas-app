@@ -197,7 +197,7 @@ const featureDescriptions: Record<string, string> = {
   tka: 'Mengatur pilihan mapel TKA, mengimpor hasil tes, mencocokkan nama siswa, melihat daftar hasil, dan membaca analitik nilai.',
   'penerimaan-pt': 'Mencatat siswa kelas 12 yang diterima di perguruan tinggi berdasarkan jalur, kampus, status, dan hasil import data.',
   surat: 'Membuat dan menyimpan arsip surat keluar, seperti SPPD, surat tugas, keterangan aktif, pindah, undangan, dan surat lainnya.',
-  'kelola-ppl': 'Menghubungkan guru PPL dengan guru utama, jadwal mengajar, dan jadwal piket agar akses tugas PPL sesuai penugasan.',
+  'kelola-ppl': 'Menghubungkan guru PPL dengan guru utama dan mapel–kelas agar akses KBM PPL sesuai penugasan.',
   'buku-tamu': 'Mencatat kunjungan tamu individu atau instansi, termasuk foto, tujuan kunjungan, daftar tamu hari ini, dan monitoring kunjungan.',
   'keuangan-transaksi': 'Menampilkan riwayat seluruh transaksi keuangan dari berbagai sumber, diurutkan dari transaksi terbaru.',
   'keuangan-daftar-ulang': 'Kasir untuk proses daftar ulang, pembayaran DSPT, pemberian diskon, transaksi, dan cetak kuitansi.',

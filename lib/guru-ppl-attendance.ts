@@ -1,5 +1,5 @@
 export type PplAttendanceStatus = 'HADIR' | 'TELAT' | 'SAKIT' | 'IZIN' | 'ALFA' | 'DIAMBIL_GURU'
-export type PplDutyType = 'KBM' | 'PIKET'
+export type PplDutyType = 'KBM'
 
 export type PplCampus = {
   id: string

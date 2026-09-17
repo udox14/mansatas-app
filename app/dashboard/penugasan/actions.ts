@@ -118,7 +118,7 @@ async function getGuruPiketHariIni(db: D1Database, hari: number, excludeUserId?:
   const excludeSql = excludeUserId ? 'AND u.id != ?' : ''
   const excludeArgs = excludeUserId ? [excludeUserId] : []
 
-  const piketRegular = await db.prepare(
+  const result = await db.prepare(
     `SELECT u.id, u.nama_lengkap as nama_lengkap, sp.jam_mulai, sp.jam_selesai, sp.nama_shift
      FROM "user" u
      JOIN jadwal_guru_piket j ON u.id = j.user_id
@@ -127,53 +127,22 @@ async function getGuruPiketHariIni(db: D1Database, hari: number, excludeUserId?:
      ORDER BY sp.jam_mulai ASC, u.nama_lengkap ASC`
   ).bind(hari, ...excludeArgs).all<any>()
 
-  const piketPPL = await db.prepare(
-    `SELECT u.id, u.nama_lengkap || ' (PPL)' as nama_lengkap, sp.jam_mulai, sp.jam_selesai, sp.nama_shift
-     FROM "user" u
-     JOIN guru_ppl_mapping jpp ON jpp.guru_ppl_id = u.id
-     JOIN jadwal_guru_piket j ON j.id = jpp.jadwal_piket_id
-     JOIN pengaturan_shift_piket sp ON j.shift_id = sp.id
-     WHERE j.hari = ? AND u.banned = 0
-       AND jpp.berlaku_mulai <= date('now', '+7 hours')
-       AND (jpp.berlaku_selesai IS NULL OR jpp.berlaku_selesai >= date('now', '+7 hours')) ${excludeSql}
-     ORDER BY sp.jam_mulai ASC, u.nama_lengkap ASC`
-  ).bind(hari, ...excludeArgs).all<any>()
-
-  const seen = new Set<string>()
-  const rows: GuruPiketRow[] = []
-  for (const row of [...(piketRegular.results || []), ...(piketPPL.results || [])]) {
-    if (seen.has(row.id)) continue
-    seen.add(row.id)
-    rows.push(row)
-  }
-  return rows
+  return (result.results || []) as GuruPiketRow[]
 }
 
 async function isGuruPiketPadaHari(db: D1Database, userId: string, hari: number): Promise<boolean> {
-  const regular = await db.prepare(
+  const row = await db.prepare(
     `SELECT 1
      FROM jadwal_guru_piket j
      JOIN "user" u ON u.id = j.user_id
      WHERE j.hari = ? AND j.user_id = ? AND u.banned = 0
      LIMIT 1`
   ).bind(hari, userId).first<any>()
-  if (regular) return true
-
-  const ppl = await db.prepare(
-    `SELECT 1
-     FROM guru_ppl_mapping jpp
-     JOIN jadwal_guru_piket j ON j.id = jpp.jadwal_piket_id
-     JOIN "user" u ON u.id = jpp.guru_ppl_id
-     WHERE j.hari = ? AND jpp.guru_ppl_id = ? AND u.banned = 0
-       AND jpp.berlaku_mulai <= date('now', '+7 hours')
-       AND (jpp.berlaku_selesai IS NULL OR jpp.berlaku_selesai >= date('now', '+7 hours'))
-     LIMIT 1`
-  ).bind(hari, userId).first<any>()
-  return !!ppl
+  return !!row
 }
 
-// PPL dapat bertugas sebagai piket melalui mapping jadwal piket, tanpa perlu
-// memiliki role guru_piket secara permanen.
+// Semua petugas, termasuk akun PPL, harus ditempatkan langsung melalui
+// modul Jadwal Guru Piket.
 export async function hasJadwalPiketHariIni(tanggal: string): Promise<boolean> {
   const user = await getCurrentUser()
   if (!user || !/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) return false
@@ -495,14 +464,9 @@ export async function getTugasMasuk(tanggal: string): Promise<{
         SELECT 1 FROM jadwal_guru_piket j
         JOIN "user" u_piket ON u_piket.id = j.user_id
         WHERE j.hari = ? AND j.user_id = ? AND u_piket.banned = 0
-        UNION
-        SELECT 1 FROM guru_ppl_mapping jpp
-        JOIN jadwal_guru_piket j ON j.id = jpp.jadwal_piket_id
-        JOIN "user" u_ppl ON u_ppl.id = jpp.guru_ppl_id
-        WHERE j.hari = ? AND jpp.guru_ppl_id = ? AND u_ppl.banned = 0
       )))
     ORDER BY k.tingkat, k.kelompok, k.nomor_kelas
-  `).bind(tanggal, user.id, hari, user.id, hari, user.id).all<any>()).results || []
+  `).bind(tanggal, user.id, hari, user.id).all<any>()).results || []
 
   // Get jam_ke for each penugasan from jadwal_mengajar
   const penugasanIds = [...new Set(rows.map((r: any) => r.penugasan_mengajar_id))]

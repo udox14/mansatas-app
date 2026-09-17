@@ -28,7 +28,7 @@ export default async function KelolaPPLPage() {
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
       <PageHeader
         title="Kelola PPL"
-        description="Atur kampus, periode penugasan, dan pantau kehadiran PPL dalam satu workspace."
+        description="Atur kampus, delegasi mapel–kelas, dan pantau kehadiran PPL dalam satu workspace."
       />
       <div className="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-lg text-sm mb-4 flex items-start gap-2">
         <Users className="h-5 w-5 shrink-0 mt-0.5 text-amber-600" />
