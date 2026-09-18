@@ -13,6 +13,7 @@ import { getCurrentUser } from '@/utils/auth/server'
 import { checkFeatureAccess } from '@/lib/features'
 import { getEffectiveUser } from '@/lib/act-as'
 import { revalidatePath } from 'next/cache'
+import { getEkskulResidenceOptions as queryEkskulResidenceOptions } from '@/lib/ekskul-anggota-report'
 
 const FEATURE = 'ekstrakurikuler-master'
 const MODE_NILAI = ['angka', 'huruf'] as const
@@ -174,6 +175,10 @@ export async function getGuruList(): Promise<GuruOption[]> {
     ORDER BY u.nama_lengkap ASC
   `).bind(...ROLES, ...ROLES).all<GuruOption>()
   return results || []
+}
+
+export async function getEkskulResidenceOptions(): Promise<string[]> {
+  return queryEkskulResidenceOptions(await getDB())
 }
 
 // ============================================================

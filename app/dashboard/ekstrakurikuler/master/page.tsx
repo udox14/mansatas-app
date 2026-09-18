@@ -6,7 +6,7 @@ import { checkFeatureAccess } from '@/lib/features'
 import { PageHeader } from '@/components/layout/page-header'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Trophy, Activity } from 'lucide-react'
-import { getEkskulList, getGuruList, getMonitoringEkskul } from './actions'
+import { getEkskulList, getGuruList, getMonitoringEkskul, getEkskulResidenceOptions } from './actions'
 import { MasterTable } from './components/master-table'
 import { MonitoringTab } from './components/monitoring-tab'
 
@@ -21,10 +21,11 @@ export default async function MasterEkskulPage() {
   const allowed = await checkFeatureAccess(db, user.id, 'ekstrakurikuler-master')
   if (!allowed) redirect('/dashboard')
 
-  const [ekskulList, guruList, monitoring] = await Promise.all([
+  const [ekskulList, guruList, monitoring, residenceOptions] = await Promise.all([
     getEkskulList(),
     getGuruList(),
     getMonitoringEkskul(),
+    getEkskulResidenceOptions(),
   ])
 
   return (
@@ -51,7 +52,7 @@ export default async function MasterEkskulPage() {
         </TabsContent>
 
         <TabsContent value="daftar">
-          <MasterTable initialList={ekskulList} guruList={guruList} />
+          <MasterTable initialList={ekskulList} guruList={guruList} residenceOptions={residenceOptions} />
         </TabsContent>
       </Tabs>
     </div>

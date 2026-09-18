@@ -104,7 +104,7 @@ export function SiswaPicker({ ekskulId, kelasList, onClose }: {
                 />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-slate-800 dark:text-slate-200 truncate">{s.nama_lengkap}</p>
-                  <p className="text-[11px] text-slate-400">{s.nisn} · {s.kelas_label}</p>
+                  <p className="text-[11px] text-slate-400">{s.nisn} · {s.kelas_label} · {s.tempat_tinggal}</p>
                 </div>
                 {s.sudah_anggota && <span className="text-[10px] text-emerald-600">sudah anggota</span>}
               </label>

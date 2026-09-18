@@ -54,16 +54,17 @@ export function AnggotaManager({ ekskulId, kelasList }: { ekskulId: string; kela
               <TableHead className="text-xs">Nama</TableHead>
               <TableHead className="text-xs">NISN</TableHead>
               <TableHead className="text-xs">Kelas</TableHead>
+              <TableHead className="text-xs">Tempat Tinggal</TableHead>
               <TableHead className="text-xs text-right">Aksi</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow><TableCell colSpan={4} className="text-center py-10 text-sm text-slate-400">
+              <TableRow><TableCell colSpan={5} className="text-center py-10 text-sm text-slate-400">
                 <Loader2 className="h-5 w-5 mx-auto animate-spin" />
               </TableCell></TableRow>
             ) : rows.length === 0 ? (
-              <TableRow><TableCell colSpan={4} className="text-center py-10 text-sm text-slate-400">
+              <TableRow><TableCell colSpan={5} className="text-center py-10 text-sm text-slate-400">
                 <Users className="h-8 w-8 mx-auto mb-2 text-slate-300" />
                 Belum ada anggota. Klik Tambah Siswa.
               </TableCell></TableRow>
@@ -72,6 +73,7 @@ export function AnggotaManager({ ekskulId, kelasList }: { ekskulId: string; kela
                 <TableCell className="text-sm font-medium text-slate-800 dark:text-slate-200">{r.nama_lengkap}</TableCell>
                 <TableCell className="text-xs text-slate-500 dark:text-slate-400">{r.nisn}</TableCell>
                 <TableCell className="text-xs text-slate-600 dark:text-slate-400">{r.kelas_label}</TableCell>
+                <TableCell className="text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap">{r.tempat_tinggal}</TableCell>
                 <TableCell className="text-right">
                   <Button variant="ghost" size="sm" className="h-7 px-2 text-rose-600 hover:text-rose-700"
                     onClick={() => handleRemove(r)} disabled={pending && removingId === r.siswa_id}>

@@ -36,6 +36,7 @@ export type AnggotaRow = {
   nisn: string
   foto_url: string | null
   kelas_label: string
+  tempat_tinggal: string
 }
 
 export type SiswaPilih = {
@@ -43,6 +44,7 @@ export type SiswaPilih = {
   nama_lengkap: string
   nisn: string
   kelas_label: string
+  tempat_tinggal: string
   sudah_anggota: boolean
 }
 
@@ -61,6 +63,7 @@ export type AbsensiSiswa = {
   siswa_id: string
   nama_lengkap: string
   nisn: string
+  tempat_tinggal: string
   status: 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA'
   catatan: string
 }
@@ -70,6 +73,7 @@ export type NilaiRow = {
   nama_lengkap: string
   nisn: string
   kelas_label: string
+  tempat_tinggal: string
   nilai: string | null
   catatan: string | null
 }
@@ -159,7 +163,7 @@ export async function getEkskulSaya(): Promise<EkskulSaya[]> {
 export async function getAnggota(ekskulId: string): Promise<AnggotaRow[]> {
   const db = await getDB()
   const { results } = await db.prepare(`
-    SELECT a.id AS anggota_id, s.id AS siswa_id, s.nama_lengkap, s.nisn, s.foto_url,
+    SELECT a.id AS anggota_id, s.id AS siswa_id, s.nama_lengkap, s.nisn, s.foto_url, s.tempat_tinggal,
            k.tingkat, k.nomor_kelas, k.kelompok
     FROM ekstrakurikuler_anggota a
     JOIN siswa s ON a.siswa_id = s.id
@@ -174,6 +178,7 @@ export async function getAnggota(ekskulId: string): Promise<AnggotaRow[]> {
     nisn: r.nisn,
     foto_url: r.foto_url ?? null,
     kelas_label: r.tingkat ? formatNamaKelas(r.tingkat, r.nomor_kelas, r.kelompok) : '-',
+    tempat_tinggal: r.tempat_tinggal || 'Non-Pesantren',
   }))
 }
 
@@ -190,7 +195,7 @@ export async function getSiswaUntukPilih(ekskulId: string, kelasId?: string, q?:
   const db = await getDB()
   const params: unknown[] = [ekskulId]
   let sql = `
-    SELECT s.id AS siswa_id, s.nama_lengkap, s.nisn,
+    SELECT s.id AS siswa_id, s.nama_lengkap, s.nisn, s.tempat_tinggal,
            k.tingkat, k.nomor_kelas, k.kelompok,
            (SELECT 1 FROM ekstrakurikuler_anggota a
               WHERE a.ekstrakurikuler_id = ? AND a.siswa_id = s.id AND a.status='aktif') AS sudah
@@ -211,6 +216,7 @@ export async function getSiswaUntukPilih(ekskulId: string, kelasId?: string, q?:
     nama_lengkap: r.nama_lengkap,
     nisn: r.nisn,
     kelas_label: r.tingkat ? formatNamaKelas(r.tingkat, r.nomor_kelas, r.kelompok) : '-',
+    tempat_tinggal: r.tempat_tinggal || 'Non-Pesantren',
     sudah_anggota: !!r.sudah,
   }))
 }
@@ -327,7 +333,7 @@ export async function loadAbsensi(pertemuanId: string, ekskulId: string): Promis
   const db = await getDB()
   const [anggotaRes, absenRes] = await Promise.all([
     db.prepare(`
-      SELECT s.id AS siswa_id, s.nama_lengkap, s.nisn
+      SELECT s.id AS siswa_id, s.nama_lengkap, s.nisn, s.tempat_tinggal
       FROM ekstrakurikuler_anggota a
       JOIN siswa s ON a.siswa_id = s.id
       WHERE a.ekstrakurikuler_id = ? AND a.status='aktif' AND s.status='aktif'
@@ -347,6 +353,7 @@ export async function loadAbsensi(pertemuanId: string, ekskulId: string): Promis
         siswa_id: s.siswa_id,
         nama_lengkap: s.nama_lengkap,
         nisn: s.nisn,
+        tempat_tinggal: s.tempat_tinggal || 'Non-Pesantren',
         status: (ab?.status as any) || 'HADIR',
         catatan: ab?.catatan || '',
       }
@@ -398,7 +405,7 @@ export async function getNilai(ekskulId: string): Promise<{ mode_nilai: 'angka' 
   const mode_nilai = (ek?.mode_nilai as 'angka' | 'huruf') || 'angka'
 
   const { results } = await db.prepare(`
-    SELECT s.id AS siswa_id, s.nama_lengkap, s.nisn,
+    SELECT s.id AS siswa_id, s.nama_lengkap, s.nisn, s.tempat_tinggal,
            k.tingkat, k.nomor_kelas, k.kelompok,
            n.nilai, n.catatan
     FROM ekstrakurikuler_anggota a
@@ -417,6 +424,7 @@ export async function getNilai(ekskulId: string): Promise<{ mode_nilai: 'angka' 
       nama_lengkap: r.nama_lengkap,
       nisn: r.nisn,
       kelas_label: r.tingkat ? formatNamaKelas(r.tingkat, r.nomor_kelas, r.kelompok) : '-',
+      tempat_tinggal: r.tempat_tinggal || 'Non-Pesantren',
       nilai: r.nilai ?? null,
       catatan: r.catatan ?? null,
     })),

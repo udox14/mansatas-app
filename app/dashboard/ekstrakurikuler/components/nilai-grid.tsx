@@ -73,7 +73,7 @@ export function NilaiGrid({ ekskulId, modeNilai }: { ekskulId: string; modeNilai
             <div key={r.siswa_id} className="rounded-lg border bg-white dark:bg-slate-900 px-3 py-2.5 flex items-center gap-3">
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{r.nama_lengkap}</p>
-                <p className="text-[11px] text-slate-400">{r.nisn} · {r.kelas_label}</p>
+                <p className="text-[11px] text-slate-400">{r.nisn} · {r.kelas_label} · {r.tempat_tinggal}</p>
               </div>
               <div className="w-16 sm:w-20 shrink-0">
                 {modeNilai === 'angka' ? (

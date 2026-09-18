@@ -362,7 +362,7 @@ export function PertemuanWizard({ ekskulId, hariLatihan: hariLatihanRaw }: { eks
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate">{a.nama_lengkap}</p>
-                  <p className="text-[11px] text-slate-400">{a.nisn}</p>
+                  <p className="text-[11px] text-slate-400">{a.nisn} · {a.tempat_tinggal}</p>
                 </div>
                 <div className="flex gap-1 shrink-0">
                   {STATUS_OPT.map(opt => (

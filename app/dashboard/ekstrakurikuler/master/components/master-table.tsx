@@ -4,10 +4,11 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
-import { Plus, Pencil, Trash2, Users, Trophy, Loader2, FileSpreadsheet } from 'lucide-react'
+import { Plus, Pencil, Trash2, Users, Trophy, Loader2, FileSpreadsheet, Printer } from 'lucide-react'
 import { EkskulModal } from './ekskul-modal'
 import { PembinaPicker } from './pembina-picker'
 import { ImportEkskulModal } from './import-ekskul-modal'
+import { CetakSiswaDialog } from './cetak-siswa-dialog'
 import { hapusEkskul } from '../actions'
 import type { EkskulMaster, GuruOption } from '../actions'
 
@@ -24,15 +25,17 @@ function formatHariLatihan(value: string | number | null): string | null {
   }
 }
 
-export function MasterTable({ initialList, guruList }: {
+export function MasterTable({ initialList, guruList, residenceOptions }: {
   initialList: EkskulMaster[]
   guruList: GuruOption[]
+  residenceOptions: string[]
 }) {
   const router = useRouter()
   const [modalOpen, setModalOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [editData, setEditData] = useState<EkskulMaster | null>(null)
   const [pembinaTarget, setPembinaTarget] = useState<EkskulMaster | null>(null)
+  const [printTargetId, setPrintTargetId] = useState<string | null | undefined>(undefined)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
@@ -64,7 +67,10 @@ export function MasterTable({ initialList, guruList }: {
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <p className="text-xs text-slate-500 dark:text-slate-400">{initialList.length} ekstrakurikuler terdaftar</p>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button size="sm" variant="outline" onClick={() => setPrintTargetId(null)}>
+            <Printer className="h-3.5 w-3.5 mr-1" /> Cetak Data Siswa
+          </Button>
           <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
             <FileSpreadsheet className="h-3.5 w-3.5 mr-1" /> Import
           </Button>
@@ -119,6 +125,9 @@ export function MasterTable({ initialList, guruList }: {
                   </span>
                 </TableCell>
                 <TableCell className="text-right whitespace-nowrap">
+                  <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => setPrintTargetId(e.id)} title="Cetak data siswa">
+                    <Printer className="h-3.5 w-3.5" />
+                  </Button>
                   <Button variant="ghost" size="sm" className="h-7 px-2" onClick={() => setPembinaTarget(e)} title="Atur pembina">
                     <Users className="h-3.5 w-3.5" />
                   </Button>
@@ -138,6 +147,14 @@ export function MasterTable({ initialList, guruList }: {
       {modalOpen && <EkskulModal isOpen={modalOpen} onClose={closeModal} editData={editData} />}
       {importOpen && <ImportEkskulModal isOpen={importOpen} onClose={() => setImportOpen(false)} />}
       {pembinaTarget && <PembinaPicker ekskul={pembinaTarget} guruList={guruList} onClose={closePembina} />}
+      {printTargetId !== undefined && (
+        <CetakSiswaDialog
+          ekskulList={initialList.map(({ id, nama, status }) => ({ id, nama, status }))}
+          residenceOptions={residenceOptions}
+          initialEkskulId={printTargetId || undefined}
+          onClose={() => setPrintTargetId(undefined)}
+        />
+      )}
     </div>
   )
 }
