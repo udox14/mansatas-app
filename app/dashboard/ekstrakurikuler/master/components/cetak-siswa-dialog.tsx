@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { AlertCircle, FileText, Loader2, Printer } from 'lucide-react'
-import { openPdfFromUrl } from '@/lib/pdf/download'
+import { downloadAndOpenNativeFile } from '@/lib/pdf/download'
 
 type EkskulOption = { id: string; nama: string; status: string }
 
@@ -24,6 +24,7 @@ export function CetakSiswaDialog({
   const [scope, setScope] = useState<'all' | 'single'>(initialEkskulId ? 'single' : 'all')
   const [ekskulId, setEkskulId] = useState(initialEkskulId || ekskulList[0]?.id || '')
   const [domisili, setDomisili] = useState('all')
+  const [format, setFormat] = useState<'pdf' | 'docx'>('pdf')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -44,10 +45,10 @@ export function CetakSiswaDialog({
       const params = new URLSearchParams({ scope, domisili })
       if (scope === 'single') params.set('ekskulId', ekskulId)
       const filenameScope = scope === 'single' ? selectedEkskul?.nama || 'Ekstrakurikuler' : 'Semua_Ekstrakurikuler'
-      const filename = `Daftar_Siswa_${filenameScope.replace(/[^a-zA-Z0-9-_]+/g, '_')}.pdf`
-      await openPdfFromUrl(`/api/pdf/ekskul-anggota?${params.toString()}`, filename)
+      const filename = `Daftar_Siswa_${filenameScope.replace(/[^a-zA-Z0-9-_]+/g, '_')}.${format}`
+      await downloadAndOpenNativeFile(`/api/${format}/ekskul-anggota?${params.toString()}`, filename)
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Gagal membuat PDF.')
+      setError(cause instanceof Error ? cause.message : 'Gagal membuat dokumen.')
     } finally {
       setLoading(false)
     }
@@ -115,6 +116,17 @@ export function CetakSiswaDialog({
             </Select>
           </div>
 
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">Format Dokumen</Label>
+            <Select value={format} onValueChange={value => setFormat(value as 'pdf' | 'docx')}>
+              <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pdf" className="text-sm">PDF siap cetak</SelectItem>
+                <SelectItem value="docx" className="text-sm">Word dapat diedit (.docx)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="flex gap-2 rounded-lg border bg-slate-50 p-3 text-xs leading-relaxed text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
             <FileText className="mt-0.5 h-4 w-4 shrink-0" />
             <p>Setiap ekskul dimulai pada halaman baru. Kolom Asrama/Kamar sengaja dikosongkan agar dapat diisi manual.</p>
@@ -122,9 +134,9 @@ export function CetakSiswaDialog({
 
           <Button onClick={handleCetak} disabled={loading || (scope === 'single' && !ekskulId)} className="h-10 w-full">
             {loading ? (
-              <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Menyiapkan PDF...</>
+              <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Menyiapkan {format === 'pdf' ? 'PDF' : 'Word'}...</>
             ) : (
-              <><Printer className="mr-2 h-4 w-4" />Unduh PDF</>
+              <><Printer className="mr-2 h-4 w-4" />Unduh {format === 'pdf' ? 'PDF' : 'Word'}</>
             )}
           </Button>
         </div>

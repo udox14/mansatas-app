@@ -53,6 +53,9 @@ export function buildEkskulAnggotaHtml(data: EkskulAnggotaPdfData): string {
             <col class="col-room">
           </colgroup>
           <thead>
+            <tr class="continuation-spacer" aria-hidden="true">
+              <th colspan="4"></th>
+            </tr>
             <tr>
               <th>No</th>
               <th>Nama Lengkap</th>
@@ -86,6 +89,8 @@ export function buildEkskulAnggotaHtml(data: EkskulAnggotaPdfData): string {
   .metadata { display:flex; justify-content:space-between; gap:8mm; margin-top:4mm; font-size:9pt; text-align:left; }
   table { width:100%; border-collapse:collapse; table-layout:fixed; font-size:10pt; }
   thead { display:table-header-group; }
+  .continuation-spacer { height:7mm; }
+  .continuation-spacer th { height:7mm; padding:0; border:0; background:#fff; }
   tr { break-inside:avoid; page-break-inside:avoid; }
   th, td { border:1px solid #000; padding:2mm 2.5mm; vertical-align:middle; }
   th { text-align:center; font-weight:700; }
