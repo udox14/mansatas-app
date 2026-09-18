@@ -1,5 +1,6 @@
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
+import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { checkFeatureAccess } from '@/lib/features'
 import { getEkskulAnggotaReport, parseEkskulResidenceFilter } from '@/lib/ekskul-anggota-report'
 import { buildEkskulAnggotaDocxBytes } from '@/lib/docx/ekskul-anggota-template'
@@ -10,6 +11,33 @@ function safeFile(value: string) {
   return String(value || 'Daftar_Siswa_Ekstrakurikuler')
     .replace(/[^a-zA-Z0-9-_]+/g, '_')
     .slice(0, 100)
+}
+
+async function pngBytes(response: Response | null) {
+  if (!response?.ok) return null
+  const bytes = new Uint8Array(await response.arrayBuffer())
+  const signature = [137, 80, 78, 71, 13, 10, 26, 10]
+  return signature.every((value, index) => bytes[index] === value) ? bytes : null
+}
+
+async function loadLetterheadPng(requestUrl: URL) {
+  try {
+    const { env } = await getCloudflareContext({ async: true })
+    const assetUrl = new URL('/kopsurat.png', requestUrl)
+    const bytes = await pngBytes(await env.STATIC_ASSETS.fetch(new Request(assetUrl)))
+    if (bytes) return bytes
+  } catch {
+    // Fallback berikut dipakai oleh server Next.js lokal yang tidak memiliki binding aset.
+  }
+
+  try {
+    const bytes = await pngBytes(await fetch(new URL('/kopsurat.png', requestUrl)))
+    if (bytes) return bytes
+  } catch {
+    // Pesan yang konsisten dikembalikan di bawah.
+  }
+
+  throw new Error('Kop surat tidak dapat dimuat.')
 }
 
 export async function GET(request: Request) {
@@ -38,14 +66,13 @@ export async function GET(request: Request) {
     return new Response('Tidak ada siswa yang sesuai dengan pengaturan cetak.', { status: 404 })
   }
 
-  const letterheadResponse = await fetch(`${url.origin}/kopsurat.png`)
-  if (!letterheadResponse.ok) {
-    return new Response('Kop surat tidak dapat dimuat.', { status: 500 })
+  let letterheadPng: Uint8Array
+  try {
+    letterheadPng = await loadLetterheadPng(url)
+  } catch (cause) {
+    return new Response(cause instanceof Error ? cause.message : 'Kop surat tidak dapat dimuat.', { status: 500 })
   }
-  const bytes = buildEkskulAnggotaDocxBytes({
-    ...report,
-    letterheadPng: new Uint8Array(await letterheadResponse.arrayBuffer()),
-  })
+  const bytes = buildEkskulAnggotaDocxBytes({ ...report, letterheadPng })
 
   const scopeName = scope === 'single' ? report.groups[0].ekskul_nama : 'Semua_Ekstrakurikuler'
   const filename = `Daftar_Siswa_${safeFile(scopeName)}.docx`
