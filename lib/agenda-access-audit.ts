@@ -58,7 +58,7 @@ export function calculateAgendaAccessRisk(input: {
   if (input.logoutThenLogin) score += 20
   if (input.agendaAfterSwitch) score += 40
   if (input.repeatedDifferentDay) score += 40
-  if (input.historical) score = Math.min(score, 79)
+  if (input.historical && !input.agendaAfterSwitch) score = Math.min(score, 79)
   return { score, level: riskLevelForScore(score) }
 }
 
@@ -187,7 +187,7 @@ export async function cleanupGuruMapelAndPplAlerts(db: D1Database): Promise<void
 }
 
 export async function ensureAgendaAccessAuditSchema(db: D1Database) {
-  await ensureSchemaOnce('agenda-access-audit-v2', async () => {
+  await ensureSchemaOnce('agenda-access-audit-v3', async () => {
     try {
       await db.prepare('ALTER TABLE activity_logs ADD COLUMN device_id TEXT').run()
     } catch {
@@ -229,6 +229,15 @@ export async function ensureAgendaAccessAuditSchema(db: D1Database) {
       )`),
     ])
     await cleanupGuruMapelAndPplAlerts(db)
+    try {
+      await db.prepare(`
+        UPDATE agenda_access_alerts
+        SET risk_score = 100, risk_level = 'high', updated_at = datetime('now')
+        WHERE source = 'historical' AND agenda_id IS NOT NULL AND risk_level = 'medium'
+      `).run()
+    } catch {
+      // ignore
+    }
   })
 }
 

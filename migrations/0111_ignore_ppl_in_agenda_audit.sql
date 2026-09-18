@@ -39,5 +39,9 @@ OR (
            OR pm.id IS NOT NULL OR gpm.id IS NOT NULL)
       AND u.role <> 'guru_ppl'
       AND (ur.role IS NULL OR ur.role <> 'guru_ppl')
-  )
 );
+
+-- Eskalasi indikasi historis yang terbukti diikuti pengisian agenda kelas menjadi Risiko TINGGI (skor 100)
+UPDATE agenda_access_alerts
+SET risk_score = 100, risk_level = 'high', updated_at = datetime('now')
+WHERE source = 'historical' AND agenda_id IS NOT NULL AND risk_level = 'medium';

@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertTriangle, Clock3, Eye, History, LockKeyhole, ShieldCheck, UnlockKeyhole } from 'lucide-react'
+import { AlertTriangle, Clock3, Eye, History, Laptop, LockKeyhole, ShieldCheck, Smartphone, Tablet, UnlockKeyhole } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,6 +17,7 @@ import {
   type AuditAlertRow,
 } from './actions'
 import type { AgendaAccessEvidence, AgendaAccessReason } from '@/lib/agenda-access-audit'
+import { parseDeviceInfo } from '@/lib/device-info'
 
 type Props = {
   alerts: AuditAlertRow[]
@@ -70,7 +71,7 @@ export function AuditAksesAgendaClient(props: Props) {
   }
 
   function runScan() {
-    if (!window.confirm('Jalankan analisis historis sejak 1 September 2026? Data lama hanya menjadi indikasi dan tidak dapat menghasilkan risiko tinggi.')) return
+    if (!window.confirm('Jalankan analisis historis sejak 1 September 2026? Data historis yang terbukti diikuti pengisian agenda kelas akan ditandai sebagai risiko TINGGI.')) return
     setMessage(null)
     startTransition(async () => {
       const result = await runHistoricalAgendaAccessScan()
@@ -145,8 +146,21 @@ export function AuditAksesAgendaClient(props: Props) {
                     <Badge variant="outline">{alert.source === 'historical' ? 'Indikasi historis' : 'ID perangkat'}</Badge>
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300">
-                    <div>{alert.device_id ? `Perangkat ${alert.device_id.slice(0, 8)}` : 'Perangkat tidak tersedia'}</div>
-                    <div>{alert.ip_address || '-'}</div>
+                    {(() => {
+                      const dev = parseDeviceInfo(alert.user_agent)
+                      return (
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-1.5 font-medium text-slate-800 dark:text-slate-200">
+                            {dev.type === 'mobile' ? <Smartphone className="h-3.5 w-3.5 shrink-0 text-emerald-600" /> :
+                             dev.type === 'tablet' ? <Tablet className="h-3.5 w-3.5 shrink-0 text-blue-600" /> :
+                             <Laptop className="h-3.5 w-3.5 shrink-0 text-indigo-600" />}
+                            <span className="truncate max-w-[220px]" title={dev.deviceBrand}>{dev.deviceBrand}</span>
+                          </div>
+                          <div className="text-[11px] text-slate-500">{dev.os} · {dev.browser}</div>
+                          <div className="text-[11px] text-slate-400 font-mono">{alert.ip_address || '-'}</div>
+                        </div>
+                      )
+                    })()}
                   </td>
                   <td className="px-4 py-3 text-right"><Button type="button" variant="outline" size="sm" onClick={() => setSelected(alert)}><Eye className="mr-2 h-4 w-4" />Lihat</Button></td>
                 </tr>
@@ -168,15 +182,26 @@ export function AuditAksesAgendaClient(props: Props) {
             <DialogTitle>Detail indikator akses</DialogTitle>
             <DialogDescription>Periksa kronologi dan konfirmasi dengan data kehadiran fisik sebelum mengambil tindakan.</DialogDescription>
           </DialogHeader>
-          {selected && <div className="space-y-4">
-            <div className="grid gap-3 rounded-lg border p-3 sm:grid-cols-2">
-              <Info label="Akun pertama" value={selected.user_a_name} />
-              <Info label="Akun kedua" value={selected.user_b_name} />
-              <Info label="Risiko" value={`${selected.risk_level.toUpperCase()} · skor ${selected.risk_score}`} />
-              <Info label="Sumber" value={selected.source === 'historical' ? 'Indikasi historis IP + browser' : 'ID perangkat anonim'} />
-              <Info label="IP" value={selected.ip_address || '-'} />
-              <Info label="Browser" value={selected.user_agent || '-'} />
-            </div>
+          {selected && (() => {
+            const dev = parseDeviceInfo(selected.user_agent)
+            return (
+              <div className="space-y-4">
+                <div className="grid gap-3 rounded-lg border p-3 sm:grid-cols-2">
+                  <Info label="Akun pertama" value={selected.user_a_name} />
+                  <Info label="Akun kedua" value={selected.user_b_name} />
+                  <Info label="Risiko" value={`${selected.risk_level.toUpperCase()} · skor ${selected.risk_score}`} />
+                  <Info label="Kategori Perangkat" value={dev.platformLabel} />
+                  <Info label="Merek / Model" value={dev.deviceBrand} />
+                  <Info label="Sistem Operasi" value={dev.os} />
+                  <Info label="Browser / Aplikasi" value={dev.browser} />
+                  <Info label="Alamat IP" value={selected.ip_address || '-'} />
+                  {selected.device_id && <Info label="ID Perangkat" value={`Perangkat ${selected.device_id.slice(0, 16)}...`} />}
+                  <Info label="Sumber Deteksi" value={selected.source === 'historical' ? 'Indikasi historis IP + browser' : 'ID perangkat fisik'} />
+                  <div className="sm:col-span-2">
+                    <span className="text-xs text-slate-500">User-Agent Lengkap:</span>
+                    <p className="mt-0.5 break-all font-mono text-[11px] text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900 p-2 rounded border">{selected.user_agent || '-'}</p>
+                  </div>
+                </div>
             <div>
               <h3 className="mb-2 font-semibold">Alasan skor</h3>
               <ul className="space-y-2">
@@ -203,7 +228,9 @@ export function AuditAksesAgendaClient(props: Props) {
               <UserBlockControl name={selected.user_a_name} userId={selected.user_a_id} blocked={Boolean(selected.user_a_blocked)} pending={isPending} onChange={changeBlock} />
               <UserBlockControl name={selected.user_b_name} userId={selected.user_b_id} blocked={Boolean(selected.user_b_blocked)} pending={isPending} onChange={changeBlock} />
             </div>}
-          </div>}
+          </div>
+            )
+          })()}
         </DialogContent>
       </Dialog>
     </div>

@@ -27,9 +27,16 @@ describe('agenda access audit risk', () => {
       .toEqual({ score: 80, level: 'high' })
   })
 
-  it('caps historical indicators at medium', () => {
-    expect(calculateAgendaAccessRisk({ accountSwitch: true, logoutThenLogin: true, agendaAfterSwitch: true, historical: true }))
+  it('caps historical indicators at medium only when no agenda submission', () => {
+    expect(calculateAgendaAccessRisk({ accountSwitch: true, logoutThenLogin: true, agendaAfterSwitch: false, historical: true }))
+      .toEqual({ score: 60, level: 'medium' })
+    expect(calculateAgendaAccessRisk({ accountSwitch: true, repeatedDifferentDay: true, agendaAfterSwitch: false, historical: true }))
       .toEqual({ score: 79, level: 'medium' })
+  })
+
+  it('allows historical indicators to reach high when agenda submission occurs', () => {
+    expect(calculateAgendaAccessRisk({ accountSwitch: true, logoutThenLogin: true, agendaAfterSwitch: true, historical: true }))
+      .toEqual({ score: 100, level: 'high' })
   })
 
   it('uses stable WIB dates and hashes', () => {
@@ -145,5 +152,66 @@ describe('guru mapel and guru ppl pair detection', () => {
 
     const remaining = sqlite.prepare('SELECT id FROM agenda_access_alerts ORDER BY id').all() as Array<{ id: string }>
     expect(remaining).toEqual([{ id: 'a2' }, { id: 'a3' }])
+  })
+})
+
+import { parseDeviceInfo } from './device-info'
+
+describe('parseDeviceInfo', () => {
+  it('mendeteksi perangkat Android Redmi Note 12 dari screenshot', () => {
+    const ua = 'Mozilla/5.0 (Linux; Android 15; 23021RAA2Y Build/AQ3A.240829.003; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/151.0.7922.200 Mobile Safari/537.36'
+    const result = parseDeviceInfo(ua)
+    expect(result).toMatchObject({
+      type: 'mobile',
+      platformLabel: 'Smartphone Android',
+      deviceBrand: 'Xiaomi Redmi Note 12',
+      model: '23021RAA2Y',
+      os: 'Android 15',
+    })
+    expect(result.browser).toContain('Chrome Mobile')
+  })
+
+  it('mendeteksi perangkat Samsung Android', () => {
+    const ua = 'Mozilla/5.0 (Linux; Android 14; SM-A546B Build/UP1A.231005.007) AppleWebKit/537.36 Chrome/120.0 Mobile Safari/537.36'
+    const result = parseDeviceInfo(ua)
+    expect(result).toMatchObject({
+      type: 'mobile',
+      platformLabel: 'Smartphone Android',
+      deviceBrand: 'Samsung Galaxy (SM-A546B)',
+      model: 'SM-A546B',
+      os: 'Android 14',
+    })
+  })
+
+  it('mendeteksi Apple iPhone', () => {
+    const ua = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1'
+    const result = parseDeviceInfo(ua)
+    expect(result).toMatchObject({
+      type: 'mobile',
+      platformLabel: 'Apple iPhone',
+      deviceBrand: 'Apple iPhone',
+      os: 'iOS 17.5.1',
+    })
+  })
+
+  it('mendeteksi Komputer Desktop Windows', () => {
+    const ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
+    const result = parseDeviceInfo(ua)
+    expect(result).toMatchObject({
+      type: 'desktop',
+      platformLabel: 'Komputer Desktop / Laptop',
+      deviceBrand: 'PC / Laptop (Windows)',
+      os: 'Windows 10 / 11',
+    })
+  })
+
+  it('menangani string kosong atau null secara aman', () => {
+    expect(parseDeviceInfo(null)).toMatchObject({
+      type: 'unknown',
+      platformLabel: 'Perangkat tidak dikenal',
+    })
+    expect(parseDeviceInfo('')).toMatchObject({
+      type: 'unknown',
+    })
   })
 })
