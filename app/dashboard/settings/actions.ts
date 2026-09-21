@@ -425,6 +425,35 @@ export async function setAgendaLateSetting(
   return { success: true }
 }
 
+export async function setAgendaForgottenMonthlyLimit(rawLimit: number) {
+  await requireSettingsMutation('update')
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+
+  const db = await getDB()
+  const userRow = await db.prepare('SELECT role FROM "user" WHERE id = ?').bind(user.id).first<{ role: string }>()
+  if (userRow?.role !== 'super_admin') return { error: 'Hanya Super Admin yang bisa mengubah pengaturan ini.' }
+
+  const numericLimit = Number(rawLimit)
+  if (!Number.isInteger(numericLimit) || numericLimit < 0) {
+    return { error: 'Batas pengajuan harus berupa bilangan bulat 0 atau lebih.' }
+  }
+  await setSystemSetting(SYSTEM_SETTING_KEYS.agendaForgottenMonthlyLimit, String(numericLimit))
+  await logActivity({
+    db,
+    module: 'pengaturan',
+    action: 'set_agenda_forgotten_monthly_limit',
+    summary: `Mengubah batas pengajuan lupa agenda menjadi ${numericLimit} per bulan`,
+    entityType: 'system_setting',
+    entityId: SYSTEM_SETTING_KEYS.agendaForgottenMonthlyLimit,
+    entityLabel: 'Batas pengajuan lupa agenda',
+    after: { limit: numericLimit },
+  })
+  revalidatePath('/dashboard/settings')
+  revalidatePath('/dashboard/agenda')
+  return { success: true }
+}
+
 export async function setAttendanceTimeRestrictionEnabled(enabled: boolean) {
   await requireSettingsMutation('update')
   const user = await getCurrentUser()

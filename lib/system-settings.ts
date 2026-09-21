@@ -9,6 +9,7 @@ export const SYSTEM_SETTING_KEYS = {
   agendaLateEnabled: 'agenda_late_enabled',
   agendaLateThresholdMinutes: 'agenda_late_threshold_minutes',
   agendaLateThresholdByJam: 'agenda_late_threshold_by_jam',
+  agendaForgottenMonthlyLimit: 'agenda_forgotten_monthly_limit',
   attendanceTimeRestriction: 'attendance_time_restriction_enabled',
   attendanceSkipIncompleteForDailyStatus: 'attendance_skip_incomplete_for_daily_status',
   heroBackgroundImageUrl: 'hero_background_image_url',

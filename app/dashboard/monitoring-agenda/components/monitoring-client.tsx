@@ -2,7 +2,7 @@
 'use client'
 
 import { TeacherLeaveManager, TeacherLeaveMapping, TeacherLeaveSelect, TeacherLeaveBadge } from '@/components/teacher-leave-controls'
-import { useEffect, useMemo, useState, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -16,11 +16,14 @@ import {
   Search, Loader2, Eye, Edit3, CheckCircle2, Clock, XCircle,
   AlertTriangle, Calendar, BarChart3, Printer,
   ChevronLeft, ChevronRight, ShieldCheck,
+  FileWarning,
 } from 'lucide-react'
 import {
   getMonitoringHarian, getMonitoringHarianSlots, getRekapKehadiranGuru,
   editAgendaStatus, batchEditAgendaStatus, getDataCetakLaporan,
   getMonitoringPiketHarian, editAgendaPiketStatus,
+  getForgottenAgendaRequests, reviewForgottenAgendaRequest,
+  type ForgottenAgendaRequestStatus,
 } from '../actions'
 import {
   PERFORMANCE_POLICY_LABELS,
@@ -128,18 +131,208 @@ export function MonitoringClient({ filterOptions, userRole }: MonitoringClientPr
   return (
     <Tabs defaultValue="harian" className="space-y-3">
       <TeacherLeaveManager />
-      <TabsList className="grid w-full grid-cols-4 max-w-2xl h-auto p-1">
+      <TabsList className="grid h-auto w-full max-w-3xl grid-cols-5 p-1">
         <TabsTrigger value="harian" className="text-xs sm:text-sm"><Calendar className="h-3.5 w-3.5 mr-1.5 hidden sm:inline" />Harian</TabsTrigger>
         <TabsTrigger value="rekap" className="text-xs sm:text-sm"><BarChart3 className="h-3.5 w-3.5 mr-1.5 hidden sm:inline" />Rekap</TabsTrigger>
         <TabsTrigger value="cetak" className="text-xs sm:text-sm"><Printer className="h-3.5 w-3.5 mr-1.5 hidden sm:inline" />Cetak</TabsTrigger>
         <TabsTrigger value="mon-piket" className="text-xs sm:text-sm"><ShieldCheck className="h-3.5 w-3.5 mr-1.5 hidden sm:inline" />Mon. Piket</TabsTrigger>
+        <TabsTrigger value="lupa-agenda" className="text-xs sm:text-sm"><FileWarning className="h-3.5 w-3.5 mr-1.5 hidden sm:inline" />Lupa Agenda</TabsTrigger>
       </TabsList>
 
       <TabsContent value="harian"><TabHarian filterOptions={filterOptions} /></TabsContent>
       <TabsContent value="rekap"><TabRekap filterOptions={filterOptions} /></TabsContent>
       <TabsContent value="cetak"><TabCetak filterOptions={filterOptions} /></TabsContent>
       <TabsContent value="mon-piket"><TabMonitoringPiket /></TabsContent>
+      <TabsContent value="lupa-agenda"><TabForgottenAgendaRequests /></TabsContent>
     </Tabs>
+  )
+}
+
+type ForgottenRequestRow = {
+  id: string
+  guru_nama: string
+  tanggal: string
+  jam_ke_mulai: number
+  jam_ke_selesai: number
+  materi: string
+  status: ForgottenAgendaRequestStatus
+  submitted_at: string
+  reviewed_at: string | null
+  review_note: string | null
+  reviewer_nama: string | null
+  nama_mapel: string
+  kelas_label: string
+  monthly_usage: number
+}
+
+const FORGOTTEN_STATUS_LABEL: Record<ForgottenAgendaRequestStatus, string> = {
+  PENDING: 'Menunggu',
+  APPROVED: 'Disetujui',
+  REJECTED: 'Ditolak',
+  CANCELLED: 'Dibatalkan',
+}
+
+function TabForgottenAgendaRequests() {
+  const [status, setStatus] = useState<ForgottenAgendaRequestStatus | 'ALL'>('PENDING')
+  const [rows, setRows] = useState<ForgottenRequestRow[]>([])
+  const [canReview, setCanReview] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [review, setReview] = useState<{ row: ForgottenRequestRow; decision: 'APPROVE' | 'REJECT' } | null>(null)
+  const [note, setNote] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const result = await getForgottenAgendaRequests(status)
+      if (result.error) setMessage({ type: 'error', text: result.error })
+      setRows((result.data || []) as ForgottenRequestRow[])
+      setCanReview(Boolean(result.canReview))
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error?.message || 'Gagal memuat pengajuan.' })
+    } finally {
+      setLoading(false)
+    }
+  }, [status])
+
+  useEffect(() => { void load() }, [load])
+
+  const submitReview = async () => {
+    if (!review) return
+    setSubmitting(true)
+    setMessage(null)
+    try {
+      const result = await reviewForgottenAgendaRequest(review.row.id, review.decision, note)
+      if (result.error) setMessage({ type: 'error', text: result.error })
+      else {
+        setMessage({ type: 'success', text: result.success || 'Keputusan berhasil disimpan.' })
+        setReview(null)
+        setNote('')
+        await load()
+      }
+    } catch (error: any) {
+      setMessage({ type: 'error', text: error?.message || 'Keputusan gagal disimpan.' })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-col gap-3 rounded-lg border bg-white p-4 dark:bg-slate-900 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">Pengajuan lupa mengisi agenda</p>
+          <p className="mt-0.5 text-xs text-slate-500">Antrean lintas tanggal. Approval mencatat agenda sebagai Telat tanpa foto.</p>
+        </div>
+        <div className="w-full sm:w-44">
+          <Label className="text-xs text-slate-500">Status</Label>
+          <Select value={status} onValueChange={value => setStatus(value as ForgottenAgendaRequestStatus | 'ALL')}>
+            <SelectTrigger className="mt-1 h-9"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="PENDING">Menunggu</SelectItem>
+              <SelectItem value="APPROVED">Disetujui</SelectItem>
+              <SelectItem value="REJECTED">Ditolak</SelectItem>
+              <SelectItem value="CANCELLED">Dibatalkan</SelectItem>
+              <SelectItem value="ALL">Semua</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {message && (
+        <div className={`rounded-lg border px-4 py-3 text-sm ${message.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
+          {message.text}
+        </div>
+      )}
+
+      <div className="overflow-hidden rounded-lg border bg-white dark:bg-slate-900">
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 p-10 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Memuat pengajuan...</div>
+        ) : rows.length === 0 ? (
+          <div className="p-10 text-center text-sm text-slate-500">Tidak ada pengajuan pada status ini.</div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Guru dan jadwal</TableHead>
+                  <TableHead>Materi</TableHead>
+                  <TableHead>Pengajuan</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Tindakan</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map(row => (
+                  <TableRow key={row.id}>
+                    <TableCell className="min-w-56 align-top">
+                      <p className="font-semibold text-slate-800 dark:text-slate-100">{row.guru_nama}</p>
+                      <p className="text-xs text-slate-500">{formatTanggal(row.tanggal)}</p>
+                      <p className="text-xs text-slate-500">Jam ke-{row.jam_ke_mulai === row.jam_ke_selesai ? row.jam_ke_mulai : `${row.jam_ke_mulai}-${row.jam_ke_selesai}`} · {row.kelas_label} · {row.nama_mapel}</p>
+                    </TableCell>
+                    <TableCell className="min-w-64 max-w-md whitespace-pre-wrap align-top text-sm text-slate-700 dark:text-slate-300">{row.materi}</TableCell>
+                    <TableCell className="min-w-40 align-top text-xs text-slate-500">
+                      <p>{formatTimeWIB(row.submitted_at)}</p>
+                      <p className="mt-1">Pemakaian bulan itu: {row.monthly_usage}</p>
+                    </TableCell>
+                    <TableCell className="min-w-40 align-top">
+                      <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${row.status === 'APPROVED' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : row.status === 'REJECTED' ? 'border-red-200 bg-red-50 text-red-700' : row.status === 'CANCELLED' ? 'border-slate-200 bg-slate-50 text-slate-600' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                        {FORGOTTEN_STATUS_LABEL[row.status]}
+                      </span>
+                      {row.reviewer_nama && <p className="mt-1 text-xs text-slate-500">oleh {row.reviewer_nama}</p>}
+                      {row.review_note && <p className="mt-1 max-w-56 whitespace-pre-wrap text-xs text-slate-500">{row.review_note}</p>}
+                    </TableCell>
+                    <TableCell className="align-top text-right">
+                      {row.status === 'PENDING' && canReview ? (
+                        <div className="flex justify-end gap-2">
+                          <Button size="sm" variant="outline" className="h-8 border-red-200 text-xs text-red-700 hover:bg-red-50" onClick={() => { setReview({ row, decision: 'REJECT' }); setNote('') }}>
+                            Tolak
+                          </Button>
+                          <Button size="sm" className="h-8 bg-emerald-600 text-xs text-white hover:bg-emerald-700" onClick={() => { setReview({ row, decision: 'APPROVE' }); setNote('') }}>
+                            Setujui
+                          </Button>
+                        </div>
+                      ) : row.status === 'PENDING' ? <span className="text-xs text-slate-400">Hanya Waka Kurikulum</span> : null}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
+
+      <Dialog open={Boolean(review)} onOpenChange={open => { if (!open && !submitting) { setReview(null); setNote('') } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{review?.decision === 'APPROVE' ? 'Setujui pengajuan' : 'Tolak pengajuan'}</DialogTitle>
+          </DialogHeader>
+          {review && (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-slate-50 p-3 text-sm">
+                <p className="font-semibold text-slate-800">{review.row.guru_nama}</p>
+                <p className="text-xs text-slate-500">{formatTanggal(review.row.tanggal)} · Jam ke-{review.row.jam_ke_mulai}-{review.row.jam_ke_selesai}</p>
+              </div>
+              <div>
+                <Label htmlFor="forgotten-review-note" className="text-xs">Catatan reviewer (opsional)</Label>
+                <textarea id="forgotten-review-note" rows={3} value={note} onChange={event => setNote(event.target.value)} className="mt-1.5 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500" />
+              </div>
+              <p className="text-xs text-slate-500">
+                {review.decision === 'APPROVE' ? 'Agenda akan langsung dicatat sebagai Telat tanpa foto.' : 'Status jadwal tetap Alfa dan kuota guru tidak dikembalikan.'}
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setReview(null)} disabled={submitting}>Batal</Button>
+                <Button onClick={submitReview} disabled={submitting} className={review.decision === 'APPROVE' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700'}>
+                  {submitting && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                  {review.decision === 'APPROVE' ? 'Setujui' : 'Tolak'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
   )
 }
 

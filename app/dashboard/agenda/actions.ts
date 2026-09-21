@@ -15,10 +15,11 @@ import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { uploadToR2 } from '@/utils/r2'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
-import { nowWIB, currentTimeWIB, nowWIBISO } from '@/lib/time'
+import { nowWIB, currentTimeWIB, nowWIBISO, todayWIB } from '@/lib/time'
 import { formatNamaKelas } from '@/lib/utils'
 import { getEffectiveUser, getActAsDate } from '@/lib/act-as'
 import { resolveTeachingAssignmentAccess } from '@/lib/guru-ppl-access'
+import { isForgottenAgendaRequestWindow, normalizeForgottenMonthlyLimit } from '@/lib/agenda-forgotten'
 import { getSystemSetting, getSystemSettingBoolean, getSystemSettingNumber, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 import {
   getKbmExceptionsForDate,
@@ -53,7 +54,15 @@ type JadwalBlock = {
   deskripsi_ketidakhadiran?: string | null
   agenda_id?: string
   status?: string
+  pengajuan_lupa_id?: string
+  pengajuan_lupa_status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
+  pengajuan_lupa_catatan?: string | null
+  blok_selesai: boolean
+  waktu_pengisian_berakhir: boolean
+  bisa_ajukan_lupa: boolean
 }
+
+type ForgottenRequestQuota = { limit: number; used: number; remaining: number }
 
 // ============================================================
 // HELPER: parse pola jam dari tahun_ajaran
@@ -84,6 +93,7 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
   slots: SlotJam[]
   tanggal: string
   hari: number
+  forgottenRequestQuota?: ForgottenRequestQuota
   kbmExceptions?: KbmException[]
   calendarStatus?: { isEffective: boolean; reason: string | null; category: string | null }
 }> {
@@ -140,6 +150,20 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
   const slots = getPolaHariIni(ta.jam_pelajaran || '[]', hari)
   if (slots.length === 0) return { error: null, blocks: [], slots: [], tanggal, hari }
   const kbmExceptions = await getKbmExceptionsForDate(db, tanggal)
+  const [agendaTimeRestrictionEnabled, configuredLimit, quotaRow] = await Promise.all([
+    getSystemSettingBoolean(SYSTEM_SETTING_KEYS.agendaTimeRestriction, true),
+    getSystemSettingNumber(SYSTEM_SETTING_KEYS.agendaForgottenMonthlyLimit, 2),
+    db.prepare(`SELECT COUNT(*) AS total FROM agenda_lupa_pengajuan
+      WHERE guru_id = ? AND substr(tanggal, 1, 7) = ?`)
+      .bind(guruId, tanggal.slice(0, 7)).first<{ total: number }>(),
+  ])
+  const forgottenLimit = normalizeForgottenMonthlyLimit(configuredLimit)
+  const forgottenUsed = Number(quotaRow?.total || 0)
+  const forgottenRequestQuota: ForgottenRequestQuota = {
+    limit: forgottenLimit,
+    used: forgottenUsed,
+    remaining: Math.max(0, forgottenLimit - forgottenUsed),
+  }
 
   // Ambil jadwal hari ini + existing agenda dalam 1 query
   const result = await db.prepare(`
@@ -152,6 +176,9 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
       u.nama_lengkap as guru_nama,
       ag.id as agenda_id,
       ag.status as agenda_status,
+      alp.id as pengajuan_lupa_id,
+      alp.status as pengajuan_lupa_status,
+      alp.review_note as pengajuan_lupa_catatan,
       dtk.id as delegasi_kelas_id,
       dt.alasan_ketidakhadiran,
       COALESCE(ag.catatan_admin, dt.deskripsi_ketidakhadiran) AS deskripsi_ketidakhadiran
@@ -161,6 +188,7 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
     JOIN kelas k ON pm.kelas_id = k.id
     JOIN "user" u ON pm.guru_id = u.id
     LEFT JOIN agenda_guru ag ON ag.penugasan_id = jm.penugasan_id AND ag.tanggal = ?
+    LEFT JOIN agenda_lupa_pengajuan alp ON alp.penugasan_id = jm.penugasan_id AND alp.tanggal = ?
     LEFT JOIN delegasi_tugas_kelas dtk ON dtk.penugasan_mengajar_id = jm.penugasan_id
       AND dtk.delegasi_id IN (
         SELECT id FROM delegasi_tugas WHERE dari_user_id = pm.guru_id AND tanggal = ?
@@ -174,10 +202,10 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
       ))
       AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
     ORDER BY jm.jam_ke ASC
-  `).bind(tanggal, tanggal, ta.id, hari, guruId, guruId, tanggal, tanggal, tanggal).all<any>()
+  `).bind(tanggal, tanggal, tanggal, ta.id, hari, guruId, guruId, tanggal, tanggal, tanggal).all<any>()
 
   const rows = result.results || []
-  if (rows.length === 0) return { error: null, blocks: [], slots, tanggal, hari }
+  if (rows.length === 0) return { error: null, blocks: [], slots, tanggal, hari, forgottenRequestQuota }
 
   // Group per penugasan_id → collect jam_ke → build blocks
   const grouped = new Map<string, { rows: any[], jamList: number[] }>()
@@ -202,6 +230,26 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
     const jamSelesai = slotState.activeJamKe[slotState.activeJamKe.length - 1] ?? jadwalJamSelesai
     const slotMulai = slots.find(s => s.id === jamMulai)
     const slotSelesai = slots.find(s => s.id === jamSelesai)
+    const selesaiMinutes = slotSelesai
+      ? Number(slotSelesai.selesai.split(':')[0]) * 60 + Number(slotSelesai.selesai.split(':')[1])
+      : Number.POSITIVE_INFINITY
+    const current = currentTimeWIB()
+    const blokSelesai = tanggal < todayWIB()
+      || (tanggal === todayWIB() && current.hours * 60 + current.minutes >= selesaiMinutes)
+    const isOwner = first.guru_id === user.id && !effective?.isActingAs
+    const bisaAjukanLupa = isForgottenAgendaRequestWindow({
+      tanggal,
+      today: todayWIB(),
+      currentMinutes: current.hours * 60 + current.minutes,
+      endMinutes: selesaiMinutes,
+      timeRestrictionEnabled: agendaTimeRestrictionEnabled,
+    })
+      && isOwner
+      && slotState.activeJamKe.length > 0
+      && !first.agenda_id
+      && !first.delegasi_kelas_id
+      && !first.pengajuan_lupa_id
+      && forgottenRequestQuota.remaining > 0
 
     blocks.push({
       penugasan_id: pid,
@@ -225,11 +273,147 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
       deskripsi_ketidakhadiran: first.deskripsi_ketidakhadiran || null,
       agenda_id: first.agenda_id ?? undefined,
       status: first.agenda_status ?? undefined,
+      pengajuan_lupa_id: first.pengajuan_lupa_id ?? undefined,
+      pengajuan_lupa_status: first.pengajuan_lupa_status ?? undefined,
+      pengajuan_lupa_catatan: first.pengajuan_lupa_catatan ?? null,
+      blok_selesai: blokSelesai,
+      waktu_pengisian_berakhir: agendaTimeRestrictionEnabled && blokSelesai,
+      bisa_ajukan_lupa: bisaAjukanLupa,
     })
   }
 
   blocks.sort((a, b) => a.jam_ke_mulai - b.jam_ke_mulai)
-  return { error: null, blocks, slots, tanggal, hari, kbmExceptions }
+  return { error: null, blocks, slots, tanggal, hari, kbmExceptions, forgottenRequestQuota }
+}
+
+// ============================================================
+// 2. PENGAJUAN LUPA MENGISI AGENDA
+// ============================================================
+export async function submitForgottenAgendaRequest(formData: FormData): Promise<{ error?: string; success?: string }> {
+  const actor = await requireActionAccess('agenda', 'create')
+  if (actor.kind !== 'staff') return { error: 'Unauthorized' }
+
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized' }
+  const effective = await getEffectiveUser()
+  if (effective?.isActingAs) return { error: 'Mode Act As tidak dapat membuat pengajuan lupa mengisi agenda.' }
+
+  const penugasanId = String(formData.get('penugasan_id') || '')
+  const tanggal = String(formData.get('tanggal') || '')
+  const materi = String(formData.get('materi') || '').trim()
+  if (!penugasanId || !/^\d{4}-\d{2}-\d{2}$/.test(tanggal) || !materi) {
+    return { error: 'Materi wajib diisi.' }
+  }
+  if (tanggal !== todayWIB()) return { error: 'Pengajuan hanya dapat dibuat pada hari jadwal berlangsung.' }
+
+  const db = await getDB()
+  const limit = normalizeForgottenMonthlyLimit(await getSystemSettingNumber(
+    SYSTEM_SETTING_KEYS.agendaForgottenMonthlyLimit,
+    2,
+  ))
+  if (limit === 0) return { error: 'Fitur pengajuan lupa mengisi agenda sedang dinonaktifkan.' }
+  if (!(await getSystemSettingBoolean(SYSTEM_SETTING_KEYS.agendaTimeRestriction, true))) {
+    return { error: 'Batas waktu agenda sedang dinonaktifkan; silakan isi agenda seperti biasa.' }
+  }
+
+  const calendarStatus = await getKalenderDateStatus(db, tanggal)
+  if (!calendarStatus.isEffective) return { error: 'Tanggal ini bukan hari efektif pembelajaran.' }
+
+  const hariDate = new Date(`${tanggal}T00:00:00`)
+  const hari = hariDate.getDay() || 7
+  const assignment = await db.prepare(`
+    SELECT pm.guru_id, k.id AS kelas_id, k.tingkat, k.kbm_nonaktif_mulai,
+      ta.id AS tahun_ajaran_id, ta.jam_pelajaran
+    FROM penugasan_mengajar pm
+    JOIN kelas k ON k.id = pm.kelas_id
+    JOIN tahun_ajaran ta ON ta.id = pm.tahun_ajaran_id AND ta.is_active = 1
+    WHERE pm.id = ? AND pm.guru_id = ?
+  `).bind(penugasanId, user.id).first<any>()
+  if (!assignment) return { error: 'Pengajuan hanya dapat dibuat oleh guru utama pemilik jadwal.' }
+  if (assignment.kbm_nonaktif_mulai && assignment.kbm_nonaktif_mulai <= tanggal) {
+    return { error: 'Kelas ini sudah tidak memiliki kewajiban KBM.' }
+  }
+
+  const scheduleRows = await db.prepare(`SELECT jam_ke FROM jadwal_mengajar
+    WHERE penugasan_id = ? AND tahun_ajaran_id = ? AND hari = ? ORDER BY jam_ke`)
+    .bind(penugasanId, assignment.tahun_ajaran_id, hari).all<{ jam_ke: number }>()
+  const slotState = splitTeachingSlotsByExceptions(
+    await getKbmExceptionsForDate(db, tanggal),
+    { id: assignment.kelas_id, tingkat: Number(assignment.tingkat) },
+    (scheduleRows.results || []).map(row => Number(row.jam_ke)),
+  )
+  if (slotState.activeJamKe.length === 0) return { error: 'Blok ini tidak memiliki jam KBM aktif.' }
+
+  const jamKeMulai = slotState.activeJamKe[0]
+  const jamKeSelesai = slotState.activeJamKe[slotState.activeJamKe.length - 1]
+  const slots = getPolaHariIni(assignment.jam_pelajaran || '[]', hari)
+  const selesai = slots.find(slot => slot.id === jamKeSelesai)?.selesai
+  if (!selesai) return { error: 'Batas waktu jadwal tidak ditemukan. Hubungi admin.' }
+  const [selesaiHour, selesaiMinute] = selesai.split(':').map(Number)
+  const current = currentTimeWIB()
+  if (current.hours * 60 + current.minutes < selesaiHour * 60 + selesaiMinute) {
+    return { error: `Pengajuan baru tersedia setelah jam pelajaran selesai pukul ${selesai}.` }
+  }
+
+  const submittedAt = nowWIBISO()
+  let inserted: { id: string } | null = null
+  try {
+    inserted = await db.prepare(`
+      INSERT INTO agenda_lupa_pengajuan
+        (guru_id, penugasan_id, tanggal, jam_ke_mulai, jam_ke_selesai, materi, status, submitted_at, updated_at)
+      SELECT ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?
+      WHERE (SELECT COUNT(*) FROM agenda_lupa_pengajuan
+             WHERE guru_id = ? AND substr(tanggal, 1, 7) = ?) < ?
+        AND NOT EXISTS (SELECT 1 FROM agenda_guru WHERE penugasan_id = ? AND tanggal = ?)
+        AND NOT EXISTS (
+          SELECT 1 FROM delegasi_tugas_kelas dtk
+          JOIN delegasi_tugas dt ON dt.id = dtk.delegasi_id
+          WHERE dtk.penugasan_mengajar_id = ? AND dt.tanggal = ?
+        )
+      RETURNING id
+    `).bind(
+      user.id, penugasanId, tanggal, jamKeMulai, jamKeSelesai, materi, submittedAt, submittedAt,
+      user.id, tanggal.slice(0, 7), limit,
+      penugasanId, tanggal, penugasanId, tanggal,
+    ).first<{ id: string }>()
+  } catch (error: any) {
+    if (String(error?.message || '').includes('UNIQUE')) return { error: 'Jadwal ini sudah pernah diajukan.' }
+    return { error: error?.message || 'Pengajuan gagal disimpan.' }
+  }
+
+  if (!inserted) {
+    const [existingRequest, existingAgenda, delegated, usage] = await Promise.all([
+      db.prepare('SELECT id FROM agenda_lupa_pengajuan WHERE penugasan_id = ? AND tanggal = ?')
+        .bind(penugasanId, tanggal).first(),
+      db.prepare('SELECT id FROM agenda_guru WHERE penugasan_id = ? AND tanggal = ?')
+        .bind(penugasanId, tanggal).first(),
+      db.prepare(`SELECT dtk.id FROM delegasi_tugas_kelas dtk JOIN delegasi_tugas dt ON dt.id = dtk.delegasi_id
+        WHERE dtk.penugasan_mengajar_id = ? AND dt.tanggal = ? LIMIT 1`)
+        .bind(penugasanId, tanggal).first(),
+      db.prepare(`SELECT COUNT(*) AS total FROM agenda_lupa_pengajuan
+        WHERE guru_id = ? AND substr(tanggal, 1, 7) = ?`)
+        .bind(user.id, tanggal.slice(0, 7)).first<{ total: number }>(),
+    ])
+    if (existingRequest) return { error: 'Jadwal ini sudah pernah diajukan.' }
+    if (existingAgenda) return { error: 'Agenda untuk jadwal ini sudah terisi.' }
+    if (delegated) return { error: 'Jadwal ini sudah didelegasikan sebagai sakit/izin.' }
+    if (Number(usage?.total || 0) >= limit) return { error: `Kuota ${limit} pengajuan bulan ini sudah habis.` }
+    return { error: 'Pengajuan tidak dapat disimpan. Muat ulang halaman lalu coba lagi.' }
+  }
+
+  await logActivity({
+    db,
+    module: 'agenda',
+    action: 'request_forgotten_agenda',
+    summary: `${(user as any).nama_lengkap || user.name || 'Guru'} mengajukan lupa mengisi agenda ${tanggal}, jam ke-${jamKeMulai}-${jamKeSelesai}`,
+    entityType: 'agenda_lupa_pengajuan',
+    entityId: inserted.id,
+    entityLabel: `${tanggal} jam ke-${jamKeMulai}-${jamKeSelesai}`,
+    metadata: { guruId: user.id, penugasanId, tanggal, jamKeMulai, jamKeSelesai, materi },
+  })
+  revalidatePath('/dashboard/agenda')
+  revalidatePath('/dashboard/monitoring-agenda')
+  return { success: 'Pengajuan berhasil dikirim dan menunggu persetujuan Wakamad Kurikulum.' }
 }
 
 function parseAgendaLateThresholdByJam(raw: string): Record<string, number> {

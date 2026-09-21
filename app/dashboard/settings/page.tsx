@@ -73,6 +73,10 @@ export default async function SettingsPage() {
     SYSTEM_SETTING_KEYS.agendaLateThresholdByJam,
     '{}'
   )
+  const agendaForgottenMonthlyLimit = Math.max(0, Math.floor(await getSystemSettingNumber(
+    SYSTEM_SETTING_KEYS.agendaForgottenMonthlyLimit,
+    2,
+  )))
   const attendanceTimeRestrictionEnabled = await getSystemSettingBoolean(
     SYSTEM_SETTING_KEYS.attendanceTimeRestriction,
     false
@@ -110,6 +114,7 @@ export default async function SettingsPage() {
         agendaLateEnabled={agendaLateEnabled}
         agendaLateThresholdMinutes={agendaLateThresholdMinutes}
         agendaLateThresholdByJam={agendaLateThresholdByJam}
+        agendaForgottenMonthlyLimit={agendaForgottenMonthlyLimit}
         attendanceTimeRestrictionEnabled={attendanceTimeRestrictionEnabled}
         attendanceSkipIncompleteForDailyStatusEnabled={attendanceSkipIncompleteForDailyStatusEnabled}
         heroBackgroundImageUrl={heroBackgroundImageUrl}

@@ -21,7 +21,7 @@ import {
 import {
   tambahTahunAjaran, setAktifTahunAjaran, hapusTahunAjaran,
   simpanDaftarJurusan, simpanJamPelajaran,
-  setAgendaTimeRestrictionEnabled, setAgendaLateSetting, setAttendanceTimeRestrictionEnabled,
+  setAgendaTimeRestrictionEnabled, setAgendaLateSetting, setAgendaForgottenMonthlyLimit, setAttendanceTimeRestrictionEnabled,
   setAttendanceSkipIncompleteForDailyStatusEnabled, setHeroSettings, uploadHeroImageAction,
   setDashboardItemVisibility, setDashboardExtraWidgets, setParentLoginHelpSettings, setParentLoginBlockSettings,
   setParentPortalDisciplineSettings,
@@ -385,6 +385,7 @@ export function SettingsClient({
   agendaLateEnabled,
   agendaLateThresholdMinutes,
   agendaLateThresholdByJam,
+  agendaForgottenMonthlyLimit,
   attendanceTimeRestrictionEnabled,
   attendanceSkipIncompleteForDailyStatusEnabled,
   heroBackgroundImageUrl,
@@ -409,6 +410,7 @@ export function SettingsClient({
   agendaLateEnabled: boolean
   agendaLateThresholdMinutes: number
   agendaLateThresholdByJam: string
+  agendaForgottenMonthlyLimit: number
   attendanceTimeRestrictionEnabled: boolean
   attendanceSkipIncompleteForDailyStatusEnabled: boolean
   heroBackgroundImageUrl: string
@@ -435,6 +437,7 @@ export function SettingsClient({
   const [agendaLateByJam, setAgendaLateByJam] = useState<Record<string, string>>(
     () => parseAgendaLateThresholdByJam(agendaLateThresholdByJam)
   )
+  const [agendaForgottenLimit, setAgendaForgottenLimit] = useState(String(agendaForgottenMonthlyLimit))
   const [attendanceTimeRestricted, setAttendanceTimeRestricted] = useState(attendanceTimeRestrictionEnabled)
   const [attendanceSkipIncomplete, setAttendanceSkipIncomplete] = useState(attendanceSkipIncompleteForDailyStatusEnabled)
 
@@ -557,6 +560,7 @@ export function SettingsClient({
   const [isSavingJam, setIsSavingJam] = useState(false)
   const [isSavingAgendaSetting, setIsSavingAgendaSetting] = useState(false)
   const [isSavingAgendaLateSetting, setIsSavingAgendaLateSetting] = useState(false)
+  const [isSavingAgendaForgottenLimit, setIsSavingAgendaForgottenLimit] = useState(false)
   const [isSavingAttendanceSetting, setIsSavingAttendanceSetting] = useState(false)
   const [isSavingAttendanceSkipSetting, setIsSavingAttendanceSkipSetting] = useState(false)
 
@@ -667,6 +671,19 @@ export function SettingsClient({
     setIsSavingAgendaLateSetting(false)
     if (res?.error) alert(res.error)
     else alert('Pengaturan batas telat agenda berhasil disimpan.')
+  }
+
+  const handleSaveAgendaForgottenLimit = async () => {
+    const limit = Number(agendaForgottenLimit)
+    if (!Number.isInteger(limit) || limit < 0) {
+      alert('Batas pengajuan harus berupa bilangan bulat 0 atau lebih.')
+      return
+    }
+    setIsSavingAgendaForgottenLimit(true)
+    const res = await setAgendaForgottenMonthlyLimit(limit)
+    setIsSavingAgendaForgottenLimit(false)
+    if (res?.error) alert(res.error)
+    else alert('Batas pengajuan lupa agenda berhasil disimpan.')
   }
 
   const handleAttendanceTimeRestrictionToggle = async () => {
@@ -1260,6 +1277,38 @@ export function SettingsClient({
           <div>
             <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100">Perilaku Input Guru dan Pramubakti</p>
             <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Atur batas waktu agenda guru dan pelaporan Pramubakti. Absensi siswa tetap mengikuti jam pelajaran.</p>
+          </div>
+        </div>
+        <div className="border-b border-surface-2 px-5 py-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Batas pengajuan lupa mengisi agenda</p>
+              <p className="max-w-2xl text-xs text-slate-500 dark:text-slate-400">
+                Jumlah pengajuan yang dapat dibuat setiap guru dalam satu bulan kalender. Pengajuan yang ditolak tetap memakai kuota; nilai 0 menonaktifkan fitur.
+              </p>
+            </div>
+            <div className="flex items-end gap-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-slate-600 dark:text-slate-300">Pengajuan per bulan</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={agendaForgottenLimit}
+                  onChange={event => setAgendaForgottenLimit(event.target.value)}
+                  disabled={isSavingAgendaForgottenLimit}
+                  className="h-9 w-28 rounded-lg bg-surface-2 text-sm"
+                />
+              </div>
+              <Button
+                type="button"
+                onClick={handleSaveAgendaForgottenLimit}
+                disabled={isSavingAgendaForgottenLimit}
+                className="h-9 rounded-lg bg-slate-900 text-xs text-white hover:bg-slate-800"
+              >
+                {isSavingAgendaForgottenLimit ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Simpan'}
+              </Button>
+            </div>
           </div>
         </div>
         <div className="px-5 py-4 flex items-start justify-between gap-4 border-b border-surface-2">

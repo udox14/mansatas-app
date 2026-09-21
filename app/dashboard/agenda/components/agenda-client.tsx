@@ -9,8 +9,9 @@ import { Label } from '@/components/ui/label'
 import {
   Camera, CheckCircle2, Clock, AlertTriangle, XCircle,
   Loader2, BookOpen, Send, RefreshCw, ClipboardPen, Ban,
+  FileWarning,
 } from 'lucide-react'
-import { submitAgenda, getJadwalGuruHariIni } from '../actions'
+import { submitAgenda, submitForgottenAgendaRequest, getJadwalGuruHariIni } from '../actions'
 import type { SlotJam } from '@/app/dashboard/settings/types'
 import { compressAgendaImage } from './image-compression'
 import type { KbmException } from '@/lib/kalender-pendidikan'
@@ -43,6 +44,12 @@ type JadwalBlock = {
   deskripsi_ketidakhadiran?: string | null
   agenda_id?: string
   status?: string
+  pengajuan_lupa_id?: string
+  pengajuan_lupa_status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
+  pengajuan_lupa_catatan?: string | null
+  blok_selesai: boolean
+  waktu_pengisian_berakhir: boolean
+  bisa_ajukan_lupa: boolean
 }
 
 interface AgendaClientProps {
@@ -52,6 +59,7 @@ interface AgendaClientProps {
     slots: SlotJam[]
     tanggal: string
     hari: number
+    forgottenRequestQuota?: { limit: number; used: number; remaining: number }
     kbmExceptions?: KbmException[]
     calendarStatus?: { isEffective: boolean; reason: string | null; category: string | null }
   }
@@ -93,6 +101,9 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [pesan, setPesan] = useState<{ tipe: 'sukses' | 'error'; teks: string } | null>(null)
   const [showCamera, setShowCamera] = useState(false)
+  const [forgottenBlock, setForgottenBlock] = useState<string | null>(null)
+  const [forgottenMateri, setForgottenMateri] = useState('')
+  const [isSubmittingForgotten, setIsSubmittingForgotten] = useState(false)
 
   const handleRefresh = async ({ clearMessage = true }: { clearMessage?: boolean } = {}) => {
     setIsRefreshing(true)
@@ -168,6 +179,38 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
     }
   }
 
+  const handleForgottenRequest = async (block: JadwalBlock) => {
+    if (!forgottenMateri.trim()) {
+      setPesan({ tipe: 'error', teks: 'Materi wajib diisi.' })
+      return
+    }
+    if (!confirm('Pengajuan ini akan memakai satu kuota bulan berjalan, termasuk jika nantinya ditolak. Kirim pengajuan?')) return
+
+    setIsSubmittingForgotten(true)
+    setPesan(null)
+    const formData = new FormData()
+    formData.append('penugasan_id', block.penugasan_id)
+    formData.append('tanggal', data.tanggal)
+    formData.append('materi', forgottenMateri.trim())
+    try {
+      const result = await withTimeout(
+        submitForgottenAgendaRequest(formData),
+        'Pengajuan terlalu lama. Periksa koneksi lalu muat ulang halaman.',
+      )
+      if (result.error) setPesan({ tipe: 'error', teks: result.error })
+      else {
+        setPesan({ tipe: 'sukses', teks: result.success || 'Pengajuan berhasil dikirim.' })
+        setForgottenBlock(null)
+        setForgottenMateri('')
+        await handleRefresh({ clearMessage: false })
+      }
+    } catch (error: any) {
+      setPesan({ tipe: 'error', teks: error?.message || 'Pengajuan gagal dikirim.' })
+    } finally {
+      setIsSubmittingForgotten(false)
+    }
+  }
+
   const { blocks, tanggal, hari, error, calendarStatus } = data
   const activeExceptions = data.kbmExceptions || []
   const activeBlockCount = blocks.filter(block => !block.is_fully_excepted).length
@@ -222,6 +265,11 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
             {HARI_NAMA[hari]}, {new Date(tanggal + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
           </p>
           <p className="text-xs text-slate-500 dark:text-slate-400">{activeBlockCount} blok wajib agenda dari {blocks.length} jadwal</p>
+          {data.forgottenRequestQuota && (
+            <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+              Kuota lupa agenda bulan ini: {data.forgottenRequestQuota.used}/{data.forgottenRequestQuota.limit}
+            </p>
+          )}
         </div>
         <Button variant="outline" size="sm" onClick={() => handleRefresh()} disabled={isRefreshing}>
           <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -299,6 +347,36 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                       {style.label}
                     </div>
                   </>
+                ) : block.pengajuan_lupa_status === 'PENDING' ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+                    <Clock className="h-3.5 w-3.5" /> Menunggu persetujuan
+                  </span>
+                ) : block.pengajuan_lupa_status === 'REJECTED' ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700">
+                    <XCircle className="h-3.5 w-3.5" /> Pengajuan ditolak
+                  </span>
+                ) : block.pengajuan_lupa_status === 'CANCELLED' ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
+                    <Ban className="h-3.5 w-3.5" /> Pengajuan dibatalkan
+                  </span>
+                ) : block.bisa_ajukan_lupa ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setForgottenBlock(forgottenBlock === block.penugasan_id ? null : block.penugasan_id)
+                      setForgottenMateri('')
+                      setExpandedBlock(null)
+                      setPesan(null)
+                    }}
+                    className="border-amber-300 bg-amber-50 text-xs text-amber-800 hover:bg-amber-100"
+                  >
+                    <FileWarning className="mr-1 h-3.5 w-3.5" /> Ajukan Lupa Isi
+                  </Button>
+                ) : block.waktu_pengisian_berakhir ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700">
+                    <XCircle className="h-3.5 w-3.5" /> Alfa
+                  </span>
                 ) : (
                   <Button
                     size="sm"
@@ -318,6 +396,47 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                 )}
               </div>
             </div>
+
+            {block.pengajuan_lupa_status === 'REJECTED' && block.pengajuan_lupa_catatan && (
+              <div className="border-t border-red-100 bg-red-50/60 px-4 py-2 text-xs text-red-700">
+                Catatan reviewer: {block.pengajuan_lupa_catatan}
+              </div>
+            )}
+
+            {forgottenBlock === block.penugasan_id && block.bisa_ajukan_lupa && (
+              <div className="space-y-3 border-t border-amber-200 bg-amber-50/60 px-4 py-4">
+                <div>
+                  <Label htmlFor={`forgotten-materi-${block.penugasan_id}`} className="text-xs font-semibold text-slate-700">
+                    Materi yang diajarkan
+                  </Label>
+                  <textarea
+                    id={`forgotten-materi-${block.penugasan_id}`}
+                    value={forgottenMateri}
+                    onChange={event => setForgottenMateri(event.target.value)}
+                    rows={3}
+                    placeholder="Tuliskan materi pembelajaran pada jam tersebut..."
+                    className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100"
+                  />
+                </div>
+                <p className="text-xs text-amber-800">
+                  Foto tidak diperlukan. Pengajuan tetap memakai satu kuota walaupun ditolak.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => handleForgottenRequest(block)}
+                    disabled={isSubmittingForgotten || !forgottenMateri.trim()}
+                    className="bg-amber-600 text-white hover:bg-amber-700"
+                  >
+                    {isSubmittingForgotten ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Send className="mr-1 h-3.5 w-3.5" />}
+                    Kirim Pengajuan
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setForgottenBlock(null)} disabled={isSubmittingForgotten}>
+                    Batal
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {isExpanded && !block.sudah_isi && !block.sudah_didelegasi && (
               <div className="border-t bg-slate-50 dark:bg-slate-800/50 px-4 py-4 space-y-4">

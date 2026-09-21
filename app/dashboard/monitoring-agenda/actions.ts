@@ -6,6 +6,9 @@ import { isSchoolLeave, teacherPerformance, type TeacherLeaveMetadata } from '@/
 import { dbUpdate, dbInsert } from '@/utils/db'
 import { getDB as getRawDB } from '@/utils/db-server'
 import { requireActionAccess } from '@/lib/action-security'
+import { logActivity } from '@/lib/activity-log'
+import { getUserRoles } from '@/lib/features'
+import { canReviewForgottenAgendaForRoles, type ForgottenAgendaRequestStatus } from '@/lib/agenda-forgotten'
 
 async function getDB() {
   await requireActionAccess('monitoring-agenda', 'read')
@@ -23,6 +26,17 @@ import {
   splitTeachingSlotsByExceptions,
 } from '@/lib/kalender-pendidikan'
 import { currentTimeWIB, nowWIBISO, todayWIB } from '@/lib/time'
+
+export type { ForgottenAgendaRequestStatus } from '@/lib/agenda-forgotten'
+
+async function canReviewForgottenAgenda(db: D1Database, userId: string, roles?: string[]) {
+  const resolvedRoles = roles ?? await getUserRoles(db, userId)
+  if (canReviewForgottenAgendaForRoles(resolvedRoles, null)) return true
+  if (!resolvedRoles.includes('wakamad')) return false
+  const structural = await db.prepare('SELECT jabatan_struktural_id FROM "user" WHERE id = ?')
+    .bind(userId).first<{ jabatan_struktural_id: string | null }>()
+  return canReviewForgottenAgendaForRoles(resolvedRoles, structural?.jabatan_struktural_id)
+}
 
 // ============================================================
 // HELPER
@@ -301,6 +315,181 @@ export async function getFilterOptions() {
       label: formatNamaKelas(k.tingkat, k.nomor_kelas, k.kelompok),
     })),
   }
+}
+
+// ============================================================
+// PENGAJUAN LUPA MENGISI AGENDA
+// ============================================================
+export async function getForgottenAgendaRequests(status: ForgottenAgendaRequestStatus | 'ALL' = 'PENDING') {
+  const user = await getCurrentUser()
+  if (!user) return { error: 'Unauthorized', data: [], canReview: false }
+  const db = await getDB()
+  const validStatuses = new Set(['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED', 'ALL'])
+  const normalizedStatus = validStatuses.has(status) ? status : 'PENDING'
+  const where = normalizedStatus === 'ALL' ? '' : 'WHERE req.status = ?'
+  const query = db.prepare(`
+    SELECT req.id, req.guru_id, req.penugasan_id, req.tanggal,
+      req.jam_ke_mulai, req.jam_ke_selesai, req.materi, req.status,
+      req.submitted_at, req.reviewed_at, req.review_note, req.agenda_id,
+      guru.nama_lengkap AS guru_nama,
+      reviewer.nama_lengkap AS reviewer_nama,
+      mp.nama_mapel,
+      k.tingkat, k.nomor_kelas, k.kelompok,
+      (SELECT COUNT(*) FROM agenda_lupa_pengajuan monthly
+       WHERE monthly.guru_id = req.guru_id
+         AND substr(monthly.tanggal, 1, 7) = substr(req.tanggal, 1, 7)) AS monthly_usage
+    FROM agenda_lupa_pengajuan req
+    JOIN "user" guru ON guru.id = req.guru_id
+    JOIN penugasan_mengajar pm ON pm.id = req.penugasan_id
+    JOIN mata_pelajaran mp ON mp.id = pm.mapel_id
+    JOIN kelas k ON k.id = pm.kelas_id
+    LEFT JOIN "user" reviewer ON reviewer.id = req.reviewed_by
+    ${where}
+    ORDER BY CASE req.status WHEN 'PENDING' THEN 0 ELSE 1 END,
+      req.submitted_at ASC
+    LIMIT 500
+  `)
+  const rows = normalizedStatus === 'ALL'
+    ? await query.all<any>()
+    : await query.bind(normalizedStatus).all<any>()
+
+  return {
+    error: null,
+    canReview: await canReviewForgottenAgenda(db, user.id),
+    data: (rows.results || []).map(row => ({
+      ...row,
+      kelas_label: formatNamaKelas(row.tingkat, row.nomor_kelas, row.kelompok),
+      monthly_usage: Number(row.monthly_usage || 0),
+    })),
+  }
+}
+
+export async function reviewForgottenAgendaRequest(
+  requestId: string,
+  decision: 'APPROVE' | 'REJECT',
+  note?: string,
+): Promise<{ error?: string; success?: string }> {
+  const actor = await requireActionAccess('monitoring-agenda', 'update', {
+    allowedRoles: ['super_admin', 'wakamad'],
+  })
+  if (actor.kind !== 'staff') return { error: 'Unauthorized' }
+  const db = await getRawDB()
+  if (!(await canReviewForgottenAgenda(db, actor.id, actor.roles))) {
+    return { error: 'Hanya Super Admin atau Wakamad Kurikulum yang dapat meninjau pengajuan.' }
+  }
+  if (!requestId || !['APPROVE', 'REJECT'].includes(decision)) return { error: 'Keputusan tidak valid.' }
+
+  const request = await db.prepare(`
+    SELECT req.*, guru.nama_lengkap AS guru_nama,
+      EXISTS(SELECT 1 FROM agenda_guru ag WHERE ag.penugasan_id = req.penugasan_id AND ag.tanggal = req.tanggal) AS agenda_exists
+    FROM agenda_lupa_pengajuan req
+    JOIN "user" guru ON guru.id = req.guru_id
+    WHERE req.id = ?
+  `).bind(requestId).first<any>()
+  if (!request) return { error: 'Pengajuan tidak ditemukan.' }
+  if (request.status !== 'PENDING') return { error: 'Pengajuan ini sudah ditinjau. Muat ulang antrean.' }
+
+  const reviewedAt = nowWIBISO()
+  const cleanNote = String(note || '').trim() || null
+  if (Number(request.agenda_exists) === 1) {
+    const cancelled = await db.prepare(`UPDATE agenda_lupa_pengajuan
+      SET status = 'CANCELLED', reviewed_by = ?, reviewed_at = ?,
+        review_note = ?, updated_at = ?
+      WHERE id = ? AND status = 'PENDING' RETURNING id`)
+      .bind(actor.id, reviewedAt, cleanNote || 'Agenda sudah terisi melalui mekanisme lain.', reviewedAt, requestId)
+      .first<{ id: string }>()
+    if (!cancelled) return { error: 'Pengajuan sudah berubah. Muat ulang antrean.' }
+    await logActivity({
+      db, module: 'monitoring-agenda', action: 'cancel_forgotten_agenda_request',
+      summary: `Membatalkan pengajuan lupa agenda ${request.guru_nama} karena agenda sudah terisi`,
+      entityType: 'agenda_lupa_pengajuan', entityId: requestId,
+      entityLabel: `${request.tanggal} jam ke-${request.jam_ke_mulai}-${request.jam_ke_selesai}`,
+      metadata: { reviewerId: actor.id, guruId: request.guru_id, penugasanId: request.penugasan_id, materi: request.materi, decision: 'CANCELLED', reason: 'agenda_already_exists' },
+    })
+    revalidatePath('/dashboard/monitoring-agenda')
+    return { success: 'Pengajuan dibatalkan karena agenda sudah terisi melalui mekanisme lain.' }
+  }
+
+  if (decision === 'REJECT') {
+    const rejected = await db.prepare(`UPDATE agenda_lupa_pengajuan
+      SET status = 'REJECTED', reviewed_by = ?, reviewed_at = ?, review_note = ?, updated_at = ?
+      WHERE id = ? AND status = 'PENDING' RETURNING id`)
+      .bind(actor.id, reviewedAt, cleanNote, reviewedAt, requestId).first<{ id: string }>()
+    if (!rejected) return { error: 'Pengajuan sudah berubah. Muat ulang antrean.' }
+    await logActivity({
+      db, module: 'monitoring-agenda', action: 'reject_forgotten_agenda_request',
+      summary: `Menolak pengajuan lupa agenda ${request.guru_nama}`,
+      entityType: 'agenda_lupa_pengajuan', entityId: requestId,
+      entityLabel: `${request.tanggal} jam ke-${request.jam_ke_mulai}-${request.jam_ke_selesai}`,
+      metadata: { reviewerId: actor.id, guruId: request.guru_id, penugasanId: request.penugasan_id, materi: request.materi, decision: 'REJECTED', note: cleanNote },
+    })
+    revalidatePath('/dashboard/agenda')
+    revalidatePath('/dashboard/monitoring-agenda')
+    return { success: 'Pengajuan ditolak. Status jadwal tetap Alfa.' }
+  }
+
+  const agendaId = crypto.randomUUID().replace(/-/g, '')
+  const adminNote = cleanNote
+    ? `Pengajuan lupa mengisi agenda disetujui. Catatan: ${cleanNote}`
+    : 'Pengajuan lupa mengisi agenda disetujui.'
+  try {
+    const results = await db.batch([
+      db.prepare(`
+        INSERT INTO agenda_guru
+          (id, guru_id, penugasan_id, tanggal, jam_ke_mulai, jam_ke_selesai,
+           materi, foto_url, status, waktu_input, catatan_admin, diubah_oleh, created_at, updated_at)
+        SELECT ?, guru_id, penugasan_id, tanggal, jam_ke_mulai, jam_ke_selesai,
+          materi, NULL, 'TELAT', submitted_at, ?, ?, ?, ?
+        FROM agenda_lupa_pengajuan
+        WHERE id = ? AND status = 'PENDING'
+          AND NOT EXISTS (
+            SELECT 1 FROM agenda_guru ag
+            WHERE ag.penugasan_id = agenda_lupa_pengajuan.penugasan_id
+              AND ag.tanggal = agenda_lupa_pengajuan.tanggal
+          )
+      `).bind(agendaId, adminNote, actor.id, reviewedAt, reviewedAt, requestId),
+      db.prepare(`UPDATE agenda_lupa_pengajuan
+        SET status = 'APPROVED', reviewed_by = ?, reviewed_at = ?, review_note = ?,
+          agenda_id = ?, updated_at = ?
+        WHERE id = ? AND status = 'PENDING'
+          AND EXISTS (SELECT 1 FROM agenda_guru WHERE id = ?)`)
+        .bind(actor.id, reviewedAt, cleanNote, agendaId, reviewedAt, requestId, agendaId),
+    ])
+    if (Number((results[0] as any)?.meta?.changes || 0) !== 1 || Number((results[1] as any)?.meta?.changes || 0) !== 1) {
+      return { error: 'Pengajuan sudah berubah atau agenda telah terisi. Muat ulang antrean.' }
+    }
+  } catch (error: any) {
+    const existingAgenda = await db.prepare('SELECT id FROM agenda_guru WHERE penugasan_id = ? AND tanggal = ?')
+      .bind(request.penugasan_id, request.tanggal).first()
+    if (existingAgenda) {
+      const cancelled = await db.prepare(`UPDATE agenda_lupa_pengajuan SET status = 'CANCELLED', reviewed_by = ?, reviewed_at = ?,
+        review_note = ?, updated_at = ? WHERE id = ? AND status = 'PENDING' RETURNING id`)
+        .bind(actor.id, reviewedAt, 'Agenda sudah terisi melalui mekanisme lain.', reviewedAt, requestId)
+        .first<{ id: string }>()
+      if (!cancelled) return { error: 'Pengajuan sudah berubah. Muat ulang antrean.' }
+      await logActivity({
+        db, module: 'monitoring-agenda', action: 'cancel_forgotten_agenda_request',
+        summary: `Membatalkan pengajuan lupa agenda ${request.guru_nama} karena agenda sudah terisi`,
+        entityType: 'agenda_lupa_pengajuan', entityId: requestId,
+        entityLabel: `${request.tanggal} jam ke-${request.jam_ke_mulai}-${request.jam_ke_selesai}`,
+        metadata: { reviewerId: actor.id, guruId: request.guru_id, penugasanId: request.penugasan_id, materi: request.materi, decision: 'CANCELLED', reason: 'agenda_already_exists' },
+      })
+      revalidatePath('/dashboard/monitoring-agenda')
+      return { success: 'Pengajuan dibatalkan karena agenda sudah terisi melalui mekanisme lain.' }
+    }
+    return { error: error?.message || 'Persetujuan gagal disimpan.' }
+  }
+
+  await logActivity({
+    db, module: 'monitoring-agenda', action: 'approve_forgotten_agenda_request',
+    summary: `Menyetujui pengajuan lupa agenda ${request.guru_nama} sebagai Telat`,
+    entityType: 'agenda_lupa_pengajuan', entityId: requestId,
+    entityLabel: `${request.tanggal} jam ke-${request.jam_ke_mulai}-${request.jam_ke_selesai}`,
+    metadata: { reviewerId: actor.id, guruId: request.guru_id, penugasanId: request.penugasan_id, materi: request.materi, decision: 'APPROVED', agendaId, status: 'TELAT', note: cleanNote },
+  })
+  revalidatePath('/dashboard/agenda')
+  revalidatePath('/dashboard/monitoring-agenda')
+  return { success: 'Pengajuan disetujui dan agenda dicatat sebagai Telat.' }
 }
 
 // ============================================================
