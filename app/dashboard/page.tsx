@@ -216,7 +216,7 @@ export default async function DashboardPage({
 
   return (
     <>
-      <AgendaAccessSecurityBanner warning={accessWarning} />
+      <AgendaAccessSecurityBanner warning={accessWarning} userId={user.id} />
       <DashboardSPAShell
         heroNode={<WelcomeStrip {...commonProps} />}
         polaJam={polaJam}

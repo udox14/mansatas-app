@@ -16,6 +16,7 @@ import { DEFAULT_SIDEBAR_GROUPS, parseSidebarGroups, resolveSidebarGroups, type 
 import { getUnreadStudentNoteCountForWali } from '@/lib/student-notes'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
 import { PLAY_REVIEWER_ROLE } from '@/lib/play-reviewer'
+import { touchStaffDeviceSession } from '@/lib/staff-device-sessions'
 
 const SIDEBAR_TEMPLATE_KEY = 'default'
 
@@ -37,6 +38,11 @@ export default async function DashboardLayout({
   const user = session.user
 
   const db = await getDB()
+
+  await touchStaffDeviceSession(db, {
+    sessionId: session.session.id,
+    userId: user.id,
+  }).catch(error => console.error('Gagal mencatat perangkat sesi:', error))
 
   // Query semua data user sekaligus (parallel)
   const [freshUser, userRoles, allowedFeatures] = await Promise.all([

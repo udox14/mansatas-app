@@ -115,7 +115,7 @@ export default async function AgendaPage({
         title="Agenda Guru"
         description="Isi agenda mengajar dan catat kehadiran piket sesuai jadwal Anda hari ini."
       />
-      <AgendaAccessSecurityBanner warning={accessWarning} />
+      <AgendaAccessSecurityBanner warning={accessWarning} userId={user.id} />
 
       {/* Act As Banner — hanya untuk super admin */}
       {isSuperAdmin && (

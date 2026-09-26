@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { DataPagination } from '@/components/ui/data-pagination'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   blockAgendaAccess,
   runHistoricalAgendaAccessScan,
@@ -18,9 +19,11 @@ import {
 } from './actions'
 import type { AgendaAccessEvidence, AgendaAccessReason } from '@/lib/agenda-access-audit'
 import { parseDeviceInfo } from '@/lib/device-info'
+import type { AccountDeviceSummary } from '@/lib/staff-device-sessions'
 
 type Props = {
   alerts: AuditAlertRow[]
+  deviceAccounts: AccountDeviceSummary[]
   total: number
   summary: { low: number; medium: number; high: number; blocked: number }
   canManage: boolean
@@ -39,9 +42,10 @@ const REASON_LABELS: Record<AgendaAccessReason, string> = {
 }
 
 export function AuditAksesAgendaClient(props: Props) {
-  const { alerts, total, summary, canManage, filters, lastScan } = props
+  const { alerts, deviceAccounts, total, summary, canManage, filters, lastScan } = props
   const router = useRouter()
   const [selected, setSelected] = useState<AuditAlertRow | null>(null)
+  const [selectedAccount, setSelectedAccount] = useState<AccountDeviceSummary | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const page = Number(filters.page) || 1
@@ -120,6 +124,53 @@ export function AuditAksesAgendaClient(props: Props) {
         {message && <p role="status" className="mt-3 rounded-lg bg-slate-100 px-3 py-2 text-sm dark:bg-slate-900">{message}</p>}
       </form>
 
+      <Tabs defaultValue="devices" className="space-y-3">
+        <TabsList className="h-auto flex-wrap">
+          <TabsTrigger value="devices">Perangkat Akun ({deviceAccounts.length})</TabsTrigger>
+          <TabsTrigger value="alerts">Indikator Pergantian Akun ({total})</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="devices" className="space-y-3">
+          <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-100">
+            <p className="font-medium">Jumlah perangkat adalah indikator pemeriksaan, bukan bukti kecurangan.</p>
+            <p className="mt-1 text-xs opacity-80">Perangkat aktif berarti masih memiliki sesi server yang valid. Karena masa sesi panjang, perhatikan juga waktu terakhir terlihat dan pemakaian Agenda terakhir.</p>
+          </div>
+          <div className="overflow-hidden rounded-xl border bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[850px] text-sm">
+                <thead className="bg-slate-50 text-xs uppercase text-slate-500 dark:bg-slate-900">
+                  <tr>
+                    <th className="px-4 py-3 text-left">Akun</th>
+                    <th className="px-4 py-3 text-center">Perangkat aktif</th>
+                    <th className="px-4 py-3 text-center">Sesi aktif</th>
+                    <th className="px-4 py-3 text-center">Pernah tercatat</th>
+                    <th className="px-4 py-3 text-left">Terakhir terlihat</th>
+                    <th className="px-4 py-3 text-right">Detail</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y dark:divide-slate-800">
+                  {deviceAccounts.map(account => (
+                    <tr key={account.userId} className="hover:bg-slate-50 dark:hover:bg-slate-900/60">
+                      <td className="px-4 py-3">
+                        <div className="font-medium">{account.userName}</div>
+                        <div className="text-xs text-slate-500">{account.userEmail || '-'}</div>
+                      </td>
+                      <td className="px-4 py-3 text-center"><DeviceCount value={account.activeDeviceCount} emphasize={account.activeDeviceCount > 1} /></td>
+                      <td className="px-4 py-3 text-center tabular-nums">{account.activeSessionCount}</td>
+                      <td className="px-4 py-3 text-center tabular-nums">{account.knownDeviceCount}</td>
+                      <td className="whitespace-nowrap px-4 py-3">{formatDate(account.lastSeenAt)}</td>
+                      <td className="px-4 py-3 text-right"><Button type="button" variant="outline" size="sm" onClick={() => setSelectedAccount(account)}><Eye className="mr-2 h-4 w-4" />Lihat</Button></td>
+                    </tr>
+                  ))}
+                  {deviceAccounts.length === 0 && <tr><td colSpan={6} className="px-4 py-12 text-center text-slate-500">Belum ada perangkat tercatat. Data akan muncul ketika akun membuka dashboard setelah fitur ini diterapkan.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <p className="text-xs text-slate-500">Catatan: ID perangkat mewakili instalasi aplikasi atau browser. Satu perangkat fisik dapat tampak sebagai perangkat berbeda bila memakai browser lain atau data aplikasi dihapus.</p>
+        </TabsContent>
+
+        <TabsContent value="alerts">
       <div className="overflow-hidden rounded-xl border bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1050px] text-sm">
@@ -175,6 +226,48 @@ export function AuditAksesAgendaClient(props: Props) {
           onPageSizeChange={next => updateParams({ page: 1, pageSize: next === 'semua' ? 100 : next })}
         />
       </div>
+        </TabsContent>
+      </Tabs>
+
+      <Dialog open={Boolean(selectedAccount)} onOpenChange={open => !open && setSelectedAccount(null)}>
+        <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Perangkat akun {selectedAccount?.userName}</DialogTitle>
+            <DialogDescription>Bandingkan jenis perangkat, aktivitas terakhir, dan waktu pengisian Agenda sebelum melakukan pemeriksaan lanjutan.</DialogDescription>
+          </DialogHeader>
+          {selectedAccount && <div className="space-y-3">
+            <div className="grid grid-cols-3 gap-2 rounded-lg border p-3 text-center">
+              <Info label="Perangkat aktif" value={String(selectedAccount.activeDeviceCount)} />
+              <Info label="Sesi aktif" value={String(selectedAccount.activeSessionCount)} />
+              <Info label="Pernah tercatat" value={String(selectedAccount.knownDeviceCount)} />
+            </div>
+            {selectedAccount.devices.map((device, index) => {
+              const parsed = parseDeviceInfo(device.userAgent)
+              return <div key={device.deviceId} className="rounded-lg border p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="flex gap-2">
+                    <DeviceIcon type={parsed.type} />
+                    <div>
+                      <div className="font-medium">Perangkat {index + 1} · {parsed.deviceBrand}</div>
+                      <div className="text-xs text-slate-500">{parsed.os} · {parsed.browser}</div>
+                    </div>
+                  </div>
+                  <Badge variant={device.activeSessionCount > 0 ? 'default' : 'outline'}>{device.activeSessionCount > 0 ? `${device.activeSessionCount} sesi aktif` : 'Riwayat'}</Badge>
+                </div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <Info label="Pertama tercatat" value={formatDate(device.firstSeenAt)} />
+                  <Info label="Terakhir terlihat" value={formatDate(device.lastSeenAt)} />
+                  <Info label="IP terakhir" value={device.ipAddress || '-'} />
+                  <Info label="Terakhir mengisi Agenda" value={device.lastAgendaAt ? formatDate(device.lastAgendaAt) : 'Belum tercatat'} />
+                  <Info label="Jumlah sesi tercatat" value={String(device.sessionCount)} />
+                  <Info label="Alias anonim" value={`Perangkat ${device.deviceId.slice(0, 12)}…`} />
+                </div>
+              </div>
+            })}
+            <p className="text-xs text-slate-500">Status aktif berarti sesi belum logout atau kedaluwarsa; bukan berarti perangkat sedang digunakan pada detik ini.</p>
+          </div>}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={Boolean(selected)} onOpenChange={open => !open && setSelected(null)}>
         <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
@@ -196,7 +289,7 @@ export function AuditAksesAgendaClient(props: Props) {
                   <Info label="Browser / Aplikasi" value={dev.browser} />
                   <Info label="Alamat IP" value={selected.ip_address || '-'} />
                   {selected.device_id && <Info label="ID Perangkat" value={`Perangkat ${selected.device_id.slice(0, 16)}...`} />}
-                  <Info label="Sumber Deteksi" value={selected.source === 'historical' ? 'Indikasi historis IP + browser' : 'ID perangkat fisik'} />
+                  <Info label="Sumber Deteksi" value={selected.source === 'historical' ? 'Indikasi historis IP + browser' : 'ID perangkat anonim'} />
                   <div className="sm:col-span-2">
                     <span className="text-xs text-slate-500">User-Agent Lengkap:</span>
                     <p className="mt-0.5 break-all font-mono text-[11px] text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900 p-2 rounded border">{selected.user_agent || '-'}</p>
@@ -245,6 +338,16 @@ function SummaryCard({ label, value, tone }: { label: string; value: number; ton
 function RiskBadge({ level, score }: { level: string; score: number }) {
   const label = level === 'high' ? 'Tinggi' : level === 'medium' ? 'Sedang' : 'Rendah'
   return <Badge className={level === 'high' ? 'bg-rose-600' : level === 'medium' ? 'bg-amber-500' : 'bg-slate-500'}>{label} · {score}</Badge>
+}
+
+function DeviceCount({ value, emphasize }: { value: number; emphasize: boolean }) {
+  return <span className={`inline-flex min-w-8 justify-center rounded-full px-2 py-1 font-semibold tabular-nums ${emphasize ? 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200' : 'bg-slate-100 text-slate-700 dark:bg-slate-900 dark:text-slate-200'}`}>{value}</span>
+}
+
+function DeviceIcon({ type }: { type: ReturnType<typeof parseDeviceInfo>['type'] }) {
+  if (type === 'mobile') return <Smartphone className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+  if (type === 'tablet') return <Tablet className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
+  return <Laptop className="mt-0.5 h-5 w-5 shrink-0 text-indigo-600" />
 }
 
 function UserBlockControl({ name, userId, blocked, pending, onChange }: { name: string; userId: string; blocked: boolean; pending: boolean; onChange: (id: string, name: string, blocked: boolean) => void }) {

@@ -27,7 +27,7 @@ export default async function AuditAksesAgendaPage({
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
       <PageHeader
         title="Audit Akses Agenda"
-        description="Indikator pergantian akun pada perangkat yang sama. Skor merupakan bahan pemeriksaan, bukan vonis otomatis."
+        description="Inventaris perangkat per akun dan indikator pergantian akun. Data ini merupakan bahan pemeriksaan, bukan vonis otomatis."
         icon={ShieldAlert}
       />
       <AuditAksesAgendaClient {...data} filters={filters} />

@@ -16,6 +16,11 @@ import {
   type AgendaAccessEvidence,
   type AgendaAccessReason,
 } from '@/lib/agenda-access-audit'
+import {
+  buildAccountDeviceInventory,
+  ensureStaffDeviceSessionsSchema,
+  type StaffDeviceSessionRow,
+} from '@/lib/staff-device-sessions'
 
 export type AuditAccessFilters = {
   startDate?: string
@@ -59,12 +64,13 @@ async function requireAgendaAuditViewer() {
   const allowed = canViewAgendaAccessAudit(roles, structural?.jabatan_struktural_id)
   if (!allowed) return null
   await ensureAgendaAccessAuditSchema(db)
+  await ensureStaffDeviceSessionsSchema(db)
   return { user, db, roles, canManage: canManageAgendaAccessAudit(roles) }
 }
 
 export async function getAgendaAuditData(filters: AuditAccessFilters = {}) {
   const ctx = await requireAgendaAuditViewer()
-  if (!ctx) return { error: 'Akses ditolak.', alerts: [], total: 0, summary: emptySummary(), canManage: false, lastScan: null }
+  if (!ctx) return { error: 'Akses ditolak.', alerts: [], deviceAccounts: [], total: 0, summary: emptySummary(), canManage: false, lastScan: null }
   const where: string[] = []
   const params: unknown[] = []
   if (validDate(filters.startDate)) {
@@ -114,7 +120,14 @@ export async function getAgendaAuditData(filters: AuditAccessFilters = {}) {
     LEFT JOIN agenda_access_blocks bb ON bb.user_id = a.user_b_id AND bb.is_active = 1
     ${whereSql}
   `
-  const [rows, count, summaryRows, lastScan] = await Promise.all([
+  const deviceParams: unknown[] = [new Date().toISOString()]
+  let deviceWhere = ''
+  if (filters.teacher?.trim()) {
+    deviceWhere = 'WHERE LOWER(COALESCE(u.nama_lengkap, u.name, u.email)) LIKE LOWER(?)'
+    deviceParams.push(`%${filters.teacher.trim()}%`)
+  }
+
+  const [rows, count, summaryRows, lastScan, deviceRows] = await Promise.all([
     ctx.db.prepare(`
       SELECT a.*,
         COALESCE(ua.nama_lengkap, ua.name, ua.email) AS user_a_name,
@@ -129,6 +142,20 @@ export async function getAgendaAuditData(filters: AuditAccessFilters = {}) {
       .bind(...params).all<{ risk_level: string; total: number }>(),
     ctx.db.prepare(`SELECT start_date, end_date, finished_at, alerts_created, status
       FROM agenda_access_scan_runs ORDER BY started_at DESC LIMIT 1`).first<any>(),
+    ctx.db.prepare(`
+      SELECT d.session_id, d.user_id,
+        COALESCE(u.nama_lengkap, u.name, u.email) AS user_name,
+        u.email AS user_email, d.device_id, d.first_seen_at, d.last_seen_at,
+        d.ip_address, d.user_agent, d.last_agenda_at, d.last_agenda_id,
+        CASE WHEN s.id IS NULL THEN 0 ELSE 1 END AS is_active
+      FROM staff_device_sessions d
+      JOIN "user" u ON u.id = d.user_id
+      LEFT JOIN session s ON s.id = d.session_id AND s.userId = d.user_id
+        AND s.expiresAt > ? AND d.ended_at IS NULL
+      ${deviceWhere}
+      ORDER BY d.last_seen_at DESC
+      LIMIT 5000
+    `).bind(...deviceParams).all<StaffDeviceSessionRow>(),
   ])
   const summary = emptySummary()
   for (const row of summaryRows.results || []) {
@@ -138,6 +165,7 @@ export async function getAgendaAuditData(filters: AuditAccessFilters = {}) {
   return {
     error: null,
     alerts: rows.results || [],
+    deviceAccounts: buildAccountDeviceInventory(deviceRows.results || []),
     total: Number(count?.total || 0),
     summary,
     canManage: ctx.canManage,

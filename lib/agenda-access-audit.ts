@@ -1,6 +1,7 @@
 import { headers } from 'next/headers'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
 import { getDeviceId } from '@/lib/device-identity'
+import { touchStaffDeviceSession } from '@/lib/staff-device-sessions'
 
 export const AGENDA_AUDIT_FEATURE_ID = 'audit-akses-agenda'
 export const HISTORICAL_AUDIT_START_DATE = '2026-09-01'
@@ -252,6 +253,11 @@ export async function recordLoginAccessAudit(db: D1Database, input: {
     const hdrs = await headers()
     const deviceId = getDeviceId(hdrs)
     if (!deviceId) return null
+    await touchStaffDeviceSession(db, {
+      sessionId: input.sessionId,
+      userId: input.userId,
+      headers: hdrs,
+    })
 
     const now = new Date()
     const cutoff = new Date(now.getTime() - SWITCH_WINDOW_MS).toISOString()
@@ -370,6 +376,19 @@ export async function recordAgendaAccessAudit(db: D1Database, input: {
     const deviceId = getDeviceId(hdrs)
     if (!deviceId) return
     const now = new Date()
+    if (input.activityLogId) {
+      const activity = await db.prepare('SELECT session_id FROM activity_logs WHERE id = ?')
+        .bind(input.activityLogId).first<{ session_id: string | null }>()
+      if (activity?.session_id) {
+        await touchStaffDeviceSession(db, {
+          sessionId: activity.session_id,
+          userId: input.actorUserId,
+          lastAgendaAt: now.toISOString(),
+          lastAgendaId: input.agendaId,
+          headers: hdrs,
+        })
+      }
+    }
     const cutoff = new Date(now.getTime() - SWITCH_WINDOW_MS).toISOString()
     const alert = await db.prepare(`
       SELECT * FROM agenda_access_alerts
@@ -415,10 +434,10 @@ export async function getAgendaAccessWarningForUser(db: D1Database, userId: stri
   const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
   const [alert, block] = await Promise.all([
     db.prepare(`
-      SELECT detected_at, risk_level, user_a_id, user_b_id FROM agenda_access_alerts
+      SELECT last_event_at, risk_level, user_a_id, user_b_id FROM agenda_access_alerts
       WHERE source = 'live' AND (user_a_id = ? OR user_b_id = ?) AND last_event_at >= ?
       ORDER BY last_event_at DESC LIMIT 1
-    `).bind(userId, userId, cutoff).first<{ detected_at: string; risk_level: 'low' | 'medium' | 'high'; user_a_id: string; user_b_id: string }>(),
+    `).bind(userId, userId, cutoff).first<{ last_event_at: string; risk_level: 'low' | 'medium' | 'high'; user_a_id: string; user_b_id: string }>(),
     getAgendaAccessBlock(db, userId),
   ])
   if (!alert && !block) return null
@@ -432,7 +451,7 @@ export async function getAgendaAccessWarningForUser(db: D1Database, userId: stri
     }
   }
   return {
-    detectedAt: alert?.detected_at || block!.blocked_at,
+    detectedAt: alert?.last_event_at || block!.blocked_at,
     riskLevel: alert?.risk_level || 'high',
     isBlocked: Boolean(block),
     blockReason: block?.reason || null,
