@@ -1,109 +1,83 @@
 'use client'
-import { useState, useRef, useCallback, useEffect } from 'react'
+
+import { useRef, useState } from 'react'
+import { Capacitor } from '@capacitor/core'
 import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
-import { AlertTriangle, Camera, Loader2, SwitchCamera } from 'lucide-react'
+import { AlertTriangle, Camera, Loader2 } from 'lucide-react'
+
 interface CameraProps {
   onCapture: (file: File) => void
   onClose: () => void
 }
 
 export function CameraCapture({ onCapture, onClose }: CameraProps) {
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const streamRef = useRef<MediaStream | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState('')
-  const [ready, setReady] = useState(false)
-  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment')
+  const [opening, setOpening] = useState(false)
 
-  useEffect(() => {
-    let active = true
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop())
+  const openCamera = async () => {
+    setError('')
+    // Browser membutuhkan klik input saat aktivasi pengguna masih berlangsung.
+    if (!Capacitor.isNativePlatform()) {
+      inputRef.current?.click()
+      return
     }
-
-    (navigator.mediaDevices ? navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices) : () => Promise.reject(new Error('Kamera tidak tersedia')))
-      ({ video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false })
-      .then(stream => {
-        if (!active) { stream.getTracks().forEach(t => t.stop()); return }
-        streamRef.current = stream
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream
-          videoRef.current.onloadedmetadata = () => setReady(true)
-        }
+    setOpening(true)
+    try {
+      const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera')
+      const photo = await Camera.getPhoto({
+        quality: 85,
+        resultType: CameraResultType.Uri,
+        source: CameraSource.Camera,
+        allowEditing: false,
       })
-      .catch(() => setError('Tidak dapat mengakses kamera. Pastikan izin kamera sudah diberikan di browser Anda.'))
-    return () => {
-      active = false
-      streamRef.current?.getTracks().forEach(t => t.stop())
-    }
-  }, [facingMode])
-
-  const capture = useCallback(() => {
-    const video = videoRef.current
-    if (!video) return
-    const canvas = document.createElement('canvas')
-    canvas.width = video.videoWidth || 1280
-    canvas.height = video.videoHeight || 720
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    ctx.drawImage(video, 0, 0)
-    canvas.toBlob(blob => {
-      if (blob) {
-        streamRef.current?.getTracks().forEach(t => t.stop())
-        const file = new File([blob], `capture_${Date.now()}.jpg`, { type: 'image/jpeg' })
-        onCapture(file)
+      if (!photo.webPath) throw new Error('Foto tidak dapat dibaca. Silakan ambil ulang.')
+      const response = await fetch(photo.webPath)
+      if (!response.ok) throw new Error('Foto tidak dapat dibaca. Silakan ambil ulang.')
+      const blob = await response.blob()
+      const format = photo.format === 'png' ? 'png' : 'jpg'
+      onCapture(new File([blob], `agenda_${Date.now()}.${format}`, { type: blob.type || `image/${format === 'jpg' ? 'jpeg' : format}` }))
+    } catch (cause) {
+      // Menutup kamera tanpa mengambil foto tidak perlu menampilkan pesan kesalahan.
+      const message = cause instanceof Error ? cause.message : ''
+      if (!/cancel|batal|closed/i.test(message)) {
+        setError('Kamera tidak dapat dibuka atau foto tidak dapat dibaca. Silakan coba lagi.')
       }
-    }, 'image/jpeg', 0.85)
-  }, [onCapture])
-
-  const handleFallbackUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      onCapture(file)
+    } finally {
+      setOpening(false)
     }
-  }, [onCapture])
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center p-6 bg-rose-50 rounded-lg border border-rose-200 text-center mt-1">
-        <AlertTriangle className="h-8 w-8 text-rose-500 mb-2" />
-        <p className="text-sm text-rose-700">{error}</p>
-        <div className="mt-4 w-full flex flex-col gap-2">
-          <Label htmlFor="fallback-camera" className="cursor-pointer flex items-center justify-center gap-2 py-2 px-4 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm transition-colors">
-            <Camera className="h-4 w-4" /> Buka Aplikasi Kamera
-          </Label>
-          <input 
-            id="fallback-camera" 
-            type="file" 
-            accept="image/*" 
-            capture="environment" 
-            className="hidden" 
-            onChange={handleFallbackUpload} 
-          />
-          <Button variant="outline" onClick={onClose} className="w-full">Batal</Button>
-        </div>
-      </div>
-    )
   }
 
   return (
-    <div className="flex flex-col gap-3 mt-1">
-      <div className="relative rounded-lg overflow-hidden bg-black aspect-video flex items-center justify-center">
-        {!ready && <Loader2 className="h-8 w-8 text-slate-400 animate-spin absolute" />}
-        <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-      </div>
+    <div className="mt-2 space-y-2">
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="sr-only"
+        aria-label="Ambil foto kegiatan"
+        onChange={event => {
+          const file = event.target.files?.[0]
+          if (file) onCapture(file)
+          event.target.value = ''
+        }}
+      />
+      <p className="text-xs text-slate-500 dark:text-slate-400">
+        Kamera bawaan ponsel menyediakan pilihan lensa yang tersedia di perangkat. Foto akan langsung mengirim agenda.
+      </p>
+      {error && (
+        <p className="flex items-center gap-1.5 text-xs text-rose-700" role="alert">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />{error}
+        </p>
+      )}
       <div className="flex gap-2">
-        <Button type="button" onClick={capture} disabled={!ready} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white">
-          <Camera className="h-4 w-4 mr-2" /> Ambil Foto
+        <Button type="button" onClick={openCamera} disabled={opening} className="flex-1 bg-emerald-600 text-white hover:bg-emerald-700">
+          {opening ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Camera className="mr-2 h-4 w-4" />}
+          Buka Kamera
         </Button>
-        <Button type="button" variant="outline" size="icon" onClick={() => { setReady(false); setError(''); setFacingMode(prev => prev === 'environment' ? 'user' : 'environment') }} title="Ganti Kamera" className="shrink-0">
-          <SwitchCamera className="h-4 w-4 text-slate-700 dark:text-slate-300" />
-        </Button>
-        <Button type="button" variant="outline" onClick={onClose}>
-          Batal
-        </Button>
+        <Button type="button" variant="outline" onClick={onClose} disabled={opening}>Batal</Button>
       </div>
     </div>
   )
 }
-

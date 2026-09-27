@@ -3,7 +3,7 @@
 
 import { CameraCapture } from '@/components/shared/camera-capture'
 
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import {
@@ -42,6 +42,10 @@ type JadwalBlock = {
   sudah_didelegasi: boolean
   alasan_ketidakhadiran?: 'SAKIT' | 'IZIN'
   deskripsi_ketidakhadiran?: string | null
+  alasan_delegasi?: string | null
+  tugas_delegasi?: string | null
+  pelaksana_nama?: string | null
+  delegasi_selesai?: boolean
   agenda_id?: string
   status?: string
   pengajuan_lupa_id?: string
@@ -267,7 +271,7 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
           <p className="text-xs text-slate-500 dark:text-slate-400">{activeBlockCount} blok wajib agenda dari {blocks.length} jadwal</p>
           {data.forgottenRequestQuota && (
             <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-              Kuota lupa agenda bulan ini: {data.forgottenRequestQuota.used}/{data.forgottenRequestQuota.limit}
+              Sisa kuota ajukan lupa isi: <span className="font-semibold text-slate-700 dark:text-slate-200">{data.forgottenRequestQuota.remaining} dari {data.forgottenRequestQuota.limit}</span> bulan ini
             </p>
           )}
         </div>
@@ -304,12 +308,12 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
 
         return (
           <div key={block.penugasan_id} className="rounded-lg border bg-white dark:bg-slate-900 overflow-hidden">
-            <div className="grid grid-cols-1 gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 px-4 py-3">
               <div className="min-w-0 [overflow-wrap:anywhere]">
                 <div className="flex flex-col gap-0.5 mb-1">
                   <span className="text-base font-bold text-slate-800 dark:text-slate-100">{block.kelas_label}</span>
                   <span className="text-sm font-medium text-slate-600 dark:text-slate-400">{block.mapel_nama}</span>
-                  {block.status === 'IZIN' && block.deskripsi_ketidakhadiran && <p className="text-xs text-slate-500 whitespace-pre-wrap">{block.deskripsi_ketidakhadiran}</p>}
+                  {block.status === 'IZIN' && !block.sudah_didelegasi && block.deskripsi_ketidakhadiran && <p className="text-xs text-slate-500 whitespace-pre-wrap">{block.deskripsi_ketidakhadiran}</p>}
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   Jadwal jam ke-{block.jadwal_jam_ke_mulai === block.jadwal_jam_ke_selesai
@@ -329,7 +333,7 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                 )}
               </div>
 
-              <div className="flex min-w-0 flex-wrap items-center gap-2 [overflow-wrap:anywhere] sm:max-w-xs sm:justify-end">
+              <div className="flex min-w-0 max-w-[9rem] flex-wrap items-center justify-end gap-2 text-right [overflow-wrap:anywhere] sm:max-w-xs">
                 {block.is_fully_excepted ? (
                   <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-500">
                     <Ban className="h-3.5 w-3.5" /> Tidak wajib
@@ -397,6 +401,18 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
               </div>
             </div>
 
+            {block.sudah_didelegasi && (
+              <div className="mx-4 mb-3 rounded-md border border-violet-100 bg-violet-50/60 px-3 py-2.5 text-xs text-slate-700 dark:border-violet-900 dark:bg-violet-950/20 dark:text-slate-300">
+                <p className="font-semibold text-violet-800 dark:text-violet-300">Tugas untuk kelas ini</p>
+                {block.tugas_delegasi && <p className="mt-1 whitespace-pre-wrap leading-relaxed">{block.tugas_delegasi}</p>}
+                <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-slate-500 dark:text-slate-400">
+                  {block.alasan_delegasi && <span>Alasan: {block.alasan_delegasi}</span>}
+                  {block.pelaksana_nama && <span>Pelaksana: {block.pelaksana_nama}</span>}
+                  {block.delegasi_selesai && <span>Sudah dilaksanakan</span>}
+                </div>
+              </div>
+            )}
+
             {block.pengajuan_lupa_status === 'REJECTED' && block.pengajuan_lupa_catatan && (
               <div className="border-t border-red-100 bg-red-50/60 px-4 py-2 text-xs text-red-700">
                 Catatan reviewer: {block.pengajuan_lupa_catatan}
@@ -419,7 +435,7 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                   />
                 </div>
                 <p className="text-xs text-amber-800">
-                  Foto tidak diperlukan. Pengajuan tetap memakai satu kuota walaupun ditolak.
+                  Foto tidak diperlukan. Sisa kuota bulan ini: {data.forgottenRequestQuota?.remaining ?? 0} dari {data.forgottenRequestQuota?.limit ?? 0}. Pengajuan tetap memakai satu kuota walaupun ditolak.
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <Button
@@ -490,7 +506,7 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                     <CameraCapture onCapture={(file) => handleCameraCapture(file, block)} onClose={() => setShowCamera(false)} />
                   ) : fotoPreview ? (
                     <div className="mt-1 relative">
-                      <img src={fotoPreview} alt="Preview" className="w-full max-h-64 object-cover rounded-lg border" />
+                      <img src={fotoPreview} alt="Preview" className="w-full max-h-64 object-contain rounded-lg border" />
                       <button
                         type="button"
                         onClick={() => { setFotoFile(null); setFotoPreview(null) }}

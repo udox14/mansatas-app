@@ -233,7 +233,7 @@ function imageDrawingXml(image: CkhDocxSignatureImage, relId: string, drawingId:
 }
 
 function pageGeometry(paperKey: 'a4' | 'f4', inputMargins?: CkhDocxData['margins']) {
-  const paper = PAPERS[paperKey] || PAPERS.f4
+  const paper = PAPERS[paperKey] || PAPERS.a4
   const margins = {
     top: Math.max(0, cleanNumber(Number(inputMargins?.top), DEFAULT_MARGINS.top)),
     right: Math.max(0, cleanNumber(Number(inputMargins?.right), DEFAULT_MARGINS.right)),
@@ -380,7 +380,7 @@ function corePropertiesXml(year: number, month: number) {
 }
 
 function documentXml(data: CkhDocxData, geometry: ReturnType<typeof pageGeometry>, imageRelId?: string, imageRelIdKepala?: string) {
-  const paperKey = data.paper === 'a4' ? 'a4' : 'f4'
+  const paperKey = data.paper === 'f4' ? 'f4' : 'a4'
   const monthLabel = formatCkhMonth(data.year, data.month)
   const title = [
     paragraph(textRuns('CATATAN KINERJA HARIAN', { size: 13, bold: true }), { align: 'center', line: 280 }),
@@ -447,7 +447,7 @@ function contentTypesXml(images: ImageMeta[] = []) {
 }
 
 export async function buildCkhDocxBytes(data: CkhDocxData) {
-  const paperKey = data.paper === 'a4' ? 'a4' : 'f4'
+  const paperKey = data.paper === 'f4' ? 'f4' : 'a4'
   const geometry = pageGeometry(paperKey, data.margins)
   const image = data.signatureImage && Number(data.signatureSettings?.signature_enabled) === 1
     ? imageMeta(data.signatureImage.contentType)

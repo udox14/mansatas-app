@@ -116,15 +116,6 @@ const roleOptions = [
   'guru_bk', 'guru_piket', 'guru_tahfidz', 'operator', 'pramubakti', 'satpam',
 ]
 
-function sourceLabel(row: Pick<Row, 'source' | 'source_key'>) {
-  if (row.source_key?.startsWith('pramubakti:')) return 'Pramubakti'
-  if (row.source_key?.startsWith('pattern:')) return 'Pola'
-  if (row.source === 'assignment' || row.source_key?.startsWith('assignment:')) return 'Penugasan'
-  if (row.source === 'autofill') return 'Agenda'
-  if (row.source === 'calendar') return 'Kalender'
-  return 'Manual'
-}
-
 function isoToDisplayDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value || '')) return value || ''
   const [year, month, day] = value.split('-')
@@ -440,7 +431,7 @@ function PrintDialog({
   year: number
   month: number
 }) {
-  const [paper, setPaper] = useState<keyof typeof PAPER>('f4')
+  const [paper, setPaper] = useState<keyof typeof PAPER>('a4')
   const [margins, setMargins] = useState({ top: 15, right: 12, bottom: 15, left: 12 })
   const [printing, setPrinting] = useState(false)
   const [downloadingWord, setDownloadingWord] = useState(false)
@@ -1263,7 +1254,7 @@ export function CkhGeneratorClient({
                     <th className="border border-slate-300 p-2">CATATAN KINERJA HARIAN</th>
                     <th className="w-14 border border-slate-300 p-2">VOL</th>
                     <th className="w-24 border border-slate-300 p-2">SATUAN</th>
-                    <th className="w-32 border border-slate-300 p-2 print:hidden">AKSI</th>
+                    <th className="w-16 border border-slate-300 p-2 print:hidden">AKSI</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1272,7 +1263,6 @@ export function CkhGeneratorClient({
                     return (
                       <tr key={row.id} className={cn(
                         'bg-white transition-colors hover:bg-slate-50',
-                        (row.source === 'assignment' || row.source_key?.startsWith('assignment:')) && 'bg-sky-50 hover:bg-sky-100',
                         row.has_conflict && 'bg-amber-50 hover:bg-amber-50',
                       )}>
                         {span?.isFirstOfDate ? (
@@ -1385,13 +1375,7 @@ export function CkhGeneratorClient({
                         </td>
                         <td className="border border-slate-300 p-1.5 align-top print:hidden">
                           <div className="flex items-center justify-center gap-1">
-                            <span className={cn(
-                              'rounded-full px-2 py-1 text-[10px] font-medium',
-                              (row.source === 'assignment' || row.source_key?.startsWith('assignment:'))
-                                ? 'bg-sky-100 text-sky-700'
-                                : 'bg-slate-100 text-slate-500',
-                            )}>{sourceLabel(row)}</span>
-                            <button disabled={busyRowId === row.id} onClick={() => removeRow(row.id)} className="rounded-md p-1 text-slate-500 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50" title="Hapus baris">
+                            <button type="button" disabled={busyRowId === row.id} onClick={() => removeRow(row.id)} className="rounded-md p-1 text-slate-500 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-50" title="Hapus baris" aria-label="Hapus baris CKH">
                               {busyRowId === row.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                             </button>
                           </div>

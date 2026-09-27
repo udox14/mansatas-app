@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     return new Response('Data CKH kosong', { status: 400 })
   }
 
-  const paperCss = PAPER[body.paper || 'f4'] || PAPER.f4
+  const paperCss = PAPER[body.paper || 'a4'] || PAPER.a4
   const m = body.margins || { top: 15, right: 12, bottom: 15, left: 12 }
 
   const db = await getDB()

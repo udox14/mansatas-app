@@ -52,6 +52,10 @@ type JadwalBlock = {
   sudah_didelegasi: boolean
   alasan_ketidakhadiran?: 'SAKIT' | 'IZIN'
   deskripsi_ketidakhadiran?: string | null
+  alasan_delegasi?: string | null
+  tugas_delegasi?: string | null
+  pelaksana_nama?: string | null
+  delegasi_selesai?: boolean
   agenda_id?: string
   status?: string
   pengajuan_lupa_id?: string
@@ -180,7 +184,11 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
       alp.status as pengajuan_lupa_status,
       alp.review_note as pengajuan_lupa_catatan,
       dtk.id as delegasi_kelas_id,
+      dtk.tugas as tugas_delegasi,
+      dtk.absen_selesai as delegasi_selesai,
+      pelaksana.nama_lengkap as pelaksana_nama,
       dt.alasan_ketidakhadiran,
+      dt.deskripsi_ketidakhadiran as alasan_delegasi,
       COALESCE(ag.catatan_admin, dt.deskripsi_ketidakhadiran) AS deskripsi_ketidakhadiran
     FROM jadwal_mengajar jm
     JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
@@ -194,6 +202,7 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
         SELECT id FROM delegasi_tugas WHERE dari_user_id = pm.guru_id AND tanggal = ?
       )
     LEFT JOIN delegasi_tugas dt ON dt.id = dtk.delegasi_id
+    LEFT JOIN "user" pelaksana ON pelaksana.id = dtk.pelaksana_user_id
     WHERE jm.tahun_ajaran_id = ? AND jm.hari = ? 
       AND (pm.guru_id = ? OR pm.id IN (
         SELECT penugasan_mengajar_id FROM guru_ppl_mapping
@@ -271,6 +280,10 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
       sudah_didelegasi: !!first.delegasi_kelas_id,
       alasan_ketidakhadiran: first.alasan_ketidakhadiran || undefined,
       deskripsi_ketidakhadiran: first.deskripsi_ketidakhadiran || null,
+      alasan_delegasi: first.alasan_delegasi || null,
+      tugas_delegasi: first.tugas_delegasi || null,
+      pelaksana_nama: first.pelaksana_nama || null,
+      delegasi_selesai: !!first.delegasi_selesai,
       agenda_id: first.agenda_id ?? undefined,
       status: first.agenda_status ?? undefined,
       pengajuan_lupa_id: first.pengajuan_lupa_id ?? undefined,
