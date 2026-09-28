@@ -36,6 +36,7 @@ import {
   type TeacherAttendanceSummary,
 } from '../print-summary'
 import { todayWIB, nowWIB, formatTimeWIB } from '@/lib/time'
+import { AgendaHistory } from './agenda-history'
 
 // ============================================================
 // TYPES
@@ -131,9 +132,10 @@ export function MonitoringClient({ filterOptions, userRole }: MonitoringClientPr
   return (
     <Tabs defaultValue="harian" className="space-y-3">
       <TeacherLeaveManager />
-      <TabsList className="grid h-auto w-full max-w-3xl grid-cols-5 p-1">
+      <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 p-1">
         <TabsTrigger value="harian" className="text-xs sm:text-sm"><Calendar className="h-3.5 w-3.5 mr-1.5 hidden sm:inline" />Harian</TabsTrigger>
         <TabsTrigger value="rekap" className="text-xs sm:text-sm"><BarChart3 className="h-3.5 w-3.5 mr-1.5 hidden sm:inline" />Rekap</TabsTrigger>
+        <TabsTrigger value="riwayat" className="text-xs sm:text-sm"><Eye className="h-3.5 w-3.5 mr-1.5 hidden sm:inline" />Riwayat</TabsTrigger>
         <TabsTrigger value="cetak" className="text-xs sm:text-sm"><Printer className="h-3.5 w-3.5 mr-1.5 hidden sm:inline" />Cetak</TabsTrigger>
         <TabsTrigger value="mon-piket" className="text-xs sm:text-sm"><ShieldCheck className="h-3.5 w-3.5 mr-1.5 hidden sm:inline" />Mon. Piket</TabsTrigger>
         <TabsTrigger value="lupa-agenda" className="text-xs sm:text-sm"><FileWarning className="h-3.5 w-3.5 mr-1.5 hidden sm:inline" />Lupa Agenda</TabsTrigger>
@@ -141,6 +143,7 @@ export function MonitoringClient({ filterOptions, userRole }: MonitoringClientPr
 
       <TabsContent value="harian"><TabHarian filterOptions={filterOptions} /></TabsContent>
       <TabsContent value="rekap"><TabRekap filterOptions={filterOptions} /></TabsContent>
+      <TabsContent value="riwayat"><AgendaHistory /></TabsContent>
       <TabsContent value="cetak"><TabCetak filterOptions={filterOptions} /></TabsContent>
       <TabsContent value="mon-piket"><TabMonitoringPiket /></TabsContent>
       <TabsContent value="lupa-agenda"><TabForgottenAgendaRequests /></TabsContent>

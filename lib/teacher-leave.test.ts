@@ -25,7 +25,7 @@ vi.mock('@/lib/kalender-pendidikan', async importOriginal => ({
 
 import { enrichTeacherLeaveSessions, enrichTeacherDelegations, validateTeacherLeaveReason } from './teacher-leave-db'
 import { mapTeacherLeaveReasons, saveTeacherLeaveReason } from '@/app/dashboard/monitoring-penugasan/leave-actions'
-import { getDataCetakLaporan, getMonitoringHarian, getRekapKehadiranGuru, batchEditAgendaStatus } from '@/app/dashboard/monitoring-agenda/actions'
+import { getDataCetakLaporan, getMonitoringHarian, getRekapKehadiranGuru, batchEditAgendaStatus, getMonthlyTeacherLeaves, getTeacherAgendaSubmissions } from '@/app/dashboard/monitoring-agenda/actions'
 import { getTeacherAttendance } from './teacher-attendance'
 import { getTeacherAgendaObligations } from './teacher-agenda-obligations'
 
@@ -85,6 +85,26 @@ afterEach(() => sqlite.close())
 const sessions = () => ['p1', 'p2'].map(penugasan_id => ({ penugasan_id, tanggal: '2026-08-03', status: 'IZIN' }))
 
 describe('master dan pemetaan izin guru dengan migrasi SQLite', () => {
+  it('menampilkan izin bulanan per pengajuan dan agenda yang benar-benar disubmit per guru', async () => {
+    await mapTeacherLeaveReasons([{ delegasi_id: 'd1' }], 'rapat')
+    sqlite.exec(`INSERT INTO agenda_guru (guru_id, penugasan_id, tanggal, jam_ke_mulai, jam_ke_selesai, status, materi, waktu_input, catatan_admin)
+      VALUES ('guru', 'p1', '2026-08-03', 1, 2, 'IZIN', 'Materi pertama', '2026-08-03 08:00:00', 'Izin tambahan');`)
+    const leaves = await getMonthlyTeacherLeaves('2026-08')
+    expect(leaves).toHaveLength(2)
+    expect(leaves.find(row => row.source === 'delegasi')).toMatchObject({ deskripsi: 'Deskripsi lama', kelas: expect.any(String) })
+    expect(leaves.find(row => row.source === 'agenda')).toMatchObject({ deskripsi: 'Izin tambahan', kepentingan_sekolah: true })
+    const agendas = await getTeacherAgendaSubmissions('guru', '2026-08-01', '2026-08-31')
+    expect(agendas).toHaveLength(1)
+    expect(agendas[0]).toMatchObject({ materi: 'Materi pertama', status: 'IZIN' })
+    expect(await getTeacherAgendaSubmissions('guru', '2026-09-01', '2026-09-30')).toHaveLength(0)
+  })
+
+  it('membatasi penandaan batch izin sekolah ke alasan sekolah di server', async () => {
+    expect(await mapTeacherLeaveReasons([{ delegasi_id: 'd1' }], 'izin-guru-lainnya', true)).toHaveProperty('error')
+    expect(await mapTeacherLeaveReasons([{ delegasi_id: 'd1' }], 'rapat', true)).toHaveProperty('success')
+    expect((await getMonthlyTeacherLeaves('2026-08'))[0].kepentingan_sekolah).toBe(true)
+  })
+
   it('membiarkan izin lama biasa, lalu memetakan semua kelas tanpa mengubah deskripsi', async () => {
     expect((await enrichTeacherLeaveSessions(state.db, sessions())).every(row => !row.kepentingan_sekolah)).toBe(true)
     expect(await mapTeacherLeaveReasons([{ delegasi_id: 'd1' }], 'rapat')).toHaveProperty('success')

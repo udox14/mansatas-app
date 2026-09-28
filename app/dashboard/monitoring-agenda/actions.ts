@@ -317,6 +317,130 @@ export async function getFilterOptions() {
   }
 }
 
+function validHistoryRange(start: string, end: string) {
+  const valid = (value: string) => /^\d{4}-(0[1-9]|1[0-2])-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`))
+  if (!valid(start) || !valid(end) || start > end) throw new Error('Rentang tanggal tidak valid.')
+}
+
+export async function getAgendaHistoryTeachers() {
+  const db = await getDB()
+  const result = await db.prepare(`
+    SELECT u.id, u.nama_lengkap AS nama FROM "user" u
+    WHERE u.id IN (SELECT guru_id FROM agenda_guru UNION SELECT dari_user_id FROM delegasi_tugas)
+    ORDER BY u.nama_lengkap
+  `).all<{ id: string; nama: string }>()
+  return result.results || []
+}
+
+// Riwayat izin membaca catatan asli, termasuk yang berada di luar hari KBM efektif.
+// Agenda dan delegasi tetap ditampilkan terpisah agar asal izin dapat ditinjau.
+export async function getMonthlyTeacherLeaves(month: string) {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error('Bulan tidak valid.')
+  const db = await getDB()
+  const start = `${month}-01`
+  const end = monthEndForHistory(month)
+  const [agenda, delegation] = await Promise.all([
+    db.prepare(`SELECT ag.id, ag.guru_id, u.nama_lengkap AS guru_nama, ag.tanggal,
+      ag.penugasan_id, ag.jam_ke_mulai, ag.jam_ke_selesai, ag.waktu_input,
+      ag.catatan_admin AS deskripsi,
+      COALESCE(ag.alasan_izin_guru_id, (
+        SELECT dt.alasan_izin_guru_id FROM delegasi_tugas dt
+        JOIN delegasi_tugas_kelas dtk ON dtk.delegasi_id = dt.id
+        WHERE dtk.penugasan_mengajar_id = ag.penugasan_id
+          AND dt.dari_user_id = ag.guru_id AND dt.tanggal = ag.tanggal
+        ORDER BY dt.created_at DESC, dt.id DESC LIMIT 1
+      )) AS alasan_izin_guru_id,
+      r.nama AS alasan_nama, r.kepentingan_sekolah, mp.nama_mapel,
+      k.tingkat, k.nomor_kelas, k.kelompok
+      FROM agenda_guru ag JOIN "user" u ON u.id = ag.guru_id
+      JOIN penugasan_mengajar pm ON pm.id = ag.penugasan_id
+      JOIN mata_pelajaran mp ON mp.id = pm.mapel_id JOIN kelas k ON k.id = pm.kelas_id
+      LEFT JOIN alasan_izin_guru r ON r.id = COALESCE(ag.alasan_izin_guru_id, (
+        SELECT dt.alasan_izin_guru_id FROM delegasi_tugas dt
+        JOIN delegasi_tugas_kelas dtk ON dtk.delegasi_id = dt.id
+        WHERE dtk.penugasan_mengajar_id = ag.penugasan_id
+          AND dt.dari_user_id = ag.guru_id AND dt.tanggal = ag.tanggal
+        ORDER BY dt.created_at DESC, dt.id DESC LIMIT 1
+      ))
+      WHERE ag.status = 'IZIN' AND ag.tanggal BETWEEN ? AND ?
+      ORDER BY ag.tanggal, u.nama_lengkap, ag.jam_ke_mulai`).bind(start, end).all<any>(),
+    db.prepare(`SELECT dt.id, dt.dari_user_id AS guru_id, u.nama_lengkap AS guru_nama,
+      dt.tanggal, dt.created_at AS waktu_input, dt.deskripsi_ketidakhadiran AS deskripsi,
+      dt.alasan_izin_guru_id, r.nama AS alasan_nama, r.kepentingan_sekolah,
+      dtk.penugasan_mengajar_id AS penugasan_id, mp.nama_mapel,
+      k.tingkat, k.nomor_kelas, k.kelompok
+      FROM delegasi_tugas dt JOIN "user" u ON u.id = dt.dari_user_id
+      LEFT JOIN alasan_izin_guru r ON r.id = dt.alasan_izin_guru_id
+      LEFT JOIN delegasi_tugas_kelas dtk ON dtk.delegasi_id = dt.id
+      LEFT JOIN penugasan_mengajar pm ON pm.id = dtk.penugasan_mengajar_id
+      LEFT JOIN mata_pelajaran mp ON mp.id = pm.mapel_id LEFT JOIN kelas k ON k.id = pm.kelas_id
+      WHERE dt.alasan_ketidakhadiran = 'IZIN' AND dt.tanggal BETWEEN ? AND ?
+      ORDER BY dt.tanggal, u.nama_lengkap, dt.created_at`).bind(start, end).all<any>(),
+  ])
+  type LeaveHistoryRow = {
+    id: string; source: 'agenda' | 'delegasi'; guru_id: string; guru_nama: string
+    tanggal: string; waktu_input: string | null; deskripsi: string | null
+    alasan_nama: string | null; alasan_izin_guru_id: string | null
+    kepentingan_sekolah: boolean; kelas: string; mapel: string; jam: string
+    target: { penugasan_id: string; tanggal: string } | { delegasi_id: string }
+  }
+  const rows: LeaveHistoryRow[] = (agenda.results || []).map(row => ({
+    id: `agenda:${row.id}`, source: 'agenda' as const, guru_id: row.guru_id,
+    guru_nama: row.guru_nama, tanggal: row.tanggal, waktu_input: row.waktu_input,
+    deskripsi: row.deskripsi, alasan_nama: row.alasan_nama,
+    alasan_izin_guru_id: row.alasan_izin_guru_id,
+    kepentingan_sekolah: row.kepentingan_sekolah === 1,
+    kelas: formatNamaKelas(row.tingkat, row.nomor_kelas, row.kelompok),
+    mapel: row.nama_mapel, jam: `Jam ${row.jam_ke_mulai}–${row.jam_ke_selesai}`,
+    target: { penugasan_id: row.penugasan_id, tanggal: row.tanggal },
+  }))
+  // Satu pengajuan delegasi bisa mencakup beberapa kelas.
+  const delegated = new Map<string, LeaveHistoryRow>()
+  for (const row of delegation.results || []) {
+    const id = `delegasi:${row.id}`
+    const label = row.tingkat == null ? '' : `${formatNamaKelas(row.tingkat, row.nomor_kelas, row.kelompok)}${row.nama_mapel ? ` · ${row.nama_mapel}` : ''}`
+    const existing = delegated.get(id)
+    if (existing) {
+      if (label && !existing.kelas.includes(label)) existing.kelas += `, ${label}`
+    } else delegated.set(id, {
+      id, source: 'delegasi', guru_id: row.guru_id, guru_nama: row.guru_nama,
+      tanggal: row.tanggal, waktu_input: row.waktu_input, deskripsi: row.deskripsi,
+      alasan_nama: row.alasan_nama, alasan_izin_guru_id: row.alasan_izin_guru_id,
+      kepentingan_sekolah: row.kepentingan_sekolah === 1,
+      kelas: label, mapel: '', jam: '', target: { delegasi_id: row.id },
+    })
+  }
+  return [...rows, ...delegated.values()].sort((a, b) => a.tanggal.localeCompare(b.tanggal) || a.guru_nama.localeCompare(b.guru_nama))
+}
+
+function monthEndForHistory(month: string) {
+  const [year, number] = month.split('-').map(Number)
+  return new Date(Date.UTC(year, number, 0)).toISOString().slice(0, 10)
+}
+
+export async function getTeacherAgendaSubmissions(guruId: string, start: string, end: string) {
+  validHistoryRange(start, end)
+  if (!guruId) throw new Error('Pilih guru terlebih dahulu.')
+  const db = await getDB()
+  const result = await db.prepare(`SELECT ag.id, ag.tanggal, ag.jam_ke_mulai, ag.jam_ke_selesai,
+    ag.materi, ag.foto_url, ag.status, ag.waktu_input, ag.catatan_admin,
+    editor.nama_lengkap AS diubah_oleh_nama, ppl.nama_lengkap AS ppl_nama,
+    mp.nama_mapel, k.tingkat, k.nomor_kelas, k.kelompok
+    FROM agenda_guru ag JOIN penugasan_mengajar pm ON pm.id = ag.penugasan_id
+    JOIN mata_pelajaran mp ON mp.id = pm.mapel_id JOIN kelas k ON k.id = pm.kelas_id
+    LEFT JOIN "user" editor ON editor.id = ag.diubah_oleh
+    LEFT JOIN "user" ppl ON ppl.id = ag.ppl_user_id
+    WHERE ag.guru_id = ? AND ag.waktu_input IS NOT NULL AND ag.tanggal BETWEEN ? AND ?
+    ORDER BY ag.tanggal DESC, ag.jam_ke_mulai, ag.id`).bind(guruId, start, end).all<any>()
+  return (result.results || []).map(row => ({
+    id: row.id, tanggal: row.tanggal, jam: `Jam ${row.jam_ke_mulai}–${row.jam_ke_selesai}`,
+    kelas: formatNamaKelas(row.tingkat, row.nomor_kelas, row.kelompok), mapel: row.nama_mapel,
+    materi: row.materi, foto_url: row.foto_url, status: row.status,
+    waktu_input: row.waktu_input, catatan_admin: row.catatan_admin,
+    diubah_oleh_nama: row.diubah_oleh_nama, ppl_nama: row.ppl_nama,
+  }))
+}
+
 // ============================================================
 // PENGAJUAN LUPA MENGISI AGENDA
 // ============================================================

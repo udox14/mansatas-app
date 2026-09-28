@@ -42,11 +42,14 @@ export async function saveTeacherLeaveReason(input: TeacherLeaveReason) {
 
 export type TeacherLeaveMappingTarget = { delegasi_id: string } | { penugasan_id: string; tanggal: string }
 
-export async function mapTeacherLeaveReasons(targets: TeacherLeaveMappingTarget[], reasonId: string) {
+export async function mapTeacherLeaveReasons(targets: TeacherLeaveMappingTarget[], reasonId: string, schoolOnly = false) {
   const actor = await requireActionAccess(['monitoring-agenda', 'monitoring-penugasan'], 'update', { allowedRoles: ['super_admin'] })
   if (!targets.length || targets.length > 100) return { error: 'Pilih 1–100 izin.' }
   const db = await getDB()
   try { await validateTeacherLeaveReason(db, 'IZIN', reasonId) } catch { return { error: 'Pilih alasan izin yang masih aktif.' } }
+  if (schoolOnly && !(await db.prepare('SELECT id FROM alasan_izin_guru WHERE id = ? AND kepentingan_sekolah = 1').bind(reasonId).first())) {
+    return { error: 'Pilih alasan berkategori Kepentingan Sekolah.' }
+  }
   const unique = [...new Map(targets.map(target => [JSON.stringify(target), target])).values()]
   const statements: D1PreparedStatement[] = []
   for (const target of unique) {

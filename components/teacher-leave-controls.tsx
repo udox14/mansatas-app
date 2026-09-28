@@ -15,7 +15,7 @@ export function TeacherLeaveBadge({ data }: { data: TeacherLeaveMetadata }) {
   </span>
 }
 
-export function TeacherLeaveSelect({ value, onChange }: { value: string; onChange: (id: string) => void }) {
+export function TeacherLeaveSelect({ value, onChange, schoolOnly = false }: { value: string; onChange: (id: string) => void; schoolOnly?: boolean }) {
   const [reasons, setReasons] = useState<TeacherLeaveReason[]>([])
   const [error, setError] = useState('')
   useEffect(() => {
@@ -32,7 +32,7 @@ export function TeacherLeaveSelect({ value, onChange }: { value: string; onChang
     <label className="block text-xs font-medium">Alasan izin guru
       <select className="mt-1 h-9 w-full rounded-md border bg-surface px-2 text-sm" value={value} onChange={e => onChange(e.target.value)} required>
         <option value="">Pilih alasan izin</option>
-        {reasons.filter(row => row.aktif || row.id === value).map(row => <option disabled={!row.aktif} key={row.id} value={row.id}>{row.nama}{row.kepentingan_sekolah ? ' — Kepentingan Sekolah' : ''}{!row.aktif ? ' (nonaktif — pilih alasan aktif)' : ''}</option>)}
+        {reasons.filter(row => (!schoolOnly || row.kepentingan_sekolah) && (row.aktif || row.id === value)).map(row => <option disabled={!row.aktif} key={row.id} value={row.id}>{row.nama}{row.kepentingan_sekolah ? ' — Kepentingan Sekolah' : ''}{!row.aktif ? ' (nonaktif — pilih alasan aktif)' : ''}</option>)}
       </select>
     </label>
     {selected?.kepentingan_sekolah && <p className="text-xs text-emerald-700">Kepentingan Sekolah — tidak mengurangi performa.</p>}
@@ -77,28 +77,29 @@ export function TeacherLeaveManager({ onChanged }: { onChanged?: () => void }) {
   </>
 }
 
-export function TeacherLeaveMapping({ targets, onChanged }: { targets: TeacherLeaveMappingTarget[]; onChanged: () => void | Promise<void> }) {
+export function TeacherLeaveMapping({ targets, onChanged, schoolOnly = false }: { targets: TeacherLeaveMappingTarget[]; onChanged: () => void | Promise<void>; schoolOnly?: boolean }) {
   const [allowed, setAllowed] = useState(false)
+  const [hasSchoolReason, setHasSchoolReason] = useState(false)
   const [open, setOpen] = useState(false)
   const [reason, setReason] = useState('')
   const [message, setMessage] = useState('')
   const [pending, setPending] = useState(false)
   const router = useRouter()
-  useEffect(() => { getTeacherLeaveOptions().then(data => setAllowed(data.canManage)).catch(() => setAllowed(false)) }, [])
+  useEffect(() => { getTeacherLeaveOptions().then(data => { setAllowed(data.canManage); setHasSchoolReason(data.reasons.some(reason => reason.aktif && reason.kepentingan_sekolah)) }).catch(() => setAllowed(false)) }, [])
   if (!allowed) return null
   const save = async () => {
     setPending(true)
     try {
-      const result = await mapTeacherLeaveReasons(targets, reason)
+      const result = await mapTeacherLeaveReasons(targets, reason, schoolOnly)
       setMessage(result.error || result.success || '')
       if (!result.error) { await onChanged(); router.refresh(); window.dispatchEvent(new Event('teacher-leave-changed')); setOpen(false) }
     } catch { setMessage('Gagal memperbarui alasan izin.') } finally { setPending(false) }
   }
   return <>
-    <Button size="sm" variant="outline" disabled={!targets.length || targets.length > 100} onClick={() => { setOpen(true); setMessage(''); setReason('') }}>Atur alasan izin ({targets.length})</Button>
-    <Dialog open={open} onOpenChange={setOpen}><DialogContent><DialogHeader><DialogTitle>Atur alasan izin</DialogTitle></DialogHeader>
+    <Button size="sm" variant="outline" disabled={!targets.length || targets.length > 100 || (schoolOnly && !hasSchoolReason)} title={schoolOnly && !hasSchoolReason ? 'Tambahkan alasan izin sekolah aktif terlebih dahulu.' : undefined} onClick={() => { setOpen(true); setMessage(''); setReason('') }}>{schoolOnly ? 'Tandai izin sekolah' : 'Atur alasan izin'} ({targets.length})</Button>
+    <Dialog open={open} onOpenChange={setOpen}><DialogContent><DialogHeader><DialogTitle>{schoolOnly ? 'Tandai izin sekolah' : 'Atur alasan izin'}</DialogTitle></DialogHeader>
       <p className="text-sm">Perbarui {targets.length} izin terpilih. Deskripsi tetap tersimpan. Performa dan cetakan mengikuti kategori alasan.</p>
-      <TeacherLeaveSelect value={reason} onChange={setReason} />
+      <TeacherLeaveSelect value={reason} onChange={setReason} schoolOnly={schoolOnly} />
       {message && <p role="alert" className="text-sm">{message}</p>}
       <Button onClick={save} disabled={pending || !reason}>{pending ? 'Menyimpan…' : 'Simpan alasan'}</Button>
     </DialogContent></Dialog>
