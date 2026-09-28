@@ -42,6 +42,26 @@ describe('notification reminder defaults', () => {
   })
 })
 
+describe('parent and homeroom notification catalog', () => {
+  it('does not expose exit permit notifications', () => {
+    expect(getNotificationDefinition('permission_exit_created')).toBeUndefined()
+    expect(getNotificationDefinition('permission_exit_returned')).toBeUndefined()
+  })
+
+  it('defines staff delivery for each parent discipline and warning letter event', () => {
+    for (const key of [
+      'homeroom_discipline_violation',
+      'homeroom_discipline_sanction',
+      'homeroom_warning_letter',
+    ]) {
+      const definition = getNotificationDefinition(key)
+      expect(definition?.defaultTarget, key).toEqual({ kind: 'staff_users' })
+      expect(definition?.defaultChannels, key).toEqual(['fcm', 'webpush'])
+      expect(validateNotificationTemplate(definition?.defaultBody || '', definition?.placeholders || []), key).toEqual([])
+    }
+  })
+})
+
 describe('Komite notification catalog', () => {
   const eventKeys = [
     'komite_submission_received',

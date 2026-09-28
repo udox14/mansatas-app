@@ -24,7 +24,7 @@ import {
 } from '@/lib/sanksi-service'
 // import { formatNamaKelas } from '@/lib/utils'
 import { revalidatePath } from 'next/cache'
-import { emitConfiguredNotification, getStudentNotificationContext } from '@/lib/notification-engine'
+import { dispatchRawNotification, emitConfiguredNotification, emitParentAndHomeroomNotification, getStudentNotificationContext } from '@/lib/notification-engine'
 import {
   canReviewDisciplineRecord,
   DISCIPLINE_CLARIFICATION_MAX_LENGTH,
@@ -118,8 +118,9 @@ async function emitPublishedDisciplineNotification(db: D1Database, recordId: str
   if (!record) return
   const student = await getStudentNotificationContext(db, record.siswa_id)
   if (!student) return
-  await emitConfiguredNotification({
+  const notification = await emitParentAndHomeroomNotification({
     eventKey: 'discipline_violation_created',
+    homeroomEventKey: 'homeroom_discipline_violation',
     sourceRef: `discipline:${record.id}`,
     context: {
       ...student,
@@ -131,6 +132,7 @@ async function emitPublishedDisciplineNotification(db: D1Database, recordId: str
     db,
     parentType: 'kedisiplinan',
   })
+  if (notification.error) console.error('[notification] discipline_violation_created:', notification.error)
 }
 
 async function hasAnyRole(db: D1Database, userId: string, allowedRoles: string[]) {
@@ -522,8 +524,9 @@ export async function simpanPelanggaran(prevState: any, formData: FormData) {
       await emitPublishedDisciplineNotification(db, savedId)
       if (student) {
         if (naik_sanksi && portalSettings.enabled) {
-          await emitConfiguredNotification({
+          const notification = await emitParentAndHomeroomNotification({
             eventKey: 'discipline_sanction_reached',
+            homeroomEventKey: 'homeroom_discipline_sanction',
             sourceRef: `sanksi:${naik_sanksi.nama}`,
             context: {
               ...student,
@@ -534,6 +537,7 @@ export async function simpanPelanggaran(prevState: any, formData: FormData) {
             db,
             parentType: 'sanksi',
           })
+          if (notification.error) console.error('[notification] discipline_sanction_reached:', notification.error)
         }
       }
     } catch (error) {
@@ -622,13 +626,17 @@ export async function reviewPelanggaran(recordId: string, decision: 'published' 
     const portalSettings = await getParentDisciplineSettings()
     if (portalSettings.enabled && after && after.id !== before?.id) {
       const student = await getStudentNotificationContext(db, record.siswa_id)
-      if (student) await emitConfiguredNotification({
-        eventKey: 'discipline_sanction_reached',
-        sourceRef: `sanksi:${after.nama}`,
-        context: { ...student, level_sanksi: after.nama, total_poin: totalAfter, tanggal: record.tanggal },
-        db,
-        parentType: 'sanksi',
-      })
+      if (student) {
+        const notification = await emitParentAndHomeroomNotification({
+          eventKey: 'discipline_sanction_reached',
+          homeroomEventKey: 'homeroom_discipline_sanction',
+          sourceRef: `sanksi:${after.nama}`,
+          context: { ...student, level_sanksi: after.nama, total_poin: totalAfter, tanggal: record.tanggal },
+          db,
+          parentType: 'sanksi',
+        })
+        if (notification.error) console.error('[notification] discipline_sanction_reached:', notification.error)
+      }
     }
   } else if (decision === 'rejected') {
     await db.prepare(`
@@ -677,17 +685,35 @@ export async function updateDisciplineClarification(
   `).bind(status, response || null, user.id, status, clarificationId).run()
 
   if (status === 'selesai' || status === 'ditolak') {
-    await db.prepare(`
+    const wali = await db.prepare(`
+      SELECT u.id, s.nama_lengkap
+      FROM siswa s
+      JOIN kelas k ON k.id = s.kelas_id
+      JOIN "user" u ON u.id = k.wali_kelas_id AND u.banned = 0
+      WHERE s.id = ? LIMIT 1
+    `).bind(clarification.siswa_id).first<{ id: string; nama_lengkap: string }>()
+    const title = status === 'selesai' ? 'Klarifikasi kedisiplinan selesai' : 'Klarifikasi kedisiplinan ditanggapi'
+    const staffNotification = wali?.id ? await dispatchRawNotification({
+      eventKey: 'homeroom_discipline_clarification',
+      sourceRef: `discipline-clarification:${clarificationId}:${crypto.randomUUID()}`,
+      title,
+      body: `Klarifikasi kedisiplinan Ananda ${wali.nama_lengkap}: ${response}`,
+      url: '/dashboard/kelas-binaan',
+      channels: ['fcm', 'webpush'],
+      target: { kind: 'staff_users' },
+      context: { userId: wali.id },
+      db,
+    }) : null
+    if (staffNotification?.status === 'sent' || staffNotification?.status === 'queued') {
+      await db.prepare(`
       INSERT INTO parent_notifications (siswa_id, type, title, message, source_ref, level)
       VALUES (?, 'klarifikasi_kedisiplinan', ?, ?, ?, 'info')
       ON CONFLICT(siswa_id, type, source_ref) DO UPDATE SET
         title = excluded.title, message = excluded.message, archived_at = NULL, is_read = 0, created_at = datetime('now')
-    `).bind(
-      clarification.siswa_id,
-      status === 'selesai' ? 'Klarifikasi kedisiplinan selesai' : 'Klarifikasi kedisiplinan ditanggapi',
-      response,
-      `discipline-clarification:${clarificationId}`,
-    ).run().catch(() => undefined)
+      `).bind(clarification.siswa_id, title, response, `discipline-clarification:${clarificationId}`).run().catch(() => undefined)
+    } else {
+      console.error('[notification] Klarifikasi kedisiplinan belum dikirim ke wali kelas; notifikasi orang tua ditahan.', staffNotification?.error)
+    }
   }
   await logActivity({
     db,

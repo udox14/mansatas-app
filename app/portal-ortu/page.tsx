@@ -188,39 +188,15 @@ async function ensurePaymentSubmissionTable(db: D1Database) {
   `).run()
 }
 
-async function seedParentCommunication(db: D1Database, siswaId: string, disciplineEnabled = true) {
-  const [disiplin, sanksiRows, bkRows] = await Promise.all([
-    db.prepare(`
-      SELECT COALESCE(SUM(COALESCE(sp.poin_snapshot, mp.poin, 0)), 0) AS total_poin
-      FROM siswa_pelanggaran sp
-      LEFT JOIN master_pelanggaran mp ON mp.id = sp.master_pelanggaran_id
-      WHERE sp.siswa_id = ? AND sp.publication_status = 'published'
-    `).bind(siswaId).first<{ total_poin: number }>(),
-    db.prepare(`SELECT nama, deskripsi, poin_minimal FROM sanksi_config ORDER BY poin_minimal DESC`).all<any>(),
-    db.prepare(`
+async function seedParentCommunication(db: D1Database, siswaId: string) {
+  const bkRows = await db.prepare(`
       SELECT r.id, r.tindak_lanjut, r.catatan_tindak_lanjut, r.updated_at, u.nama_lengkap as guru_bk_nama
       FROM bk_rekaman r
       LEFT JOIN "user" u ON u.id = r.guru_bk_id
       WHERE r.siswa_id = ?
       ORDER BY r.updated_at DESC
       LIMIT 50
-    `).bind(siswaId).all<any>(),
-  ])
-
-  const totalPoin = Number(disiplin?.total_poin || 0)
-  const sanksi = (sanksiRows.results || []).find((s: any) => totalPoin >= Number(s.poin_minimal || 0))
-
-  if (sanksi && disciplineEnabled) {
-    await db.prepare(`
-      INSERT OR IGNORE INTO parent_notifications (siswa_id, type, title, message, source_ref, level)
-      VALUES (?, 'sanksi', ?, ?, ?, 'warning')
-    `).bind(
-      siswaId,
-      `Anak mencapai level ${sanksi.nama}`,
-      `Akumulasi poin saat ini ${totalPoin}. Mohon koordinasi dengan wali kelas untuk tindak lanjut.`,
-      `sanksi:${sanksi.nama}`,
-    ).run()
-  }
+    `).bind(siswaId).all<any>()
 
   for (const row of (bkRows.results || [])) {
     const tindak = String(row.tindak_lanjut || '').toLowerCase()
@@ -318,7 +294,7 @@ export default async function PortalOrtuPage({ searchParams }: { searchParams: P
   })
   await ensureParentSuggestionTable(db)
   const disciplineSettings = await getParentDisciplineSettings()
-  await seedParentCommunication(db, siswaId, disciplineSettings.enabled)
+  await seedParentCommunication(db, siswaId)
 
   const profil = await db.prepare(`
     SELECT s.id, s.nisn, s.nama_lengkap, s.status, s.foto_url, s.kelas_id, s.tahun_masuk, s.nomor_whatsapp, k.tingkat, k.nomor_kelas, k.kelompok, k.wali_kelas_id
@@ -459,6 +435,7 @@ export default async function PortalOrtuPage({ searchParams }: { searchParams: P
       FROM parent_notifications pn
       WHERE pn.siswa_id = ?
         AND pn.archived_at IS NULL
+        AND pn.type <> 'izin_keluar'
         AND (? = 1 OR pn.type NOT IN ('kedisiplinan', 'sanksi', 'klarifikasi_kedisiplinan'))
         AND NOT (pn.type = 'absensi' AND COALESCE(pn.source_ref, '') LIKE '%:IZIN')
         AND NOT (

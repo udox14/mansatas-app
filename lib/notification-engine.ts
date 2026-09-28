@@ -988,6 +988,43 @@ export async function emitConfiguredNotification(input: EmitConfiguredNotificati
   return { status: sent > 0 ? 'sent' : 'skipped', sent, queued, dispatchIds }
 }
 
+/** Kirim ke wali kelas dahulu agar pemberitahuan orang tua tidak mendahuluinya. */
+export async function emitParentAndHomeroomNotification(
+  input: EmitConfiguredNotificationInput & { homeroomEventKey: string },
+): Promise<NotificationDispatchResult> {
+  const db = input.db || await getDB()
+  const parentSetting = await getNotificationSetting(input.eventKey, db)
+  if (!parentSetting || Number(parentSetting.enabled) !== 1) {
+    return { status: 'disabled', sent: 0, queued: 0, dispatchIds: [] }
+  }
+
+  const siswaId = asText(input.context?.siswaId)
+  if (!siswaId) return { status: 'skipped', sent: 0, queued: 0, dispatchIds: [], error: 'Siswa penerima tidak ditemukan.' }
+  const wali = await db.prepare(`
+    SELECT u.id
+    FROM siswa s
+    JOIN kelas k ON k.id = s.kelas_id
+    JOIN "user" u ON u.id = k.wali_kelas_id AND u.banned = 0
+    WHERE s.id = ?
+    LIMIT 1
+  `).bind(siswaId).first<{ id: string }>()
+  if (!wali?.id) {
+    return { status: 'skipped', sent: 0, queued: 0, dispatchIds: [], error: 'Wali kelas aktif belum ditetapkan; notifikasi orang tua ditahan.' }
+  }
+
+  const staffResult = await emitConfiguredNotification({
+    ...input,
+    eventKey: input.homeroomEventKey,
+    context: { ...input.context, userId: wali.id },
+    targetOverride: { kind: 'staff_users' },
+    parentType: undefined,
+  })
+  if (staffResult.status !== 'sent' && staffResult.status !== 'queued') {
+    return { ...staffResult, error: staffResult.error || 'Notifikasi wali kelas belum terkirim; notifikasi orang tua ditahan.' }
+  }
+  return emitConfiguredNotification(input)
+}
+
 export async function dispatchRawNotification(input: DispatchRawNotificationInput): Promise<NotificationDispatchResult> {
   const title = String(input.title || '').trim()
   const body = String(input.body || '').trim()
@@ -1071,6 +1108,10 @@ export async function processNotificationQueueMessage(
   await ensureNotificationSchema(db)
   const row = await db.prepare('SELECT status FROM notification_dispatches WHERE id = ?').bind(message.dispatchId).first<{ status: string }>()
   if (!row || row.status === 'sent') return { retry: false, sent: 0 }
+  if (message.eventKey === 'permission_exit_created' || message.eventKey === 'permission_exit_returned') {
+    await markDispatch(db, message.dispatchId, 'sent', 'Dibatalkan: notifikasi izin keluar kompleks dinonaktifkan.')
+    return { retry: false, sent: 0, skipped: true }
+  }
 
   const validRecipientIds = await validatedQueueRecipientIds(db, message)
   if (validRecipientIds.length === 0) {

@@ -16,7 +16,7 @@ import { getDataForSurat } from '../surat/actions'
 import { loadSanksiList } from '@/lib/sanksi-service'
 import { KODE_KLASIFIKASI_SP } from './constants'
 import type { SpLevel, KeputusanSp } from './constants'
-import { emitConfiguredNotification, getStudentNotificationContext } from '@/lib/notification-engine'
+import { emitParentAndHomeroomNotification, getStudentNotificationContext } from '@/lib/notification-engine'
 
 const BULAN_ROMAWI = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII']
 const MANAGE_SP_ROLES = ['super_admin', 'kepsek', 'wakamad', 'admin_tu', 'guru_bk']
@@ -193,8 +193,9 @@ export async function tetapkanSP(data: {
     try {
       const student = await getStudentNotificationContext(db, data.siswa_id)
       if (student) {
-        await emitConfiguredNotification({
+        const notification = await emitParentAndHomeroomNotification({
           eventKey: 'warning_letter_issued',
+          homeroomEventKey: 'homeroom_warning_letter',
           sourceRef: `sp:${result?.id || nomorSurat}`,
           context: {
             ...student,
@@ -206,6 +207,7 @@ export async function tetapkanSP(data: {
           db,
           parentType: 'sp',
         })
+        if (notification.error) console.error('[notification] warning_letter_issued:', notification.error)
       }
     } catch (notificationError) {
       console.error('[notification] warning_letter_issued gagal:', notificationError)

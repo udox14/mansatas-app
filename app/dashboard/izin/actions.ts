@@ -15,7 +15,6 @@ import { revalidatePath } from 'next/cache'
 import { nowWIBISO, todayWIB } from '@/lib/time'
 import { formatNamaKelas } from '@/lib/utils'
 import { invalidateAttendanceCache } from '@/lib/attendance-cache'
-import { emitConfiguredNotification, getStudentNotificationContext } from '@/lib/notification-engine'
 import {
   MAX_HARI_MASSAL,
   MAX_SISWA_MASSAL,
@@ -378,26 +377,6 @@ export async function tambahIzinKeluar(prevState: any, formData: FormData) {
 
   if (result.error) return { error: result.error, success: null }
 
-  try {
-    const student = await getStudentNotificationContext(db, siswa_id)
-    if (student) {
-      await emitConfiguredNotification({
-        eventKey: 'permission_exit_created',
-        sourceRef: `permission-exit:${(result.data as any)?.id || crypto.randomUUID()}`,
-        context: {
-          ...student,
-          tanggal: waktuKeluar.slice(0, 10),
-          waktu: waktuKeluar.slice(11, 16),
-          keterangan: keterangan || '-',
-        },
-        db,
-        parentType: 'izin_keluar',
-      })
-    }
-  } catch (error) {
-    console.error('[notification] permission_exit_created gagal:', error)
-  }
-
   revalidateIzinViews()
   return { error: null, success: 'Berhasil mencatat izin keluar komplek!' }
 }
@@ -430,24 +409,6 @@ export async function tandaiSudahKembali(id: string) {
   )
 
   if (result.error) return { error: result.error }
-  try {
-    const student = await getStudentNotificationContext(db, existing.siswa_id)
-    if (student) {
-      await emitConfiguredNotification({
-        eventKey: 'permission_exit_returned',
-        sourceRef: `permission-exit-returned:${id}`,
-        context: {
-          ...student,
-          tanggal: waktuKembali.slice(0, 10),
-          waktu: waktuKembali.slice(11, 16),
-        },
-        db,
-        parentType: 'izin_keluar',
-      })
-    }
-  } catch (error) {
-    console.error('[notification] permission_exit_returned gagal:', error)
-  }
   revalidateIzinViews()
   return { success: 'Status siswa diperbarui menjadi SUDAH KEMBALI.' }
 }
@@ -470,7 +431,6 @@ export async function editIzinKeluar(
   if (!waktuKeluar) return { error: 'Waktu keluar tidak valid.' }
   if (status === 'SUDAH KEMBALI' && !waktuKembali) return { error: 'Waktu kembali wajib diisi jika status sudah kembali.' }
 
-  const previous = await db.prepare('SELECT siswa_id FROM izin_keluar_komplek WHERE id = ? LIMIT 1').bind(id).first<{ siswa_id: string }>()
   const result = await dbUpdate(
     db,
     'izin_keluar_komplek',
@@ -485,22 +445,6 @@ export async function editIzinKeluar(
   )
 
   if (result.error) return { error: result.error }
-  if (status === 'SUDAH KEMBALI' && previous) {
-    try {
-      const student = await getStudentNotificationContext(db, previous.siswa_id)
-      if (student) {
-        await emitConfiguredNotification({
-          eventKey: 'permission_exit_returned',
-          sourceRef: `permission-exit-returned:${id}`,
-          context: { ...student, tanggal: (waktuKembali || '').slice(0, 10), waktu: (waktuKembali || '').slice(11, 16) },
-          db,
-          parentType: 'izin_keluar',
-        })
-      }
-    } catch (error) {
-      console.error('[notification] permission_exit_returned (edit) gagal:', error)
-    }
-  }
   revalidateIzinViews()
   return { success: 'Riwayat izin keluar berhasil diperbarui.' }
 }
