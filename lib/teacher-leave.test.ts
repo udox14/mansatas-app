@@ -68,7 +68,7 @@ beforeEach(() => {
     ALTER TABLE penugasan_mengajar ADD COLUMN kelas_id TEXT DEFAULT 'kelas';
     ALTER TABLE penugasan_mengajar ADD COLUMN mapel_id TEXT DEFAULT 'm1';
     ALTER TABLE jadwal_mengajar ADD COLUMN tahun_ajaran_id TEXT DEFAULT 'ta';`)
-  for (const file of ['schema-migration-agenda.sql', 'schema-migration-delegasi-tugas.sql', '0094_teacher_leave_reasons.sql']) {
+  for (const file of ['0019_add_absensi_sesi_guru.sql', 'schema-migration-agenda.sql', 'schema-migration-delegasi-tugas.sql', '0094_teacher_leave_reasons.sql']) {
     sqlite.exec(readFileSync(new URL(`../migrations/${file}`, import.meta.url), 'utf8'))
   }
   sqlite.exec(`ALTER TABLE agenda_guru ADD COLUMN ppl_user_id TEXT REFERENCES "user"(id);
@@ -174,6 +174,29 @@ describe('master dan pemetaan izin guru dengan migrasi SQLite', () => {
 })
 
 describe('performa konsisten di dashboard dan cetak', () => {
+  it('menunjukkan sesi agenda yang belum diikuti absensi siswa pada harian, rekap, dan riwayat', async () => {
+    sqlite.exec(`INSERT INTO agenda_guru (guru_id, penugasan_id, tanggal, jam_ke_mulai, jam_ke_selesai, status, waktu_input)
+      VALUES ('guru', 'p1', '2026-08-03', 1, 2, 'TEPAT_WAKTU', '2026-08-03 08:00:00'),
+             ('guru', 'p2', '2026-08-03', 3, 3, 'TEPAT_WAKTU', '2026-08-03 09:00:00');
+      INSERT INTO absensi_sesi_guru (penugasan_id, tanggal, diinput_oleh)
+      VALUES ('p1', '2026-08-03', 'guru');`)
+
+    const daily = await getMonitoringHarian('2026-08-03', 'semua')
+    expect(daily.data.find(row => row.penugasan_id === 'p1')).toMatchObject({ sudah_absen_siswa: true })
+    expect(daily.data.find(row => row.penugasan_id === 'p2')).toMatchObject({ sudah_absen_siswa: false })
+
+    const recap = await getRekapKehadiranGuru('2026-08-03', '2026-08-03')
+    expect(recap.data[0]).toMatchObject({
+      absen_siswa_terisi: 1,
+      absen_siswa_belum: 1,
+      absen_siswa_belum_detail: [{ tanggal: '2026-08-03', mapel: 'Matematika', jam: 'Jam 3' }],
+    })
+
+    const history = await getTeacherAgendaSubmissions('guru', '2026-08-01', '2026-08-31')
+    expect(history.find(row => row.penugasan_id === 'p1')?.sudah_absen_siswa).toBe(true)
+    expect(history.find(row => row.penugasan_id === 'p2')?.sudah_absen_siswa).toBe(false)
+  })
+
   it('agenda PPL tetap menjadi kehadiran guru utama dan membawa informasi pelaksana', async () => {
     sqlite.exec(`INSERT INTO agenda_guru (guru_id, penugasan_id, tanggal, jam_ke_mulai, jam_ke_selesai, status, materi, ppl_user_id)
       VALUES ('guru', 'p1', '2026-08-03', 1, 2, 'TEPAT_WAKTU', 'Materi oleh PPL', 'ppl');`)
