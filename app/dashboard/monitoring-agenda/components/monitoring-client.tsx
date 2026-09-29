@@ -37,6 +37,7 @@ import {
 } from '../print-summary'
 import { todayWIB, nowWIB, formatTimeWIB } from '@/lib/time'
 import { AgendaHistory } from './agenda-history'
+import { StudentAttendanceLabel } from './student-attendance-label'
 
 // ============================================================
 // TYPES
@@ -696,6 +697,7 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
                 <TableHead className="text-xs">Kelas</TableHead>
                 <TableHead className="text-xs">Jam</TableHead>
                 <TableHead className="text-xs">Status</TableHead>
+                <TableHead className="text-xs">Absensi siswa</TableHead>
                 <TableHead className="text-xs text-right">Aksi</TableHead>
               </TableRow>
             </TableHeader>
@@ -728,6 +730,7 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
                         </p>
                       )}
                     </TableCell>
+                    <TableCell><StudentAttendanceLabel filled={item.sudah_absen_siswa} /></TableCell>
                     <TableCell className="text-right space-x-1">
                       {item.agenda_id && (
                         <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setDetailItem(item)} title="Detail">
@@ -773,6 +776,7 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
                 <div className="min-w-0 text-xs text-slate-600 dark:text-slate-300">
                   <p className="truncate font-medium">{item.kelas_label}</p>
                   <p className="text-[11px] text-slate-400">{item.jam_label} &middot; {item.slot_mulai}-{item.slot_selesai}</p>
+                  <p className="mt-1 text-[11px]">Absensi siswa: <StudentAttendanceLabel filled={item.sudah_absen_siswa} /></p>
                   {item.ppl_nama && <p className="mt-0.5 truncate text-[11px] text-violet-500">Diisi oleh {item.ppl_nama} (PPL)</p>}
                   {item.alasan_ketidakhadiran && item.pelaksana_nama && (
                     <p className="mt-0.5 truncate text-[11px] text-violet-500">Pelaksana: {item.pelaksana_nama}</p>
@@ -911,11 +915,12 @@ function TabRekap({ filterOptions }: { filterOptions: MonitoringClientProps['fil
     const d = nowWIB(); d.setUTCDate(1); return d.toISOString().split('T')[0]
   })
   const [tglSelesai, setTglSelesai] = useState(todayStr())
-  const [sortBy, setSortBy] = useState<'nama' | 'patuh' | 'alfa'>('patuh')
+  const [sortBy, setSortBy] = useState<'nama' | 'patuh' | 'alfa' | 'absen_siswa'>('patuh')
   const [data, setData] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState<string>('semua')
   const [pesan, setPesan] = useState<{ tipe: 'error'; teks: string } | null>(null)
+  const [absensiDetail, setAbsensiDetail] = useState<any | null>(null)
 
   const handleSearch = async () => {
     setIsLoading(true)
@@ -962,10 +967,11 @@ function TabRekap({ filterOptions }: { filterOptions: MonitoringClientProps['fil
           <div>
             <Label className="text-xs text-slate-500 dark:text-slate-400">Urutkan</Label>
             <Select value={sortBy} onValueChange={(v) => setSortBy(v as any)}>
-              <SelectTrigger className="w-[150px] h-9 text-sm"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-[230px] h-9 text-sm"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="patuh">Paling Patuh</SelectItem>
                 <SelectItem value="alfa">Paling Banyak Alfa</SelectItem>
+                <SelectItem value="absen_siswa">Paling Sering Belum Absen Siswa</SelectItem>
                 <SelectItem value="nama">Nama (A-Z)</SelectItem>
               </SelectContent>
             </Select>
@@ -999,6 +1005,7 @@ function TabRekap({ filterOptions }: { filterOptions: MonitoringClientProps['fil
       )}
 
       {/* Rekap Table */}
+      {filteredData.length > 0 && <p className="text-xs text-slate-500 dark:text-slate-400">Hitungan absensi siswa pada rekap hanya mencakup agenda yang sudah dikirim.</p>}
       {filteredData.length > 0 && (
         <div className="rounded-lg border bg-white dark:bg-slate-900 overflow-x-auto">
           <Table>
@@ -1013,6 +1020,8 @@ function TabRekap({ filterOptions }: { filterOptions: MonitoringClientProps['fil
                 <TableHead className="text-xs text-center">Sakit</TableHead>
                 <TableHead className="text-xs text-center">Izin biasa</TableHead>
                 <TableHead className="text-xs text-center">Izin sekolah</TableHead>
+                <TableHead className="text-xs text-center" title="Dari agenda yang dikirim">Absensi siswa diisi</TableHead>
+                <TableHead className="text-xs text-center" title="Agenda dikirim tanpa absensi siswa">Agenda tanpa absensi</TableHead>
                 <TableHead className="text-xs text-center">Performa</TableHead>
                 <TableHead className="text-xs text-center">Kepatuhan</TableHead>
               </TableRow>
@@ -1033,6 +1042,14 @@ function TabRekap({ filterOptions }: { filterOptions: MonitoringClientProps['fil
                     <TableCell className="text-xs text-center text-blue-600 font-medium">{item.sakit}</TableCell>
                     <TableCell className="text-xs text-center text-sky-600 font-medium">{item.izin - item.izinSekolah}</TableCell>
                     <TableCell className="text-xs text-center text-emerald-700">{item.izinSekolah}</TableCell>
+                    <TableCell className="text-xs text-center text-emerald-700 font-medium">{item.absen_siswa_terisi}</TableCell>
+                    <TableCell className="text-center">
+                      {item.absen_siswa_belum > 0 ? (
+                        <button type="button" onClick={() => setAbsensiDetail(item)} className="rounded px-2 py-1 text-xs font-semibold text-amber-700 underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600" aria-label={`Lihat ${item.absen_siswa_belum} agenda tanpa absensi siswa untuk ${item.guru_nama}`} title="Lihat tanggal dan kelas">
+                          {item.absen_siswa_belum}
+                        </button>
+                      ) : <span className="text-xs text-slate-400">0</span>}
+                    </TableCell>
                     <TableCell className="text-xs text-center font-semibold">{item.performa}%</TableCell>
                     <TableCell className="text-center min-w-[100px]">
                       <div className="flex items-center gap-2">
@@ -1056,6 +1073,19 @@ function TabRekap({ filterOptions }: { filterOptions: MonitoringClientProps['fil
           <p className="text-sm text-slate-500 dark:text-slate-400">Pilih rentang tanggal dan klik &quot;Tampilkan&quot; untuk melihat rekap.</p>
         </div>
       )}
+      <Dialog open={!!absensiDetail} onOpenChange={() => setAbsensiDetail(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle className="text-base">Agenda tanpa absensi siswa</DialogTitle></DialogHeader>
+          {absensiDetail && <div className="space-y-3">
+            <p className="text-sm text-slate-600 dark:text-slate-300">{absensiDetail.guru_nama} · {absensiDetail.absen_siswa_belum} sesi</p>
+            <div className="max-h-[60vh] overflow-y-auto rounded-lg border">
+              <Table><TableHeader><TableRow><TableHead className="text-xs">Tanggal</TableHead><TableHead className="text-xs">Mapel</TableHead><TableHead className="text-xs">Kelas</TableHead><TableHead className="text-xs">Jam</TableHead></TableRow></TableHeader>
+                <TableBody>{absensiDetail.absen_siswa_belum_detail.map((session: { tanggal: string; mapel: string; kelas: string; jam: string }, index: number) => <TableRow key={`${session.tanggal}-${session.mapel}-${session.kelas}-${index}`}><TableCell className="whitespace-nowrap text-xs">{new Date(`${session.tanggal}T00:00:00`).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</TableCell><TableCell className="text-xs">{session.mapel}</TableCell><TableCell className="text-xs">{session.kelas}</TableCell><TableCell className="whitespace-nowrap text-xs">{session.jam}</TableCell></TableRow>)}</TableBody>
+              </Table>
+            </div>
+          </div>}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

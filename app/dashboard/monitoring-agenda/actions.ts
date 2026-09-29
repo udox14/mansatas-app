@@ -134,6 +134,7 @@ export async function getMonitoringHarian(
       ag.waktu_input,
       ag.catatan_admin,
       ag.ppl_user_id,
+      EXISTS (SELECT 1 FROM absensi_sesi_guru ass WHERE ass.penugasan_id = jm.penugasan_id AND ass.tanggal = ?) AS sudah_absen_siswa,
       u_ppl.nama_lengkap as ppl_nama,
       dtk.id as delegasi_kelas_id,
       dt_info.alasan_ketidakhadiran,
@@ -154,7 +155,7 @@ export async function getMonitoringHarian(
     WHERE jm.tahun_ajaran_id = ? AND jm.hari = ?
       AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
   `
-  const params: unknown[] = [tanggal, tanggal, ta.id, hari, tanggal]
+  const params: unknown[] = [tanggal, tanggal, tanggal, ta.id, hari, tanggal]
 
   if (filterMode === 'guru' && filterId) {
     sql += ' AND pm.guru_id = ?'
@@ -239,6 +240,7 @@ export async function getMonitoringHarian(
       status,
       waktu_input: first.waktu_input,
       catatan_admin: first.catatan_admin,
+      sudah_absen_siswa: Boolean(first.sudah_absen_siswa),
       ppl_user_id: first.ppl_user_id || null,
       ppl_nama: first.ppl_nama || null,
       pelaksana_nama: first.pelaksana_nama || null,
@@ -422,8 +424,10 @@ export async function getTeacherAgendaSubmissions(guruId: string, start: string,
   validHistoryRange(start, end)
   if (!guruId) throw new Error('Pilih guru terlebih dahulu.')
   const db = await getDB()
-  const result = await db.prepare(`SELECT ag.id, ag.tanggal, ag.jam_ke_mulai, ag.jam_ke_selesai,
+  const result = await db.prepare(`SELECT ag.id, ag.penugasan_id, ag.guru_id, ag.tanggal, ag.jam_ke_mulai, ag.jam_ke_selesai,
     ag.materi, ag.foto_url, ag.status, ag.waktu_input, ag.catatan_admin,
+    ag.alasan_izin_guru_id,
+    EXISTS (SELECT 1 FROM absensi_sesi_guru ass WHERE ass.penugasan_id = ag.penugasan_id AND ass.tanggal = ag.tanggal) AS sudah_absen_siswa,
     editor.nama_lengkap AS diubah_oleh_nama, ppl.nama_lengkap AS ppl_nama,
     mp.nama_mapel, k.tingkat, k.nomor_kelas, k.kelompok
     FROM agenda_guru ag JOIN penugasan_mengajar pm ON pm.id = ag.penugasan_id
@@ -433,10 +437,14 @@ export async function getTeacherAgendaSubmissions(guruId: string, start: string,
     WHERE ag.guru_id = ? AND ag.waktu_input IS NOT NULL AND ag.tanggal BETWEEN ? AND ?
     ORDER BY ag.tanggal DESC, ag.jam_ke_mulai, ag.id`).bind(guruId, start, end).all<any>()
   return (result.results || []).map(row => ({
-    id: row.id, tanggal: row.tanggal, jam: `Jam ${row.jam_ke_mulai}–${row.jam_ke_selesai}`,
+    id: row.id, penugasan_id: row.penugasan_id, guru_id: row.guru_id,
+    jam_ke_mulai: row.jam_ke_mulai, jam_ke_selesai: row.jam_ke_selesai,
+    tanggal: row.tanggal, jam: `Jam ${row.jam_ke_mulai}–${row.jam_ke_selesai}`,
     kelas: formatNamaKelas(row.tingkat, row.nomor_kelas, row.kelompok), mapel: row.nama_mapel,
     materi: row.materi, foto_url: row.foto_url, status: row.status,
     waktu_input: row.waktu_input, catatan_admin: row.catatan_admin,
+    alasan_izin_guru_id: row.alasan_izin_guru_id,
+    sudah_absen_siswa: Boolean(row.sudah_absen_siswa),
     diubah_oleh_nama: row.diubah_oleh_nama, ppl_nama: row.ppl_nama,
   }))
 }
@@ -637,6 +645,7 @@ type CanonicalTeacherSession = TeacherLeaveMetadata & {
   waktu_input: string | null
   catatan_admin: string | null
   keterangan: string | null
+  sudah_absen_siswa: boolean
   ppl_user_id: string | null
   ppl_nama: string | null
   sumber: 'AGENDA' | 'OVERRIDE' | 'PENUGASAN' | 'OTOMATIS'
@@ -723,6 +732,14 @@ async function getCanonicalTeacherSessions(
   const agendaRows = (await db.prepare(agendaSql).bind(...agendaParams).all<any>()).results || []
   const agendaMap = new Map<string, any>(agendaRows.map(row => [`${row.penugasan_id}:${row.tanggal}`, row]))
 
+  const attendanceRows = (await db.prepare(`
+    SELECT ass.penugasan_id, ass.tanggal
+    FROM absensi_sesi_guru ass
+    JOIN penugasan_mengajar pm ON pm.id = ass.penugasan_id
+    WHERE pm.tahun_ajaran_id = ? AND ass.tanggal BETWEEN ? AND ?
+  `).bind(ta.id, tanggalMulai, tanggalSelesai).all<{ penugasan_id: string; tanggal: string }>()).results || []
+  const attendanceKeys = new Set(attendanceRows.map(row => `${row.penugasan_id}:${row.tanggal}`))
+
   const delegationParams: unknown[] = [ta.id, tanggalMulai, tanggalSelesai]
   let delegationSql = `
     SELECT dt.tanggal, dt.dari_user_id as guru_id, dt.alasan_ketidakhadiran,
@@ -805,6 +822,7 @@ async function getCanonicalTeacherSessions(
         waktu_input: agenda?.waktu_input || null,
         catatan_admin: agenda?.catatan_admin || null,
         keterangan: agenda?.catatan_admin || delegation?.deskripsi_ketidakhadiran || null,
+        sudah_absen_siswa: attendanceKeys.has(key),
         ppl_user_id: agenda?.ppl_user_id || null,
         ppl_nama: agenda?.ppl_nama || null,
         sumber: agenda
@@ -826,7 +844,7 @@ async function buildRekapKehadiranGuru(
   ta: { id: string; jam_pelajaran: string | null },
   tanggalMulai: string,
   tanggalSelesai: string,
-  sortBy: 'nama' | 'patuh' | 'alfa'
+  sortBy: 'nama' | 'patuh' | 'alfa' | 'absen_siswa'
 ) {
   const sessions = await getCanonicalTeacherSessions(db, ta, tanggalMulai, tanggalSelesai)
   const rows = new Map<string, any>()
@@ -834,11 +852,27 @@ async function buildRekapKehadiranGuru(
     if (!rows.has(session.guru_id)) {
       rows.set(session.guru_id, {
         guru_id: session.guru_id, guru_nama: session.guru_nama,
-        total_blok: 0, tepat_waktu: 0, telat: 0, alfa: 0, sakit: 0, izin: 0, izinSekolah: 0,
+         total_blok: 0, tepat_waktu: 0, telat: 0, alfa: 0, sakit: 0, izin: 0, izinSekolah: 0,
+         absen_siswa_terisi: 0, absen_siswa_belum: 0,
+         absen_siswa_belum_detail: [] as Array<{ tanggal: string; mapel: string; kelas: string; jam: string }>,
       })
     }
     const row = rows.get(session.guru_id)!
     row.total_blok++
+    if (session.waktu_input) {
+      if (session.sudah_absen_siswa) row.absen_siswa_terisi++
+      else {
+        row.absen_siswa_belum++
+        row.absen_siswa_belum_detail.push({
+          tanggal: session.tanggal,
+          mapel: session.nama_mapel,
+          kelas: formatNamaKelas(session.tingkat, session.nomor_kelas, session.kelompok),
+          jam: session.jam_ke_mulai === session.jam_ke_selesai
+            ? `Jam ${session.jam_ke_mulai}`
+            : `Jam ${session.jam_ke_mulai}–${session.jam_ke_selesai}`,
+        })
+      }
+    }
     if (isSchoolLeave(session.status, session)) row.izinSekolah++
     if (session.status === 'TEPAT_WAKTU') row.tepat_waktu++
     else if (session.status === 'TELAT') row.telat++
@@ -849,6 +883,7 @@ async function buildRekapKehadiranGuru(
 
   const data = Array.from(rows.values()).map(row => ({
     ...row,
+    absen_siswa_belum_detail: row.absen_siswa_belum_detail.sort((a: { tanggal: string }, b: { tanggal: string }) => b.tanggal.localeCompare(a.tanggal)),
     performa: teacherPerformance({ total: row.total_blok, hadir: row.tepat_waktu + row.telat, sakit: row.sakit, izin: row.izin, izinSekolah: row.izinSekolah }),
     kepatuhan: row.total_blok > 0
       ? Math.min(100, Math.max(0, Math.round(((row.total_blok - row.alfa) / row.total_blok) * 100)))
@@ -856,6 +891,7 @@ async function buildRekapKehadiranGuru(
   }))
   if (sortBy === 'patuh') data.sort((a, b) => b.kepatuhan - a.kepatuhan)
   else if (sortBy === 'alfa') data.sort((a, b) => b.alfa - a.alfa)
+  else if (sortBy === 'absen_siswa') data.sort((a, b) => b.absen_siswa_belum - a.absen_siswa_belum || a.guru_nama.localeCompare(b.guru_nama))
   else data.sort((a, b) => a.guru_nama.localeCompare(b.guru_nama))
   return { error: null, data }
 }
@@ -863,7 +899,7 @@ async function buildRekapKehadiranGuru(
 export async function getRekapKehadiranGuru(
   tanggalMulai: string,
   tanggalSelesai: string,
-  sortBy: 'nama' | 'patuh' | 'alfa' = 'nama'
+  sortBy: 'nama' | 'patuh' | 'alfa' | 'absen_siswa' = 'nama'
 ) {
   const db = await getDB()
   const ta = await db.prepare('SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<any>()
