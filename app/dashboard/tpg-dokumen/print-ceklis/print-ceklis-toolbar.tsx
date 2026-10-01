@@ -24,7 +24,7 @@ export function PrintCeklisToolbar({ teacherCount }: PrintCeklisToolbarProps) {
           Kembali
         </Button>
         <div>
-          <p className="text-sm font-semibold text-slate-800">Cetak Lembar Ceklis Kelengkapan TPG</p>
+          <p className="text-sm font-semibold text-slate-800">Cetak Ceklis Berkas TPG</p>
           <p className="text-xs text-slate-500">
             {teacherCount} Guru terpilih &bull; {teacherCount * 2} Lembar (Asli &amp; Salinan)
           </p>
@@ -33,7 +33,7 @@ export function PrintCeklisToolbar({ teacherCount }: PrintCeklisToolbarProps) {
       <div className="flex items-center gap-2">
         <Button onClick={() => window.print()} className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm">
           <Printer className="h-4 w-4" />
-          Print / Simpan PDF
+          Cetak / Simpan PDF
         </Button>
       </div>
     </div>

@@ -16,7 +16,6 @@ export const dynamic = 'force-dynamic'
 function parsePeriod(params: { s36Year?: string; s36Month?: string; ckhYear?: string; ckhMonth?: string }) {
   const [todayYear, todayMonth, todayDay] = todayWIB().split('-').map(Number)
   const previous = previousMonthPeriod(new Date(todayYear, todayMonth - 1, todayDay))
-  const current = { year: todayYear, month: todayMonth }
   const s36Year = Number(params.s36Year)
   const s36Month = Number(params.s36Month)
   const ckhYear = Number(params.ckhYear)
@@ -25,8 +24,8 @@ function parsePeriod(params: { s36Year?: string; s36Month?: string; ckhYear?: st
   return {
     s36Year: Number.isInteger(s36Year) && s36Year >= 2020 && s36Year <= 2100 ? s36Year : previous.year,
     s36Month: Number.isInteger(s36Month) && s36Month >= 1 && s36Month <= 12 ? s36Month : previous.month,
-    ckhYear: Number.isInteger(ckhYear) && ckhYear >= 2020 && ckhYear <= 2100 ? ckhYear : current.year,
-    ckhMonth: Number.isInteger(ckhMonth) && ckhMonth >= 1 && ckhMonth <= 12 ? ckhMonth : current.month,
+    ckhYear: Number.isInteger(ckhYear) && ckhYear >= 2020 && ckhYear <= 2100 ? ckhYear : previous.year,
+    ckhMonth: Number.isInteger(ckhMonth) && ckhMonth >= 1 && ckhMonth <= 12 ? ckhMonth : previous.month,
   }
 }
 

@@ -9,7 +9,7 @@ export function PrintToolbar() {
       <p className="text-sm font-semibold text-slate-800">Cetak CKH Massal</p>
       <Button onClick={() => window.print()} className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700">
         <Printer className="h-4 w-4" />
-        Print / Simpan PDF
+        Cetak / Simpan PDF
       </Button>
     </div>
   )

@@ -136,13 +136,11 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
   const [ceklisDate, setCeklisDate] = useState('')
   const [ceklisCity, setCeklisCity] = useState('Tasikmalaya')
 
-  useEffect(() => {
+  const loadCeklisPrintConfig = () => {
     try {
       const saved = localStorage.getItem('tpg_ceklis_print_config')
       if (saved) {
         const parsed = JSON.parse(saved)
-        if (parsed.year) setCeklisYear(String(parsed.year))
-        if (parsed.month) setCeklisMonth(String(parsed.month))
         if (parsed.date !== undefined) setCeklisDate(String(parsed.date))
         if (parsed.city) setCeklisCity(String(parsed.city))
       } else {
@@ -156,7 +154,7 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
     } catch {
       // ignore
     }
-  }, [])
+  }
 
   const currentUser = data.currentUser || data.users.find(user => user.id === data.currentUserId) || null
   const yearOptions = useMemo(() => {
@@ -305,6 +303,9 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
       return
     }
     setCeklisPrintMode(mode)
+    setCeklisYear(String(data.s36Year))
+    setCeklisMonth(String(data.s36Month))
+    loadCeklisPrintConfig()
     setIsCeklisModalOpen(true)
   }
 
@@ -314,8 +315,6 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
       localStorage.setItem(
         'tpg_ceklis_print_config',
         JSON.stringify({
-          year: ceklisYear,
-          month: ceklisMonth,
           date: ceklisDate,
           city: ceklisCity,
         })
@@ -564,7 +563,7 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-400">
               <Printer className="h-4 w-4" />
             </div>
-            Pengaturan Cetak Lembar Ceklis
+            Pengaturan Cetak Ceklis Berkas
           </DialogTitle>
           <DialogDescription className="mt-1 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
             Atur periode, tanggal, dan informasi penerimaan sebelum mencetak (format A4 Portrait, rangkap ASLI &amp; SALINAN).
@@ -581,10 +580,10 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
               </p>
               <p className="mt-1 text-indigo-700 dark:text-indigo-300">
                 {ceklisPrintMode === 'self'
-                  ? 'Mencetak Lembar Ceklis untuk profil Anda (2 lembar: ASLI & SALINAN).'
+                  ? 'Mencetak Ceklis Berkas untuk profil Anda (2 lembar: ASLI & SALINAN).'
                   : ceklisPrintMode === 'selected'
-                  ? `Mencetak Lembar Ceklis untuk ${selected.length} Guru terpilih (${selected.length * 2} lembar: ASLI & SALINAN).`
-                  : `Mencetak Lembar Ceklis untuk seluruh Guru Mata Pelajaran (${data.users.length} Guru, ${data.users.length * 2} lembar).`}
+                  ? `Mencetak Ceklis Berkas untuk ${selected.length} Guru terpilih (${selected.length * 2} lembar: ASLI & SALINAN).`
+                  : `Mencetak Ceklis Berkas untuk seluruh Guru Mata Pelajaran (${data.users.length} Guru, ${data.users.length * 2} lembar).`}
               </p>
             </div>
 
@@ -720,7 +719,7 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
                 className="w-full sm:w-auto gap-2 border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300 text-xs h-9 font-medium"
               >
                 <Printer className="h-3.5 w-3.5" />
-                Cetak Lembar Ceklis
+                Cetak Ceklis Berkas
               </Button>
               {userS36Required && (
                 <Button
@@ -874,7 +873,7 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
             <div className="rounded-xl border border-surface-2 bg-surface-2/50 p-4 flex flex-col justify-between">
               <div>
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">Lembar Ceklis</p>
+                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">Ceklis Berkas</p>
                   <span className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-0.5 text-[11px] font-semibold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300">
                     A4 Portrait
                   </span>
@@ -898,7 +897,7 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
                 className="mt-4 w-full text-xs h-9 gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm"
               >
                 <Printer className="h-3.5 w-3.5" />
-                Cetak Lembar Ceklis
+                Cetak Ceklis Berkas
               </Button>
             </div>
 
@@ -1043,7 +1042,7 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
               </div>
 
               {/* Action Toolbar Bar */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 border-b border-surface-2 px-4 py-2.5 bg-surface">
+              <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2.5 border-b border-surface-2 px-4 py-2.5 bg-surface">
                 <div className="text-xs text-slate-500 font-medium">
                   {selected.length > 0 ? (
                     <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-600 dark:text-emerald-400">
@@ -1051,22 +1050,22 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
                       {selected.length} guru dipilih
                     </span>
                   ) : (
-                    <span>Pilih guru untuk aksi terpilih, atau gunakan tombol cetak/unduh massal:</span>
+                    <span>Pilih guru untuk aksi terpilih, atau gunakan tombol cetak/simpan semua:</span>
                   )}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
                   {/* S36 Group */}
-                  <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-800 p-0.5 bg-slate-50/70 dark:bg-slate-900/60 shadow-xs">
+                  <div className="inline-flex max-w-full flex-wrap rounded-lg border border-slate-200 dark:border-slate-800 p-0.5 bg-slate-50/70 dark:bg-slate-900/60 shadow-xs">
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => openS36Download('selected')}
                       disabled={selected.length === 0}
                       className="gap-1.5 text-xs h-7 px-2.5 font-medium hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-50"
-                      title="Download S36 guru yang dicentang"
+                      title="Simpan S36 guru yang dicentang"
                     >
-                      <Download className="h-3.5 w-3.5 text-slate-500" /> S36 Terpilih
+                      <Download className="h-3.5 w-3.5 text-slate-500" /> Simpan S36 Terpilih
                     </Button>
                     <div className="w-[1px] bg-slate-200 dark:bg-slate-800 my-1" />
                     <Button
@@ -1074,14 +1073,14 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
                       size="sm"
                       onClick={() => openS36Download('all')}
                       className="gap-1.5 text-xs h-7 px-2.5 font-medium hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
-                      title="Download semua berkas S36"
+                      title="Simpan semua berkas S36"
                     >
-                      <Download className="h-3.5 w-3.5 text-slate-500" /> Semua S36
+                      <Download className="h-3.5 w-3.5 text-slate-500" /> Simpan Semua S36
                     </Button>
                   </div>
 
                   {/* CKH Group */}
-                  <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-800 p-0.5 bg-slate-50/70 dark:bg-slate-900/60 shadow-xs">
+                  <div className="inline-flex max-w-full flex-wrap rounded-lg border border-slate-200 dark:border-slate-800 p-0.5 bg-slate-50/70 dark:bg-slate-900/60 shadow-xs">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -1090,7 +1089,7 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
                       className="gap-1.5 text-xs h-7 px-2.5 font-medium hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-50"
                       title="Cetak CKH guru yang dicentang"
                     >
-                      <Printer className="h-3.5 w-3.5 text-slate-500" /> CKH Terpilih
+                      <Printer className="h-3.5 w-3.5 text-slate-500" /> Cetak CKH Terpilih
                     </Button>
                     <div className="w-[1px] bg-slate-200 dark:bg-slate-800 my-1" />
                     <Button
@@ -1100,21 +1099,21 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
                       className="gap-1.5 text-xs h-7 px-2.5 font-medium hover:bg-emerald-50 text-emerald-700 dark:hover:bg-emerald-950/50 dark:text-emerald-400"
                       title="Cetak semua berkas CKH"
                     >
-                      <Printer className="h-3.5 w-3.5 text-emerald-600" /> Semua CKH
+                      <Printer className="h-3.5 w-3.5 text-emerald-600" /> Cetak Semua CKH
                     </Button>
                   </div>
 
                   {/* Ceklis Group */}
-                  <div className="inline-flex rounded-lg border border-indigo-200 dark:border-indigo-900/60 p-0.5 bg-indigo-50/60 dark:bg-indigo-950/40 shadow-xs">
+                  <div className="inline-flex max-w-full flex-wrap rounded-lg border border-indigo-200 dark:border-indigo-900/60 p-0.5 bg-indigo-50/60 dark:bg-indigo-950/40 shadow-xs">
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => openCeklisPrintModal('selected')}
                       disabled={selected.length === 0}
                       className="gap-1.5 text-xs h-7 px-2.5 font-medium hover:bg-white text-indigo-700 dark:text-indigo-300 disabled:opacity-50"
-                      title="Cetak Lembar Ceklis guru yang dicentang"
+                      title="Cetak Ceklis Berkas guru yang dicentang"
                     >
-                      <Printer className="h-3.5 w-3.5 text-indigo-600" /> Ceklis Terpilih
+                      <Printer className="h-3.5 w-3.5 text-indigo-600" /> Cetak Ceklis Berkas Terpilih
                     </Button>
                     <div className="w-[1px] bg-indigo-200 dark:bg-indigo-900/60 my-1" />
                     <Button
@@ -1122,9 +1121,9 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
                       size="sm"
                       onClick={() => openCeklisPrintModal('all')}
                       className="gap-1.5 text-xs h-7 px-2.5 font-medium bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs"
-                      title="Cetak Lembar Ceklis untuk seluruh guru"
+                      title="Cetak Ceklis Berkas untuk seluruh guru"
                     >
-                      <Printer className="h-3.5 w-3.5" /> Semua Ceklis
+                      <Printer className="h-3.5 w-3.5" /> Cetak Semua Ceklis Berkas
                     </Button>
                   </div>
                 </div>

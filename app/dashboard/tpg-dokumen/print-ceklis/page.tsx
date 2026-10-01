@@ -5,9 +5,10 @@ import { getDB } from '@/utils/db-server'
 import { getUserRoles } from '@/lib/features'
 import { ensureTpgSchema } from '@/lib/tpg-schema'
 import { monthName, previousMonthPeriod, TPG_CKH_ROLES } from '@/lib/tpg'
+import { todayWIB } from '@/lib/time'
 import { PrintCeklisToolbar } from './print-ceklis-toolbar'
 
-export const metadata = { title: 'Cetak Lembar Ceklis TPG - MANSATAS App' }
+export const metadata = { title: 'Cetak Ceklis Berkas TPG - MANSATAS App' }
 export const dynamic = 'force-dynamic'
 
 type TeacherProfile = {
@@ -48,7 +49,8 @@ export default async function PrintCeklisPage({ searchParams }: PageProps) {
   const roles = await getUserRoles(db, authUser.id)
   const canManage = roles.includes('super_admin') || roles.includes('admin_tu')
 
-  const fallbackPeriod = previousMonthPeriod()
+  const [todayYear, todayMonth, todayDay] = todayWIB().split('-').map(Number)
+  const fallbackPeriod = previousMonthPeriod(new Date(todayYear, todayMonth - 1, todayDay))
   const year = Number(params.year) || fallbackPeriod.year
   const month = Number(params.month) || fallbackPeriod.month
   const city = params.city?.trim() || 'Tasikmalaya'
