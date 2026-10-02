@@ -14,6 +14,7 @@ import {
   type NativeDownloadEventDetail,
 } from '@/lib/pdf/download'
 import { createNativePrintWindow, printDocumentNative } from '@/lib/native-print'
+import { AGENDA_DRAFT_RESTORED_EVENT, restoreAgendaCamera } from '@/lib/agenda-draft'
 
 export type MobileBackMode = 'history' | 'confirm-exit' | 'exit'
 export type DisplayScale = 'small' | 'normal' | 'large' | 'xlarge'
@@ -158,6 +159,33 @@ export function MobileRuntime({
     filename?: string
     message?: string
   }>({ phase: 'idle' })
+  const [cameraRecoveryError, setCameraRecoveryError] = useState('')
+
+  useEffect(() => {
+    let disposed = false
+    let listener: { remove: () => Promise<void> } | undefined
+    void Promise.all([import('@capacitor/core'), import('@capacitor/app')]).then(async ([{ Capacitor }, { App }]) => {
+      if (disposed || !Capacitor.isNativePlatform()) return
+      listener = await App.addListener('appRestoredResult', result => {
+        if (result.pluginId !== 'Camera' || result.methodName !== 'getPhoto') return
+        try {
+          if (!result.success) {
+            setCameraRecoveryError(`Kamera gagal memulihkan foto: ${result.error?.message || 'pengambilan foto tidak selesai'}. Buka Agenda Guru untuk melanjutkan materi dan mengambil foto ulang.`)
+            return
+          }
+          const route = restoreAgendaCamera(result.data)
+          if (route) {
+            if (window.location.pathname + window.location.search !== route) window.location.assign(route)
+            else window.dispatchEvent(new Event(AGENDA_DRAFT_RESTORED_EVENT))
+          }
+        } catch (error) {
+          setCameraRecoveryError(error instanceof Error ? error.message : 'Foto gagal dipulihkan. Buka Agenda Guru dan ambil ulang foto.')
+        }
+      })
+      if (disposed) await listener.remove()
+    }).catch(() => setCameraRecoveryError('Pemulihan kamera tidak dapat disiapkan. Jika aplikasi dimuat ulang, buka Agenda Guru dan lanjutkan draft.'))
+    return () => { disposed = true; void listener?.remove() }
+  }, [])
   const isAuthenticatedArea =
     pathname.startsWith('/dashboard') ||
     (pathname.startsWith('/portal-ortu') && !pathname.startsWith('/portal-ortu/login'))
@@ -779,6 +807,10 @@ export function MobileRuntime({
         </div>
       )}
       <OfflineBanner isOffline={isOffline} hasSwUpdate={hasSwUpdate} />
+      {cameraRecoveryError && <div role="alert" className="fixed bottom-20 left-4 right-4 z-[100] rounded-lg border border-rose-300 bg-rose-50 p-4 text-sm text-rose-800">
+        {cameraRecoveryError}
+        <button type="button" className="ml-2 underline" onClick={() => setCameraRecoveryError('')}>Tutup</button>
+      </div>}
       {downloadState.phase !== 'idle' && (
         <div
           className={`fixed left-1/2 top-5 z-[10000] flex w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 items-start gap-3 rounded-2xl border px-4 py-3 shadow-xl backdrop-blur-xl ${

@@ -10,7 +10,6 @@ import { getEffectiveUser, getActAsDate } from '@/lib/act-as'
 import { resolveTeachingAssignmentAccess } from '@/lib/guru-ppl-access'
 import { currentTimeWIB, todayWIB, nowWIB } from '@/lib/time'
 import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
-import { enqueueAttendanceAlfaNotifications } from '@/lib/whatsapp'
 import { notifyParentsAttendanceConfigured, notifyParentsDailyAttendanceFinal } from '@/lib/notification-engine'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
 import { invalidateAttendanceCache } from '@/lib/attendance-cache'
@@ -492,7 +491,6 @@ export async function simpanAbsensi(
   const changedNotificationIds = toSave
     .filter(row => (row.status === 'ALFA' || row.status === 'SAKIT') && previousStatus.get(row.siswa_id) !== row.status)
     .map(row => row.siswa_id)
-  const hasNewAlfa = toSave.some(row => row.status === 'ALFA' && previousStatus.get(row.siswa_id) !== 'ALFA')
   const delStmt = db.prepare('DELETE FROM absensi_siswa WHERE penugasan_id = ? AND tanggal = ?').bind(penugasanId, tanggal)
   const delSnapshotStmt = db.prepare('DELETE FROM absensi_sesi_siswa WHERE penugasan_id = ? AND tanggal = ?').bind(penugasanId, tanggal)
   const snapshotStmts = dataAbsen.map(d => db.prepare(`
@@ -531,18 +529,6 @@ export async function simpanAbsensi(
     for (let i = 0; i < all.length; i += 100) await db.batch(all.slice(i, i + 100))
   } catch (e: any) { return { error: e.message } }
   invalidateAttendanceCache()
-
-  if (hasNewAlfa) {
-    try {
-      await enqueueAttendanceAlfaNotifications(db, {
-        penugasanId,
-        tanggal,
-        createdBy: diinputOleh,
-      })
-    } catch (waError) {
-      console.error('Gagal enqueue notifikasi WhatsApp ALFA:', waError)
-    }
-  }
 
   if (changedNotificationIds.length > 0) {
     try {

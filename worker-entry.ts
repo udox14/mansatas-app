@@ -49,15 +49,11 @@ const entrypoint = {
         "Authorization": `Bearer ${cronSecret}`,
         "cf-cron": "true",
       };
-      const [reminderResponse, whatsappResponse] = await Promise.all([
-        env.SELF.fetch("https://mansatas.internal/api/cron/reminder-jadwal", { method: "GET", headers }),
-        env.SELF.fetch("https://mansatas.internal/api/cron/whatsapp", { method: "GET", headers }),
-      ]);
+      const reminderResponse = await env.SELF.fetch("https://mansatas.internal/api/cron/reminder-jadwal", { method: "GET", headers });
 
       console.info(JSON.stringify({
         event: 'cron_completed',
         reminderStatus: reminderResponse.status,
-        whatsappStatus: whatsappResponse.status,
       }));
     } catch (error: unknown) {
       console.error(JSON.stringify({

@@ -17,13 +17,11 @@ const Activity = 'Activity'
 const ClipboardList = 'ClipboardList'
 const FileText = 'FileText'
 const SlidersHorizontal = 'SlidersHorizontal'
-const PackageSearch = 'PackageSearch'
 const Send = 'Send'
 const Eye = 'Eye'
 const Calendar = 'Calendar'
 const Megaphone = 'Megaphone'
 const MessageSquarePlus = 'MessageSquarePlus'
-const MessageCircle = 'MessageCircle'
 const Radio = 'Radio'
 const ClipboardEdit = 'ClipboardEdit'
 const BookHeart = 'BookHeart'
@@ -270,14 +268,6 @@ export const MENU_ITEMS: MenuItem[] = [
     desc: 'Mengelola daftar kegiatan ekstrakurikuler, penunjukan pembina, dan pemantauan kegiatan'
   },
   {
-    id: 'whatsapp',
-    title: 'Kirim WhatsApp',
-    href: '/dashboard/whatsapp',
-    icon: MessageCircle,
-    roles: ['super_admin', 'admin_tu', 'bendahara_komite'],
-    desc: 'Mengelola antrean (outbox) pengiriman notifikasi otomatis absensi dan siaran pesan WhatsApp via WABLAS'
-  },
-  {
     id: 'monitoring-agenda',
     title: 'Monitoring Agenda',
     href: '/dashboard/monitoring-agenda',
@@ -348,14 +338,6 @@ export const MENU_ITEMS: MenuItem[] = [
     icon: FileWarning,
     roles: ['super_admin', 'kepsek', 'wakamad', 'admin_tu', 'guru_bk'],
     desc: 'Menetapkan, mencetak, dan memantau status tindak lanjut Surat Peringatan (SP) siswa'
-  },
-  {
-    id: 'sarpras',
-    title: 'Sarana Prasarana',
-    href: '/dashboard/sarpras',
-    icon: PackageSearch,
-    roles: ['super_admin', 'admin_tu'],
-    desc: 'Mengelola data inventaris barang, kategori aset, ruangan, serta kondisi sarana prasarana'
   },
   {
     id: 'bk',
@@ -586,9 +568,9 @@ export const DEFAULT_SIDEBAR_GROUPS: SidebarGroupConfig[] = [
   { id: 'monitoring-rekap', label: 'Monitoring & Rekap', items: ['monitoring-agenda', 'audit-akses-agenda', 'monitoring-penugasan', 'monitoring-kedisiplinan', 'rekap-absensi', 'akademik-nilai'] },
   { id: 'program-khusus', label: 'Program Khusus', items: ['tahfidz'] },
   { id: 'kesiswaan-bk', label: 'Kesiswaan & BK', items: ['kelas-binaan', 'keterangan-absensi', 'jadwal-piket', 'izin', 'kedisiplinan', 'sp', 'bk', 'psikotes', 'tka', 'penerimaan-pt'] },
-  { id: 'administrasi-hr', label: 'Administrasi & HR', items: ['tpg-dokumen', 'documentation', 'surat', 'rapat', 'sarpras', 'kelola-ppl', 'buku-tamu'] },
+  { id: 'administrasi-hr', label: 'Administrasi & HR', items: ['tpg-dokumen', 'documentation', 'surat', 'rapat', 'kelola-ppl', 'buku-tamu'] },
   { id: 'keuangan', label: 'Komite', items: ['komite-pengajuan', 'keuangan-daftar-ulang', 'keuangan-transaksi', 'keuangan-dspt', 'keuangan-dspt-nonaktif', 'keuangan-export', 'keuangan-kas-keluar', 'keuangan-laporan', 'keuangan-pengaturan'] },
-  { id: 'sistem', label: 'Sistem', items: ['settings', 'log-aktivitas', 'whatsapp', 'settings-notifications', 'settings-mobile-app', 'settings-fitur', 'pengumuman-ortu', 'kotak-saran-ortu'] },
+  { id: 'sistem', label: 'Sistem', items: ['settings', 'log-aktivitas', 'settings-notifications', 'settings-mobile-app', 'settings-fitur', 'pengumuman-ortu', 'kotak-saran-ortu'] },
 ]
 
 export const SIDEBAR_ROOT_ITEM_IDS = ['dashboard'] as const

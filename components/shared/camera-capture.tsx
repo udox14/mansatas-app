@@ -1,22 +1,39 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { Button } from '@/components/ui/button'
 import { AlertTriangle, Camera, Loader2 } from 'lucide-react'
+import { photoToFile } from '@/lib/agenda-draft'
 
 interface CameraProps {
-  onCapture: (file: File) => void
+  onCapture: (file: File) => void | Promise<void>
   onClose: () => void
+  onBeforeOpen?: () => void
+  onFinished?: () => void
 }
 
-export function CameraCapture({ onCapture, onClose }: CameraProps) {
+export function CameraCapture({ onCapture, onClose, onBeforeOpen, onFinished }: CameraProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState('')
   const [opening, setOpening] = useState(false)
 
+  useEffect(() => {
+    const input = inputRef.current
+    const cancelled = () => {
+      setError('Pengambilan foto dibatalkan. Agenda belum dikirim; buka kamera untuk melanjutkan.')
+      onFinished?.()
+    }
+    input?.addEventListener('cancel', cancelled)
+    return () => input?.removeEventListener('cancel', cancelled)
+  }, [onFinished])
+
   const openCamera = async () => {
     setError('')
+    try { onBeforeOpen?.() } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Draft gagal disimpan. Kamera belum dibuka; coba lagi.')
+      return
+    }
     // Browser membutuhkan klik input saat aktivasi pengguna masih berlangsung.
     if (!Capacitor.isNativePlatform()) {
       inputRef.current?.click()
@@ -30,20 +47,17 @@ export function CameraCapture({ onCapture, onClose }: CameraProps) {
         resultType: CameraResultType.Uri,
         source: CameraSource.Camera,
         allowEditing: false,
+        width: 1600,
+        height: 1600,
       })
-      if (!photo.webPath) throw new Error('Foto tidak dapat dibaca. Silakan ambil ulang.')
-      const response = await fetch(photo.webPath)
-      if (!response.ok) throw new Error('Foto tidak dapat dibaca. Silakan ambil ulang.')
-      const blob = await response.blob()
-      const format = photo.format === 'png' ? 'png' : 'jpg'
-      onCapture(new File([blob], `agenda_${Date.now()}.${format}`, { type: blob.type || `image/${format === 'jpg' ? 'jpeg' : format}` }))
+      await onCapture(await photoToFile(photo))
     } catch (cause) {
-      // Menutup kamera tanpa mengambil foto tidak perlu menampilkan pesan kesalahan.
-      const message = cause instanceof Error ? cause.message : ''
-      if (!/cancel|batal|closed/i.test(message)) {
-        setError('Kamera tidak dapat dibuka atau foto tidak dapat dibaca. Silakan coba lagi.')
-      }
+      const message = cause instanceof Error ? cause.message : typeof cause === 'object' && cause && 'message' in cause ? String(cause.message) : ''
+      setError(/cancel|batal|closed/i.test(message)
+        ? 'Pengambilan foto dibatalkan. Agenda belum dikirim; buka kamera untuk melanjutkan.'
+        : `Kamera atau pembacaan foto gagal${message ? `: ${message}` : '.'} Materi tetap disimpan; periksa izin kamera lalu coba lagi.`)
     } finally {
+      onFinished?.()
       setOpening(false)
     }
   }
@@ -59,7 +73,9 @@ export function CameraCapture({ onCapture, onClose }: CameraProps) {
         aria-label="Ambil foto kegiatan"
         onChange={event => {
           const file = event.target.files?.[0]
-          if (file) onCapture(file)
+          if (file) void Promise.resolve(onCapture(file)).catch(cause => setError(cause instanceof Error ? cause.message : 'Foto gagal diproses. Ambil ulang foto.'))
+          else setError('Tidak ada foto yang diambil. Agenda belum dikirim.')
+          onFinished?.()
           event.target.value = ''
         }}
       />

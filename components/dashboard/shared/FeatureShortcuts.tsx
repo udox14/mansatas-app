@@ -21,7 +21,6 @@ const SHORTCUT_META: Record<string, { desc: string; bg: string; color: string }>
   kedisiplinan: { desc: 'Catatan poin siswa', bg: 'bg-rose-50 dark:bg-rose-900/30', color: 'text-rose-600 dark:text-rose-400' },
   bk: { desc: 'Bimbingan konseling', bg: 'bg-cyan-50 dark:bg-cyan-900/30', color: 'text-cyan-600 dark:text-cyan-400' },
   psikotes: { desc: 'Data tes & minat', bg: 'bg-purple-50 dark:bg-purple-900/30', color: 'text-purple-600 dark:text-purple-400' },
-  sarpras: { desc: 'Inventaris & aset', bg: 'bg-rose-50 dark:bg-rose-900/30', color: 'text-rose-600 dark:text-rose-400' },
   settings: { desc: 'Konfigurasi aplikasi', bg: 'bg-slate-100 dark:bg-slate-800', color: 'text-slate-600 dark:text-slate-400' },
 }
 

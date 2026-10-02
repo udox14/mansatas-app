@@ -27,8 +27,6 @@ export const SYSTEM_SETTING_KEYS = {
   parentPortalDisciplinePublishMode: 'parent_portal_discipline_publish_mode',
   parentPortalDisciplineClarificationMode: 'parent_portal_discipline_clarification_mode',
   androidPlayStoreRequired: 'android_play_store_required',
-  // Toggle aktif/nonaktif pemrosesan cron per modul (disimpan sebagai '1'/'0')
-  cronWhatsappEnabled: 'cron_whatsapp_enabled',
   ckhKepalaSignatureUrl: 'ckh_kepala_signature_url',
 } as const
 

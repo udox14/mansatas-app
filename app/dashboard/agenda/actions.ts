@@ -453,7 +453,7 @@ function parseAgendaLateThresholdByJam(raw: string): Record<string, number> {
 //    Validasi: hanya bisa di jam pelajarannya (BYPASS untuk Act As)
 //    Status: TEPAT_WAKTU jika masih dalam batas menit per jam, TELAT jika lewat
 // ============================================================
-export async function submitAgenda(formData: FormData): Promise<{ error?: string; success?: string }> {
+export async function submitAgenda(formData: FormData): Promise<import('@/lib/agenda-submission-client').AgendaSubmissionResult> {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
   await requireActionAccess('agenda', 'create')
@@ -471,7 +471,9 @@ export async function submitAgenda(formData: FormData): Promise<{ error?: string
   const slotMulai = formData.get('slot_mulai') as string  // HH:mm
   const slotSelesai = formData.get('slot_selesai') as string // HH:mm
 
-  if (!penugasanId || !materi || !tanggal) return { error: 'Materi wajib diisi.' }
+  if (!penugasanId || !materi || !tanggal) return { error: 'Jadwal, tanggal, dan materi wajib diisi. Muat ulang jadwal jika tidak lengkap.' }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) return { error: 'Tanggal agenda tidak valid. Muat ulang jadwal.' }
+  if (!isActingAs && tanggal !== todayWIB()) return { error: 'Tanggal agenda sudah berganti. Draft tidak dikirim; muat ulang jadwal hari ini.' }
 
   const db = await getDB()
   if (!isActingAs) {
@@ -505,10 +507,15 @@ export async function submitAgenda(formData: FormData): Promise<{ error?: string
   ))
 
   // Cek apakah sudah diisi
+  const savedResponse = (row: { id: string; status: string }) => ({
+    success: `Agenda tersimpan. Status: ${row.status === 'TEPAT_WAKTU' ? 'Tepat Waktu' : row.status === 'TELAT' ? 'Telat' : row.status}`,
+    agenda: { id: row.id, status: row.status },
+  })
   const existing = await db.prepare(
-    'SELECT id FROM agenda_guru WHERE penugasan_id = ? AND tanggal = ?'
-  ).bind(penugasanId, tanggal).first<any>()
-  if (existing) return { error: 'Agenda untuk jadwal ini sudah diisi hari ini.' }
+    'SELECT id, status FROM agenda_guru WHERE penugasan_id = ? AND tanggal = ?'
+  ).bind(penugasanId, tanggal).first<{ id: string; status: string }>()
+  if (existing) return savedResponse(existing)
+  if (!isActingAs && (!foto || typeof foto === 'string' || !foto.size)) return { error: 'Foto kegiatan wajib diambil sebelum mengirim agenda.' }
 
   const delegated = await db.prepare(`
     SELECT dtk.id
@@ -557,7 +564,7 @@ export async function submitAgenda(formData: FormData): Promise<{ error?: string
   // Upload foto ke R2 (jika ada)
   let fotoUrl: string | null = null
   if (foto && foto.size > 0) {
-    const ext = foto.type === 'image/png' ? 'png' : 'jpg'
+    const ext = foto.type === 'image/png' ? 'png' : foto.type === 'image/webp' ? 'webp' : 'jpg'
     const fileName = `agenda_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`
     const uploadResult = await uploadToR2(foto, 'agenda', fileName)
     if (uploadResult.error) return { error: `Gagal upload foto: ${uploadResult.error}` }
@@ -624,9 +631,17 @@ export async function submitAgenda(formData: FormData): Promise<{ error?: string
 
   const result = await dbInsert<any>(db, 'agenda_guru', payload)
   if (result.error) {
-    if (result.error.includes('UNIQUE')) return { error: 'Agenda sudah diisi untuk jadwal ini.' }
-    return { error: result.error }
+    if (result.error.includes('UNIQUE')) {
+      const saved = await db.prepare('SELECT id, status FROM agenda_guru WHERE penugasan_id = ? AND tanggal = ?')
+        .bind(penugasanId, tanggal).first<{ id: string; status: string }>()
+      if (saved) return savedResponse(saved)
+    }
+    console.error('Agenda insert failed:', result.error)
+    return { error: 'Database gagal menyimpan agenda. Materi dan foto tetap disimpan; coba kirim lagi.' }
   }
+
+  // Jangan menganggap hasil INSERT kosong sebagai keberhasilan.
+  if (!result.data?.id) return { error: 'Database belum mengonfirmasi agenda tersimpan. Coba kirim lagi untuk memeriksa status.' }
 
   const agendaId = String(result.data?.id || '')
   const actorName = (user as any).nama_lengkap || user.name || user.email || 'Guru'
@@ -665,7 +680,8 @@ export async function submitAgenda(formData: FormData): Promise<{ error?: string
   }
 
   revalidatePath('/dashboard/agenda')
-  return { success: `Agenda berhasil disimpan! Status: ${status === 'TEPAT_WAKTU' ? 'Tepat Waktu' : 'Telat'}` }
+  revalidatePath('/dashboard/monitoring-agenda')
+  return savedResponse({ id: agendaId, status })
 }
 
 // ============================================================

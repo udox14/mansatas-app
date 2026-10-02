@@ -14,10 +14,13 @@ async function canvasToWebpFile(
   originalName: string,
   quality: number
 ): Promise<File | null> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Pemrosesan foto terlalu lama. Ambil ulang foto lalu coba kirim lagi.')), 10_000)
     canvas.toBlob((blob) => {
-      if (!blob) return resolve(null)
-      resolve(new File([blob], originalName.replace(/\.\w+$/, '.webp'), { type: 'image/webp' }))
+      clearTimeout(timer)
+      if (!blob) return reject(new Error('Foto gagal dikompres. Ambil ulang foto lalu coba kirim lagi.'))
+      const extension = blob.type === 'image/webp' ? '.webp' : '.png'
+      resolve(new File([blob], originalName.replace(/\.\w+$/, extension), { type: blob.type }))
     }, 'image/webp', quality)
   })
 }
@@ -33,13 +36,20 @@ export async function compressAgendaImage(
     watermarkText,
   }: CompressOptions = {}
 ): Promise<File> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const img = new window.Image()
     const url = URL.createObjectURL(file)
+    const timer = setTimeout(() => {
+      img.onload = null
+      img.onerror = null
+      URL.revokeObjectURL(url)
+      reject(new Error('Foto terlalu lama dibaca. Materi tetap disimpan; ambil ulang foto.'))
+    }, 15_000)
 
     img.onload = async () => {
+      clearTimeout(timer)
       URL.revokeObjectURL(url)
-
+      try {
       let width = img.width
       let height = img.height
       const widthRatio = maxWidth / width
@@ -51,7 +61,7 @@ export async function compressAgendaImage(
 
       const canvas = document.createElement('canvas')
       const ctx = canvas.getContext('2d')
-      if (!ctx) return resolve(file)
+      if (!ctx) throw new Error('Perangkat gagal memproses foto. Materi tetap disimpan; ambil ulang foto.')
 
       let bestFile: File | null = null
       let quality = initialQuality
@@ -76,7 +86,7 @@ export async function compressAgendaImage(
         }
 
         const compressed = await canvasToWebpFile(canvas, file.name, quality)
-        if (!compressed) return resolve(bestFile || file)
+        if (!compressed) throw new Error('Foto gagal dikompres. Ambil ulang foto.')
 
         bestFile = compressed
 
@@ -99,13 +109,16 @@ export async function compressAgendaImage(
           continue
         }
 
+        if (bestFile.size > 900 * 1024) throw new Error('Foto masih terlalu besar setelah diproses. Materi tetap disimpan; ambil ulang foto.')
         return resolve(bestFile)
       }
+      } catch (error) { reject(error) }
     }
 
     img.onerror = () => {
+      clearTimeout(timer)
       URL.revokeObjectURL(url)
-      resolve(file)
+      reject(new Error('Format foto tidak dapat dibaca oleh perangkat. Materi tetap disimpan; ambil ulang foto dalam format JPG.'))
     }
 
     img.src = url

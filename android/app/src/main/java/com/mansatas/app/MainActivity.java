@@ -60,12 +60,13 @@ public class MainActivity extends BridgeActivity {
 
             @Override
             public void onReceivedError(WebView webView) {
-                hasPageError = true;
+                // Capacitor memanggil ini juga untuk subresource (foto/request API).
+                // Hanya error halaman utama yang diarahkan ke errorPath oleh bridge.
             }
 
             @Override
             public void onReceivedHttpError(WebView webView) {
-                hasPageError = true;
+                // Error upload atau foto tidak boleh memuat ulang form saat resume.
             }
 
             @Override
@@ -121,7 +122,9 @@ public class MainActivity extends BridgeActivity {
 
         if (isErrorState && isNetworkAvailable()) {
             hasPageError = false;
-            String target = (lastGoodUrl != null && lastGoodUrl.startsWith(APP_URL)) ? lastGoodUrl : APP_URL;
+            // Navigasi Next.js tidak memicu onPageLoaded. Gunakan rute WebView saat ini.
+            String target = (currentUrl != null && currentUrl.startsWith(APP_URL) && !currentUrl.contains("offline.html")) ? currentUrl
+                : (lastGoodUrl != null && lastGoodUrl.startsWith(APP_URL)) ? lastGoodUrl : APP_URL;
             webView.post(() -> webView.loadUrl(target));
         }
     }

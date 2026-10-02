@@ -9,6 +9,7 @@ describe('media security policy', () => {
   })
 
   it('rejects unknown and traversal keys', () => {
+    expect(getMediaPolicy('sarpras/asset.jpg')).toBeNull()
     expect(getMediaPolicy('unknown/file.pdf')).toBeNull()
     expect(getMediaPolicy('foto_siswa/../secret.txt')).toBeNull()
     expect(getMediaPolicy('foto_siswa%2F..%2Fsecret.txt')).toBeNull()

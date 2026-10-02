@@ -125,7 +125,9 @@ export async function getUserAllowedFeatures(db: D1Database, userId: string): Pr
     allowed.add('documentation')
   }
 
-  return Array.from(allowed)
+  // Retired modules must remain inaccessible even before database cleanup,
+  // including stale role grants and per-user overrides.
+  return Array.from(allowed).filter(id => id !== 'sarpras' && id !== 'whatsapp')
 }
 
 /**

@@ -31,7 +31,7 @@ async function AgendaDataFetcher({
   effectiveUserId: string; role: string; isActingAs: boolean; dateOverride?: string
 }) {
   const result = await getJadwalGuruHariIni(effectiveUserId, dateOverride)
-  return <AgendaClient initialData={result} userRole={role} isActingAs={isActingAs} />
+  return <AgendaClient initialData={result} userRole={role} isActingAs={isActingAs} draftOwnerId={effectiveUserId} />
 }
 
 // ============================================================

@@ -1,0 +1,7 @@
+<id>
+Peningkatan keandalan Agenda Guru:
+• Memperbaiki aplikasi yang kembali ke dashboard setelah mengambil foto.
+• Materi dan foto disimpan sebagai draft agar pengiriman bisa dilanjutkan jika gagal.
+• Memperbaiki pengiriman ulang dan pembaruan status agenda.
+• Pesan kesalahan lebih jelas, disertai langkah untuk melanjutkan.
+</id>

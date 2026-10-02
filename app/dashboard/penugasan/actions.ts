@@ -7,7 +7,6 @@ import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { formatNamaKelas } from '@/lib/utils'
 import { nowWIBISO, todayWIB } from '@/lib/time'
-import { enqueueAttendanceAlfaNotifications } from '@/lib/whatsapp'
 import { emitConfiguredNotification, notifyParentsAttendanceConfigured, notifyParentsDailyAttendanceFinal } from '@/lib/notification-engine'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
 import { invalidateAttendanceCache } from '@/lib/attendance-cache'
@@ -790,18 +789,6 @@ export async function simpanAbsensiDelegasi(
   }
 
   invalidateAttendanceCache()
-
-  if (toSave.some(d => d.status === 'ALFA')) {
-    try {
-      await enqueueAttendanceAlfaNotifications(db, {
-        penugasanId: penugasanMengajarId,
-        tanggal,
-        createdBy: user.id,
-      })
-    } catch (waError) {
-      console.error('Gagal enqueue notifikasi WhatsApp ALFA delegasi:', waError)
-    }
-  }
 
   if (toSave.length > 0) {
     try {

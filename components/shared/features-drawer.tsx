@@ -44,7 +44,7 @@ const workstreams = [
   },
   {
     title: 'Administrasi, HR, dan Koordinasi',
-    description: 'Guru dan pegawai, penugasan, monitoring penugasan, rapat, surat, sarpras, PPL, buku tamu, jadwal piket, monitoring agenda, dan analitik membantu pekerjaan lintas unit.',
+    description: 'Guru dan pegawai, penugasan, monitoring penugasan, rapat, surat, PPL, buku tamu, jadwal piket, monitoring agenda, dan analitik membantu pekerjaan lintas unit.',
     icon: ClipboardList,
   },
   {
@@ -130,7 +130,7 @@ const groupSummaries: Record<string, string> = {
   'monitoring-rekap': 'Monitoring agenda, penugasan, kedisiplinan, absensi, dan nilai.',
   'program-khusus': 'Program khusus madrasah seperti tahfidz.',
   'kesiswaan-bk': 'Kelas binaan, izin, kedisiplinan, BK, psikotes, TKA, dan penerimaan PT.',
-  'administrasi-hr': 'Dokumen TPG, surat, rapat, sarpras, PPL, dan buku tamu.',
+  'administrasi-hr': 'Dokumen TPG, surat, rapat, PPL, dan buku tamu.',
   keuangan: 'Daftar ulang, transaksi, DSPT, SPP, export, kas keluar, laporan, dan pengaturan komite.',
   sistem: 'Pengaturan, WhatsApp, broadcast, jadwal notifikasi, fitur, pengumuman, dan kotak saran orang tua.',
 }
@@ -182,7 +182,6 @@ const featureDescriptions: Record<string, string> = {
   'rppm-generator': 'Membantu guru membuat RPPM dari data pembelajaran dan mencetak dokumen rencana pembelajaran mingguan.',
   'nilai-harian': 'Guru bisa membuat sesi penilaian, mengisi nilai siswa, mengatur KKM, dan melihat rata-rata nilai harian per kelas.',
   penugasan: 'Memudahkan guru atau pegawai mendelegasikan tugas, menerima tugas masuk, dan melihat pekerjaan yang sudah dikirim.',
-  whatsapp: 'Mengirim pesan WhatsApp terarah untuk kebutuhan operasional, pengingat, dan komunikasi komite atau madrasah.',
   'monitoring-agenda': 'Pimpinan dan admin dapat memantau agenda guru, rekap kehadiran mengajar, agenda piket, serta mencetak laporan.',
   'monitoring-penugasan': 'Menampilkan pekerjaan yang sedang didelegasikan, siapa pengirimnya, siapa penerimanya, dan bagaimana statusnya.',
   'monitoring-kedisiplinan': 'Memantau kasus kedisiplinan, total poin, level sanksi, dan tindak lanjut siswa lintas kelas.',
@@ -190,7 +189,6 @@ const featureDescriptions: Record<string, string> = {
   'jadwal-piket': 'Mengatur siapa saja guru piket setiap hari dan shift, sehingga pencatatan piket harian punya dasar yang jelas.',
   izin: 'Mencatat izin siswa, baik tidak masuk, keluar, maupun izin di jam pelajaran, lengkap dengan alasan dan status kembali.',
   kedisiplinan: 'Mencatat pelanggaran siswa, poin beban, jenis sanksi, tindak lanjut, dan ringkasan kasus kedisiplinan.',
-  sarpras: 'Mendata aset madrasah, kategori barang, kondisi aset, foto aset, dan filter pencarian sarana prasarana.',
   bk: 'Guru BK dapat mengelola kelas binaan, topik bimbingan, rekaman masalah siswa, sesi konseling, home visit, dan tindak lanjut.',
   psikotes: 'Mengelola hasil psikotes siswa seperti IQ, gaya belajar, bakat-minat, RIASEC, MBTI, dan rekomendasi jurusan.',
   analitik: 'Membantu membaca data nilai untuk kebutuhan ranking, kelulusan, SNBP, SPAN, ijazah, dan ekspor hasil analisis.',

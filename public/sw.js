@@ -2,7 +2,7 @@
 // Aset publik memakai cache statis. Halaman/data akun yang sudah dibuka memakai
 // cache privat perangkat dan selalu dibersihkan ketika pengguna logout/login ulang.
 
-const CACHE_NAME = 'mansatas-static-v9'
+const CACHE_NAME = 'mansatas-static-v10'
 const PRIVATE_CACHE_PREFIX = 'mansatas-private-v2-'
 const PRIVATE_META_CACHE = 'mansatas-private-meta-v2'
 const PRIVATE_CONTEXT_KEY = new Request(`${self.location.origin}/__mansatas_cache_context`)
@@ -100,6 +100,15 @@ self.addEventListener('fetch', (event) => {
   const isAuthenticatedPath =
     url.pathname.startsWith('/dashboard') ||
     (url.pathname.startsWith('/portal-ortu') && !url.pathname.startsWith('/portal-ortu/login'))
+  // Status agenda harus berasal dari server. Jangan menampilkan snapshot lama
+  // (termasuk snapshot offline) sebagai bukti hadir atau belum input.
+  if (sameOrigin && (url.pathname === '/dashboard/agenda' || url.pathname.startsWith('/dashboard/agenda/') ||
+    url.pathname === '/dashboard/monitoring-agenda' || url.pathname.startsWith('/dashboard/monitoring-agenda/'))) {
+    event.respondWith(fetch(event.request).catch(() =>
+      event.request.mode === 'navigate' ? offlineResponse() : new Response('Koneksi terputus. Status agenda tidak tersedia.', { status: 503 })
+    ))
+    return
+  }
   const isLoginPath =
     url.pathname === '/login' ||
     url.pathname.startsWith('/portal-ortu/login') ||
@@ -163,6 +172,7 @@ self.addEventListener('fetch', (event) => {
     !url.pathname.startsWith('/api/fcm/') &&
     !url.pathname.startsWith('/api/pdf/') &&
     !url.pathname.startsWith('/api/media/') &&
+    !url.pathname.startsWith('/api/agenda/') &&
     !url.pathname.startsWith('/api/komite/') &&
     !url.pathname.includes('/download') &&
     !url.pathname.startsWith('/api/health')

@@ -449,23 +449,6 @@ const FEATURE_DOCS: Record<string, { summary: string; sections: string[] }> = {
       '- Monitoring Penugasan dipakai pimpinan/admin untuk melihat penugasan lintas user.',
     ],
   },
-  whatsapp: {
-    summary: 'Mengirim pesan WhatsApp terarah untuk siswa, orang tua, atau kebutuhan komite sesuai izin.',
-    sections: [
-      '## Fungsi yang tersedia',
-      '- Menyusun pesan WhatsApp dan memilih target penerima.',
-      '- Mengirim pesan untuk informasi sekolah, keuangan, atau komunikasi tertentu.',
-      '- Memakai data nomor WhatsApp yang tersimpan pada siswa/user.',
-      '## Tombol dan aksi',
-      '- Pilih Target menentukan penerima pesan.',
-      '- Kirim WhatsApp mengirim pesan.',
-      '- Preview memeriksa isi pesan jika tersedia.',
-      '- Reset membersihkan form.',
-      '## Filter dan data',
-      '- Filter kelas, siswa, role, kategori, atau status pembayaran dapat tersedia sesuai konteks.',
-      '- Pastikan nomor WhatsApp valid dengan format Indonesia sebelum mengirim.',
-    ],
-  },
   'monitoring-agenda': {
     summary: 'Memantau agenda guru, keterisian jurnal, materi yang sudah diinput, dan kepatuhan pengisian.',
     sections: [
@@ -580,23 +563,6 @@ const FEATURE_DOCS: Record<string, { summary: string; sections: string[] }> = {
       '## Filter dan data',
       '- Filter tanggal, kelas, siswa, kategori, level sanksi, dan status tindak lanjut.',
       '- Poin pelanggaran dapat memicu informasi sanksi di portal orang tua.',
-    ],
-  },
-  sarpras: {
-    summary: 'Mengelola aset sarana prasarana, kategori, kondisi, lokasi, statistik, dan riwayat aset.',
-    sections: [
-      '## Fungsi yang tersedia',
-      '- Mencatat aset sarpras beserta kategori, lokasi, kondisi, jumlah, dan keterangan.',
-      '- Mengelola kategori aset.',
-      '- Melihat statistik aset berdasarkan kondisi atau kategori.',
-      '## Tombol dan aksi',
-      '- Tambah Aset membuka form aset baru.',
-      '- Edit mengubah data aset.',
-      '- Hapus menghapus aset jika diizinkan.',
-      '- Kategori mengelola daftar kategori.',
-      '## Filter dan data',
-      '- Filter kategori, lokasi, kondisi, status, atau pencarian nama aset.',
-      '- Pastikan data kondisi diperbarui saat ada kerusakan atau perpindahan aset.',
     ],
   },
   bk: {

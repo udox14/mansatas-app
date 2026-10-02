@@ -3,7 +3,7 @@
 
 import { CameraCapture } from '@/components/shared/camera-capture'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import {
@@ -11,7 +11,9 @@ import {
   Loader2, BookOpen, Send, RefreshCw, ClipboardPen, Ban,
   FileWarning,
 } from 'lucide-react'
-import { submitAgenda, submitForgottenAgendaRequest, getJadwalGuruHariIni } from '../actions'
+import { submitForgottenAgendaRequest } from '../actions'
+import { sendAgenda } from '@/lib/agenda-submission-client'
+import { agendaDraftKey, readAgendaDraft, saveAgendaDraft, clearAgendaDraft, beginAgendaCamera, finishAgendaCamera, draftPhotoFile, fileToDataUrl, AGENDA_DRAFT_RESTORED_EVENT } from '@/lib/agenda-draft'
 import type { SlotJam } from '@/app/dashboard/settings/types'
 import { compressAgendaImage } from './image-compression'
 import type { KbmException } from '@/lib/kalender-pendidikan'
@@ -68,6 +70,7 @@ interface AgendaClientProps {
     calendarStatus?: { isEffective: boolean; reason: string | null; category: string | null }
   }
   userRole: string
+  draftOwnerId: string
   isActingAs?: boolean
 }
 
@@ -95,7 +98,24 @@ async function withTimeout<T>(promise: Promise<T>, message: string): Promise<T> 
   }
 }
 
-export function AgendaClient({ initialData, userRole, isActingAs = false }: AgendaClientProps) {
+async function loadAgendaSchedule(controller = new AbortController()): Promise<AgendaClientProps['initialData']> {
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  try {
+    const date = new URLSearchParams(window.location.search).get('date')
+    const response = await fetch(`/api/agenda/schedule${date ? `?date=${encodeURIComponent(date)}` : ''}`, { credentials: 'include', cache: 'no-store', signal: controller.signal })
+    if (response.status === 401) throw new Error('Sesi login sudah berakhir. Login kembali untuk memuat status agenda.')
+    const result = await response.json() as AgendaClientProps['initialData']
+    if (!response.ok || result?.error || !Array.isArray(result?.blocks)) throw new Error(result?.error || 'Status agenda gagal dimuat dari server. Tekan Refresh untuk mencoba lagi.')
+    return result
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error('Memuat status agenda melewati 45 detik. Periksa koneksi lalu tekan Refresh.')
+    if (error instanceof TypeError) throw new Error('Koneksi terputus. Status agenda belum dapat diperbarui; periksa koneksi lalu tekan Refresh.')
+    if (error instanceof SyntaxError) throw new Error('Respons status agenda tidak dapat dibaca. Tekan Refresh untuk mencoba lagi.')
+    throw error
+  } finally { clearTimeout(timer) }
+}
+
+export function AgendaClient({ initialData, userRole, draftOwnerId, isActingAs = false }: AgendaClientProps) {
   const [data, setData] = useState(initialData)
   const [expandedBlock, setExpandedBlock] = useState<string | null>(null)
   const [materi, setMateri] = useState('')
@@ -108,27 +128,97 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
   const [forgottenBlock, setForgottenBlock] = useState<string | null>(null)
   const [forgottenMateri, setForgottenMateri] = useState('')
   const [isSubmittingForgotten, setIsSubmittingForgotten] = useState(false)
+  const submittingRef = useRef(false)
+  const captureRef = useRef(false)
+  const scheduleVersion = useRef(0)
+  const draftKey = agendaDraftKey(draftOwnerId, data.tanggal)
 
-  const handleRefresh = async ({ clearMessage = true }: { clearMessage?: boolean } = {}) => {
+  useEffect(() => {
+    let disposed = false
+    const restore = async () => {
+      try {
+        const draft = readAgendaDraft(draftKey)
+        if (!draft) return
+        const block = initialData.blocks.find(item => item.penugasan_id === draft.penugasanId)
+        if (!block || block.sudah_isi || block.sudah_didelegasi) { clearAgendaDraft(draftKey); return }
+        setExpandedBlock(block.penugasan_id)
+        setMateri(draft.materi)
+        setShowCamera(false)
+        const restored = await draftPhotoFile(draft)
+        const photo = restored ? await compressAgendaImage(restored) : null
+        if (disposed) return
+        if (photo) {
+          setFotoFile(photo)
+          setFotoPreview(URL.createObjectURL(photo))
+        }
+        setPesan({ tipe: 'error', teks: photo
+          ? 'Draft materi dan foto dipulihkan. Agenda belum dikonfirmasi tersimpan; tekan Coba Kirim Lagi untuk memeriksa dan melanjutkan.'
+          : 'Draft materi dipulihkan. Foto belum tersedia; ambil foto untuk melanjutkan pengiriman.' })
+      } catch (error) {
+        if (!disposed) setPesan({ tipe: 'error', teks: error instanceof Error ? error.message : 'Draft atau foto gagal dipulihkan. Isi materi dan ambil foto ulang.' })
+      }
+    }
+    void restore()
+    const onRestored = () => { void restore() }
+    window.addEventListener(AGENDA_DRAFT_RESTORED_EVENT, onRestored)
+    return () => { disposed = true; window.removeEventListener(AGENDA_DRAFT_RESTORED_EVENT, onRestored) }
+  }, [draftKey, initialData.blocks])
+
+  useEffect(() => () => { if (fotoPreview) URL.revokeObjectURL(fotoPreview) }, [fotoPreview])
+
+  // Router/PWA dapat memulihkan snapshot halaman. Periksa ulang ketika dibuka
+  // atau kembali dari background, tanpa menimpa form yang sedang dikirim.
+  useEffect(() => {
+    let disposed = false
+    let controller: AbortController | undefined
+    const refresh = async () => {
+      if (submittingRef.current || captureRef.current) return
+      controller?.abort()
+      controller = new AbortController()
+      const currentController = controller
+      const version = scheduleVersion.current
+      try {
+        const result = await loadAgendaSchedule(currentController)
+        if (!disposed && version === scheduleVersion.current && !submittingRef.current && !captureRef.current) setData(result)
+      } catch (error) {
+        if (!disposed && version === scheduleVersion.current && !currentController.signal.aborted) setPesan({ tipe: 'error', teks: error instanceof TypeError ? 'Koneksi terputus. Status agenda belum dapat diperbarui; periksa koneksi lalu tekan Refresh.' : error instanceof Error ? error.message : 'Status agenda gagal diperbarui. Tekan Refresh untuk mencoba lagi.' })
+        if (!disposed && controller === currentController && currentController.signal.aborted) setPesan({ tipe: 'error', teks: 'Memuat status agenda melewati 45 detik. Periksa koneksi lalu tekan Refresh.' })
+      }
+    }
+    const onVisible = () => { if (document.visibilityState === 'visible') void refresh() }
+    void refresh()
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { disposed = true; controller?.abort(); document.removeEventListener('visibilitychange', onVisible) }
+  }, [draftOwnerId])
+
+  const persistDraft = (block: JadwalBlock, nextMateri = materi) => {
+    const previous = readAgendaDraft(draftKey)
+    saveAgendaDraft(draftKey, {
+      ...(previous?.penugasanId === block.penugasan_id ? previous : {}),
+      penugasanId: block.penugasan_id, materi: nextMateri, updatedAt: Date.now(),
+    })
+  }
+
+  const handleRefresh = async ({ clearMessage = true, failurePrefix = '' }: { clearMessage?: boolean; failurePrefix?: string } = {}) => {
     setIsRefreshing(true)
     if (clearMessage) setPesan(null)
     try {
-      const result = await withTimeout(
-        getJadwalGuruHariIni(),
-        'Memuat ulang jadwal terlalu lama. Periksa koneksi lalu coba refresh lagi.'
-      )
+      const result = await loadAgendaSchedule()
       setData(result)
     } catch (error: any) {
-      setPesan({ tipe: 'error', teks: error?.message || 'Gagal memuat ulang jadwal.' })
+      setPesan({ tipe: 'error', teks: failurePrefix + (error?.message || 'Gagal memuat ulang jadwal. Periksa koneksi lalu tekan Refresh.') })
     } finally {
       setIsRefreshing(false)
     }
   }
 
   const handleSubmit = async (block: JadwalBlock, capturedFoto: File | null = fotoFile) => {
+    if (submittingRef.current) return
     if (!materi.trim()) { setPesan({ tipe: 'error', teks: 'Materi wajib diisi.' }); return }
     if (!capturedFoto && !isActingAs) { setPesan({ tipe: 'error', teks: 'Foto wajib diambil.' }); return }
 
+    submittingRef.current = true
+    scheduleVersion.current += 1
     setIsSubmitting(true)
     setPesan(null)
 
@@ -143,29 +233,41 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
     if (capturedFoto) fd.append('foto', capturedFoto)
 
     try {
-      const result = await withTimeout(
-        submitAgenda(fd),
-        'Pengiriman agenda terlalu lama. Periksa koneksi lalu tekan Refresh untuk memastikan status agenda.'
-      )
+      persistDraft(block)
+      if (capturedFoto) {
+        const photoDataUrl = await fileToDataUrl(capturedFoto)
+        saveAgendaDraft(draftKey, { penugasanId: block.penugasan_id, materi: materi.trim(), updatedAt: Date.now(), photoDataUrl, photoName: capturedFoto.name })
+      }
+      const result = await sendAgenda(fd)
       if (result.error) {
         setPesan({ tipe: 'error', teks: result.error })
       } else {
+        // Bukti database dari respons, bukan asumsi "tidak ada error".
+        setData(previous => ({ ...previous, blocks: previous.blocks.map(item => item.penugasan_id === block.penugasan_id
+          ? { ...item, sudah_isi: true, agenda_id: result.agenda!.id, status: result.agenda!.status } : item) }))
+        try { clearAgendaDraft(draftKey) } catch {
+          setPesan({ tipe: 'error', teks: 'Agenda tersimpan, tetapi draft perangkat gagal dibersihkan. Muat ulang jadwal untuk memeriksa status.' })
+          return
+        }
         setPesan({ tipe: 'sukses', teks: result.success || 'Berhasil!' })
         setMateri('')
         setFotoFile(null)
         setFotoPreview(null)
         setExpandedBlock(null)
         setShowCamera(false)
-        await handleRefresh({ clearMessage: false })
+        await handleRefresh({ clearMessage: false, failurePrefix: 'Agenda sudah tersimpan, tetapi jadwal gagal diperbarui. ' })
       }
     } catch (error: any) {
       setPesan({ tipe: 'error', teks: error?.message || 'Agenda gagal dikirim. Silakan coba lagi.' })
     } finally {
+      submittingRef.current = false
       setIsSubmitting(false)
     }
   }
 
   const handleCameraCapture = async (file: File, block: JadwalBlock) => {
+    if (captureRef.current || submittingRef.current) return
+    captureRef.current = true
     setPesan(null)
     setShowCamera(false)
     setIsSubmitting(true)
@@ -175,10 +277,12 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
       setFotoFile(compressed)
       setFotoPreview(URL.createObjectURL(compressed))
       await handleSubmit(block, compressed)
-    } catch {
-      setPesan({ tipe: 'error', teks: 'Foto gagal diproses. Silakan ambil ulang foto.' })
+    } catch (error) {
+      setPesan({ tipe: 'error', teks: error instanceof Error ? error.message : 'Foto gagal diproses. Materi tetap disimpan; ambil ulang foto.' })
       setFotoFile(null)
       setFotoPreview(null)
+    } finally {
+      captureRef.current = false
       setIsSubmitting(false)
     }
   }
@@ -223,7 +327,8 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
     return (
       <div className="rounded-lg border border-dashed border-amber-300 bg-amber-50 p-6 text-center">
         <AlertTriangle className="h-8 w-8 text-amber-500 mx-auto mb-2" />
-        <p className="text-sm text-amber-700">{error}</p>
+        <p role="alert" className="text-sm text-amber-700">{pesan?.teks || error}</p>
+        <Button type="button" variant="outline" className="mt-3" disabled={isRefreshing} onClick={() => handleRefresh()}>Coba Muat Jadwal Lagi</Button>
       </div>
     )
   }
@@ -487,7 +592,13 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                   <textarea
                     id="materi"
                     value={materi}
-                    onChange={(e) => setMateri(e.target.value)}
+                    disabled={isSubmitting}
+                    onChange={(e) => {
+                      setMateri(e.target.value)
+                      try { persistDraft(block, e.target.value) } catch (error) {
+                        setPesan({ tipe: 'error', teks: error instanceof Error ? error.message : 'Materi gagal disimpan sebagai draft.' })
+                      }
+                    }}
                     placeholder="Tuliskan materi yang diajarkan hari ini..."
                     rows={3}
                     className="mt-1 w-full rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 placeholder:text-slate-400 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 outline-none resize-none"
@@ -503,13 +614,21 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                   </p>
 
                   {showCamera ? (
-                    <CameraCapture onCapture={(file) => handleCameraCapture(file, block)} onClose={() => setShowCamera(false)} />
+                    <CameraCapture onCapture={(file) => handleCameraCapture(file, block)} onClose={() => setShowCamera(false)}
+                      onBeforeOpen={() => { persistDraft(block); beginAgendaCamera(draftKey) }}
+                      onFinished={() => finishAgendaCamera(draftKey)} />
                   ) : fotoPreview ? (
                     <div className="mt-1 relative">
                       <img src={fotoPreview} alt="Preview" className="w-full max-h-64 object-contain rounded-lg border" />
                       <button
                         type="button"
-                        onClick={() => { setFotoFile(null); setFotoPreview(null) }}
+                        disabled={isSubmitting}
+                        onClick={() => {
+                          setFotoFile(null); setFotoPreview(null)
+                          try { saveAgendaDraft(draftKey, { penugasanId: block.penugasan_id, materi, updatedAt: Date.now() }) } catch (error) {
+                            setPesan({ tipe: 'error', teks: error instanceof Error ? error.message : 'Draft foto gagal diperbarui.' })
+                          }
+                        }}
                         className="absolute top-2 right-2 bg-black/50 text-white rounded-full p-1 hover:bg-black/70"
                       >
                         <XCircle className="h-4 w-4" />
@@ -533,6 +652,7 @@ export function AgendaClient({ initialData, userRole, isActingAs = false }: Agen
                   )}
                 </div>
 
+                {pesan?.tipe === 'error' && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">{pesan.teks}</p>}
                 {isSubmitting && (
                   <div className="flex items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
                     <Loader2 className="h-5 w-5 animate-spin" />
