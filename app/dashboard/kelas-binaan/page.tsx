@@ -83,7 +83,7 @@ export default async function KelasBinaanPage({
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
       <PageHeader
         title="Kelas Binaan"
-        description="Pantau status hadir sekolah, keterangan absensi, kedisiplinan, dan daftar siswa binaan dari satu halaman."
+        description="Pantau kehadiran harian, koreksi absensi bila diperlukan, dan tindak lanjut siswa binaan dari satu halaman."
       />
 
       {kelasList.length > 1 && (

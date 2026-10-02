@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { getDB } from '@/utils/db-server'
 import { todayWIB } from '@/lib/time'
 import { formatNamaKelas } from '@/lib/utils'
+import { isDailyNonAttendance, summarizeKelasBinaanAttendance } from '@/lib/kelas-binaan-attendance'
 import { getFinalAttendanceForClass } from '@/lib/wali-kelas-attendance'
 import { getKalenderDateStatus } from '@/lib/kalender-pendidikan'
 import { ParentCommActions } from './ParentCommActions'
@@ -20,7 +21,6 @@ import { ensureSchemaOnce } from '@/lib/schema-guard'
 import {
   attendanceSourceLabel as sharedSourceLabel,
   attendanceStatusLabel as sharedAttendanceStatusLabel,
-  summarizePendingWaliDecisionDates,
 } from '@/lib/attendance-status'
 import {
   Warning as AlertTriangle,
@@ -121,16 +121,6 @@ function resolveSemesterStartDate(
     : `${secondYear}-01-01`
 
   return startDate <= today ? startDate : fallback
-}
-
-function formatPendingDate(tanggal: string) {
-  return new Intl.DateTimeFormat('id-ID', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'Asia/Jakarta',
-  }).format(new Date(`${tanggal}T00:00:00+07:00`))
 }
 
 function quickEditDomisiliLabel(tempatTinggal: string | null, desaKelurahan: string | null) {
@@ -339,16 +329,7 @@ export async function KelasBinaanDashboard({
     .map(siswa => attendanceSnapshot.statusByStudent.get(siswa.id)?.find(row => row.tanggal === selectedDecisionDate))
     .filter(Boolean) ?? []
 
-  const todaySummary = {
-    hadir: 0,
-    sakit: 0,
-    izin: 0,
-    alfa: 0,
-    parsial: 0,
-    perluKonfirmasiWali: 0,
-    belumAdaInput: 0,
-    belumAdaData: 0,
-  }
+  const todaySummary = summarizeKelasBinaanAttendance(todayRows)
 
   const komunikasiMap = new Map<string, { unread: number; summonStatus: string | null }>()
   for (const row of komunikasiStatusRaw || []) {
@@ -372,14 +353,12 @@ export async function KelasBinaanDashboard({
   const studentRows = attendanceSnapshot?.siswa.map(siswa => {
     const statuses = attendanceSnapshot.statusByStudent.get(siswa.id) || []
     const todayStatus = statuses.find(item => item.tanggal === today) || null
-    const monthly = { sakit: 0, izin: 0, alfa: 0, parsial: 0, perluKonfirmasiWali: 0 }
+    const monthly = { sakit: 0, izin: 0, alfa: 0 }
     for (const status of statuses) {
-      if (status.tanggal < startOfMonthStr || status.tanggal > today) continue
+      if (status.tanggal < startOfMonthStr || status.tanggal > today || !status.is_daily_final) continue
       if (status.status_akhir === 'SAKIT') monthly.sakit++
       else if (status.status_akhir === 'IZIN') monthly.izin++
       else if (status.status_akhir === 'ALFA') monthly.alfa++
-      else if (status.status_akhir === 'PARSIAL') monthly.parsial++
-      else if (status.status_akhir === 'PERLU_KONFIRMASI_WALI') monthly.perluKonfirmasiWali++
     }
     const pelanggaran = topPelanggaran.find(item => item.siswa_id === siswa.id)
     return {
@@ -415,50 +394,30 @@ export async function KelasBinaanDashboard({
     if (riskFilter === 'all') return true
     if (riskFilter === 'high') return row.monthly.alfa >= 2 || row.totalPoin >= 25 || row.komunikasi.summonStatus === 'terkirim' || row.tempatTinggal === 'KELUAR DARI PESANTREN'
     if (riskFilter === 'pending_comm') return row.komunikasi.unread > 0 || row.komunikasi.summonStatus === 'terkirim' || row.komunikasi.summonStatus === 'reschedule_diminta'
-    if (riskFilter === 'alfa') return row.monthly.alfa >= 1 || (row.todayStatus && row.todayStatus.status_akhir === 'ALFA')
+    if (riskFilter === 'alfa') return row.monthly.alfa >= 1 || (row.todayStatus?.is_daily_final && row.todayStatus.status_akhir === 'ALFA')
     if (riskFilter === 'point') return row.totalPoin >= 25
     return true
   })
-
-  for (const row of todayRows) {
-    if (row?.status_akhir === 'SAKIT') todaySummary.sakit++
-    else if (row?.status_akhir === 'IZIN') todaySummary.izin++
-    else if (row?.status_akhir === 'ALFA') todaySummary.alfa++
-    else if (row?.status_akhir === 'PARSIAL') todaySummary.parsial++
-    else if (row?.status_akhir === 'PERLU_KONFIRMASI_WALI') todaySummary.perluKonfirmasiWali++
-    else if (row?.status_akhir === 'BELUM_ADA_INPUT') todaySummary.belumAdaInput++
-    else if (row?.status_akhir === 'BELUM_ADA_DATA') todaySummary.belumAdaData++
-    else todaySummary.hadir++
-  }
 
   const summaryByDate = (attendanceSnapshot?.dates || []).filter(tanggal => tanggal >= startOfMonthStr).map(tanggal => {
     const rows = attendanceSnapshot?.siswa
       .map(siswa => attendanceSnapshot.statusByStudent.get(siswa.id)?.find(item => item.tanggal === tanggal))
       .filter(Boolean) as NonNullable<(typeof todayRows)[number]>[]
 
-    const summary = { tanggal, tidakHadir: 0, perhatian: 0 }
-    for (const row of rows) {
-      if (['SAKIT', 'IZIN', 'ALFA', 'PARSIAL', 'PERLU_KONFIRMASI_WALI', 'BELUM_ADA_INPUT', 'BELUM_ADA_DATA'].includes(row.status_akhir)) summary.tidakHadir++
-      if (['ALFA', 'BELUM_ADA_INPUT', 'BELUM_ADA_DATA'].includes(row.status_akhir) || row.sumber_status === 'koreksi_wali_kelas') summary.perhatian++
-    }
-    return summary
+    const summary = summarizeKelasBinaanAttendance(rows)
+    return { tanggal, tidakHadir: summary.sakit + summary.izin + summary.alfa, ...summary }
   }).slice(-7)
-
-  const pendingDecisionDates = summarizePendingWaliDecisionDates(
-    Array.from(attendanceSnapshot?.statusByStudent.values() || []).flat(),
-  )
-  const pendingDecisionTotal = pendingDecisionDates.reduce((total, item) => total + item.pendingStudents, 0)
 
   const maxTidakHadir = Math.max(1, ...summaryByDate.map(item => item.tidakHadir))
   const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
 
   const tidakMasukHariIni = studentRows
-    .filter(row => isTodayEffective && row.todayStatus && ['SAKIT', 'IZIN', 'ALFA', 'PARSIAL', 'PERLU_KONFIRMASI_WALI', 'BELUM_ADA_INPUT', 'BELUM_ADA_DATA'].includes(row.todayStatus.status_akhir))
+    .filter(row => isTodayEffective && row.todayStatus && isDailyNonAttendance(row.todayStatus))
     .sort((a, b) => a.nama_lengkap.localeCompare(b.nama_lengkap))
 
   const perluPerhatian = studentRows
     .filter(row =>
-      (isTodayEffective && row.todayStatus && ['ALFA', 'PARSIAL', 'PERLU_KONFIRMASI_WALI', 'BELUM_ADA_INPUT', 'BELUM_ADA_DATA'].includes(row.todayStatus.status_akhir)) ||
+      (isTodayEffective && row.todayStatus && row.todayStatus.is_daily_final && row.todayStatus.status_akhir === 'ALFA') ||
       row.monthly.alfa >= 2 ||
       row.totalPoin >= 25
     )
@@ -489,16 +448,14 @@ export async function KelasBinaanDashboard({
     { label: 'Sakit', value: todaySummary.sakit, tone: 'text-amber-600', bg: 'bg-amber-50' },
     { label: 'Izin', value: todaySummary.izin, tone: 'text-blue-600', bg: 'bg-blue-50' },
     { label: 'Alfa', value: todaySummary.alfa, tone: 'text-rose-600', bg: 'bg-rose-50' },
-    { label: 'Bolos', value: todaySummary.parsial, tone: 'text-violet-600', bg: 'bg-violet-50' },
-    { label: 'Keputusan Wali', value: todaySummary.perluKonfirmasiWali, tone: 'text-purple-600', bg: 'bg-purple-50' },
     { label: 'Belum Input', value: todaySummary.belumAdaInput, tone: 'text-slate-600', bg: 'bg-slate-100' },
-    { label: 'Belum Lengkap', value: todaySummary.belumAdaData, tone: 'text-slate-600', bg: 'bg-slate-100' },
+    { label: 'Rekap Sementara', value: todaySummary.sementara, tone: 'text-slate-600', bg: 'bg-slate-100' },
   ]
   const menuItems: Array<{ view: KelasBinaanView; title: string; desc: string; count: number | string; icon: any; tone: string }> = [
-    { view: 'keputusan', title: 'Keputusan Absensi', desc: 'Tetapkan status harian siswa', count: pendingDecisionTotal, icon: ClipboardList, tone: 'text-purple-600 bg-purple-50 border-purple-100' },
+    { view: 'keputusan', title: 'Kehadiran Harian', desc: 'Pantau kehadiran dan koreksi jika diperlukan', count: jumlahSiswa, icon: ClipboardList, tone: 'text-purple-600 bg-purple-50 border-purple-100' },
     { view: 'siswa', title: 'Daftar Siswa', desc: 'Data, komunikasi, dan tindak lanjut', count: jumlahSiswa, icon: Users, tone: 'text-slate-600 bg-slate-50 border-slate-200' },
     { view: 'rekap', title: 'Rekap Absensi', desc: 'Ringkasan dan tren 7 hari', count: tidakMasukHariIni.length, icon: CalendarCheck, tone: 'text-blue-600 bg-blue-50 border-blue-100' },
-    { view: 'perhatian', title: 'Perlu Perhatian', desc: 'Alfa, bolos, belum lengkap, poin', count: perluPerhatian.length, icon: ShieldAlert, tone: 'text-amber-600 bg-amber-50 border-amber-100' },
+    { view: 'perhatian', title: 'Perlu Perhatian', desc: 'Catatan Alfa dan poin pelanggaran', count: perluPerhatian.length, icon: ShieldAlert, tone: 'text-amber-600 bg-amber-50 border-amber-100' },
     { view: 'agenda', title: 'Agenda & Izin', desc: 'Materi terbaru dan izin pelajaran', count: agendaTerbaru.length + izinPembelajaranHariIni.length, icon: BookOpen, tone: 'text-emerald-600 bg-emerald-50 border-emerald-100' },
     { view: 'catatan', title: 'Catatan Siswa', desc: 'Riwayat catatan dari guru pengajar', count: unreadStudentNotes, icon: NotebookPen, tone: 'text-cyan-600 bg-cyan-50 border-cyan-100' },
   ]
@@ -537,45 +494,6 @@ export async function KelasBinaanDashboard({
         </div>
       </div>
 
-      {(view === 'home' || view === 'keputusan') && pendingDecisionDates.length > 0 && (
-        <div className="overflow-hidden rounded-xl border border-purple-200 bg-purple-50/70 shadow-sm dark:border-purple-900/70 dark:bg-purple-950/20">
-          <div className="flex items-start gap-3 px-4 py-3 sm:px-5">
-            <div className="rounded-lg border border-purple-200 bg-white p-2 text-purple-600 dark:border-purple-900 dark:bg-purple-950/40 dark:text-purple-300">
-              <AlertTriangle className="h-4 w-4" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-purple-900 dark:text-purple-100">Keputusan belum diputuskan</p>
-              <p className="mt-0.5 text-[11px] text-purple-700 dark:text-purple-300">
-                {pendingDecisionDates.length} tanggal · {pendingDecisionTotal} keputusan siswa perlu dilengkapi. Pilih tanggal di bawah untuk membukanya.
-              </p>
-            </div>
-          </div>
-          <div className="max-h-72 divide-y divide-purple-100 overflow-y-auto border-t border-purple-200 bg-white/70 dark:divide-purple-900/50 dark:border-purple-900/70 dark:bg-slate-950/20">
-            {pendingDecisionDates.map(item => {
-              const isSelected = view === 'keputusan' && item.tanggal === selectedDecisionDate
-              return (
-                <Link
-                  key={item.tanggal}
-                  href={viewHref('keputusan', { tanggal: item.tanggal })}
-                  className={`flex items-center gap-3 px-4 py-3 transition-colors sm:px-5 ${
-                    isSelected
-                      ? 'bg-purple-100/80 dark:bg-purple-900/30'
-                      : 'hover:bg-purple-50 dark:hover:bg-purple-950/30'
-                  }`}
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">{formatPendingDate(item.tanggal)}</p>
-                    <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">{item.pendingStudents} siswa belum diputuskan</p>
-                  </div>
-                  {isSelected && <span className="rounded-full border border-purple-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-purple-700 dark:border-purple-800 dark:bg-purple-950/50 dark:text-purple-200">Tanggal dipilih</span>}
-                  <ArrowRight className="h-4 w-4 shrink-0 text-purple-400" />
-                </Link>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
       {view === 'home' && (
         <>
           {show('menu_navigasi') && (
@@ -598,7 +516,7 @@ export async function KelasBinaanDashboard({
                         <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-amber-500" />
                       </div>
                       <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-slate-500 dark:text-slate-400">{item.desc}</p>
-                      <p className="mt-2 text-[11px] font-semibold text-slate-500">{item.count} item</p>
+                      <p className="mt-2 text-[11px] font-semibold text-slate-500">{item.count} {item.view === 'keputusan' || item.view === 'siswa' ? 'siswa' : 'item'}</p>
                     </div>
                   </div>
                 </Link>
@@ -641,7 +559,7 @@ export async function KelasBinaanDashboard({
             </div>
             <div className="flex-1">
               <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Ketidakhadiran 7 Hari</p>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500">Status akhir setelah ringkasan guru dan koreksi wali kelas</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500">Sakit, Izin, dan Alfa harian setelah KBM; berdasarkan data yang tersedia</p>
             </div>
             <Link href="/dashboard/rekap-absensi" className="text-[11px] text-slate-400 hover:text-slate-600 flex items-center gap-1">
               Rekap <ArrowRight className="h-3 w-3" />
@@ -654,9 +572,9 @@ export async function KelasBinaanDashboard({
                 const pct = Math.round((item.tidakHadir / maxTidakHadir) * 100)
                 return (
                   <div key={item.tanggal} className="flex-1 flex flex-col items-center gap-1">
-                    <span className="text-[10px] font-bold text-rose-500">{item.tidakHadir}</span>
+                    <span className="text-[10px] font-bold text-slate-500">{item.finalCount > 0 ? item.tidakHadir : item.sementara > 0 ? 'Sementara' : 'Tanpa input'}</span>
                     <div className="w-full flex items-end h-14">
-                      <div className="w-full rounded-t bg-rose-400 min-h-[6px]" style={{ height: `${Math.max(8, pct)}%` }} />
+                      <div className={`w-full rounded-t ${item.tidakHadir > 0 ? 'bg-rose-400' : 'bg-slate-200'}`} style={{ height: `${item.tidakHadir > 0 ? pct : 4}%` }} />
                     </div>
                     <span className="text-[10px] text-slate-400">{dayNames[dateObj.getDay()]}</span>
                   </div>
@@ -678,13 +596,13 @@ export async function KelasBinaanDashboard({
               <AlertTriangle className="h-3.5 w-3.5 text-rose-500" />
             </div>
             <div className="flex-1">
-              <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Tidak Masuk Hari Ini</p>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500">Siswa dengan status akhir non-hadir</p>
+              <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Catatan Ketidakhadiran Harian</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500">Sakit, Izin, dan Alfa setelah KBM berakhir</p>
             </div>
           </div>
           <div className="divide-y divide-slate-50 dark:divide-slate-800/50">
             {tidakMasukHariIni.length === 0 ? (
-              <div className="px-4 py-6 text-center text-xs text-slate-400">Belum ada siswa tidak masuk sekolah hari ini.</div>
+              <div className="px-4 py-6 text-center text-xs text-slate-400">{todaySummary.sementara > 0 ? 'Rekap harian tersedia setelah pembelajaran selesai.' : 'Tidak ada catatan ketidakhadiran harian dari data yang tersedia.'}</div>
             ) : (
               tidakMasukHariIni.slice(0, 6).map(row => (
                 <Link key={row.siswa_id} href={`/dashboard/siswa/${row.siswa_id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/40">
@@ -709,7 +627,7 @@ export async function KelasBinaanDashboard({
             </div>
             <div className="flex-1">
               <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Perlu Perhatian</p>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500">Alfa berulang, bolos, belum lengkap, atau poin tinggi</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500">Catatan Alfa harian, Alfa berulang, atau poin tinggi</p>
             </div>
           </div>
           <div className="divide-y divide-slate-50 dark:divide-slate-800/50">
@@ -844,7 +762,6 @@ export async function KelasBinaanDashboard({
               { label: 'Sakit', value: row.monthly.sakit },
               { label: 'Izin', value: row.monthly.izin },
               { label: 'Alfa', value: row.monthly.alfa },
-              { label: 'Bolos', value: row.monthly.parsial },
             ]
             const monthlyWithValue = monthlyItems.filter(item => item.value > 0)
             return (
@@ -981,7 +898,7 @@ export async function KelasBinaanDashboard({
                     <span>{row.komunikasi.unread > 0 ? `${row.komunikasi.unread} belum dibaca` : 'Terbaca'}</span>
                     <span className="text-[10px] text-slate-400">Pemanggilan: {summonStatusLabel(row.komunikasi.summonStatus)}</span>
                   </div>
-                  <div className="flex items-center text-[11px] text-slate-500">Sakit {row.monthly.sakit} • Izin {row.monthly.izin} • Alfa {row.monthly.alfa} • Bolos {row.monthly.parsial}</div>
+                  <div className="flex items-center text-[11px] text-slate-500">Sakit {row.monthly.sakit} • Izin {row.monthly.izin} • Alfa {row.monthly.alfa}</div>
                   <div className="flex items-center text-[11px] font-semibold text-slate-700 dark:text-slate-200">{row.totalPoin}</div>
                   <div className="flex flex-wrap gap-1.5 items-center">
                     <ParentCommActions
@@ -1029,7 +946,9 @@ export async function KelasBinaanDashboard({
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8">
+        <div className="space-y-2">
+          <p className="text-xs text-slate-500">{todaySummary.finalCount > 0 ? 'Rekap setelah KBM, berdasarkan data yang tersedia.' : 'Rekap harian belum tersedia. Status otomatis ditetapkan setelah KBM selesai jika sudah ada data absensi.'} {todaySummary.pendingBlocks} blok pelajaran masih memiliki input siswa tertunda. {todayRows.some(row => row && !row.is_daily_final && !row.kbm_end_at && row.total_blok > 0) && 'Jam pelajaran perlu dilengkapi agar akhir KBM dapat ditentukan.'} <Link href={viewHref('keputusan')} className="font-semibold text-purple-700 hover:underline">Lihat detail kehadiran</Link></p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
           {todaySummaryItems.map(item => (
             <div key={item.label} className="rounded-lg border border-surface bg-surface px-3 py-2.5 shadow-sm">
               <div className="flex items-center gap-2">
@@ -1041,6 +960,7 @@ export async function KelasBinaanDashboard({
               <p className="mt-1 text-[11px] leading-tight text-slate-500 dark:text-slate-400">{item.label} hari ini</p>
             </div>
           ))}
+          </div>
         </div>
       ))}
     </div>
