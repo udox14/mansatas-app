@@ -66,6 +66,11 @@
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "4.1.12"
   },
+  "overrides": {
+    "get-uri": {
+      "basic-ftp": "6.2.1"
+    }
+  },
   "devDependencies": {
     "@capacitor/android": "^8.4.0",
     "@capacitor/cli": "^8.4.0",

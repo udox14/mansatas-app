@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { agendaAuditPhoneSql } from '@/lib/agenda-audit-device'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
 import { getUserRoles } from '@/lib/features'
@@ -71,7 +72,7 @@ async function requireAgendaAuditViewer() {
 export async function getAgendaAuditData(filters: AuditAccessFilters = {}) {
   const ctx = await requireAgendaAuditViewer()
   if (!ctx) return { error: 'Akses ditolak.', alerts: [], deviceAccounts: [], total: 0, summary: emptySummary(), canManage: false, lastScan: null }
-  const where: string[] = []
+  const where: string[] = [agendaAuditPhoneSql('a.user_agent')]
   const params: unknown[] = []
   if (validDate(filters.startDate)) {
     where.push('a.last_event_at >= ?')
@@ -121,9 +122,9 @@ export async function getAgendaAuditData(filters: AuditAccessFilters = {}) {
     ${whereSql}
   `
   const deviceParams: unknown[] = [new Date().toISOString()]
-  let deviceWhere = ''
+  let deviceWhere = `WHERE ${agendaAuditPhoneSql('d.user_agent')}`
   if (filters.teacher?.trim()) {
-    deviceWhere = 'WHERE LOWER(COALESCE(u.nama_lengkap, u.name, u.email)) LIKE LOWER(?)'
+    deviceWhere += ' AND LOWER(COALESCE(u.nama_lengkap, u.name, u.email)) LIKE LOWER(?)'
     deviceParams.push(`%${filters.teacher.trim()}%`)
   }
 
@@ -141,7 +142,8 @@ export async function getAgendaAuditData(filters: AuditAccessFilters = {}) {
     ctx.db.prepare(`SELECT a.risk_level, COUNT(*) AS total ${baseFrom} GROUP BY a.risk_level`)
       .bind(...params).all<{ risk_level: string; total: number }>(),
     ctx.db.prepare(`SELECT start_date, end_date, finished_at, alerts_created, status
-      FROM agenda_access_scan_runs ORDER BY started_at DESC LIMIT 1`).first<any>(),
+      FROM agenda_access_scan_runs WHERE scan_key LIKE 'agenda-access:phones-v1:%'
+      ORDER BY started_at DESC LIMIT 1`).first<any>(),
     ctx.db.prepare(`
       SELECT d.session_id, d.user_id,
         COALESCE(u.nama_lengkap, u.name, u.email) AS user_name,
@@ -237,7 +239,7 @@ export async function runHistoricalAgendaAccessScan() {
   if (!ctx?.canManage) return { error: 'Hanya super admin yang dapat menjalankan analisis historis.' }
   const startDate = HISTORICAL_AUDIT_START_DATE
   const endDate = new Date().toISOString().slice(0, 10)
-  const scanKey = `agenda-access:${startDate}:${endDate}`
+  const scanKey = `agenda-access:phones-v1:${startDate}:${endDate}`
   const existing = await ctx.db.prepare('SELECT status, alerts_created FROM agenda_access_scan_runs WHERE scan_key = ?')
     .bind(scanKey).first<{ status: string; alerts_created: number }>()
   if (existing?.status === 'completed') return { success: `Analisis historis sudah pernah dijalankan (${existing.alerts_created} indikasi).` }
@@ -257,6 +259,7 @@ export async function runHistoricalAgendaAccessScan() {
         FROM activity_logs
         WHERE module='auth' AND action IN ('login','logout') AND created_at >= ?
           AND actor_user_id IS NOT NULL AND ip_address IS NOT NULL AND user_agent IS NOT NULL
+          AND ${agendaAuditPhoneSql('user_agent')}
         ORDER BY created_at ASC`).bind(`${startDate}T00:00:00.000Z`).all<any>(),
       ctx.db.prepare(`SELECT id, waktu_input, diubah_oleh, guru_id, tanggal, penugasan_id
         FROM agenda_guru WHERE tanggal >= ? AND waktu_input IS NOT NULL ORDER BY waktu_input ASC`)

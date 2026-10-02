@@ -89,6 +89,7 @@ export function AuditAksesAgendaClient(props: Props) {
 
   return (
     <div className="space-y-4">
+      <p className="text-sm text-slate-500">Audit berfokus pada satu hape dengan banyak akun dan satu akun di banyak hape. Laptop/PC, tablet, dan perangkat yang belum dikenali tidak disertakan.</p>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <SummaryCard label="Risiko tinggi" value={summary.high} tone="rose" />
         <SummaryCard label="Risiko sedang" value={summary.medium} tone="amber" />
@@ -126,13 +127,13 @@ export function AuditAksesAgendaClient(props: Props) {
 
       <Tabs defaultValue="devices" className="space-y-3">
         <TabsList className="h-auto flex-wrap">
-          <TabsTrigger value="devices">Perangkat Akun ({deviceAccounts.length})</TabsTrigger>
+          <TabsTrigger value="devices">Hape Akun ({deviceAccounts.length})</TabsTrigger>
           <TabsTrigger value="alerts">Indikator Pergantian Akun ({total})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="devices" className="space-y-3">
           <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-100">
-            <p className="font-medium">Jumlah perangkat adalah indikator pemeriksaan, bukan bukti kecurangan.</p>
+            <p className="font-medium">Jumlah hape adalah indikator pemeriksaan, bukan bukti kecurangan.</p>
             <p className="mt-1 text-xs opacity-80">Perangkat aktif berarti masih memiliki sesi server yang valid. Karena masa sesi panjang, perhatikan juga waktu terakhir terlihat dan pemakaian Agenda terakhir.</p>
           </div>
           <div className="overflow-hidden rounded-xl border bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
@@ -162,7 +163,7 @@ export function AuditAksesAgendaClient(props: Props) {
                       <td className="px-4 py-3 text-right"><Button type="button" variant="outline" size="sm" onClick={() => setSelectedAccount(account)}><Eye className="mr-2 h-4 w-4" />Lihat</Button></td>
                     </tr>
                   ))}
-                  {deviceAccounts.length === 0 && <tr><td colSpan={6} className="px-4 py-12 text-center text-slate-500">Belum ada perangkat tercatat. Data akan muncul ketika akun membuka dashboard setelah fitur ini diterapkan.</td></tr>}
+                  {deviceAccounts.length === 0 && <tr><td colSpan={6} className="px-4 py-12 text-center text-slate-500">Belum ada hape tercatat. Data akan muncul ketika akun membuka dashboard setelah fitur ini diterapkan.</td></tr>}
                 </tbody>
               </table>
             </div>

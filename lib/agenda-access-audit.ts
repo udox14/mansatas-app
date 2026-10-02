@@ -1,4 +1,5 @@
 import { headers } from 'next/headers'
+import { agendaAuditPhoneSql, isAgendaAuditPhone } from './agenda-audit-device'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
 import { getDeviceId } from '@/lib/device-identity'
 import { touchStaffDeviceSession } from '@/lib/staff-device-sessions'
@@ -259,6 +260,8 @@ export async function recordLoginAccessAudit(db: D1Database, input: {
       headers: hdrs,
     })
 
+    if (!isAgendaAuditPhone(hdrs.get('user-agent'))) return null
+
     const now = new Date()
     const cutoff = new Date(now.getTime() - SWITCH_WINDOW_MS).toISOString()
     const previous = await db.prepare(`
@@ -266,6 +269,7 @@ export async function recordLoginAccessAudit(db: D1Database, input: {
       FROM activity_logs
       WHERE module = 'auth' AND action IN ('login','logout') AND device_id = ?
         AND actor_user_id IS NOT NULL AND actor_user_id <> ? AND created_at >= ?
+        AND ${agendaAuditPhoneSql('user_agent')}
       ORDER BY created_at DESC LIMIT 1
     `).bind(deviceId, input.userId, cutoff).first<any>()
     if (!previous) return null
@@ -280,6 +284,7 @@ export async function recordLoginAccessAudit(db: D1Database, input: {
       FROM activity_logs
       WHERE module = 'auth' AND action = 'logout' AND device_id = ?
         AND actor_user_id = ? AND created_at >= ?
+        AND ${agendaAuditPhoneSql('user_agent')}
       ORDER BY created_at DESC LIMIT 1
     `).bind(deviceId, previous.actor_user_id, logoutCutoff).first<any>()
     const logout = recentLogout && now.getTime() - new Date(recentLogout.created_at).getTime() <= LOGOUT_WINDOW_MS
@@ -295,6 +300,7 @@ export async function recordLoginAccessAudit(db: D1Database, input: {
       db.prepare(`
       SELECT id, detected_at FROM agenda_access_alerts
       WHERE source = 'live' AND device_id = ? AND user_a_id = ? AND user_b_id = ?
+        AND ${agendaAuditPhoneSql('user_agent')}
         AND alert_key <> ?
       ORDER BY detected_at DESC
       LIMIT 1
@@ -389,10 +395,12 @@ export async function recordAgendaAccessAudit(db: D1Database, input: {
         })
       }
     }
+    if (!isAgendaAuditPhone(hdrs.get('user-agent'))) return
     const cutoff = new Date(now.getTime() - SWITCH_WINDOW_MS).toISOString()
     const alert = await db.prepare(`
       SELECT * FROM agenda_access_alerts
       WHERE source = 'live' AND device_id = ? AND last_event_at >= ?
+        AND ${agendaAuditPhoneSql('user_agent')}
         AND (user_a_id = ? OR user_b_id = ?)
       ORDER BY last_event_at DESC LIMIT 1
     `).bind(deviceId, cutoff, input.actorUserId, input.actorUserId).first<any>()
@@ -436,6 +444,7 @@ export async function getAgendaAccessWarningForUser(db: D1Database, userId: stri
     db.prepare(`
       SELECT last_event_at, risk_level, user_a_id, user_b_id FROM agenda_access_alerts
       WHERE source = 'live' AND (user_a_id = ? OR user_b_id = ?) AND last_event_at >= ?
+        AND ${agendaAuditPhoneSql('user_agent')}
       ORDER BY last_event_at DESC LIMIT 1
     `).bind(userId, userId, cutoff).first<{ last_event_at: string; risk_level: 'low' | 'medium' | 'high'; user_a_id: string; user_b_id: string }>(),
     getAgendaAccessBlock(db, userId),
