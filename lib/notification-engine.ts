@@ -14,7 +14,8 @@ import {
 import { sendFcmNotification, type FcmRuntimeOptions, type FcmTarget, type FcmNotif } from '@/lib/fcm'
 import { sendPushNotification } from '@/lib/web-push'
 import { getFinalAttendanceForClass } from '@/lib/wali-kelas-attendance'
-import { attendanceNoticeActivation, attendanceDateEligible, utcSourceTimestamp, teacherNoticeStillValid, initialAttendanceContext, readAttendanceNoticeState } from '@/lib/attendance-notice-state'
+import { attendanceNoticeActivation, attendanceDateEligible, utcSourceTimestamp, teacherNoticeStillValid, effectiveInitialAttendanceStatus, initialAttendanceContext, readAttendanceNoticeState } from '@/lib/attendance-notice-state'
+import { ATTENDANCE_DELAY_DEFAULTS, attendanceDelayMinutes, validAttendanceDelay } from '@/lib/attendance-notification-delay'
 import { attendanceStatusLabel } from '@/lib/attendance-status'
 import { invalidateAttendanceCache } from '@/lib/attendance-cache'
 import { getKalenderDateStatus, getKbmExceptionsForDate, hasActiveTeachingSlotsInRange } from '@/lib/kalender-pendidikan'
@@ -55,9 +56,24 @@ export type NotificationQueueMessage = {
   parentType: string
   level: string
   validation?: {
+    kind: 'attendance_work'
+    tanggal: string
+    kelasId: string
+    penugasanId?: string
+    siswaIds: string[]
+    notifyIds: string[]
+  } | {
     kind: 'attendance_status'
     tanggal: string
     status: 'ALFA' | 'SAKIT' | 'IZIN'
+  } | {
+    kind: 'attendance_homeroom_session'
+    siswaId: string
+    tanggal: string
+    status: string
+    penugasanId: string
+    sourceUpdatedAt: string
+    dueAt?: string
   } | {
     kind: 'attendance_session' | 'attendance_daily'
     siswaId: string
@@ -195,6 +211,7 @@ function normalizeReminder(raw: string | undefined, fallback: NotificationRemind
     frequencyMinutes: Number.isFinite(Number(parsed.frequencyMinutes)) ? Math.max(5, Number(parsed.frequencyMinutes)) : fallback.frequencyMinutes,
     daysBefore: Number.isFinite(Number(parsed.daysBefore)) ? Math.max(0, Number(parsed.daysBefore)) : fallback.daysBefore,
     windowStart: typeof parsed.windowStart === 'string' ? parsed.windowStart : fallback.windowStart,
+    ...(validAttendanceDelay(parsed.delayMinutes) ? { delayMinutes: parsed.delayMinutes } : {}),
     windowEnd: typeof parsed.windowEnd === 'string' ? parsed.windowEnd : fallback.windowEnd,
   }
 }
@@ -204,7 +221,7 @@ async function ensureNotificationSchema(db: D1Database) {
   const existing = notificationSchemaPromiseByDb.get(key)
   if (existing) return existing
 
-  const promise = ensureSchemaOnce('notification-engine-attendance-v2', async () => {
+  const promise = ensureSchemaOnce('notification-engine-attendance-fast-v4', async () => {
     await db.batch([
       db.prepare(`
         CREATE TABLE IF NOT EXISTS notification_event_settings (
@@ -240,6 +257,13 @@ async function ensureNotificationSchema(db: D1Database) {
       db.prepare('CREATE INDEX IF NOT EXISTS idx_notification_dispatch_event ON notification_dispatches(event_key, source_ref)'),
     ])
 
+    const columns = await db.prepare('PRAGMA table_info(notification_dispatches)').all<{ name: string }>()
+    const names = new Set((columns.results || []).map(c => c.name))
+    for (const name of ['payload_json', 'available_at', 'enqueued_at', 'enqueue_claim_until']) {
+      if (!names.has(name)) await db.prepare(`ALTER TABLE notification_dispatches ADD COLUMN ${name} TEXT`).run()
+    }
+    await db.prepare('CREATE INDEX IF NOT EXISTS idx_notification_outbox_due ON notification_dispatches(enqueued_at, available_at)').run()
+
     const rows = NOTIFICATION_EVENT_DEFINITIONS.map((definition) => {
       const settings = defaultNotificationSettings(definition)
       return db.prepare(`
@@ -259,6 +283,13 @@ async function ensureNotificationSchema(db: D1Database) {
       )
     })
     for (let i = 0; i < rows.length; i += 50) await db.batch(rows.slice(i, i + 50))
+    const waliDefinition = getNotificationDefinition('attendance_homeroom_alert')!
+    await db.prepare(`UPDATE notification_event_settings SET url_template = ? WHERE event_key = 'attendance_homeroom_alert' AND url_template = ?`)
+      .bind(waliDefinition.defaultUrl, '/dashboard/kelas-binaan?view=keputusan&kelas={kelasId}&tanggal={tanggal}').run()
+    const parentDefinition = getNotificationDefinition('attendance_parent_alert')!
+    await db.prepare(`UPDATE notification_event_settings SET body_template = ? WHERE event_key = 'attendance_parent_alert' AND body_template = ?`)
+      .bind(parentDefinition.defaultBody, 'Pada {tanggal}, pelajaran {mapel}, jam {rentang_jam}, Ananda {nama_siswa} tercatat {keterangan_status}. Ini merupakan catatan sesi pembelajaran. Rekap harian tersedia setelah pembelajaran selesai.').run()
+
     // Upgrade only untouched defaults; keep custom templates and delivery preferences.
     const oldBodies: Record<string, string> = {
       attendance_parent_alert: 'Ananda {nama_siswa} tercatat ALFA oleh guru pada {tanggal}. Rekap kehadiran harian masih diproses; silakan buka Portal Orang Tua untuk rincian.',
@@ -351,6 +382,9 @@ export async function saveNotificationSetting(
   if (!['info', 'warning', 'critical'].includes(patch.level)) return { error: 'Level notifikasi tidak valid.' }
 
   const target = normalizeTarget(JSON.stringify(patch.target), definition.defaultTarget)
+  if (eventKey in ATTENDANCE_DELAY_DEFAULTS && patch.reminder.delayMinutes !== undefined && !validAttendanceDelay(patch.reminder.delayMinutes)) {
+    return { error: 'Jeda pengiriman harus berupa menit bulat antara 0 dan 60.' }
+  }
   const reminder = normalizeReminder(JSON.stringify(patch.reminder), definition.reminder)
   await database.prepare(`
     INSERT INTO notification_event_settings
@@ -601,18 +635,21 @@ type AttendanceCandidate = {
 
 export async function notifyParentsAttendanceConfigured(
   db: D1Database,
-  options: { penugasanId: string; tanggal: string; siswaIds?: string[] },
+  options: { penugasanId: string; tanggal: string; siswaIds?: string[]; notifyHomeroom?: boolean },
 ) {
   await ensureNotificationSchema(db)
   const activation = await attendanceNoticeActivation(db)
   if (!attendanceDateEligible(options.tanggal, activation)) return { notified: 0, students: 0 }
   const setting = await getNotificationSetting('attendance_parent_alert', db)
-  if (!setting || Number(setting.enabled) !== 1) return { notified: 0, students: 0, disabled: true }
+  const parentEnabled = !!setting && Number(setting.enabled) === 1
+  const homeroomSetting = await getNotificationSetting('attendance_homeroom_alert', db)
+  const homeroomEnabled = !!homeroomSetting && Number(homeroomSetting.enabled) === 1
+  if (!parentEnabled && !homeroomEnabled) return { notified: 0, students: 0, disabled: true }
   const assignment = await db.prepare('SELECT kelas_id FROM penugasan_mengajar WHERE id = ?').bind(options.penugasanId).first<{ kelas_id: string }>()
   if (!assignment) return { notified: 0, students: 0 }
-  // Recheck all candidates in the class: a cancelled candidate must not reserve the day.
-  invalidateAttendanceCache()
-  const data = await getFinalAttendanceForClass(db, assignment.kelas_id, options.tanggal, options.tanggal)
+  const selectedIds = options.siswaIds ? [...new Set(options.siswaIds)] : undefined
+  if (selectedIds?.length === 0) return { notified: 0, students: 0 }
+  const data = await getFinalAttendanceForClass(db, assignment.kelas_id, options.tanggal, options.tanggal, { siswaIds: selectedIds, fresh: true })
   const rows = await db.prepare(`
     SELECT ab.siswa_id, ab.status, s.nama_lengkap, ab.penugasan_id, ab.updated_at,
       mp.nama_mapel, ab.jam_ke_mulai, ab.jam_ke_selesai
@@ -622,13 +659,37 @@ export async function notifyParentsAttendanceConfigured(
     JOIN mata_pelajaran mp ON mp.id = pm.mapel_id
     WHERE pm.kelas_id = ? AND s.kelas_id = pm.kelas_id AND s.status = 'aktif'
       AND ab.tanggal = ? AND ab.status IN ('ALFA','SAKIT','IZIN')
+      ${selectedIds ? `AND ab.siswa_id IN (${selectedIds.map(() => '?').join(',')})` : ''}
       AND julianday(ab.updated_at) >= julianday(?)
     ORDER BY julianday(ab.updated_at), ab.penugasan_id, ab.siswa_id
-  `).bind(assignment.kelas_id, options.tanggal, activation).all<AttendanceCandidate>()
+  `).bind(assignment.kelas_id, options.tanggal, ...(selectedIds || []), activation).all<AttendanceCandidate>()
+  const wali = homeroomEnabled ? await db.prepare(`SELECT u.id FROM kelas k
+    JOIN "user" u ON u.id = k.wali_kelas_id AND COALESCE(u.banned, 0) = 0
+    WHERE k.id = ?`).bind(assignment.kelas_id).first<{ id: string }>() : null
   let queued = 0
   for (const candidate of rows.results || []) {
     const day = data?.statusByStudent.get(candidate.siswa_id)?.[0]
-    if (!teacherNoticeStillValid(day, candidate.penugasan_id, candidate.status)) continue
+    if (!effectiveInitialAttendanceStatus(day, candidate.penugasan_id, candidate.status)) continue
+    // Staff reports are independent of the parent's one-report-per-day state.
+    if (wali?.id && candidate.penugasan_id === options.penugasanId && options.notifyHomeroom !== false && teacherNoticeStillValid(day, candidate.penugasan_id, candidate.status)) {
+      const due = Date.parse(utcSourceTimestamp(candidate.updated_at)) + attendanceDelayMinutes('attendance_homeroom_alert', homeroomSetting?.reminder_json) * 60_000
+      const result = await emitConfiguredNotification({
+        eventKey: 'attendance_homeroom_alert', db,
+        sourceRef: `attendance-homeroom-v2:${candidate.siswa_id}:${options.tanggal}:${candidate.penugasan_id}:${candidate.status}:${candidate.updated_at}`,
+        delaySeconds: Math.max(0, Math.ceil((due - Date.now()) / 1000)),
+        targetOverride: { kind: 'staff_users' },
+        context: { userId: wali.id, siswaId: candidate.siswa_id, penugasanId: candidate.penugasan_id, nama_siswa: candidate.nama_lengkap,
+          kelas: data?.kelas.label || '', kelasId: assignment.kelas_id, tanggal: options.tanggal,
+          status_kehadiran: attendanceStatusLabel(candidate.status), mapel: candidate.nama_mapel,
+          rentang_jam: `${candidate.jam_ke_mulai}–${candidate.jam_ke_selesai}`,
+          keterangan_status: initialAttendanceContext(candidate.status) },
+        validation: { kind: 'attendance_homeroom_session', siswaId: candidate.siswa_id,
+          tanggal: options.tanggal, penugasanId: candidate.penugasan_id,
+          status: candidate.status, sourceUpdatedAt: candidate.updated_at, dueAt: new Date(due).toISOString() },
+      })
+      queued += result.queued
+    }
+    if (!parentEnabled) continue
     await db.prepare(`INSERT OR IGNORE INTO attendance_parent_notice_state (siswa_id, tanggal) VALUES (?, ?)`)
       .bind(candidate.siswa_id, options.tanggal).run()
     let state = await readAttendanceNoticeState(db, candidate.siswa_id, options.tanggal)
@@ -637,7 +698,7 @@ export async function notifyParentsAttendanceConfigured(
     if (state.initial_ref && state.initial_candidate !== signature) {
       const previous = (rows.results || []).find(row => row.siswa_id === candidate.siswa_id &&
         `${row.penugasan_id}:${row.status}:${row.updated_at}` === state!.initial_candidate)
-      if (previous && teacherNoticeStillValid(day, previous.penugasan_id, previous.status)) continue
+      if (previous && effectiveInitialAttendanceStatus(day, previous.penugasan_id, previous.status)) continue
       // Also recover candidates whose enqueue failed: there may be no consumer to cancel them.
       await db.prepare(`UPDATE attendance_parent_notice_state SET initial_ref = NULL, initial_due_at = NULL
         WHERE siswa_id = ? AND tanggal = ? AND initial_sent_at IS NULL AND initial_ref = ?`)
@@ -646,7 +707,7 @@ export async function notifyParentsAttendanceConfigured(
     }
     if (!state || state.initial_sent_at) continue
     if (!state.initial_ref) {
-      const due = new Date(Date.parse(utcSourceTimestamp(candidate.updated_at)) + 300_000).toISOString()
+      const due = new Date(Date.parse(utcSourceTimestamp(candidate.updated_at)) + attendanceDelayMinutes('attendance_parent_alert', setting?.reminder_json) * 60_000).toISOString()
       state = await db.prepare(`UPDATE attendance_parent_notice_state
         SET initial_revision = initial_revision + 1,
           initial_ref = 'attendance-initial-v2:' || siswa_id || ':' || tanggal || ':' || (initial_revision + 1),
@@ -655,14 +716,14 @@ export async function notifyParentsAttendanceConfigured(
         RETURNING *`).bind(signature, due, candidate.siswa_id, options.tanggal).first<typeof state>()
     }
     if (!state?.initial_ref || state.initial_candidate !== signature) continue
-    const seconds = Math.max(1, Math.ceil((Date.parse(state.initial_due_at!) - Date.now()) / 1000))
+    const seconds = Math.max(0, Math.ceil((Date.parse(state.initial_due_at!) - Date.now()) / 1000))
     const result = await emitConfiguredNotification({
       eventKey: 'attendance_parent_alert', sourceRef: state.initial_ref, db,
       delaySeconds: seconds, parentType: 'absensi', targetOverride: { kind: 'parent_students' },
       context: { siswaId: candidate.siswa_id, siswaIds: [candidate.siswa_id], nama_siswa: candidate.nama_lengkap,
         status_kehadiran: attendanceStatusLabel(candidate.status), tanggal: options.tanggal,
         mapel: candidate.nama_mapel, rentang_jam: `${candidate.jam_ke_mulai}–${candidate.jam_ke_selesai}`,
-        keterangan_status: initialAttendanceContext(candidate.status), kelas: data?.kelas.label || '' },
+        keterangan_status: initialAttendanceContext(candidate.status), sumber_keterangan: 'Ini merupakan catatan sesi pembelajaran.', kelas: data?.kelas.label || '' },
       validation: { kind: 'attendance_session', siswaId: candidate.siswa_id, tanggal: options.tanggal,
         penugasanId: candidate.penugasan_id, status: candidate.status, revision: state.initial_revision,
         sourceUpdatedAt: candidate.updated_at },
@@ -676,8 +737,17 @@ const FINAL_DAILY_ATTENDANCE_STATUSES = new Set(['HADIR', 'SAKIT', 'IZIN', 'ALFA
 
 export async function notifyParentsDailyAttendanceFinal(
   db: D1Database,
-  options: { tanggal: string; penugasanId?: string; kelasId?: string },
+  options: { tanggal: string; penugasanId?: string; kelasId?: string; siswaIds?: string[] },
 ) {
+  // Split before preparing IN parameters; D1 permits at most 100 bound values.
+  if (options.siswaIds && options.siswaIds.length > 50) {
+    let notified = 0, students = 0
+    for (let i = 0; i < options.siswaIds.length; i += 50) {
+      const result = await notifyParentsDailyAttendanceFinal(db, { ...options, siswaIds: options.siswaIds.slice(i, i + 50) })
+      notified += result.notified; students += result.students
+    }
+    return { notified, students }
+  }
   await ensureNotificationSchema(db)
   const activation = await attendanceNoticeActivation(db)
   if (!attendanceDateEligible(options.tanggal, activation)) return { notified: 0, students: 0 }
@@ -686,28 +756,51 @@ export async function notifyParentsDailyAttendanceFinal(
   const kelasId = options.kelasId || (options.penugasanId
     ? (await db.prepare('SELECT kelas_id FROM penugasan_mengajar WHERE id = ?').bind(options.penugasanId).first<{ kelas_id: string }>())?.kelas_id : null)
   if (!kelasId) return { notified: 0, students: 0 }
-  invalidateAttendanceCache()
-  const data = await getFinalAttendanceForClass(db, kelasId, options.tanggal, options.tanggal)
+  if (options.siswaIds?.length === 0) return { notified: 0, students: 0 }
+  const pending = await db.prepare(`SELECT siswa_id, needs_recheck FROM attendance_parent_notice_state WHERE tanggal = ? AND initial_sent_at IS NOT NULL
+    AND siswa_id IN (SELECT id FROM siswa WHERE kelas_id = ? AND status = 'aktif')
+    ${options.siswaIds ? `AND siswa_id IN (${options.siswaIds.map(() => '?').join(',')})` : ''}`)
+    .bind(options.tanggal, kelasId, ...(options.siswaIds || [])).all<{ siswa_id: string; needs_recheck: number }>()
+  const pendingIds = (pending.results || []).map(r => r.siswa_id)
+  const recheckVersions = new Map((pending.results || []).map(r => [r.siswa_id, r.needs_recheck]))
+  if (pendingIds.length === 0) return { notified: 0, students: 0 }
+  if (pendingIds.length > 50) {
+    let notified = 0
+    for (let i = 0; i < pendingIds.length; i += 50) notified += (await notifyParentsDailyAttendanceFinal(db, { ...options, siswaIds: pendingIds.slice(i, i + 50) })).notified
+    return { notified, students: pendingIds.length }
+  }
+  const updateSetting = await getNotificationSetting('attendance_daily_update', db)
+  const data = await getFinalAttendanceForClass(db, kelasId, options.tanggal, options.tanggal, { siswaIds: pendingIds, fresh: true })
   if (!data) return { notified: 0, students: 0 }
+  const inactiveIds = pendingIds.filter(id => !data.statusByStudent.get(id)?.length)
+  if (inactiveIds.length) await db.batch(inactiveIds.map(id => db.prepare(`UPDATE attendance_parent_notice_state SET needs_recheck = 0, next_check_at = NULL
+    WHERE tanggal = ? AND siswa_id = ? AND needs_recheck = ?`).bind(options.tanggal, id, recheckVersions.get(id))))
   let queued = 0
   for (const student of data.siswa) {
     const day = data.statusByStudent.get(student.id)?.[0]
     let state = await readAttendanceNoticeState(db, student.id, options.tanggal)
-    if (!state?.initial_sent_at || !day?.is_daily_final || !FINAL_DAILY_ATTENDANCE_STATUSES.has(day.status_akhir)) continue
+    if (!state?.initial_sent_at) continue
+    if (!day?.is_daily_final || !FINAL_DAILY_ATTENDANCE_STATUSES.has(day.status_akhir)) {
+      const next = day?.kbm_end_at && Date.parse(day.kbm_end_at) > Date.now() ? new Date(day.kbm_end_at).toISOString() : new Date(Date.now() + 300_000).toISOString()
+      await db.prepare('UPDATE attendance_parent_notice_state SET next_check_at = ? WHERE siswa_id = ? AND tanggal = ? AND needs_recheck = ?').bind(next, student.id, options.tanggal, recheckVersions.get(student.id)).run()
+      continue
+    }
+    // The dirty value is a generation counter: do not clear a source change that raced this read.
+    await db.prepare('UPDATE attendance_parent_notice_state SET needs_recheck = 0, next_check_at = NULL WHERE siswa_id = ? AND tanggal = ? AND needs_recheck = ?').bind(student.id, options.tanggal, recheckVersions.get(student.id)).run()
     if (state.final_status !== day.status_akhir) {
       // Compare-and-swap provides one revision across cron and simultaneous saves.
       state = await db.prepare(`UPDATE attendance_parent_notice_state
         SET final_revision = final_revision + 1, final_status = ?,
           final_ref = 'attendance-final-v2:' || siswa_id || ':' || tanggal || ':' || (final_revision + 1),
-          final_due_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', CASE WHEN final_sent_status IS NULL THEN '+0 seconds' ELSE '+300 seconds' END)
+          final_due_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', CASE WHEN final_sent_status IS NULL THEN '+0 seconds' ELSE ? END)
         WHERE siswa_id = ? AND tanggal = ? AND final_revision = ?
-        RETURNING *`).bind(day.status_akhir, student.id, options.tanggal, state.final_revision).first<typeof state>()
+        RETURNING *`).bind(day.status_akhir, `+${attendanceDelayMinutes('attendance_daily_update', updateSetting?.reminder_json) * 60} seconds`, student.id, options.tanggal, state.final_revision).first<typeof state>()
     }
     if (!state || state.final_status !== day.status_akhir || state.final_sent_status === day.status_akhir) continue
     const update = state.final_sent_status !== null
     const result = await emitConfiguredNotification({
       eventKey: update ? 'attendance_daily_update' : 'attendance_daily_final', sourceRef: state.final_ref!, db,
-      delaySeconds: Math.max(1, Math.ceil((Date.parse(state.final_due_at!) - Date.now()) / 1000)),
+      delaySeconds: Math.max(0, Math.ceil((Date.parse(state.final_due_at!) - Date.now()) / 1000)),
       parentType: 'absensi_rekap', targetOverride: { kind: 'parent_students' },
       context: { siswaId: student.id, siswaIds: [student.id], nama_siswa: student.nama_lengkap,
         kelas: data.kelas.label, tanggal: options.tanggal, status_kehadiran: attendanceStatusLabel(day.status_akhir),
@@ -724,19 +817,24 @@ export async function notifyParentsDailyAttendanceFinal(
 export async function dispatchAttendanceDailyNotices(db: D1Database) {
   await ensureNotificationSchema(db)
   const activation = await attendanceNoticeActivation(db)
-  const dates = await db.prepare(`
-    SELECT DISTINCT n.tanggal, s.kelas_id FROM attendance_parent_notice_state n
+  await flushAttendanceNotificationOutbox(db)
+  const rows = await db.prepare(`SELECT n.tanggal, n.siswa_id, s.kelas_id FROM attendance_parent_notice_state n
     JOIN siswa s ON s.id = n.siswa_id
-    WHERE s.status = 'aktif' AND s.kelas_id IS NOT NULL
-      AND n.tanggal >= ? AND n.tanggal <= ?
-  `).bind(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date(activation)), todayWIB())
-    .all<{ tanggal: string; kelas_id: string }>()
-  let processed = 0
-  for (const row of dates.results || []) {
-    const assignment = await db.prepare('SELECT id FROM penugasan_mengajar WHERE kelas_id = ? LIMIT 1').bind(row.kelas_id).first<{ id: string }>()
-    if (assignment) await notifyParentsAttendanceConfigured(db, { penugasanId: assignment.id, tanggal: row.tanggal })
-    processed += (await notifyParentsDailyAttendanceFinal(db, { kelasId: row.kelas_id, tanggal: row.tanggal })).notified
+    WHERE n.initial_sent_at IS NOT NULL AND n.needs_recheck > 0
+      AND (n.next_check_at IS NULL OR n.next_check_at <= ?)
+      AND s.status = 'aktif' AND s.kelas_id IS NOT NULL AND n.tanggal >= ? AND n.tanggal <= ?
+    ORDER BY n.next_check_at, n.tanggal, n.siswa_id LIMIT 100`)
+    .bind(new Date().toISOString(), new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date(activation)), todayWIB())
+    .all<{ tanggal: string; siswa_id: string; kelas_id: string }>()
+  const groups = new Map<string, { tanggal: string; kelasId: string; siswaIds: string[] }>()
+  for (const row of rows.results || []) {
+    const key = `${row.kelas_id}:${row.tanggal}`
+    const group = groups.get(key) || { tanggal: row.tanggal, kelasId: row.kelas_id, siswaIds: [] }
+    group.siswaIds.push(row.siswa_id); groups.set(key, group)
   }
+  let processed = 0
+  for (const group of groups.values()) processed += (await notifyParentsDailyAttendanceFinal(db, group)).notified
+
   return { processed }
 }
 
@@ -898,6 +996,26 @@ async function deliverNotification(
 }
 
 async function validatedQueueRecipientIds(db: D1Database, message: NotificationQueueMessage) {
+  if (message.validation?.kind === 'attendance_homeroom_session') {
+    const v = message.validation
+    const activation = await attendanceNoticeActivation(db)
+    const setting = await getNotificationSetting(message.eventKey, db)
+    if (message.eventKey !== 'attendance_homeroom_alert' || message.target.kind !== 'staff_users' ||
+      !setting || Number(setting.enabled) !== 1 || !attendanceDateEligible(v.tanggal, activation)) return []
+    const student = await db.prepare(`SELECT s.kelas_id, u.id AS wali_id FROM siswa s
+      JOIN kelas k ON k.id = s.kelas_id
+      JOIN "user" u ON u.id = k.wali_kelas_id AND COALESCE(u.banned, 0) = 0
+      WHERE s.id = ? AND s.status = 'aktif'`).bind(v.siswaId).first<{ kelas_id: string; wali_id: string }>()
+    if (!student || !message.target.ids.includes(student.wali_id)) return []
+    const raw = await db.prepare(`SELECT updated_at, status FROM absensi_siswa
+      WHERE siswa_id = ? AND penugasan_id = ? AND tanggal = ?`)
+      .bind(v.siswaId, v.penugasanId, v.tanggal).first<{ updated_at: string; status: string }>()
+    if (!raw || !['ALFA','SAKIT','IZIN'].includes(raw.status) || raw.status !== v.status || raw.updated_at !== v.sourceUpdatedAt ||
+      Date.parse(utcSourceTimestamp(raw.updated_at)) < Date.parse(activation)) return []
+    const data = await getFinalAttendanceForClass(db, student.kelas_id, v.tanggal, v.tanggal, { siswaId: v.siswaId, fresh: true })
+    if (!teacherNoticeStillValid(data?.statusByStudent.get(v.siswaId)?.[0], v.penugasanId, v.status)) return []
+    return [student.wali_id]
+  }
   if (message.validation?.kind === 'attendance_session' || message.validation?.kind === 'attendance_daily') {
     const v = message.validation
     const activation = await attendanceNoticeActivation(db)
@@ -908,17 +1026,26 @@ async function validatedQueueRecipientIds(db: D1Database, message: NotificationQ
       .bind(v.siswaId).first<{ kelas_id: string }>()
     if (!student?.kelas_id) return []
     const state = await readAttendanceNoticeState(db, v.siswaId, v.tanggal)
-    invalidateAttendanceCache()
-    const data = await getFinalAttendanceForClass(db, student.kelas_id, v.tanggal, v.tanggal)
+    const data = await getFinalAttendanceForClass(db, student.kelas_id, v.tanggal, v.tanggal, { siswaId: v.siswaId, fresh: true })
     const day = data?.statusByStudent.get(v.siswaId)?.[0]
     if (v.kind === 'attendance_session') {
       if (!state || state.initial_sent_at || state.initial_ref !== message.sourceRef || state.initial_revision !== v.revision) return []
       const raw = await db.prepare(`SELECT updated_at, status FROM absensi_siswa
         WHERE siswa_id = ? AND penugasan_id = ? AND tanggal = ?`)
         .bind(v.siswaId, v.penugasanId!, v.tanggal).first<{ updated_at: string; status: string }>()
-      if (!raw || raw.status !== v.status || raw.updated_at !== v.sourceUpdatedAt ||
+      if (!raw || raw.status !== v.status ||
         Date.parse(utcSourceTimestamp(raw.updated_at)) < Date.parse(activation) ||
-        !teacherNoticeStillValid(day, v.penugasanId!, v.status)) return []
+        !effectiveInitialAttendanceStatus(day, v.penugasanId!, v.status)) return []
+      const effective = effectiveInitialAttendanceStatus(day, v.penugasanId!, v.status)!
+      const definition = getNotificationDefinition(message.eventKey)!
+      const block = day!.block_statuses.find(b => b.penugasan_id === v.penugasanId)!
+      const session = day!.detail_guru.find(detail => detail.sumber === 'guru' && detail.jam_ke_mulai <= block.jam_ke_selesai && detail.jam_ke_selesai >= block.jam_ke_mulai)
+      const context = { nama_siswa: day!.nama_lengkap, kelas: data!.kelas.label, tanggal: v.tanggal,
+        status_kehadiran: attendanceStatusLabel(effective), keterangan_status: initialAttendanceContext(effective),
+        mapel: session?.nama_mapel || '', rentang_jam: session ? `${session.jam_ke_mulai}–${session.jam_ke_selesai}` : '',
+        sumber_keterangan: day!.wali_status ? 'Status ini berdasarkan pemeriksaan wali kelas atas catatan sesi pembelajaran.' : 'Ini merupakan catatan sesi pembelajaran.' }
+      message.title = renderNotificationTemplate(setting.title_template, context, definition.placeholders)
+      message.body = renderNotificationTemplate(setting.body_template, context, definition.placeholders)
       return [v.siswaId]
     }
     if (!state?.initial_sent_at || state.final_ref !== message.sourceRef || state.final_revision !== v.revision ||
@@ -1011,7 +1138,7 @@ export async function emitConfiguredNotification(input: EmitConfiguredNotificati
   const chunks = chunk(ids, NOTIFICATION_DIRECT_RECIPIENT_LIMIT)
   const queue = await getQueue()
   const delaySeconds = Math.max(0, Math.floor(Number(input.delaySeconds || 0)))
-  const shouldQueue = delaySeconds > 0 || chunks.length > 1
+  const shouldQueue = delaySeconds > 0 || chunks.length > 1 || !!input.validation
   const dispatchIds: string[] = []
   let sent = 0
   let queued = 0
@@ -1041,10 +1168,13 @@ export async function emitConfiguredNotification(input: EmitConfiguredNotificati
 
     if (shouldQueue && queue) {
       try {
+        await db.prepare('UPDATE notification_dispatches SET payload_json = ?, available_at = ? WHERE id = ?')
+          .bind(JSON.stringify(message), new Date(Date.now() + delaySeconds * 1000).toISOString(), claimed.id).run()
         await queue.send(message, {
           contentType: 'json',
           ...(delaySeconds > 0 ? { delaySeconds } : {}),
         })
+        await db.prepare("UPDATE notification_dispatches SET enqueued_at = datetime('now') WHERE id = ?").bind(claimed.id).run()
         queued += 1
         continue
       } catch (error) {
@@ -1055,7 +1185,9 @@ export async function emitConfiguredNotification(input: EmitConfiguredNotificati
       }
     }
 
-    if (delaySeconds > 0 && !queue) {
+    if (shouldQueue && !queue) {
+      await db.prepare('UPDATE notification_dispatches SET payload_json = ?, available_at = ? WHERE id = ?')
+        .bind(JSON.stringify(message), new Date(Date.now() + delaySeconds * 1000).toISOString(), claimed.id).run()
       const error = 'Antrean notifikasi tidak tersedia; pengiriman tertunda tidak boleh dikirim langsung.'
       await markDispatch(db, claimed.id, 'failed', error)
       failed = true
@@ -1198,10 +1330,34 @@ export async function processNotificationQueueMessage(
 ) {
   const db = env.DB
   await ensureNotificationSchema(db)
+  if (message.validation?.kind === 'attendance_work') {
+    const work = message.validation
+    const claim = await db.prepare(`UPDATE notification_dispatches SET status = 'processing', updated_at = datetime('now')
+      WHERE id = ? AND (status IN ('queued','failed') OR (status = 'processing' AND updated_at <= datetime('now','-5 minutes')))
+      RETURNING id`).bind(message.dispatchId).first<{ id: string }>()
+    if (!claim) {
+      const current = await db.prepare('SELECT status FROM notification_dispatches WHERE id = ?').bind(message.dispatchId).first<{ status: string }>()
+      return { retry: !!current && current.status !== 'sent', sent: 0 }
+    }
+    try {
+      if (work.penugasanId && work.notifyIds.length > 0) await notifyParentsAttendanceConfigured(db, { penugasanId: work.penugasanId, tanggal: work.tanggal, siswaIds: work.notifyIds })
+      await notifyParentsDailyAttendanceFinal(db, { kelasId: work.kelasId, tanggal: work.tanggal, siswaIds: work.siswaIds })
+      await markDispatch(db, message.dispatchId, 'sent')
+      return { retry: false, sent: 0 }
+    } catch (error) {
+      await markDispatch(db, message.dispatchId, 'failed', error instanceof Error ? error.message : String(error))
+      return { retry: true, sent: 0 }
+    }
+  }
   const row = await db.prepare('SELECT status FROM notification_dispatches WHERE id = ?').bind(message.dispatchId).first<{ status: string }>()
   if (!row || row.status === 'sent') return { retry: false, sent: 0 }
   const attendanceValidation = message.validation?.kind === 'attendance_session' || message.validation?.kind === 'attendance_daily'
     ? message.validation : null
+  const homeroomValidation = message.validation?.kind === 'attendance_homeroom_session' ? message.validation : null
+  if (homeroomValidation) {
+    const due = homeroomValidation.dueAt ? Date.parse(homeroomValidation.dueAt) : Date.parse(utcSourceTimestamp(homeroomValidation.sourceUpdatedAt)) + 300_000
+    if (Date.now() < due) return { retry: true, sent: 0 }
+  }
   if (attendanceValidation) {
     await attendanceNoticeActivation(db)
     const state = await readAttendanceNoticeState(db, attendanceValidation.siswaId, attendanceValidation.tanggal)
@@ -1218,15 +1374,19 @@ export async function processNotificationQueueMessage(
     await markDispatch(db, message.dispatchId, 'sent', 'Dibatalkan: status kehadiran sudah berubah atau dikoreksi wali kelas.')
     if (attendanceValidation) {
       const column = attendanceValidation.kind === 'attendance_session' ? 'initial_ref' : 'final_ref'
-      const extra = attendanceValidation.kind === 'attendance_session' ? 'initial_due_at = NULL' : 'final_status = NULL, final_due_at = NULL'
+      const extra = attendanceValidation.kind === 'attendance_session' ? 'initial_due_at = NULL' : 'final_status = NULL, final_due_at = NULL, needs_recheck = needs_recheck + 1, next_check_at = NULL'
       await db.prepare(`UPDATE attendance_parent_notice_state SET ${column} = NULL, ${extra}
         WHERE siswa_id = ? AND tanggal = ? AND ${column} = ?`)
         .bind(attendanceValidation.siswaId, attendanceValidation.tanggal, message.sourceRef).run()
     }
+    if (attendanceValidation?.kind === 'attendance_session' && attendanceValidation.penugasanId) {
+      await notifyParentsAttendanceConfigured(db, { penugasanId: attendanceValidation.penugasanId,
+        tanggal: attendanceValidation.tanggal, siswaIds: [attendanceValidation.siswaId], notifyHomeroom: false })
+    }
     return { retry: false, sent: 0, skipped: true }
   }
 
-  if (attendanceValidation) {
+  if (attendanceValidation || homeroomValidation) {
     const claimed = await db.prepare(`UPDATE notification_dispatches
       SET status = 'processing', attempts = attempts + 1, updated_at = datetime('now')
       WHERE id = ? AND (status IN ('queued','failed') OR (status = 'processing' AND updated_at <= datetime('now','-5 minutes')))
@@ -1240,7 +1400,7 @@ export async function processNotificationQueueMessage(
   if (delivered.ok) {
     if (attendanceValidation && delivered.sent > 0) {
       const stateUpdate = attendanceValidation.kind === 'attendance_session'
-        ? db.prepare(`UPDATE attendance_parent_notice_state SET initial_sent_at = datetime('now')
+        ? db.prepare(`UPDATE attendance_parent_notice_state SET initial_sent_at = datetime('now'), needs_recheck = needs_recheck + 1, next_check_at = NULL
             WHERE siswa_id = ? AND tanggal = ? AND initial_ref = ?`)
             .bind(attendanceValidation.siswaId, attendanceValidation.tanggal, message.sourceRef)
         : db.prepare(`UPDATE attendance_parent_notice_state SET final_sent_status = ?, final_sent_revision = ?
@@ -1258,7 +1418,7 @@ export async function processNotificationQueueMessage(
 
   if (delivered.retryable) {
     const error = delivered.errors.join('; ')
-    if (attendanceValidation) await markDispatch(db, message.dispatchId, 'failed', error.slice(0, 2000))
+    if (attendanceValidation || homeroomValidation) await markDispatch(db, message.dispatchId, 'failed', error.slice(0, 2000))
     if (attempts >= 3) {
       await markDispatch(db, message.dispatchId, 'failed', error.slice(0, 2000))
       return { retry: true, terminal: true, sent: delivered.sent, error }
@@ -1695,4 +1855,70 @@ function defaultReminderFallback(): NotificationReminderConfig {
     windowStart: '06:00',
     windowEnd: '20:00',
   }
+}
+
+
+/** Return statements to commit with attendance mutations; no provider I/O on submit. */
+export async function prepareAttendanceNotificationWork(db: D1Database, input: {
+  tanggal: string; kelasId?: string; penugasanId?: string; siswaIds: string[]; notifyIds?: string[]
+}): Promise<D1PreparedStatement[]> {
+  const activation = await attendanceNoticeActivation(db)
+  if (!attendanceDateEligible(input.tanggal, activation) || input.siswaIds.length === 0) return []
+  await ensureNotificationSchema(db)
+  const kelasId = input.kelasId || (input.penugasanId ? (await db.prepare('SELECT kelas_id FROM penugasan_mengajar WHERE id = ?')
+    .bind(input.penugasanId).first<{ kelas_id: string }>())?.kelas_id : null)
+  if (!kelasId) return []
+  const siswaIds = [...new Set(input.siswaIds)]
+  if (siswaIds.length > 50) {
+    const statements: D1PreparedStatement[] = []
+    for (let i = 0; i < siswaIds.length; i += 50) {
+      const ids = siswaIds.slice(i, i + 50)
+      statements.push(...await prepareAttendanceNotificationWork(db, { ...input, kelasId, siswaIds: ids, notifyIds: input.notifyIds?.filter(id => ids.includes(id)) }))
+    }
+    return statements
+  }
+  const id = crypto.randomUUID()
+  const message: NotificationQueueMessage = {
+    dispatchId: id, eventKey: 'attendance_source_changed', sourceRef: `attendance-work:${id}`,
+    title: '', body: '', url: '', channels: [], parentType: '', level: 'info',
+    target: { kind: 'parent_students', ids: siswaIds },
+    validation: { kind: 'attendance_work', tanggal: input.tanggal, kelasId, penugasanId: input.penugasanId,
+      siswaIds, notifyIds: [...new Set(input.notifyIds || [])] },
+  }
+  return [db.prepare(`INSERT INTO notification_dispatches (id,dedup_key,event_key,source_ref,target_scope,status,payload_json,available_at)
+    VALUES (?,?,?,?,?,'queued',?,?)`).bind(id, message.sourceRef, message.eventKey, message.sourceRef, `attendance-work:${kelasId}:${input.tanggal}`,
+      JSON.stringify(message), new Date().toISOString()),
+    db.prepare(`UPDATE attendance_parent_notice_state SET needs_recheck = needs_recheck + 1, next_check_at = NULL
+      WHERE tanggal = ? AND siswa_id IN (${siswaIds.map(() => '?').join(',')})`).bind(input.tanggal, ...siswaIds)]
+}
+
+/** Bounded enqueue recovery, using a lease so submit and cron cannot fan out twice. */
+export async function flushAttendanceNotificationOutbox(db: D1Database) {
+  await ensureNotificationSchema(db)
+  const queue = await getQueue()
+  if (!queue) return { queued: 0 }
+  const now = new Date().toISOString()
+  const rows = await db.prepare(`SELECT id, payload_json, available_at FROM notification_dispatches
+    WHERE enqueued_at IS NULL AND payload_json IS NOT NULL AND status IN ('queued','failed')
+      AND available_at <= ? AND (enqueue_claim_until IS NULL OR enqueue_claim_until <= ?)
+    ORDER BY available_at, id LIMIT 50`).bind(new Date(Date.now() + 3600_000).toISOString(), now).all<{ id: string; payload_json: string; available_at: string }>()
+  let queued = 0
+  for (const row of rows.results || []) {
+    const claim = await db.prepare(`UPDATE notification_dispatches SET enqueue_claim_until = ?
+      WHERE id = ? AND enqueued_at IS NULL AND (enqueue_claim_until IS NULL OR enqueue_claim_until <= ?)
+      RETURNING id`).bind(new Date(Date.now() + 60_000).toISOString(), row.id, now).first<{ id: string }>()
+    if (!claim) continue
+    try {
+      const message = JSON.parse(row.payload_json) as NotificationQueueMessage
+      const delaySeconds = Math.max(0, Math.ceil((Date.parse(row.available_at) - Date.now()) / 1000))
+      await queue.send(message, { contentType: 'json', ...(delaySeconds > 0 ? { delaySeconds } : {}) })
+      await db.prepare(`UPDATE notification_dispatches SET status = 'queued', enqueued_at = datetime('now'), enqueue_claim_until = NULL WHERE id = ?`)
+        .bind(row.id).run()
+      queued++
+    } catch (error) {
+      await db.prepare(`UPDATE notification_dispatches SET enqueue_claim_until = ?, last_error = ? WHERE id = ?`)
+        .bind(new Date(Date.now() + 60_000).toISOString(), error instanceof Error ? error.message : String(error), row.id).run()
+    }
+  }
+  return { queued }
 }

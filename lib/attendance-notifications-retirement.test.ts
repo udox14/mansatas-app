@@ -23,8 +23,8 @@ vi.mock('@/lib/kalender-pendidikan', () => ({
 }))
 vi.mock('@/lib/attendance-cache', () => ({ invalidateAttendanceCache: state.invalidate }))
 vi.mock('@/lib/notification-engine', () => ({
-  notifyParentsAttendanceConfigured: state.attendanceNotification,
-  notifyParentsDailyAttendanceFinal: state.dailyNotification,
+  prepareAttendanceNotificationWork: state.attendanceNotification,
+  flushAttendanceNotificationOutbox: state.dailyNotification,
   emitConfiguredNotification: vi.fn(),
 }))
 
@@ -34,7 +34,7 @@ import { simpanAbsensiDelegasi } from '@/app/dashboard/penugasan/actions'
 let db: DatabaseSync
 beforeEach(() => {
   vi.clearAllMocks()
-  state.attendanceNotification.mockResolvedValue(undefined)
+  state.attendanceNotification.mockResolvedValue([])
   state.dailyNotification.mockResolvedValue(undefined)
   db = new DatabaseSync(':memory:')
   db.exec(`
@@ -90,7 +90,7 @@ describe('attendance without WhatsApp', () => {
     expect(db.prepare('SELECT status, diinput_oleh FROM absensi_siswa').get()).toMatchObject({ status: 'ALFA', diinput_oleh: 'teacher' })
     expect(db.prepare('SELECT diinput_oleh FROM absensi_sesi_guru').get()).toMatchObject({ diinput_oleh: 'teacher' })
     expect(state.attendanceNotification).toHaveBeenCalledWith(state.db, expect.objectContaining({ penugasanId: 'assignment', tanggal: '2026-10-01' }))
-    expect(state.dailyNotification).toHaveBeenCalledWith(state.db, { penugasanId: 'assignment', tanggal: '2026-10-01' })
+    expect(state.dailyNotification).toHaveBeenCalledWith(state.db)
     expect(state.invalidate).toHaveBeenCalled()
     expect(db.prepare("SELECT name FROM sqlite_schema WHERE name LIKE 'wa_%'").all()).toEqual([])
     if (kind === 'regular') expect(db.prepare('SELECT status FROM absensi_sesi_siswa').get()?.status).toBe('ALFA')
@@ -102,6 +102,6 @@ describe('attendance without WhatsApp', () => {
     expect(result.success).toBeTruthy()
     expect(db.prepare('SELECT status FROM absensi_sesi_siswa').get()?.status).toBe('HADIR')
     expect(state.dailyNotification).toHaveBeenCalledOnce()
-    expect(state.attendanceNotification).not.toHaveBeenCalled()
+    expect(state.attendanceNotification).toHaveBeenCalledWith(state.db, expect.objectContaining({ notifyIds: [], siswaIds: ['s'] }))
   })
 })

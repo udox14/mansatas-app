@@ -18,6 +18,7 @@ export type NotificationTargetConfig = {
 
 export type NotificationReminderConfig = {
   enabled: boolean
+  delayMinutes?: number
   leadMinutes: number
   frequencyMinutes: number
   daysBefore?: number
@@ -264,18 +265,33 @@ export const NOTIFICATION_EVENT_DEFINITIONS: NotificationEventDefinition[] = [
     reminder: noReminder,
   },
   {
+    key: 'attendance_homeroom_alert',
+    label: 'Wali kelas: catatan sesi kehadiran',
+    description: 'Memberi tahu wali kelas siswa tentang Alfa, Sakit, atau Izin dari guru per sesi, setelah jeda yang diatur dan pemeriksaan ulang.',
+    group: 'akademik',
+    defaultEnabled: true,
+    defaultTitle: 'Catatan kehadiran siswa binaan',
+    defaultBody: 'Pada {tanggal}, pelajaran {mapel}, jam {rentang_jam}, siswa {nama_siswa} (kelas {kelas}) tercatat {keterangan_status}. Ini merupakan catatan sesi pembelajaran. Rekap harian tersedia setelah pembelajaran selesai.',
+    defaultUrl: '/dashboard/kelas-binaan/koreksi?siswa={siswaId}&tanggal={tanggal}&penugasan={penugasanId}',
+    defaultChannels: staffChannels,
+    defaultTarget: { kind: 'staff_users' },
+    defaultLevel: 'info',
+    placeholders: ['nama_siswa', 'kelas', 'kelasId', 'siswaId', 'penugasanId', 'status_kehadiran', 'tanggal', 'mapel', 'rentang_jam', 'keterangan_status', 'sumber_keterangan'],
+    reminder: noReminder,
+  },
+  {
     key: 'attendance_parent_alert',
     label: 'Catatan sesi kehadiran siswa',
-    description: 'Satu laporan awal per siswa per hari untuk Alfa, Sakit, atau Izin dari guru, setelah jeda 5 menit dan pemeriksaan ulang.',
+    description: 'Satu laporan awal per siswa per hari untuk Alfa, Sakit, atau Izin dari guru, setelah jeda yang diatur dan pemeriksaan ulang.',
     group: 'orang_tua',
     defaultEnabled: true,
     defaultTitle: 'Laporan awal kehadiran',
-    defaultBody: 'Pada {tanggal}, pelajaran {mapel}, jam {rentang_jam}, Ananda {nama_siswa} tercatat {keterangan_status}. Ini merupakan catatan sesi pembelajaran. Rekap harian tersedia setelah pembelajaran selesai.',
+    defaultBody: 'Pada {tanggal}, pelajaran {mapel}, jam {rentang_jam}, Ananda {nama_siswa} tercatat {keterangan_status}. {sumber_keterangan} Rekap harian tersedia setelah pembelajaran selesai.',
     defaultUrl: '/portal-ortu',
     defaultChannels: parentChannels,
     defaultTarget: { kind: 'parent_students' },
     defaultLevel: 'info',
-    placeholders: ['nama_siswa', 'kelas', 'status_kehadiran', 'tanggal', 'mapel', 'rentang_jam', 'keterangan_status'],
+    placeholders: ['nama_siswa', 'kelas', 'status_kehadiran', 'tanggal', 'mapel', 'rentang_jam', 'keterangan_status', 'sumber_keterangan'],
     reminder: noReminder,
   },
   {
@@ -296,7 +312,7 @@ export const NOTIFICATION_EVENT_DEFINITIONS: NotificationEventDefinition[] = [
   {
     key: 'attendance_daily_update',
     label: 'Pembaruan rekap kehadiran',
-    description: 'Pembaruan jika input terlambat atau koreksi mengubah status harian, setelah jeda 5 menit.',
+    description: 'Pembaruan jika input terlambat atau koreksi mengubah status harian, setelah jeda yang diatur.',
     group: 'orang_tua',
     defaultEnabled: true,
     defaultTitle: 'Pembaruan rekap kehadiran',

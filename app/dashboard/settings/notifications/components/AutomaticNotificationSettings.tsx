@@ -17,6 +17,7 @@ import {
   saveAutomaticNotificationSetting,
   sendAutomaticNotificationTest,
 } from '../actions'
+import { ATTENDANCE_DELAY_DEFAULTS, attendanceDelayMinutes, MAX_ATTENDANCE_DELAY_MINUTES } from '@/lib/attendance-notification-delay'
 import type { NotificationChannel, NotificationEventDefinition, NotificationReminderConfig, NotificationTargetConfig } from '@/lib/notification-catalog'
 
 type SettingRow = {
@@ -86,6 +87,9 @@ const CRON_REMINDER_KEYS = new Set([
 ])
 
 const SAMPLE_VALUES: Record<string, string> = {
+  siswaId: 'contoh-siswa',
+  penugasanId: 'contoh-sesi',
+  sumber_keterangan: 'Ini merupakan catatan sesi pembelajaran.',
   nama_siswa: 'Ahmad Fauzan',
   mapel: 'Matematika',
   rentang_jam: '5–6',
@@ -139,7 +143,7 @@ function draftFrom(definition: NotificationEventDefinition, setting?: SettingRow
     urlTemplate: setting?.url_template || definition.defaultUrl,
     channels: channels.filter((channel) => CHANNELS.some((item) => item.value === channel)),
     target: target?.kind ? target : definition.defaultTarget,
-    reminder: { ...definition.reminder, ...reminder },
+    reminder: { ...definition.reminder, ...reminder, ...(definition.key in ATTENDANCE_DELAY_DEFAULTS ? { delayMinutes: attendanceDelayMinutes(definition.key, setting?.reminder_json) } : {}) },
     level: setting?.level || definition.defaultLevel,
   }
 }
@@ -161,6 +165,7 @@ function getChannelLabels(channels: NotificationChannel[]) {
 }
 
 function getReminderLabel(definition: NotificationEventDefinition, draft: Draft) {
+  if (definition.key in ATTENDANCE_DELAY_DEFAULTS) return `${draft.reminder.delayMinutes ?? ATTENDANCE_DELAY_DEFAULTS[definition.key]} menit jeda`
   if (definition.key === 'kbm_teaching_reminder') return `${draft.reminder.leadMinutes} menit setelah mulai`
   if (CRON_REMINDER_KEYS.has(definition.key)) return `Setiap ${draft.reminder.frequencyMinutes} menit`
   return '—'
@@ -522,6 +527,15 @@ export function AutomaticNotificationSettings({ definitions, settings }: Props) 
                       />
                     </div>
                   </div>
+
+                  {selectedDefinition.key in ATTENDANCE_DELAY_DEFAULTS && <div className="space-y-2 rounded-lg border p-4">
+                    <Label htmlFor="notification-delay">Jeda pengiriman (menit)</Label>
+                    <Input id="notification-delay" type="number" min={0} max={MAX_ATTENDANCE_DELAY_MINUTES} step={1}
+                      value={Number.isNaN(selectedDraft.reminder.delayMinutes) ? '' : selectedDraft.reminder.delayMinutes ?? ATTENDANCE_DELAY_DEFAULTS[selectedDefinition.key]}
+                      onChange={event => updateDraft(selectedDefinition.key, { reminder: { ...selectedDraft.reminder, delayMinutes: event.target.value === '' ? NaN : Number(event.target.value) } })} />
+                    <p className="text-xs text-muted-foreground">0 berarti segera. Pengaturan berlaku untuk kandidat baru; waktu pengiriman yang sudah dijadwalkan tetap. Penerimaan dapat lebih lambat karena antrean atau perangkat.</p>
+                    {selectedDefinition.key === 'attendance_parent_alert' && selectedDraft.reminder.delayMinutes === 0 && <p className="text-xs text-amber-700">Wali kelas mungkin belum sempat mengoreksi sebelum laporan orang tua terkirim.</p>}
+                  </div>}
 
                   {CRON_REMINDER_KEYS.has(selectedDefinition.key) && <div className="space-y-4 rounded-lg border p-4">
                     <div>

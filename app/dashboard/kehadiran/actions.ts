@@ -10,7 +10,7 @@ import { getEffectiveUser, getActAsDate } from '@/lib/act-as'
 import { resolveTeachingAssignmentAccess } from '@/lib/guru-ppl-access'
 import { currentTimeWIB, todayWIB, nowWIB } from '@/lib/time'
 import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
-import { notifyParentsAttendanceConfigured, notifyParentsDailyAttendanceFinal } from '@/lib/notification-engine'
+import { prepareAttendanceNotificationWork, flushAttendanceNotificationOutbox } from '@/lib/notification-engine'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
 import { invalidateAttendanceCache } from '@/lib/attendance-cache'
 import { requireActionAccess } from '@/lib/action-security'
@@ -513,36 +513,16 @@ export async function simpanAbsensi(
       updated_at = excluded.updated_at
   `).bind(penugasanId, tanggal, diinputOleh)
 
-  if (toSave.length === 0) {
-    try { await db.batch([delStmt, delSnapshotStmt, ...snapshotStmts, upsertSesiStmt]) } catch (e: any) { return { error: e.message } }
-    invalidateAttendanceCache()
-    try { await notifyParentsDailyAttendanceFinal(db, { penugasanId, tanggal }) } catch (fcmError) { console.error('Gagal kirim rekap FCM absensi ke ortu:', fcmError) }
-    revalidatePath('/dashboard/kehadiran')
-    revalidatePath('/dashboard/rekap-absensi')
-    return { success: 'Absensi disimpan! Semua siswa HADIR.' }
-  }
-
-  const insStmts = toSave.map(d =>
-    db.prepare(
-      `INSERT INTO absensi_siswa (penugasan_id,siswa_id,tanggal,jam_ke_mulai,jam_ke_selesai,jumlah_jam,status,catatan,diinput_oleh) VALUES (?,?,?,?,?,?,?,?,?)`
-    ).bind(penugasanId, d.siswa_id, tanggal, jamKeMulai, jamKeSelesai, jumlahJam, d.status, d.catatan || null, diinputOleh)
-  )
-
+  const insStmts = toSave.map(d => db.prepare(
+    `INSERT INTO absensi_siswa (penugasan_id,siswa_id,tanggal,jam_ke_mulai,jam_ke_selesai,jumlah_jam,status,catatan,diinput_oleh) VALUES (?,?,?,?,?,?,?,?,?)`
+  ).bind(penugasanId, d.siswa_id, tanggal, jamKeMulai, jamKeSelesai, jumlahJam, d.status, d.catatan || null, diinputOleh))
   try {
-    const all = [delStmt, delSnapshotStmt, ...insStmts, ...snapshotStmts, upsertSesiStmt]
-    for (let i = 0; i < all.length; i += 100) await db.batch(all.slice(i, i + 100))
-  } catch (e: any) { return { error: e.message } }
+    const work = await prepareAttendanceNotificationWork(db, { penugasanId, tanggal,
+      siswaIds: dataAbsen.map(d => d.siswa_id), notifyIds: changedNotificationIds })
+    await db.batch([delStmt, delSnapshotStmt, ...insStmts, ...snapshotStmts, upsertSesiStmt, ...work])
+  } catch (error: unknown) { return { error: error instanceof Error ? error.message : 'Absensi gagal disimpan.' } }
   invalidateAttendanceCache()
-
-  if (changedNotificationIds.length > 0) {
-    try {
-      await notifyParentsAttendanceConfigured(db, { penugasanId, tanggal, siswaIds: changedNotificationIds })
-    } catch (fcmError) {
-      console.error('Gagal kirim notifikasi FCM absensi ke ortu:', fcmError)
-    }
-  }
-
-  try { await notifyParentsDailyAttendanceFinal(db, { penugasanId, tanggal }) } catch (fcmError) { console.error('Gagal kirim rekap FCM absensi ke ortu:', fcmError) }
+  try { await flushAttendanceNotificationOutbox(db) } catch (error) { console.error('Antrean absensi akan dipulihkan oleh cron:', error) }
 
   revalidatePath('/dashboard/kehadiran')
   revalidatePath('/dashboard/rekap-absensi')
@@ -633,11 +613,11 @@ export async function koreksiAbsensiDariRekap(
       `).bind(penugasanId, change.siswa_id, tanggal, jamMulai, jamSelesai, jumlahJam, change.status, catatan, user.id))
     }
   }
-  try { await db.batch(statements) } catch (error: any) { return { error: error.message || 'Koreksi absensi gagal disimpan.' } }
+  const work = await prepareAttendanceNotificationWork(db, { penugasanId, tanggal, siswaIds: [...unique.keys()], notifyIds: [...unique.values()].filter(c => c.status !== 'HADIR' && existingMap.get(c.siswa_id)?.status !== c.status).map(c => c.siswa_id) })
+  try { await db.batch([...statements, ...work]) } catch (error: any) { return { error: error.message || 'Koreksi absensi gagal disimpan.' } }
   invalidateAttendanceCache()
   try {
-    await notifyParentsAttendanceConfigured(db, { penugasanId, tanggal })
-    await notifyParentsDailyAttendanceFinal(db, { penugasanId, tanggal })
+    await flushAttendanceNotificationOutbox(db)
   } catch (error) {
     console.error('Gagal memperbarui notifikasi koreksi absensi:', error)
   }

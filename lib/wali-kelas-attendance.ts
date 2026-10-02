@@ -197,13 +197,16 @@ export async function getFinalAttendanceForClass(
   kelasId: string,
   startDate: string,
   endDate: string,
-  options?: { tahunAjaranId?: string; siswaId?: string }
+  options?: { tahunAjaranId?: string; siswaId?: string; siswaIds?: string[]; fresh?: boolean }
 ): Promise<FinalAttendanceClassData | null> {
   // Include the clock minute: cached temporary results must expire at the KBM boundary.
+  const selectedIds = options?.siswaId ? [options.siswaId] : options?.siswaIds
+  if (selectedIds?.length === 0) return null
+  const studentSql = (column: string) => selectedIds ? ` AND ${column} IN (${selectedIds.map(() => '?').join(',')})` : ''
   const now = new Date()
-  const cacheKey = `final-att:v4:${Math.floor(now.getTime() / 60_000)}:${kelasId}:${startDate}:${endDate}:${options?.tahunAjaranId ?? ''}:${options?.siswaId ?? ''}`
+  const cacheKey = `final-att:v4:${Math.floor(now.getTime() / 60_000)}:${kelasId}:${startDate}:${endDate}:${options?.tahunAjaranId ?? ''}:${selectedIds?.join(',') ?? ''}`
   const cached = getMemCache<FinalAttendanceClassData>(cacheKey)
-  if (cached) return cached
+  if (cached && !options?.fresh) return cached
 
   await ensureSchemaOnce('absensi-sesi-guru', () => db.prepare(`
     CREATE TABLE IF NOT EXISTS absensi_sesi_guru (
@@ -226,19 +229,9 @@ export async function getFinalAttendanceForClass(
       LEFT JOIN "user" u ON k.wali_kelas_id = u.id
       WHERE k.id = ?
     `).bind(kelasId).first<ClassRow>(),
-    options?.siswaId
-      ? db.prepare(`
-          SELECT id, nama_lengkap, nisn, nis_lokal, jenis_kelamin, foto_url
-          FROM siswa
-          WHERE kelas_id = ? AND id = ?
-          ORDER BY nama_lengkap
-        `).bind(kelasId, options.siswaId).all<StudentRow>()
-      : db.prepare(`
-      SELECT id, nama_lengkap, nisn, nis_lokal, jenis_kelamin, foto_url
-      FROM siswa
-      WHERE kelas_id = ? AND status = 'aktif'
-      ORDER BY nama_lengkap
-    `).bind(kelasId).all<StudentRow>(),
+    db.prepare(`SELECT id, nama_lengkap, nisn, nis_lokal, jenis_kelamin, foto_url
+      FROM siswa WHERE kelas_id = ? AND status = 'aktif' ${studentSql('id')}
+      ORDER BY nama_lengkap`).bind(kelasId, ...(selectedIds || [])).all<StudentRow>(),
     options?.tahunAjaranId
       ? db.prepare('SELECT id, jam_pelajaran FROM tahun_ajaran WHERE id = ? LIMIT 1').bind(options.tahunAjaranId).first<{ id: string; jam_pelajaran: string | null }>()
       : db.prepare('SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string; jam_pelajaran: string | null }>(),
@@ -284,15 +277,15 @@ export async function getFinalAttendanceForClass(
       CROSS JOIN absensi_siswa ab ON ab.penugasan_id = pm.id
       JOIN mata_pelajaran mp ON pm.mapel_id = mp.id
       LEFT JOIN "user" input_user ON ab.diinput_oleh = input_user.id
-      WHERE pm.kelas_id = ? AND ab.tanggal BETWEEN ? AND ?
+      WHERE pm.kelas_id = ? AND ab.tanggal BETWEEN ? AND ? ${studentSql('ab.siswa_id')}
       ORDER BY ab.tanggal, ab.siswa_id, ab.jam_ke_mulai
-    `).bind(kelasId, startDate, endDate).all<any>(),
+    `).bind(kelasId, startDate, endDate, ...(selectedIds || [])).all<any>(),
     db.prepare(`
       SELECT kawk.tanggal, kawk.siswa_id, kawk.status, kawk.keterangan
       FROM siswa s
       CROSS JOIN keterangan_absensi_wali_kelas kawk ON kawk.siswa_id = s.id
-      WHERE s.kelas_id = ? AND kawk.tanggal BETWEEN ? AND ?
-    `).bind(kelasId, startDate, endDate).all<any>(),
+      WHERE s.kelas_id = ? AND kawk.tanggal BETWEEN ? AND ? ${studentSql('kawk.siswa_id')}
+    `).bind(kelasId, startDate, endDate, ...(selectedIds || [])).all<any>(),
     db.prepare(`
       SELECT itk.tanggal, itk.siswa_id, itk.alasan, itk.keterangan, itk.jam_pelajaran,
         COALESCE(aik.hitung_sebagai_hadir, 0) as hitung_sebagai_hadir,
@@ -301,9 +294,9 @@ export async function getFinalAttendanceForClass(
       CROSS JOIN izin_tidak_masuk_kelas itk ON itk.siswa_id = s.id
       LEFT JOIN alasan_izin_kelas aik ON aik.alasan = itk.alasan
       LEFT JOIN "user" u ON itk.diinput_oleh = u.id
-      WHERE s.kelas_id = ? AND itk.tanggal BETWEEN ? AND ?
+      WHERE s.kelas_id = ? AND itk.tanggal BETWEEN ? AND ? ${studentSql('itk.siswa_id')}
       ORDER BY itk.created_at ASC
-    `).bind(kelasId, startDate, endDate).all<any>(),
+    `).bind(kelasId, startDate, endDate, ...(selectedIds || [])).all<any>(),
     db.prepare(`
       SELECT ik.siswa_id, ik.keterangan, ik.waktu_keluar, ik.waktu_kembali,
         u.nama_lengkap as pelapor_nama
@@ -313,7 +306,8 @@ export async function getFinalAttendanceForClass(
       WHERE s.kelas_id = ?
         AND substr(ik.waktu_keluar, 1, 10) <= ?
         AND (ik.waktu_kembali IS NULL OR substr(ik.waktu_kembali, 1, 10) >= ?)
-    `).bind(kelasId, startDate, endDate).all<any>(),
+        ${studentSql('ik.siswa_id')}
+    `).bind(kelasId, startDate, endDate, ...(selectedIds || [])).all<any>(),
     db.prepare(`
       SELECT asg.tanggal, asg.penugasan_id, asg.diinput_oleh, input_user.nama_lengkap as guru_nama
       FROM penugasan_mengajar pm
@@ -650,7 +644,7 @@ export async function getFinalAttendanceForClass(
     siswa: siswaList,
     statusByStudent,
   }
-  setMemCache(cacheKey, result, 60_000)
+  if (!options?.fresh) setMemCache(cacheKey, result, 60_000)
   return result
 }
 

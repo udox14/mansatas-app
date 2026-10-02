@@ -7,7 +7,7 @@ import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { formatNamaKelas } from '@/lib/utils'
 import { nowWIBISO, todayWIB } from '@/lib/time'
-import { emitConfiguredNotification, notifyParentsAttendanceConfigured, notifyParentsDailyAttendanceFinal } from '@/lib/notification-engine'
+import { emitConfiguredNotification, prepareAttendanceNotificationWork, flushAttendanceNotificationOutbox } from '@/lib/notification-engine'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
 import { invalidateAttendanceCache } from '@/lib/attendance-cache'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
@@ -755,19 +755,18 @@ export async function simpanAbsensiDelegasi(
       updated_at = excluded.updated_at
   `).bind(penugasanMengajarId, tanggal, user.id)
 
-  if (toSave.length === 0) {
-    try { await db.batch([delStmt, upsertSesiStmt]) } catch (e: any) { return { error: e.message } }
-  } else {
-    const insStmts = toSave.map(d =>
-      db.prepare(
-        `INSERT INTO absensi_siswa (penugasan_id,siswa_id,tanggal,jam_ke_mulai,jam_ke_selesai,jumlah_jam,status,catatan,diinput_oleh) VALUES (?,?,?,?,?,?,?,?,?)`
-      ).bind(penugasanMengajarId, d.siswa_id, tanggal, jamKeMulai, jamKeSelesai, jumlahJam, d.status, d.catatan || null, user.id)
-    )
-    try {
-      const all = [delStmt, ...insStmts, upsertSesiStmt]
-      for (let i = 0; i < all.length; i += 100) await db.batch(all.slice(i, i + 100))
-    } catch (e: any) { return { error: e.message } }
-  }
+  const previous = await db.prepare('SELECT siswa_id, status FROM absensi_siswa WHERE penugasan_id = ? AND tanggal = ?')
+    .bind(penugasanMengajarId, tanggal).all<{ siswa_id: string; status: string }>()
+  const previousStatus = new Map((previous.results || []).map(r => [r.siswa_id, r.status]))
+  const notifyIds = toSave.filter(r => ['ALFA','SAKIT','IZIN'].includes(r.status) && previousStatus.get(r.siswa_id) !== r.status).map(r => r.siswa_id)
+  const inserts = toSave.map(d => db.prepare(`INSERT INTO absensi_siswa
+    (penugasan_id,siswa_id,tanggal,jam_ke_mulai,jam_ke_selesai,jumlah_jam,status,catatan,diinput_oleh) VALUES (?,?,?,?,?,?,?,?,?)`)
+    .bind(penugasanMengajarId, d.siswa_id, tanggal, jamKeMulai, jamKeSelesai, jumlahJam, d.status, d.catatan || null, user.id))
+  try {
+    const work = await prepareAttendanceNotificationWork(db, { penugasanId: penugasanMengajarId, tanggal,
+      siswaIds: dataAbsen.map(d => d.siswa_id), notifyIds })
+    await db.batch([delStmt, ...inserts, upsertSesiStmt, ...work])
+  } catch (error: unknown) { return { error: error instanceof Error ? error.message : 'Absensi gagal disimpan.' } }
 
   // Mark absen_selesai
   await dbUpdate(db, 'delegasi_tugas_kelas', {
@@ -790,19 +789,7 @@ export async function simpanAbsensiDelegasi(
 
   invalidateAttendanceCache()
 
-  if (toSave.length > 0) {
-    try {
-      await notifyParentsAttendanceConfigured(db, { penugasanId: penugasanMengajarId, tanggal })
-    } catch (fcmError) {
-      console.error('Gagal kirim notifikasi FCM absensi delegasi ke ortu:', fcmError)
-    }
-  }
-
-  try {
-    await notifyParentsDailyAttendanceFinal(db, { penugasanId: penugasanMengajarId, tanggal })
-  } catch (fcmError) {
-    console.error('Gagal kirim rekap FCM absensi delegasi ke ortu:', fcmError)
-  }
+  try { await flushAttendanceNotificationOutbox(db) } catch (error) { console.error('Antrean absensi delegasi akan dipulihkan cron:', error) }
 
   revalidatePath('/dashboard/penugasan')
   revalidatePath('/dashboard/monitoring-agenda')

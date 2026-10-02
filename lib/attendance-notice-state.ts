@@ -1,3 +1,4 @@
+import { ATTENDANCE_PERMISSION_TRIGGERS } from './attendance-permission-triggers'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
 import type { FinalAttendanceDetail } from '@/lib/wali-kelas-attendance'
 
@@ -9,6 +10,7 @@ export const ATTENDANCE_NOTICE_SCHEMA = `
     final_revision INTEGER NOT NULL DEFAULT 0,
     final_status TEXT, final_ref TEXT, final_due_at TEXT,
     final_sent_status TEXT, final_sent_revision INTEGER NOT NULL DEFAULT 0,
+    needs_recheck INTEGER NOT NULL DEFAULT 1, next_check_at TEXT,
     PRIMARY KEY (siswa_id, tanggal)
   )`
 
@@ -20,15 +22,28 @@ export type AttendanceNoticeState = {
   final_due_at: string | null; final_sent_status: string | null; final_sent_revision: number
 }
 
+const noticeSchemaPromises = new WeakMap<object, Promise<void>>()
+
 export async function attendanceNoticeActivation(db: D1Database) {
-  await ensureSchemaOnce('attendance-notice-v2', async () => {
+  let promise = noticeSchemaPromises.get(db as object)
+  if (!promise) {
+    promise = ensureSchemaOnce('attendance-notice-v3', async () => {
     await db.batch([
       db.prepare(`CREATE TABLE IF NOT EXISTS attendance_notice_policy (id INTEGER PRIMARY KEY CHECK(id = 1), activated_at TEXT NOT NULL)`),
       db.prepare(`INSERT OR IGNORE INTO attendance_notice_policy (id, activated_at) VALUES (1, strftime('%Y-%m-%dT%H:%M:%fZ','now'))`),
       db.prepare(ATTENDANCE_NOTICE_SCHEMA),
       db.prepare(`CREATE INDEX IF NOT EXISTS idx_attendance_notice_date ON attendance_parent_notice_state(tanggal, initial_sent_at)`),
     ])
-  })
+    const columns = await db.prepare('PRAGMA table_info(attendance_parent_notice_state)').all<{ name: string }>()
+    const names = new Set((columns.results || []).map(c => c.name))
+    if (!names.has('needs_recheck')) await db.prepare('ALTER TABLE attendance_parent_notice_state ADD COLUMN needs_recheck INTEGER NOT NULL DEFAULT 1').run()
+    if (!names.has('next_check_at')) await db.prepare('ALTER TABLE attendance_parent_notice_state ADD COLUMN next_check_at TEXT').run()
+    await db.prepare('CREATE INDEX IF NOT EXISTS idx_attendance_notice_due ON attendance_parent_notice_state(needs_recheck, next_check_at)').run()
+    await db.batch(ATTENDANCE_PERMISSION_TRIGGERS.map(sql => db.prepare(sql)))
+    }).catch(error => { noticeSchemaPromises.delete(db as object); throw error })
+    noticeSchemaPromises.set(db as object, promise)
+  }
+  await promise
   const row = await db.prepare('SELECT activated_at FROM attendance_notice_policy WHERE id = 1').first<{ activated_at: string }>()
   if (!row) throw new Error('Batas aktivasi notifikasi absensi belum tersedia.')
   return row.activated_at
@@ -59,4 +74,15 @@ export function initialAttendanceContext(status: string) {
 export async function readAttendanceNoticeState(db: D1Database, siswaId: string, tanggal: string) {
   return db.prepare('SELECT * FROM attendance_parent_notice_state WHERE siswa_id = ? AND tanggal = ?')
     .bind(siswaId, tanggal).first<AttendanceNoticeState>()
+}
+
+/** Wali correction is a daily override, usable before the final daily recap. */
+export function effectiveInitialAttendanceStatus(day: FinalAttendanceDetail | undefined, assignment: string, teacherStatus: string) {
+  if (!day) return null
+  // Official school full-day present priority always wins.
+  if (day.sumber_status === 'perizinan_sekolah') return null
+  const uncorrected = { ...day, wali_status: null }
+  if (!teacherNoticeStillValid(uncorrected, assignment, teacherStatus)) return null
+  const status = day.wali_status || teacherStatus
+  return ['ALFA', 'SAKIT', 'IZIN'].includes(status) ? status : null
 }
