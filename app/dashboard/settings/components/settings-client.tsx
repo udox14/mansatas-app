@@ -22,7 +22,7 @@ import {
   tambahTahunAjaran, setAktifTahunAjaran, hapusTahunAjaran,
   simpanDaftarJurusan, simpanJamPelajaran,
   setAgendaTimeRestrictionEnabled, setAgendaLateSetting, setAgendaForgottenMonthlyLimit, setAttendanceTimeRestrictionEnabled,
-  setAttendanceSkipIncompleteForDailyStatusEnabled, setHeroSettings, uploadHeroImageAction,
+  setHeroSettings, uploadHeroImageAction,
   setDashboardItemVisibility, setDashboardExtraWidgets, setParentLoginHelpSettings, setParentLoginBlockSettings,
   setParentPortalDisciplineSettings,
 } from '../actions'
@@ -387,7 +387,6 @@ export function SettingsClient({
   agendaLateThresholdByJam,
   agendaForgottenMonthlyLimit,
   attendanceTimeRestrictionEnabled,
-  attendanceSkipIncompleteForDailyStatusEnabled,
   heroBackgroundImageUrl,
   heroRunningText,
   heroTextColor,
@@ -412,7 +411,6 @@ export function SettingsClient({
   agendaLateThresholdByJam: string
   agendaForgottenMonthlyLimit: number
   attendanceTimeRestrictionEnabled: boolean
-  attendanceSkipIncompleteForDailyStatusEnabled: boolean
   heroBackgroundImageUrl: string
   heroRunningText: string
   heroTextColor: string
@@ -439,7 +437,6 @@ export function SettingsClient({
   )
   const [agendaForgottenLimit, setAgendaForgottenLimit] = useState(String(agendaForgottenMonthlyLimit))
   const [attendanceTimeRestricted, setAttendanceTimeRestricted] = useState(attendanceTimeRestrictionEnabled)
-  const [attendanceSkipIncomplete, setAttendanceSkipIncomplete] = useState(attendanceSkipIncompleteForDailyStatusEnabled)
 
   // Portal Ortu — tombol bantuan akun (lupa password) di halaman login
   const [parentHelpEnabled, setParentHelpEnabled] = useState(parentLoginHelpEnabled)
@@ -562,7 +559,6 @@ export function SettingsClient({
   const [isSavingAgendaLateSetting, setIsSavingAgendaLateSetting] = useState(false)
   const [isSavingAgendaForgottenLimit, setIsSavingAgendaForgottenLimit] = useState(false)
   const [isSavingAttendanceSetting, setIsSavingAttendanceSetting] = useState(false)
-  const [isSavingAttendanceSkipSetting, setIsSavingAttendanceSkipSetting] = useState(false)
 
   const addJurusan = (isEdit: boolean) => {
     const input = isEdit ? editJurusanInput : tambahJurusanInput
@@ -694,18 +690,6 @@ export function SettingsClient({
     setIsSavingAttendanceSetting(false)
     if (res?.error) {
       setAttendanceTimeRestricted(!nextValue)
-      alert(res.error)
-    }
-  }
-
-  const handleAttendanceSkipIncompleteToggle = async () => {
-    const nextValue = !attendanceSkipIncomplete
-    setAttendanceSkipIncomplete(nextValue)
-    setIsSavingAttendanceSkipSetting(true)
-    const res = await setAttendanceSkipIncompleteForDailyStatusEnabled(nextValue)
-    setIsSavingAttendanceSkipSetting(false)
-    if (res?.error) {
-      setAttendanceSkipIncomplete(!nextValue)
       alert(res.error)
     }
   }
@@ -1460,31 +1444,8 @@ export function SettingsClient({
             />
           </button>
         </div>
-        <div className="px-5 py-4 flex items-start justify-between gap-4">
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Abaikan blok belum lengkap saat menentukan status harian</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Jika aktif, rekap harian memakai blok yang sudah diabsen saja. Siswa tetap tidak akan dianggap Hadir bila tidak ada satu pun blok yang benar-benar menunjukkan hadir.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={handleAttendanceSkipIncompleteToggle}
-            disabled={isSavingAttendanceSkipSetting}
-            className={cn(
-              'relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition-colors',
-              attendanceSkipIncomplete ? 'bg-emerald-500 border-emerald-500' : 'bg-slate-200 dark:bg-slate-800 border-slate-300 dark:border-slate-700',
-              isSavingAttendanceSkipSetting && 'opacity-60 cursor-wait'
-            )}
-            aria-pressed={attendanceSkipIncomplete}
-          >
-            <span
-              className={cn(
-                'inline-block h-5 w-5 transform rounded-full bg-white transition-transform',
-                attendanceSkipIncomplete ? 'translate-x-6' : 'translate-x-1'
-              )}
-            />
-          </button>
+        <div className="px-5 py-4 text-sm text-slate-500">
+          Rekap harian ditetapkan setelah KBM selesai dari data yang tersedia, dengan prioritas Alfa, Sakit, Izin, lalu Hadir. Izin resmi biasa dihitung Hadir; alasan sakit tetap Sakit.
         </div>
       </div>
         </TabsContent>

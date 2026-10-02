@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   deriveDailyTeacherStatus,
+  dailyAttendanceClock,
   isWaliDecisionPendingStatus,
   normalizeDailyTeacherBlockStatus,
   resolveFinalAttendanceStatus,
@@ -15,103 +16,67 @@ function derive(statuses: Array<'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA'>, total = st
 
 describe('deriveDailyTeacherStatus', () => {
   it.each([
+    [['HADIR', 'HADIR', 'ALFA'], 'ALFA'],
+    [['ALFA', 'SAKIT', 'IZIN', 'HADIR'], 'ALFA'],
+    [['HADIR', 'SAKIT', 'IZIN'], 'SAKIT'],
+    [['HADIR', 'IZIN'], 'IZIN'],
     [['HADIR', 'HADIR'], 'HADIR'],
-    [['SAKIT', 'SAKIT'], 'SAKIT'],
-    [['IZIN', 'IZIN'], 'IZIN'],
-    [['ALFA', 'ALFA'], 'ALFA'],
-  ] as const)('menetapkan status seragam %j menjadi %s', (statuses, expected) => {
-    expect(derive([...statuses]).status).toBe(expected)
+  ] as const)('prioritas harian %j menjadi %s', (statuses, expected) => {
+    expect(derive([...statuses])).toMatchObject({ status: expected, requiresWaliDecision: false })
   })
 
-  it.each([
-    [['HADIR', 'SAKIT']],
-    [['HADIR', 'IZIN']],
-    [['HADIR', 'ALFA']],
-    [['SAKIT', 'IZIN']],
-    [['ALFA', 'SAKIT']],
-    [['ALFA', 'IZIN']],
-    [['HADIR', 'SAKIT', 'IZIN']],
-  ] as const)('meminta keputusan wali untuk status campuran yang seri %j', (statuses) => {
-    const result = derive([...statuses])
-    expect(result.status).toBe('PERLU_KONFIRMASI_WALI')
-    expect(result.requiresWaliDecision).toBe(true)
+  it('memeriksa seluruh kombinasi dan urutan tiga blok', () => {
+    const order = ['ALFA', 'SAKIT', 'IZIN', 'HADIR'] as const
+    for (const a of order) for (const b of order) for (const c of order) {
+      const statuses = [a, b, c]
+      const result = derive(statuses)
+      expect(result.status).toBe(order.find(item => statuses.includes(item)))
+      expect(result.requiresWaliDecision).toBe(false)
+    }
   })
 
-  it.each([
-    [['ALFA', 'ALFA', 'ALFA', 'HADIR'], 'ALFA'],
-    [['HADIR', 'HADIR', 'HADIR', 'SAKIT'], 'HADIR'],
-    [['SAKIT', 'SAKIT', 'SAKIT', 'ALFA'], 'SAKIT'],
-    [['IZIN', 'IZIN', 'IZIN', 'HADIR'], 'IZIN'],
-  ] as const)('menetapkan status mayoritas %j menjadi %s tanpa keputusan wali', (statuses, expected) => {
-    const result = derive([...statuses])
-    expect(result).toMatchObject({ status: expected, requiresWaliDecision: false })
-    expect(result.reason).toContain('paling banyak')
+  it('menunggu akhir KBM sekalipun input lengkap atau opsi lama aktif', () => {
+    expect(deriveDailyTeacherStatus({ totalBlocks: 2, submittedStatuses: ['ALFA', 'HADIR'], dayEnded: false, skipIncomplete: true }))
+      .toMatchObject({ status: 'BELUM_ADA_DATA', submittedBlocks: 2 })
   })
 
-  it('menetapkan alfa seragam tanpa keputusan wali', () => {
-    expect(derive(['ALFA', 'ALFA'])).toMatchObject({ status: 'ALFA', requiresWaliDecision: false })
+  it('setelah akhir KBM memakai data tersedia tanpa menganggap blok kosong hadir/alfa', () => {
+    expect(deriveDailyTeacherStatus({ totalBlocks: 4, submittedStatuses: ['ALFA'], dayEnded: true }))
+      .toMatchObject({ status: 'ALFA', pendingBlocks: 3 })
+    expect(derive([], 4).status).toBe('BELUM_ADA_INPUT')
+    expect(derive(['HADIR'], 4).status).toBe('HADIR')
+    expect(derive([], 0).status).toBe('BELUM_ADA_DATA')
   })
 
-  it('membedakan belum ada input dari belum lengkap', () => {
-    expect(derive([], 3)).toMatchObject({ status: 'BELUM_ADA_INPUT', requiresWaliDecision: false })
-    expect(derive(['HADIR'], 3)).toMatchObject({ status: 'BELUM_ADA_DATA', requiresWaliDecision: false })
+  it('meminta melengkapi jam jika waktu akhir belum tersedia', () => {
+    expect(deriveDailyTeacherStatus({ totalBlocks: 2, submittedStatuses: ['HADIR'], dayEnded: false, missingEndTime: true }).reason)
+      .toContain('Jam pelajaran perlu dilengkapi')
   })
 
-  it('menggunakan hanya blok tersubmit saat pengaturan abaikan blok aktif', () => {
-    const result = derive(['HADIR', 'SAKIT'], 4, true)
-    expect(result.status).toBe('PERLU_KONFIRMASI_WALI')
-    expect(result.submittedBlocks).toBe(2)
-    expect(result.pendingBlocks).toBe(2)
-  })
-
-  it('menganggap izin parsial dari Perizinan Siswa sebagai hadir saat agregasi harian', () => {
-    const result = derive([
-      normalizeDailyTeacherBlockStatus('IZIN', true, 'HADIR'),
-      normalizeDailyTeacherBlockStatus('HADIR'),
-    ])
-    expect(result).toMatchObject({
-      status: 'HADIR',
-      requiresWaliDecision: false,
-    })
-  })
-
-  it('menganggap izin siswa dan izin guru sebagai izin harian', () => {
-    const permissionStatus = resolveStudentPermissionDailyStatus(['IZIN', 'IZIN', 'IZIN'])
-    const result = derive([
-      normalizeDailyTeacherBlockStatus('IZIN', true, permissionStatus),
-      normalizeDailyTeacherBlockStatus('IZIN'),
-      normalizeDailyTeacherBlockStatus('IZIN'),
-      normalizeDailyTeacherBlockStatus('IZIN'),
-    ])
-    expect(result).toMatchObject({ status: 'IZIN', requiresWaliDecision: false })
-  })
-
-  it('tetap memakai hadir untuk izin siswa jika blok guru tidak seluruhnya izin', () => {
-    expect(resolveStudentPermissionDailyStatus(['HADIR', 'IZIN'])).toBe('HADIR')
-  })
-
-  it('tetap mempertahankan izin guru sebagai izin biasa', () => {
+  it('izin resmi tetap hadir walaupun seluruh input guru izin; sakit tetap sakit', () => {
+    expect(resolveStudentPermissionDailyStatus(['IZIN', 'IZIN'])).toBe('HADIR')
+    expect(normalizeDailyTeacherBlockStatus('IZIN', true)).toBe('HADIR')
     expect(normalizeDailyTeacherBlockStatus('IZIN')).toBe('IZIN')
-  })
-
-  it('memetakan alasan sakit dari Perizinan Siswa menjadi status sakit', () => {
-    expect(studentPermissionStatusFromReason('SAKIT DI UKS')).toBe('SAKIT')
+    expect(normalizeDailyTeacherBlockStatus('SAKIT', true, 'SAKIT')).toBe('SAKIT')
     expect(studentPermissionStatusFromReason('SAKIT (DI UKS)')).toBe('SAKIT')
-    expect(studentPermissionStatusFromReason('SAKIT (PULANG)')).toBe('SAKIT')
-    expect(studentPermissionStatusFromReason('KEGIATAN DI LUAR')).toBe('IZIN')
   })
+})
 
-  it('mengagregasikan izin siswa dengan alasan sakit sebagai sakit', () => {
-    const result = derive([
-      normalizeDailyTeacherBlockStatus('IZIN', true, 'SAKIT'),
-      normalizeDailyTeacherBlockStatus('SAKIT'),
-    ])
-    expect(result).toMatchObject({ status: 'SAKIT', requiresWaliDecision: false })
+describe('dailyAttendanceClock', () => {
+  it.each([
+    ['2026-10-02T04:59:59Z', false],
+    ['2026-10-02T05:00:00Z', true],
+    ['2026-10-02T05:00:01Z', true],
+  ])('batas akhir pukul 12 WIB pada %s', (instant, ended) => {
+    expect(dailyAttendanceClock('2026-10-02', '12:00', new Date(instant))).toMatchObject({ ended, kbmEndAt: '2026-10-02T12:00:00+07:00' })
   })
-
-  it('menggunakan aturan mayoritas dari blok tersubmit saat blok belum lengkap diabaikan', () => {
-    expect(derive(['HADIR', 'SAKIT'], 5, true).status).toBe('PERLU_KONFIRMASI_WALI')
-    expect(derive(['HADIR', 'HADIR', 'IZIN'], 5, true)).toMatchObject({ status: 'HADIR', requiresWaliDecision: false })
+  it('tanggal lampau selesai tanpa jam; hari ini tanpa jam tetap sementara; tanggal depan belum selesai', () => {
+    const now = new Date('2026-10-02T00:01:00Z')
+    expect(dailyAttendanceClock('2026-10-01', null, now).ended).toBe(true)
+    expect(dailyAttendanceClock('2026-10-02', null, now)).toMatchObject({ ended: false, missingEndTime: true })
+    expect(dailyAttendanceClock('2026-10-02', '99:00', now).ended).toBe(false)
+    expect(dailyAttendanceClock('2026-10-03', '00:00', now).ended).toBe(false)
+    expect(dailyAttendanceClock('2026-10-02', null, new Date('2026-10-01T17:01:00Z')).ended).toBe(false)
   })
 })
 
@@ -144,9 +109,9 @@ describe('resolveFinalAttendanceStatus', () => {
     })
   })
 
-  it('menetapkan izin dari modul Perizinan Siswa jika mencakup sehari penuh', () => {
+  it('menghitung izin resmi sehari penuh sebagai hadir', () => {
     expect(resolveFinalAttendanceStatus({ teacherStatus: 'BELUM_ADA_DATA', fullDayStudentPermissionStatus: 'IZIN' })).toEqual({
-      status: 'IZIN',
+      status: 'HADIR',
       source: 'perizinan_siswa',
     })
   })

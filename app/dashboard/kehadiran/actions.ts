@@ -489,7 +489,7 @@ export async function simpanAbsensi(
   `).bind(penugasanId, tanggal).all<{ siswa_id: string; status: string }>()
   const previousStatus = new Map((previousRows.results || []).map(row => [row.siswa_id, row.status]))
   const changedNotificationIds = toSave
-    .filter(row => (row.status === 'ALFA' || row.status === 'SAKIT') && previousStatus.get(row.siswa_id) !== row.status)
+    .filter(row => ['ALFA', 'SAKIT', 'IZIN'].includes(row.status) && previousStatus.get(row.siswa_id) !== row.status)
     .map(row => row.siswa_id)
   const delStmt = db.prepare('DELETE FROM absensi_siswa WHERE penugasan_id = ? AND tanggal = ?').bind(penugasanId, tanggal)
   const delSnapshotStmt = db.prepare('DELETE FROM absensi_sesi_siswa WHERE penugasan_id = ? AND tanggal = ?').bind(penugasanId, tanggal)
@@ -631,6 +631,12 @@ export async function koreksiAbsensiDariRekap(
   }
   try { await db.batch(statements) } catch (error: any) { return { error: error.message || 'Koreksi absensi gagal disimpan.' } }
   invalidateAttendanceCache()
+  try {
+    await notifyParentsAttendanceConfigured(db, { penugasanId, tanggal })
+    await notifyParentsDailyAttendanceFinal(db, { penugasanId, tanggal })
+  } catch (error) {
+    console.error('Gagal memperbarui notifikasi koreksi absensi:', error)
+  }
   revalidatePath('/dashboard/kehadiran')
   revalidatePath('/dashboard/rekap-absensi')
   return { success: `${unique.size} status absensi diperbarui.` }

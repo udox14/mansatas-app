@@ -3,6 +3,18 @@ import * as XLSX from 'xlsx'
 import { buildAttendanceWorkbook } from './attendance-xlsx'
 
 describe('buildAttendanceWorkbook', () => {
+  it('exports finalization stage and pending input alongside the daily status', async () => {
+    const workbook = await buildAttendanceWorkbook({
+      kind: 'kelas', mode: 'hari', filename: 'kelas', data: { sections: [{ kelas: { label: 'X-1' }, rows: [{
+        nama_lengkap: 'Alya', status_harian: 'ALFA', is_daily_final: true, pending_blok: 3,
+        submitted_blok: 1, total_blok: 4, sumber_status: 'guru', cells: [],
+        status_reason: 'Ada catatan Alfa pada 1 blok pelajaran.',
+      }] }] },
+    })
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets['X-1']) as Record<string, unknown>[]
+    expect(rows.some(row => Object.values(row).includes('Setelah KBM'))).toBe(true)
+    expect(rows.some(row => Object.values(row).includes('Blok Belum Diinput'))).toBe(true)
+  })
   it('membuat monitoring bulanan dengan semua kode status dan legenda', async () => {
     const workbook = await buildAttendanceWorkbook({
       kind: 'monitoring',

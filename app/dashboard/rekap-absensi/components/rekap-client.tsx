@@ -803,8 +803,8 @@ function TabSiswa({ filterOptions, initialJump, onBack }: {
                     <td className="px-3 py-2 font-semibold text-slate-800 dark:text-slate-100">{row.nama_lengkap}</td>
                     <td className="px-3 py-2 text-slate-500">{row.nisn || '-'}</td>
                     {row.cells.map((cell: any) => <td key={cell.jam_ke} className="px-2 py-2 text-center"><StatusDot status={cell.status} /></td>)}
-                    <td className="px-3 py-2"><StatusBadge status={row.status_harian} /></td>
-                    <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{row.keterangan || '-'}</td>
+                    <td className="px-3 py-2"><StatusBadge status={row.status_harian} /><p className="mt-1 text-[10px] text-slate-500">{row.is_daily_final ? 'Rekap setelah KBM' : 'Rekap sementara'} · {row.submitted_blok}/{row.total_blok} blok berdata</p>{row.pending_blok > 0 && <p className="text-[10px] text-slate-500">{row.pending_blok} blok belum diinput</p>}</td>
+                    <td className="px-3 py-2 text-slate-600 dark:text-slate-300">{row.status_reason && <p className="mb-1 text-slate-500">{row.status_reason}</p>}{row.keterangan || '-'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -857,10 +857,11 @@ function TabSiswa({ filterOptions, initialJump, onBack }: {
                                 <div className="mb-2 flex items-center justify-between gap-2">
                                   <div>
                                     <p className="text-xs font-semibold">{day.hariNama}, {fmtTgl(day.tanggal)}</p>
-                                    <p className="text-[10px] text-slate-500">{day.totalBlok} blok terjadwal</p>
+                                    <p className="text-[10px] text-slate-500">{day.isDailyFinal ? 'Rekap setelah KBM' : 'Rekap sementara'} · {day.submittedBlok}/{day.totalBlok} blok berdata</p>
                                   </div>
                                   <StatusBadge status={day.statusHari} />
                                 </div>
+                                <p className="mb-1 text-[11px] text-slate-500">{day.statusReason}</p>
                                 {day.detail?.length > 0 && (
                                   <p className="text-[11px] text-slate-600">{day.detail.map((d: any) => `${d.nama_mapel} jam ${d.jam_ke_mulai}-${d.jam_ke_selesai}: ${statusStyle(d.status).label}`).join(' | ')}</p>
                                 )}

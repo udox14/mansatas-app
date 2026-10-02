@@ -87,6 +87,10 @@ const CRON_REMINDER_KEYS = new Set([
 
 const SAMPLE_VALUES: Record<string, string> = {
   nama_siswa: 'Ahmad Fauzan',
+  mapel: 'Matematika',
+  rentang_jam: '5–6',
+  keterangan_status: 'belum hadir pada sesi ini',
+  kelengkapan: ' 1 blok pelajaran belum diinput; rekap dapat diperbarui.',
   kelas: 'XII IPA 1',
   tanggal: '21 Agustus 2026',
   alasan: 'Keperluan keluarga',

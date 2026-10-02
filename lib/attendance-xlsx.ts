@@ -94,6 +94,8 @@ function classRows(section: any, mode: 'hari' | 'rentang', codes: PrintStatusCod
     for (const cell of row.cells || []) result[`Jam ${cell.jam_ke}`] = codes.includes(statusCode(cell.status)) ? attendanceStatusLabel(cell.status) : ''
     const visible = codes.includes(statusCode(row.status_harian))
     result['Status Harian'] = visible ? attendanceStatusLabel(row.status_harian) : ''
+    result['Tahap Rekap'] = row.is_daily_final ? 'Setelah KBM' : 'Sementara'
+    result['Blok Belum Diinput'] = row.pending_blok || 0
     result.Sumber = visible ? attendanceSourceLabel(row.sumber_status) : ''
     result['Blok Disubmit'] = visible ? `${row.submitted_blok || 0}/${row.total_blok || 0}` : ''
     result.Alasan = visible ? row.status_reason || '' : ''
@@ -108,6 +110,8 @@ function studentRows(data: any, codes: PrintStatusCode[]) {
     No: index + 1,
     Tanggal: day.tanggal,
     Hari: day.hariNama,
+    'Tahap Rekap': day.isDailyFinal ? 'Setelah KBM' : 'Sementara',
+    'Blok Belum Diinput': day.pendingBlok || 0,
     'Status Harian': codes.includes(statusCode(day.statusHari)) ? attendanceStatusLabel(day.statusHari) : '',
     Sumber: codes.includes(statusCode(day.statusHari)) ? attendanceSourceLabel(day.sumberStatus) : '',
     'Blok Disubmit': codes.includes(statusCode(day.statusHari)) ? `${day.submittedBlok || 0}/${day.totalBlok || 0}` : '',

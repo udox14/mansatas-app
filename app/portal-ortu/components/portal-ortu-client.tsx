@@ -1381,6 +1381,11 @@ export function PortalOrtuClient({ data }: { data: any }) {
                       return meta ? <span className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ${meta.className}`}>{meta.label}</span> : null
                     })()}
                   </div>
+                  {selectedCalendarDay && <div className="space-y-1 text-xs leading-5 text-slate-500">
+                    <p>{selectedCalendarDay.is_daily_final ? 'Rekap setelah pembelajaran selesai' : 'Rekap sementara'} · {selectedCalendarDay.submitted_blok}/{selectedCalendarDay.total_blok} blok pelajaran sudah berdata.</p>
+                    {selectedCalendarDay.pending_blok > 0 && <p>{selectedCalendarDay.pending_blok} blok pelajaran belum diinput.</p>}
+                    <p>{selectedCalendarDay.status_reason}</p>
+                  </div>}
                   {selectedCalendarDay?.keterangan_wali_kelas && <p className="rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-600">{selectedCalendarDay.keterangan_wali_kelas}</p>}
                   {selectedBlockDetails.length === 0 ? <p className="text-sm text-slate-500">Tidak ada keterangan khusus pada tanggal ini.</p> : (
                     <div className="divide-y divide-slate-100 rounded-xl border border-slate-100">

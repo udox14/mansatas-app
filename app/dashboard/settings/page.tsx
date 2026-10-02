@@ -81,10 +81,6 @@ export default async function SettingsPage() {
     SYSTEM_SETTING_KEYS.attendanceTimeRestriction,
     false
   )
-  const attendanceSkipIncompleteForDailyStatusEnabled = await getSystemSettingBoolean(
-    SYSTEM_SETTING_KEYS.attendanceSkipIncompleteForDailyStatus,
-    false
-  )
   const heroBackgroundImageUrl = await getSystemSetting(SYSTEM_SETTING_KEYS.heroBackgroundImageUrl, '')
   const heroRunningText = await getSystemSetting(SYSTEM_SETTING_KEYS.heroRunningText, '')
   const heroTextColor = await getSystemSetting(SYSTEM_SETTING_KEYS.heroTextColor, 'white')
@@ -116,7 +112,6 @@ export default async function SettingsPage() {
         agendaLateThresholdByJam={agendaLateThresholdByJam}
         agendaForgottenMonthlyLimit={agendaForgottenMonthlyLimit}
         attendanceTimeRestrictionEnabled={attendanceTimeRestrictionEnabled}
-        attendanceSkipIncompleteForDailyStatusEnabled={attendanceSkipIncompleteForDailyStatusEnabled}
         heroBackgroundImageUrl={heroBackgroundImageUrl}
         heroRunningText={heroRunningText}
         heroTextColor={heroTextColor}

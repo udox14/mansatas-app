@@ -4,14 +4,13 @@ import {
   getKbmExceptionsForRange,
   splitTeachingSlotsByExceptions,
 } from '@/lib/kalender-pendidikan'
-import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
 import { getMemCache, setMemCache } from '@/utils/mem-cache'
 import {
   deriveDailyTeacherStatus,
+  dailyAttendanceClock,
   normalizeDailyTeacherBlockStatus,
   resolveFinalAttendanceStatus,
-  resolveStudentPermissionDailyStatus,
   studentPermissionStatusFromReason,
   type FinalAttendanceSource,
   type FinalAttendanceStatus,
@@ -26,6 +25,8 @@ export type FinalAttendanceDetail = {
   nama_lengkap: string
   nisn: string
   tanggal: string
+  is_daily_final: boolean
+  kbm_end_at: string | null
   total_blok: number
   submitted_blok: number
   pending_blok: number
@@ -198,7 +199,9 @@ export async function getFinalAttendanceForClass(
   endDate: string,
   options?: { tahunAjaranId?: string; siswaId?: string }
 ): Promise<FinalAttendanceClassData | null> {
-  const cacheKey = `final-att:v3:${kelasId}:${startDate}:${endDate}:${options?.tahunAjaranId ?? ''}:${options?.siswaId ?? ''}`
+  // Include the clock minute: cached temporary results must expire at the KBM boundary.
+  const now = new Date()
+  const cacheKey = `final-att:v4:${Math.floor(now.getTime() / 60_000)}:${kelasId}:${startDate}:${endDate}:${options?.tahunAjaranId ?? ''}:${options?.siswaId ?? ''}`
   const cached = getMemCache<FinalAttendanceClassData>(cacheKey)
   if (cached) return cached
 
@@ -248,10 +251,6 @@ export async function getFinalAttendanceForClass(
   const siswaList = siswaRes.results || []
   const dates = (await getEffectiveDatesInRange(db, startDate, endDate))
     .filter(tanggal => !kelas.kbm_nonaktif_mulai || kelas.kbm_nonaktif_mulai > tanggal)
-  const skipIncompleteForDailyStatus = await getSystemSettingBoolean(
-    SYSTEM_SETTING_KEYS.attendanceSkipIncompleteForDailyStatus,
-    false
-  )
 
   const [jadwalRes, absensiRes, waliRes, izinRes, izinKeluarRes, sesiRes] = await Promise.all([
     ta?.id
@@ -349,6 +348,7 @@ export async function getFinalAttendanceForClass(
   // sort). Sekarang dihitung sekali per tanggal dan dipakai bersama.
   type ClassDayBlocks = {
     totalBlok: number
+    clock: ReturnType<typeof dailyAttendanceClock>
     blocks: Array<{
       penugasan_id: string
       jam_ke: number[]
@@ -390,7 +390,14 @@ export async function getFinalAttendanceForClass(
         }
       })
       .filter(block => block.jam_ke.length > 0)
-    blocksByDate.set(tanggal, { totalBlok: rawBlocks.length, blocks: rawBlocks })
+    const lastBlock = [...rawBlocks].sort((a, b) => b.jam_ke_selesai - a.jam_ke_selesai)[0]
+    const endMinutes = lastBlock?.block_end
+    const endTime = endMinutes === null || endMinutes === undefined ? null
+      : `${String(Math.floor(endMinutes / 60)).padStart(2, '0')}:${String(endMinutes % 60).padStart(2, '0')}`
+    blocksByDate.set(tanggal, {
+      totalBlok: rawBlocks.length, blocks: rawBlocks,
+      clock: dailyAttendanceClock(tanggal, endTime, now),
+    })
   }
   const classDates = dates.filter(tanggal => (blocksByDate.get(tanggal)!.totalBlok) > 0)
 
@@ -549,27 +556,25 @@ export async function getFinalAttendanceForClass(
         permissionStatuses.every(status => status === permissionStatuses[0])
         ? permissionStatuses[0]
         : undefined
-      const teacherSubmittedStatuses = blockStatuses
-        .filter(block => block.submitted && !permissionBlockIds.has(block.penugasan_id))
-        .map(block => block.status as SubmittedBlockStatus)
-      const studentPermissionDailyStatus = resolveStudentPermissionDailyStatus(teacherSubmittedStatuses)
       const submittedStatuses = blockStatuses
         .filter(block => block.submitted)
         .map(block => {
           const permissionStatus = permissionBlockStatusById.get(block.penugasan_id)
           const dailyPermissionStatus = permissionStatus === 'SAKIT'
             ? 'SAKIT'
-            : studentPermissionDailyStatus
+            : 'HADIR'
           return normalizeDailyTeacherBlockStatus(
             block.status as SubmittedBlockStatus,
             permissionBlockIds.has(block.penugasan_id),
             dailyPermissionStatus,
           )
         })
+      const clock = dayBlocks.clock
       const guruState = deriveDailyTeacherStatus({
         totalBlocks: totalBlok,
         submittedStatuses,
-        skipIncomplete: skipIncompleteForDailyStatus,
+        dayEnded: clock.ended,
+        missingEndTime: clock.missingEndTime,
       })
       const guruStatus = guruState.status
       const activeJam = Array.from(new Set(activeBlocks.flatMap(block => block.jam_ke)))
@@ -582,32 +587,42 @@ export async function getFinalAttendanceForClass(
           return jamIzin.length === 0 || jamIzin.includes(jamKe)
         })
       )
-      const resolvedFinal = resolveFinalAttendanceStatus({
+      const resolvedFinal = !clock.ended ? resolveFinalAttendanceStatus({ teacherStatus: guruStatus }) : resolveFinalAttendanceStatus({
         teacherStatus: guruStatus,
         waliStatus: waliRecord?.status ?? null,
         fullDaySchoolPermission: izinSekolahSehariPenuh,
         fullDayStudentPermissionStatus,
       })
       let statusReason = guruState.reason
-      if (izinSekolahSehariPenuh) {
+      if (!clock.ended) {
+        statusReason = guruState.reason
+      } else if (izinSekolahSehariPenuh) {
         statusReason = 'Izin kepentingan sekolah mencakup seluruh blok KBM dan dihitung hadir.'
       } else if (waliRecord?.status) {
         statusReason = `Status ditetapkan wali kelas menjadi ${waliRecord.status}.`
       } else if (fullDayStudentPermissionStatus === 'SAKIT') {
         statusReason = 'Perizinan Siswa mencakup seluruh blok KBM dengan alasan sakit.'
       } else if (fullDayStudentPermissionStatus === 'IZIN') {
-        statusReason = 'Izin dari modul Perizinan Siswa mencakup seluruh blok KBM dan dihitung sebagai izin.'
+        statusReason = 'Izin dari modul Perizinan Siswa mencakup seluruh blok KBM dan dihitung Hadir.'
       } else if (hasStudentPermission) {
         statusReason = `${fullDayStudentPermission ? 'Perizinan Siswa mencakup seluruh blok KBM dengan alasan berbeda.' : 'Perizinan Siswa hanya mencakup sebagian blok KBM.'} ${guruState.reason}`
       }
 
       const submittedBlok = blockStatuses.filter(block => block.submitted).length
+      if (clock.ended && submittedBlok < totalBlok && !statusReason.includes('blok belum diinput')) {
+        statusReason += ` ${totalBlok - submittedBlok} blok belum diinput; rekap memakai data yang tersedia.`
+      }
+      if (clock.ended && ['HADIR', 'SAKIT', 'IZIN', 'ALFA'].includes(resolvedFinal.status)) {
+        statusReason = `Rekap setelah KBM. ${statusReason}`
+      }
 
       perDay.push({
         siswa_id: siswa.id,
         nama_lengkap: siswa.nama_lengkap,
         nisn: siswa.nisn,
         tanggal,
+        is_daily_final: clock.ended && ['HADIR', 'SAKIT', 'IZIN', 'ALFA'].includes(resolvedFinal.status),
+        kbm_end_at: clock.kbmEndAt,
         total_blok: totalBlok,
         submitted_blok: submittedBlok,
         pending_blok: Math.max(0, totalBlok - submittedBlok),

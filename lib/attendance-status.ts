@@ -85,11 +85,9 @@ export function normalizeDailyTeacherBlockStatus(
 }
 
 export function resolveStudentPermissionDailyStatus(
-  teacherStatuses: SubmittedBlockStatus[],
+  _teacherStatuses: SubmittedBlockStatus[],
 ): SubmittedBlockStatus {
-  return teacherStatuses.length > 0 && teacherStatuses.every(status => status === 'IZIN')
-    ? 'IZIN'
-    : 'HADIR'
+  return 'HADIR'
 }
 
 export function studentPermissionStatusFromReason(
@@ -163,7 +161,7 @@ export function resolveFinalAttendanceStatus(input: {
     }
   }
   if (input.fullDayStudentPermissionStatus) {
-    return { status: input.fullDayStudentPermissionStatus, source: 'perizinan_siswa' }
+    return { status: input.fullDayStudentPermissionStatus === 'SAKIT' ? 'SAKIT' : 'HADIR', source: 'perizinan_siswa' }
   }
   if (input.teacherStatus === 'BELUM_ADA_INPUT') return { status: input.teacherStatus, source: 'belum_ada_input' }
   if (input.teacherStatus === 'BELUM_ADA_DATA') return { status: input.teacherStatus, source: 'belum_ada_data' }
@@ -179,15 +177,26 @@ export type DailyTeacherStatusResult = {
   reason: string
 }
 
-function statusNames(statuses: SubmittedBlockStatus[]) {
-  const unique = Array.from(new Set(statuses))
-  return unique.map(status => ATTENDANCE_STATUS_META[status].label).join(' dan ')
+/** Clock supplied explicitly so replays and boundary tests do not depend on host timezone. */
+const attendanceDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Jakarta', year: 'numeric', month: '2-digit', day: '2-digit',
+})
+
+export function dailyAttendanceClock(tanggal: string, endTime: string | null, now = new Date()) {
+  const today = attendanceDateFormatter.format(now)
+  const validTime = endTime && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(endTime) ? endTime : null
+  const kbmEndAt = validTime ? `${tanggal}T${validTime}:00+07:00` : null
+  const ended = tanggal < today || (tanggal === today && kbmEndAt !== null && now.getTime() >= Date.parse(kbmEndAt))
+  return { ended, kbmEndAt, missingEndTime: !validTime }
 }
 
 export function deriveDailyTeacherStatus(input: {
   totalBlocks: number
   submittedStatuses: SubmittedBlockStatus[]
-  skipIncomplete: boolean
+  /** Retained for callers compiled against the old input; no longer changes policy. */
+  skipIncomplete?: boolean
+  dayEnded?: boolean
+  missingEndTime?: boolean
 }): DailyTeacherStatusResult {
   const totalBlocks = Math.max(0, input.totalBlocks)
   const submittedBlocks = Math.min(totalBlocks, input.submittedStatuses.length)
@@ -209,52 +218,38 @@ export function deriveDailyTeacherStatus(input: {
       submittedBlocks,
       pendingBlocks,
       requiresWaliDecision: false,
-      reason: `0/${totalBlocks} blok disubmit; belum ada input guru.`,
+      reason: `0/${totalBlocks} blok berdata; belum ada input guru.${input.dayEnded === false && input.missingEndTime ? ' Waktu akhir KBM belum tersedia. Jam pelajaran perlu dilengkapi.' : ''}`,
     }
   }
 
-  if (pendingBlocks > 0 && !input.skipIncomplete) {
+  if (input.dayEnded === false) {
     return {
       status: 'BELUM_ADA_DATA',
       submittedBlocks,
       pendingBlocks,
       requiresWaliDecision: false,
-      reason: `${submittedBlocks}/${totalBlocks} blok disubmit; ${pendingBlocks} blok belum lengkap.`,
+      reason: input.missingEndTime
+        ? 'Waktu akhir KBM belum tersedia. Jam pelajaran perlu dilengkapi sebelum rekap harian ditetapkan.'
+        : `Rekap sementara; status harian ditetapkan setelah KBM selesai. ${submittedBlocks}/${totalBlocks} blok sudah berdata.`,
     }
   }
 
   const considered = input.submittedStatuses.slice(0, submittedBlocks)
-  const unique = Array.from(new Set(considered))
-  const statusCounts = new Map<SubmittedBlockStatus, number>()
-  for (const item of considered) {
-    statusCounts.set(item, (statusCounts.get(item) || 0) + 1)
-  }
-  const highestCount = Math.max(...statusCounts.values())
-  const dominantStatuses = Array.from(statusCounts.entries())
-    .filter(([, count]) => count === highestCount)
-    .map(([status]) => status)
-  let status: FinalAttendanceStatus
-
-  if (dominantStatuses.length === 1) {
-    status = dominantStatuses[0]
-  } else {
-    status = 'PERLU_KONFIRMASI_WALI'
-  }
+  const status = (['ALFA', 'SAKIT', 'IZIN', 'HADIR'] as const).find(item => considered.includes(item)) || 'HADIR'
+  const count = considered.filter(item => item === status).length
 
   const suffix = pendingBlocks > 0
-    ? ` ${submittedBlocks}/${totalBlocks} blok disubmit; ${pendingBlocks} blok diabaikan sesuai pengaturan.`
+    ? ` ${submittedBlocks}/${totalBlocks} blok sudah berdata; ${pendingBlocks} blok belum diinput. Rekap memakai data yang tersedia setelah KBM selesai.`
     : ''
-  const reason = status === 'PERLU_KONFIRMASI_WALI'
-    ? `Terdapat perbedaan status ${statusNames(considered)}; perlu keputusan wali kelas.${suffix}`
-    : unique.length > 1
-      ? `Status ${ATTENDANCE_STATUS_META[status].label} paling banyak (${highestCount}/${submittedBlocks} blok) sehingga menjadi status harian.${suffix}`
-      : `Semua blok yang diperhitungkan berstatus ${ATTENDANCE_STATUS_META[status].label}.${suffix}`
+  const reason = status === 'HADIR'
+    ? `Semua blok yang diperhitungkan dihitung Hadir.${suffix}`
+    : `Ada catatan ${ATTENDANCE_STATUS_META[status].label} pada ${count} blok pelajaran. Prioritas harian: Alfa, Sakit, Izin, Hadir.${suffix}`
 
   return {
     status,
     submittedBlocks,
     pendingBlocks,
-    requiresWaliDecision: status === 'PERLU_KONFIRMASI_WALI',
+    requiresWaliDecision: false,
     reason,
   }
 }

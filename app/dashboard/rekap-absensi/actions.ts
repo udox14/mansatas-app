@@ -437,24 +437,12 @@ async function buildClassDailyMatrix(db: D1Database, kelasId: string, tanggal: s
       const jadwal = jadwalByJam.get(slot.id)
       if (!jadwal) return { jam_ke: slot.id, status: '-', label: '-', nama_mapel: null, catatan: null }
 
-      const waliStatus = finalDay?.wali_status
+      const block = finalDay?.block_statuses.find(item => item.penugasan_id === jadwal.penugasan_id)
       const absen = absenMap.get(`${siswa.id}__${slot.id}`)
-      const izinForJam = izinItems.find(item => item.jam.length === 0 || item.jam.includes(slot.id))
-      let status = 'BELUM_ADA_DATA'
-      let catatan: string | null = null
-
-      if (waliStatus) {
-        status = waliStatus
-        catatan = finalDay?.keterangan_wali_kelas || null
-      } else if (absen) {
-        status = absen.status
-        catatan = absen.catatan || null
-      } else if (izinForJam) {
-        status = 'IZIN'
-        catatan = [izinForJam.alasan, izinForJam.keterangan].filter(Boolean).join(': ')
-      } else if (submitted.has(jadwal.penugasan_id)) {
-        status = 'HADIR'
-      }
+      const permission = finalDay?.detail_guru.find(item => item.sumber === 'perizinan_siswa' &&
+        item.jam_ke_mulai <= slot.id && item.jam_ke_selesai >= slot.id)
+      const status = block?.status || (submitted.has(jadwal.penugasan_id) ? 'HADIR' : 'BELUM_ADA_INPUT')
+      const catatan = permission?.catatan || absen?.catatan || null
 
       return {
         jam_ke: slot.id,
@@ -474,6 +462,8 @@ async function buildClassDailyMatrix(db: D1Database, kelasId: string, tanggal: s
       nama_lengkap: siswa.nama_lengkap,
       nisn: siswa.nisn,
       status_harian: statusHarian,
+      is_daily_final: finalDay?.is_daily_final || false,
+      kbm_end_at: finalDay?.kbm_end_at || null,
       sumber_status: finalDay?.sumber_status || 'belum_ada_data',
       submitted_blok: finalDay?.submitted_blok || 0,
       pending_blok: finalDay?.pending_blok || 0,
@@ -531,6 +521,8 @@ export async function getAbsensiSiswaKelasRentang(kelasId: string, tglMulai: str
         tanggal: day.tanggal,
         hariNama: HARI[hariNum(new Date(day.tanggal + 'T00:00:00'))],
         statusHari: displayStatus(applyIzinStatus(day, izinItems)),
+        isDailyFinal: day.is_daily_final,
+        kbmEndAt: day.kbm_end_at,
         totalBlok: day.total_blok,
         submittedBlok: day.submitted_blok,
         pendingBlok: day.pending_blok,
@@ -821,6 +813,8 @@ export async function getAbsensiPerSiswa(siswaId: string, tglMulai: string, tglS
         blokHadir,
         blokTidakHadir,
         statusHari,
+        isDailyFinal: day.is_daily_final,
+        kbmEndAt: day.kbm_end_at,
         statusGuru: day.guru_status,
         statusWaliKelas: day.wali_status,
         sumberStatus: day.sumber_status,

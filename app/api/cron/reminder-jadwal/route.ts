@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getDB } from '@/utils/db-server'
 import { constantTimeSecretEqual } from '@/lib/constant-time'
 import { internalErrorJson } from '@/lib/request-security'
-import { dispatchConfiguredReminders, dispatchDueParentAnnouncements } from '@/lib/notification-engine'
+import { dispatchConfiguredReminders, dispatchDueParentAnnouncements, dispatchAttendanceDailyNotices } from '@/lib/notification-engine'
 
 /**
  * Dispatcher notifikasi otomatis — dipanggil setiap 5 menit oleh Cloudflare Cron Trigger.
@@ -35,10 +35,18 @@ export async function GET(req: NextRequest) {
       console.error('[notification] automatic reminder cron gagal:', error)
     }
 
+    let attendanceResult = { processed: 0 }
+    try {
+      attendanceResult = await dispatchAttendanceDailyNotices(db)
+    } catch (error) {
+      console.error('[notification] rekap kehadiran cron gagal:', error)
+    }
+
     return NextResponse.json({
       success: true,
       announcementsProcessed: announcementResult.processed,
       automaticRemindersProcessed: automaticReminderResult.processed,
+      attendanceNoticesProcessed: attendanceResult.processed,
       checkedAt: automaticReminderResult.checkedAt,
     })
 
