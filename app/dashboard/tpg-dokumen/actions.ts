@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
 import { checkFeatureAccess, getUserRoles } from '@/lib/features'
 import { ensureTpgSchema } from '@/lib/tpg-schema'
+import { getSystemSetting, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 import { uploadS36Pdf, validatePdfFile } from '@/utils/r2'
 import { isS36RequiredForRoles, monthLabel, TPG_CKH_ROLES, type TpgUserStatus } from '@/lib/tpg'
 
@@ -182,6 +183,15 @@ export async function getTpgDokumenData(s36Year: number, s36Month: number, ckhYe
     currentUserId: authUser.id,
     currentUser,
     canManage,
+    ckhKepalaSignatureUrl: canManage ? (await getSystemSetting(SYSTEM_SETTING_KEYS.ckhKepalaSignatureUrl, '') || null) : null,
+    kepalaMadrasah: canManage ? await db.prepare(`
+      SELECT COALESCE(u.nama_lengkap, u.name) as nama_lengkap, u.nip
+      FROM "user" u
+      LEFT JOIN user_roles ur ON ur.user_id = u.id
+      WHERE u.role = 'kepsek' OR ur.role = 'kepsek'
+      ORDER BY u.nama_lengkap ASC
+      LIMIT 1
+    `).first<{ nama_lengkap: string; nip: string | null }>() : null,
     roles,
     s36Year,
     s36Month,

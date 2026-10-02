@@ -9,6 +9,8 @@ import { checkFeatureAccess, getUserRoles } from '@/lib/features'
 import { isSuperAdmin, getEffectiveUser } from '@/lib/act-as'
 import { ensureTpgSchema, ensureTpgSchemaInner } from '@/lib/tpg-schema'
 import { getSystemSetting, setSystemSetting, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
+import { canManageKepalaSignature } from '@/lib/ckh-kepala-signature'
+import { isPlayReviewerRole } from '@/lib/play-reviewer'
 import { uploadCkhKepalaSignature, deleteFromR2, validateImageFile } from '@/utils/r2'
 import {
   CKH_DEFAULT_SATUAN,
@@ -835,12 +837,20 @@ export async function saveCkhKepalaSignatureSettings(documentId: string, payload
   }
 }
 
+async function requireKepalaSignatureAccess(userId: string) {
+  const db = await getDB()
+  const roles = await getUserRoles(db, userId)
+  if (isPlayReviewerRole(roles)) return false
+  if (!canManageKepalaSignature(roles)) return false
+  if (roles.includes('super_admin')) return true
+  return checkFeatureAccess(db, userId, 'tpg-dokumen')
+}
+
 export async function uploadCkhKepalaSignatureAction(formData: FormData) {
   const authUser = await getCurrentUser()
   if (!authUser) return { error: 'Unauthorized' }
 
-  const isAdmin = await isSuperAdmin(authUser.id)
-  if (!isAdmin) return { error: 'Hanya super admin yang dapat mengupload tanda tangan kepala madrasah.' }
+  if (!await requireKepalaSignatureAccess(authUser.id)) return { error: 'Hanya TU dan super admin yang dapat mengupload tanda tangan kepala madrasah.' }
 
   const file = formData.get('signature') as File
   if (!file || file.size === 0) return { error: 'Tidak ada file yang dipilih.' }
@@ -855,6 +865,7 @@ export async function uploadCkhKepalaSignatureAction(formData: FormData) {
   await setSystemSetting(SYSTEM_SETTING_KEYS.ckhKepalaSignatureUrl, versionedUrl)
 
   revalidatePath('/dashboard/ckh-generator')
+  revalidatePath('/dashboard/tpg-dokumen')
   return { success: 'Tanda tangan kepala madrasah berhasil diupload!', url: versionedUrl }
 }
 
@@ -862,8 +873,7 @@ export async function deleteCkhKepalaSignatureAction() {
   const authUser = await getCurrentUser()
   if (!authUser) return { error: 'Unauthorized' }
 
-  const isAdmin = await isSuperAdmin(authUser.id)
-  if (!isAdmin) return { error: 'Hanya super admin yang dapat menghapus tanda tangan kepala madrasah.' }
+  if (!await requireKepalaSignatureAccess(authUser.id)) return { error: 'Hanya TU dan super admin yang dapat menghapus tanda tangan kepala madrasah.' }
 
   const oldUrl = await getSystemSetting(SYSTEM_SETTING_KEYS.ckhKepalaSignatureUrl, '')
   if (oldUrl) {
@@ -872,6 +882,7 @@ export async function deleteCkhKepalaSignatureAction() {
   await setSystemSetting(SYSTEM_SETTING_KEYS.ckhKepalaSignatureUrl, '')
 
   revalidatePath('/dashboard/ckh-generator')
+  revalidatePath('/dashboard/tpg-dokumen')
   return { success: 'Tanda tangan kepala madrasah berhasil dihapus!' }
 }
 

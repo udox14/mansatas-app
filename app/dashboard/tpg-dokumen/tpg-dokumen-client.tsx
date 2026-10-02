@@ -41,6 +41,8 @@ import {
 } from '@/lib/tpg'
 import { downloadAndOpenNativeFile } from '@/lib/pdf/download'
 import { uploadS36Action } from './actions'
+import { KepalaSignatureSettingsDialog } from '@/components/ckh/kepala-signature-settings-dialog'
+import { DEFAULT_KEPALA_SIGNATURE_SETTINGS, normalizeKepalaPrintSettings, type SignatureSettings } from '@/lib/ckh-kepala-signature'
 
 const MONTHS = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -51,6 +53,8 @@ type TpgData = {
   currentUserId: string
   currentUser?: TpgUserStatus | null
   canManage: boolean
+  ckhKepalaSignatureUrl: string | null
+  kepalaMadrasah: { nama_lengkap: string; nip: string | null } | null
   s36Year: number
   s36Month: number
   ckhYear: number
@@ -120,6 +124,39 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
   const [searchQuery, setSearchQuery] = useState('')
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [kepalaSignatureUrl, setKepalaSignatureUrl] = useState(initialData.ckhKepalaSignatureUrl)
+  const [kepalaSignatureSettings, setKepalaSignatureSettings] = useState<SignatureSettings>(DEFAULT_KEPALA_SIGNATURE_SETTINGS)
+  const kepalaSettingsStorageKey = `tpg_ckh_kepala_signature:${data.currentUserId}`
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setKepalaSignatureUrl(initialData.ckhKepalaSignatureUrl), 0)
+    return () => window.clearTimeout(timer)
+  }, [initialData.ckhKepalaSignatureUrl])
+
+  useEffect(() => {
+    if (!data.canManage) return
+    const timer = window.setTimeout(() => {
+      try {
+        const saved = JSON.parse(localStorage.getItem(kepalaSettingsStorageKey) || 'null')
+        setKepalaSignatureSettings(saved && typeof saved === 'object'
+          ? normalizeKepalaPrintSettings(saved) : DEFAULT_KEPALA_SIGNATURE_SETTINGS)
+      } catch {
+        setKepalaSignatureSettings(DEFAULT_KEPALA_SIGNATURE_SETTINGS)
+      }
+    }, 0)
+    return () => window.clearTimeout(timer)
+  }, [data.canManage, kepalaSettingsStorageKey])
+
+  const saveKepalaPrintSettings = async (draft: SignatureSettings) => {
+    const settings = normalizeKepalaPrintSettings(draft)
+    setKepalaSignatureSettings(settings)
+    try {
+      localStorage.setItem(kepalaSettingsStorageKey, JSON.stringify(settings))
+    } catch {
+      // Printing still works if browser storage is unavailable.
+    }
+    return { settings }
+  }
 
   // Modal State
   const [isUploadOpen, setIsUploadOpen] = useState(false)
@@ -294,7 +331,15 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
       setMessage({ type: 'error', text: 'Belum ada CKH yang disimpan.' })
       return
     }
-    window.open(`/dashboard/tpg-dokumen/print-ckh?year=${data.ckhYear}&month=${data.ckhMonth}&users=${ids.join(',')}`, '_blank', 'noopener,noreferrer')
+    if (!data.canManage) return
+    const params = new URLSearchParams({
+      year: String(data.ckhYear), month: String(data.ckhMonth), users: ids.join(','),
+      kepalaSignature: kepalaSignatureUrl ? String(kepalaSignatureSettings.signature_enabled) : '0',
+      kepalaX: String(kepalaSignatureSettings.signature_x_mm),
+      kepalaY: String(kepalaSignatureSettings.signature_y_mm),
+      kepalaWidth: String(kepalaSignatureSettings.signature_width_mm),
+    })
+    window.open(`/dashboard/tpg-dokumen/print-ckh?${params}`, '_blank', 'noopener,noreferrer')
   }
 
   const openCeklisPrintModal = (mode: 'selected' | 'all' | 'self') => {
@@ -1080,6 +1125,21 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
                   </div>
 
                   {/* CKH Group */}
+                  <KepalaSignatureSettingsDialog
+                    printOnly
+                    signatureUrl={kepalaSignatureUrl}
+                    onSignatureUploaded={setKepalaSignatureUrl}
+                    onSignatureDeleted={() => {
+                      setKepalaSignatureUrl(null)
+                      void saveKepalaPrintSettings({ ...kepalaSignatureSettings, signature_enabled: 0 })
+                    }}
+                    signerName={data.kepalaMadrasah?.nama_lengkap.toUpperCase() || 'KEPALA MADRASAH BELUM DIATUR'}
+                    signerLabel="KEPALA MAN 1 TASIKMALAYA"
+                    signerNip={data.kepalaMadrasah?.nip || null}
+                    settings={kepalaSignatureSettings}
+                    onSaveSettings={saveKepalaPrintSettings}
+                    onApply={setKepalaSignatureSettings}
+                  />
                   <div className="inline-flex max-w-full flex-wrap rounded-lg border border-slate-200 dark:border-slate-800 p-0.5 bg-slate-50/70 dark:bg-slate-900/60 shadow-xs">
                     <Button
                       variant="ghost"

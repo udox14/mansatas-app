@@ -2,8 +2,10 @@ import { redirect } from 'next/navigation'
 import type { CSSProperties } from 'react'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
-import { getUserRoles } from '@/lib/features'
+import { checkFeatureAccess, getUserRoles } from '@/lib/features'
 import { ensureTpgSchema } from '@/lib/tpg-schema'
+import { getSystemSetting, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
+import { canManageKepalaSignature, parseKepalaPrintSettings, type KepalaPrintParams, type SignatureSettings } from '@/lib/ckh-kepala-signature'
 import { CKH_DEFAULT_SATUAN, CKH_DEFAULT_VOL, buildCkhDateRowSpans, formatCkhDate, formatCkhMonth } from '@/lib/ckh'
 import { PrintToolbar } from './print-toolbar'
 
@@ -91,7 +93,7 @@ function shouldUseKepalaTu(user: PrintUser) {
     jabatan.includes('pramubakti')
 }
 
-function signatureStyle(user: PrintUser): React.CSSProperties {
+function signatureStyle(user: SignatureSettings): React.CSSProperties {
   return {
     position: 'absolute',
     left: `${Number(user.signature_x_mm ?? 14)}mm`,
@@ -111,6 +113,8 @@ function CkhPrintBlock({
   rows,
   kepsek,
   kepalaTu,
+  kepalaSignatureUrl,
+  kepalaSignatureSettings,
   year,
   month,
 }: {
@@ -118,6 +122,8 @@ function CkhPrintBlock({
   rows: PrintRow[]
   kepsek: Signer | null
   kepalaTu: Signer | null
+  kepalaSignatureUrl: string | null
+  kepalaSignatureSettings: SignatureSettings
   year: number
   month: number
 }) {
@@ -180,7 +186,8 @@ function CkhPrintBlock({
       </table>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '18mm', fontSize: '10pt' }}>
-        <div style={{ width: '46%', textAlign: 'left', paddingLeft: '14mm' }}>
+        <div style={{ width: '46%', textAlign: 'left', paddingLeft: '14mm', position: 'relative' }}>
+          {!useTu && kepalaSignatureSettings.signature_enabled && kepalaSignatureUrl ? <img src={kepalaSignatureUrl} alt="" style={signatureStyle(kepalaSignatureSettings)} /> : null}
           <div>Mengetahui :</div>
           <div style={{ fontWeight: 700, textTransform: 'uppercase', marginBottom: '20mm' }}>{signerLabel}</div>
           <div style={{ fontWeight: 700, textDecoration: 'underline' }}>{upper(signer?.nama_lengkap) || missingSignerLabel}</div>
@@ -201,7 +208,7 @@ function CkhPrintBlock({
 export default async function PrintCkhPage({
   searchParams,
 }: {
-  searchParams: Promise<{ year?: string; month?: string; users?: string }>
+  searchParams: Promise<{ year?: string; month?: string; users?: string } & KepalaPrintParams>
 }) {
   const authUser = await getCurrentUser()
   if (!authUser) redirect('/login')
@@ -209,7 +216,8 @@ export default async function PrintCkhPage({
   const db = await getDB()
   await ensureTpgSchema(db)
   const authRoles = await getUserRoles(db, authUser.id)
-  if (!authRoles.includes('super_admin') && !authRoles.includes('admin_tu')) redirect('/dashboard')
+  if (!canManageKepalaSignature(authRoles)) redirect('/dashboard')
+  if (!await checkFeatureAccess(db, authUser.id, 'tpg-dokumen')) redirect('/dashboard')
 
   const params = await searchParams
   const year = Number(params.year)
@@ -218,6 +226,9 @@ export default async function PrintCkhPage({
   if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12 || ids.length === 0) {
     redirect('/dashboard/tpg-dokumen')
   }
+  const kepalaSignatureSettings = parseKepalaPrintSettings(params)
+  const kepalaSignatureUrl = kepalaSignatureSettings.signature_enabled
+    ? (await getSystemSetting(SYSTEM_SETTING_KEYS.ckhKepalaSignatureUrl, '') || null) : null
 
   const usersRes = await db.prepare(`
     SELECT
@@ -320,6 +331,8 @@ export default async function PrintCkhPage({
                 rows={rowsByDocument.get(user.document_id) || []}
                 kepsek={kepsek || null}
                 kepalaTu={kepalaTu || null}
+                kepalaSignatureUrl={kepalaSignatureUrl}
+                kepalaSignatureSettings={kepalaSignatureSettings}
                 year={year}
                 month={month}
               />
