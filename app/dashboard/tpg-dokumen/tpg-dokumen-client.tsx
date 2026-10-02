@@ -6,6 +6,7 @@ import Link from 'next/link'
 import {
   AlertCircle,
   CheckCircle2,
+  ChevronDown,
   Download,
   ExternalLink,
   FileCheck,
@@ -14,6 +15,7 @@ import {
   Loader2,
   Printer,
   Search,
+  ShieldCheck,
   Upload,
   UserCheck,
   X,
@@ -24,6 +26,13 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Dialog,
   DialogContent,
@@ -1047,7 +1056,7 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
             {periodFilters}
 
             <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
-              {/* Header: Title Left, Search & PageSize Right */}
+              {/* Header: Title Left, Search, PageSize & TTD Kepala Right */}
               <div className="flex flex-col gap-3 border-b border-surface-2 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between bg-surface-2/20">
                 <div>
                   <p className="text-base font-semibold text-slate-800 dark:text-slate-100">
@@ -1058,8 +1067,8 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <div className="relative w-full sm:w-60">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative w-full sm:w-56">
                     <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
                     <Input
                       placeholder="Cari nama guru..."
@@ -1083,48 +1092,7 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
                       <SelectItem value="100">100 / hal</SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
-              </div>
 
-              {/* Action Toolbar Bar */}
-              <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-2.5 border-b border-surface-2 px-4 py-2.5 bg-surface">
-                <div className="text-xs text-slate-500 font-medium">
-                  {selected.length > 0 ? (
-                    <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-600 dark:text-emerald-400">
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      {selected.length} guru dipilih
-                    </span>
-                  ) : (
-                    <span>Pilih guru untuk aksi terpilih, atau gunakan tombol cetak/simpan semua:</span>
-                  )}
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  {/* S36 Group */}
-                  <div className="inline-flex max-w-full flex-wrap rounded-lg border border-slate-200 dark:border-slate-800 p-0.5 bg-slate-50/70 dark:bg-slate-900/60 shadow-xs">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => openS36Download('selected')}
-                      disabled={selected.length === 0}
-                      className="gap-1.5 text-xs h-7 px-2.5 font-medium hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-50"
-                      title="Simpan S36 guru yang dicentang"
-                    >
-                      <Download className="h-3.5 w-3.5 text-slate-500" /> Simpan S36 Terpilih
-                    </Button>
-                    <div className="w-[1px] bg-slate-200 dark:bg-slate-800 my-1" />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => openS36Download('all')}
-                      className="gap-1.5 text-xs h-7 px-2.5 font-medium hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
-                      title="Simpan semua berkas S36"
-                    >
-                      <Download className="h-3.5 w-3.5 text-slate-500" /> Simpan Semua S36
-                    </Button>
-                  </div>
-
-                  {/* CKH Group */}
                   <KepalaSignatureSettingsDialog
                     printOnly
                     signatureUrl={kepalaSignatureUrl}
@@ -1139,53 +1107,175 @@ export function TpgDokumenClient({ initialData }: { initialData: TpgData }) {
                     settings={kepalaSignatureSettings}
                     onSaveSettings={saveKepalaPrintSettings}
                     onApply={setKepalaSignatureSettings}
+                    trigger={
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 gap-1.5 text-xs font-medium border-amber-300/80 bg-amber-50/60 text-amber-900 hover:bg-amber-100/80 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+                        title="Pengaturan tanda tangan digital Kepala Madrasah untuk CKH"
+                      >
+                        <ShieldCheck className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                        <span>TTD Kepala</span>
+                      </Button>
+                    }
                   />
-                  <div className="inline-flex max-w-full flex-wrap rounded-lg border border-slate-200 dark:border-slate-800 p-0.5 bg-slate-50/70 dark:bg-slate-900/60 shadow-xs">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => openCkhPrint('selected')}
-                      disabled={selected.length === 0}
-                      className="gap-1.5 text-xs h-7 px-2.5 font-medium hover:bg-white dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 disabled:opacity-50"
-                      title="Cetak CKH guru yang dicentang"
-                    >
-                      <Printer className="h-3.5 w-3.5 text-slate-500" /> Cetak CKH Terpilih
-                    </Button>
-                    <div className="w-[1px] bg-slate-200 dark:bg-slate-800 my-1" />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => openCkhPrint('all')}
-                      className="gap-1.5 text-xs h-7 px-2.5 font-medium hover:bg-emerald-50 text-emerald-700 dark:hover:bg-emerald-950/50 dark:text-emerald-400"
-                      title="Cetak semua berkas CKH"
-                    >
-                      <Printer className="h-3.5 w-3.5 text-emerald-600" /> Cetak Semua CKH
-                    </Button>
-                  </div>
+                </div>
+              </div>
 
-                  {/* Ceklis Group */}
-                  <div className="inline-flex max-w-full flex-wrap rounded-lg border border-indigo-200 dark:border-indigo-900/60 p-0.5 bg-indigo-50/60 dark:bg-indigo-950/40 shadow-xs">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => openCeklisPrintModal('selected')}
-                      disabled={selected.length === 0}
-                      className="gap-1.5 text-xs h-7 px-2.5 font-medium hover:bg-white text-indigo-700 dark:text-indigo-300 disabled:opacity-50"
-                      title="Cetak Ceklis Berkas guru yang dicentang"
-                    >
-                      <Printer className="h-3.5 w-3.5 text-indigo-600" /> Cetak Ceklis Berkas Terpilih
-                    </Button>
-                    <div className="w-[1px] bg-indigo-200 dark:bg-indigo-900/60 my-1" />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => openCeklisPrintModal('all')}
-                      className="gap-1.5 text-xs h-7 px-2.5 font-medium bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs"
-                      title="Cetak Ceklis Berkas untuk seluruh guru"
-                    >
-                      <Printer className="h-3.5 w-3.5" /> Cetak Semua Ceklis Berkas
-                    </Button>
-                  </div>
+              {/* Action Toolbar Bar */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 border-b border-surface-2 px-4 py-2.5 bg-surface">
+                <div className="text-xs text-slate-500 font-medium">
+                  {selected.length > 0 ? (
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1.5 rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                        {selected.length} guru dipilih
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSelected([])}
+                        className="text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 underline underline-offset-2"
+                      >
+                        Batalkan pilihan
+                      </button>
+                    </div>
+                  ) : (
+                    <span>Pilih guru untuk aksi terpilih, atau gunakan menu cetak/simpan di samping:</span>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* S36 Dropdown */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className={cn(
+                          "h-8 gap-1.5 text-xs font-medium border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800",
+                          selected.length > 0 && "border-slate-300 bg-slate-50/70 dark:border-slate-700 dark:bg-slate-800/60"
+                        )}
+                      >
+                        <Download className="h-3.5 w-3.5 text-slate-500" />
+                        <span>Berkas S36{selected.length > 0 ? ` (${selected.length})` : ''}</span>
+                        <ChevronDown className="h-3 w-3 text-slate-400" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuItem
+                        disabled={selected.length === 0}
+                        onClick={() => openS36Download('selected')}
+                        className="cursor-pointer gap-2"
+                      >
+                        <Download className="h-4 w-4 text-slate-500" />
+                        <div>
+                          <p className="font-medium text-xs">Simpan S36 Terpilih</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {selected.length > 0 ? `${selected.length} guru yang dicentang` : 'Centang guru terlebih dahulu'}
+                          </p>
+                        </div>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => openS36Download('all')}
+                        className="cursor-pointer gap-2"
+                      >
+                        <Download className="h-4 w-4 text-slate-500" />
+                        <div>
+                          <p className="font-medium text-xs">Simpan Semua S36</p>
+                          <p className="text-[10px] text-muted-foreground">Unduh berkas seluruh guru</p>
+                        </div>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  {/* CKH Dropdown */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className={cn(
+                          "h-8 gap-1.5 text-xs font-medium border-slate-200 text-slate-700 hover:bg-emerald-50/60 hover:text-emerald-700 hover:border-emerald-200 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800",
+                          selected.length > 0 && "border-emerald-300 bg-emerald-50/50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+                        )}
+                      >
+                        <Printer className="h-3.5 w-3.5 text-emerald-600" />
+                        <span>Cetak CKH{selected.length > 0 ? ` (${selected.length})` : ''}</span>
+                        <ChevronDown className="h-3 w-3 text-slate-400" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-56">
+                      <DropdownMenuItem
+                        disabled={selected.length === 0}
+                        onClick={() => openCkhPrint('selected')}
+                        className="cursor-pointer gap-2"
+                      >
+                        <Printer className="h-4 w-4 text-emerald-600" />
+                        <div>
+                          <p className="font-medium text-xs">Cetak CKH Terpilih</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {selected.length > 0 ? `${selected.length} guru yang dicentang` : 'Centang guru terlebih dahulu'}
+                          </p>
+                        </div>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => openCkhPrint('all')}
+                        className="cursor-pointer gap-2"
+                      >
+                        <Printer className="h-4 w-4 text-emerald-600" />
+                        <div>
+                          <p className="font-medium text-xs">Cetak Semua CKH</p>
+                          <p className="text-[10px] text-muted-foreground">Cetak seluruh berkas berstatus FINAL</p>
+                        </div>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  {/* Ceklis Dropdown */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className={cn(
+                          "h-8 gap-1.5 text-xs font-medium border-slate-200 text-slate-700 hover:bg-indigo-50/60 hover:text-indigo-700 hover:border-indigo-200 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800",
+                          selected.length > 0 && "border-indigo-300 bg-indigo-50/50 text-indigo-800 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300"
+                        )}
+                      >
+                        <Printer className="h-3.5 w-3.5 text-indigo-600" />
+                        <span>Ceklis Berkas{selected.length > 0 ? ` (${selected.length})` : ''}</span>
+                        <ChevronDown className="h-3 w-3 text-slate-400" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-60">
+                      <DropdownMenuItem
+                        disabled={selected.length === 0}
+                        onClick={() => openCeklisPrintModal('selected')}
+                        className="cursor-pointer gap-2"
+                      >
+                        <Printer className="h-4 w-4 text-indigo-600" />
+                        <div>
+                          <p className="font-medium text-xs">Cetak Ceklis Terpilih</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {selected.length > 0 ? `${selected.length} guru yang dicentang` : 'Centang guru terlebih dahulu'}
+                          </p>
+                        </div>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onClick={() => openCeklisPrintModal('all')}
+                        className="cursor-pointer gap-2"
+                      >
+                        <Printer className="h-4 w-4 text-indigo-600" />
+                        <div>
+                          <p className="font-medium text-xs">Cetak Semua Ceklis Berkas</p>
+                          <p className="text-[10px] text-muted-foreground">Cetak lembar verifikasi seluruh guru</p>
+                        </div>
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
 

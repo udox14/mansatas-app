@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { deleteCkhKepalaSignatureAction, uploadCkhKepalaSignatureAction, saveCkhKepalaSignatureSettings } from '@/app/dashboard/ckh-generator/actions'
 import type { SignatureSettings } from '@/lib/ckh-kepala-signature'
+import { cn } from '@/lib/utils'
 
 const signatureRoleStyle: CSSProperties = { fontWeight: 700, textTransform: 'uppercase', marginBottom: '20mm' }
 const signaturePreviewColumnStyle: CSSProperties = {
@@ -48,6 +49,8 @@ export function KepalaSignatureSettingsDialog({
   signerNip,
   settings,
   onApply,
+  trigger,
+  triggerClassName,
 }: {
   documentId?: string
   onSaveSettings?: (settings: SignatureSettings) => Promise<{ error?: string; settings?: SignatureSettings }>
@@ -60,6 +63,8 @@ export function KepalaSignatureSettingsDialog({
   signerNip: string | null
   settings: SignatureSettings
   onApply: (settings: SignatureSettings) => void
+  trigger?: React.ReactNode
+  triggerClassName?: string
 }) {
   const [draft, setDraft] = useState<SignatureSettings>(settings)
   const [message, setMessage] = useState<string | null>(null)
@@ -146,10 +151,18 @@ export function KepalaSignatureSettingsDialog({
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="outline" className="h-10 gap-2 whitespace-nowrap border-amber-300 bg-amber-50/50 text-amber-900 hover:bg-amber-100/60 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
-          <ShieldCheck className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-          TTD Kepala
-        </Button>
+        {trigger || (
+          <Button
+            variant="outline"
+            className={cn(
+              "h-10 gap-2 whitespace-nowrap border-amber-300 bg-amber-50/50 text-amber-900 hover:bg-amber-100/60 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200",
+              triggerClassName
+            )}
+          >
+            <ShieldCheck className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            TTD Kepala
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
