@@ -1019,7 +1019,18 @@ export async function ensureDocumentationTables(db: D1Database) {
   `).run()
 }
 
+let documentationSeedReady = false
 export async function ensureDocumentationSeed(db: D1Database) {
+  if (documentationSeedReady) return
+  try {
+    const existing = await db.prepare('SELECT 1 FROM documentation_articles LIMIT 1').first()
+    if (existing) {
+      documentationSeedReady = true
+      return
+    }
+  } catch {
+    // Proceed if table not created yet
+  }
   await ensureDocumentationTables(db)
   const seeds = getSeedArticles()
   await db.batch(seeds.map(article =>
@@ -1038,6 +1049,7 @@ export async function ensureDocumentationSeed(db: D1Database) {
       article.is_published,
     )
   ))
+  documentationSeedReady = true
 }
 
 export async function getDocumentationArticles(db: D1Database, options: {

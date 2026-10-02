@@ -293,24 +293,19 @@ export async function KelasBinaanDashboard({
     `).bind(kelas.id, today).all<any>().then(result => result.results || []),
     db.prepare(`
       SELECT s.id AS siswa_id,
-             COALESCE(pn.unread_count, 0) AS unread_count,
-             ps.status AS summon_status
+             (
+               SELECT COUNT(*)
+               FROM parent_notifications pn
+               WHERE pn.siswa_id = s.id AND pn.is_read = 0
+             ) AS unread_count,
+             (
+               SELECT ps.status
+               FROM parent_summons ps
+               WHERE ps.siswa_id = s.id
+               ORDER BY ps.created_at DESC
+               LIMIT 1
+             ) AS summon_status
       FROM siswa s
-      LEFT JOIN (
-        SELECT siswa_id, COUNT(*) AS unread_count
-        FROM parent_notifications
-        WHERE is_read = 0
-        GROUP BY siswa_id
-      ) pn ON pn.siswa_id = s.id
-      LEFT JOIN (
-        SELECT p1.siswa_id, p1.status
-        FROM parent_summons p1
-        JOIN (
-          SELECT siswa_id, MAX(created_at) AS max_created
-          FROM parent_summons
-          GROUP BY siswa_id
-        ) p2 ON p2.siswa_id = p1.siswa_id AND p2.max_created = p1.created_at
-      ) ps ON ps.siswa_id = s.id
       WHERE s.kelas_id = ? AND s.status = 'aktif'
     `).bind(kelas.id).all<any>().then(res => res.results || []),
     db.prepare(`

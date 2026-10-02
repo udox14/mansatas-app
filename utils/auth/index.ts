@@ -196,7 +196,9 @@ function normalizeDateToDdMmYyyy(value: string | null | undefined): string | nul
   return null
 }
 
+let parentSessionTableReady = false
 async function ensureParentSessionTable(db: D1Database) {
+  if (parentSessionTableReady) return
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS parent_session (
       id TEXT PRIMARY KEY,
@@ -208,9 +210,12 @@ async function ensureParentSessionTable(db: D1Database) {
       updatedAt TEXT NOT NULL
     )
   `).run()
+  parentSessionTableReady = true
 }
 
+let parentCredentialTableReady = false
 async function ensureParentCredentialTable(db: D1Database) {
+  if (parentCredentialTableReady) return
   await db.prepare(`
     CREATE TABLE IF NOT EXISTS parent_credentials (
       siswa_id TEXT PRIMARY KEY REFERENCES siswa(id) ON DELETE CASCADE,
@@ -218,6 +223,7 @@ async function ensureParentCredentialTable(db: D1Database) {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `).run()
+  parentCredentialTableReady = true
 }
 
 // ============================================================

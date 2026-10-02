@@ -34,6 +34,18 @@ Jika terdapat konflik antara requirement dan kondisi codebase, **jangan diam-dia
 13. Jangan membuat solusi sementara yang diketahui akan memaksa refactor besar berikutnya.
 14. Kerjakan hanya scope/fase yang diminta. Jangan otomatis melanjutkan ke fase berikutnya.
 15. Jalankan test/check relevan setelah perubahan dan laporkan hasilnya.
+16. Setiap kali menambah, mengubah, atau menghapus fitur, role, atau alur kerja, **WAJIB** memperbarui `config/app-blueprint.ts` agar Denah Aplikasi (`/dashboard/dokumentasi`) selalu akurat dan relevan.
+
+## Pemeliharaan Denah Aplikasi (App Blueprint)
+
+File `config/app-blueprint.ts` adalah **Denah Resmi Arsitektur & Alur Aplikasi MANSATAS** yang dirender pada modul `/dashboard/dokumentasi`.
+
+Setiap kali Agent AI:
+1. Menambahkan modul, halaman, atau subfitur baru;
+2. Mengubah hak akses peran (role access) atau nama/rute URL modul;
+3. Mengubah alur kerja proses bisnis inti (KBM, Keuangan, Disiplin, CKH, dll);
+
+**WAJIB** memperbarui `config/app-blueprint.ts` agar Denah Aplikasi tetap relevan, akurat, dan mencerminkan kondisi riil sistem.
 
 ## Aturan UI/UX
 

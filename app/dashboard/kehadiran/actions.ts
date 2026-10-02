@@ -82,6 +82,10 @@ async function ensureAbsensiSessionTable(db: D1Database) {
     CREATE INDEX IF NOT EXISTS idx_absensi_sesi_siswa_penugasan_tgl
     ON absensi_sesi_siswa(penugasan_id, tanggal)
   `).run()
+  await db.prepare(`
+    CREATE INDEX IF NOT EXISTS idx_absensi_sesi_siswa_siswa_status_tgl
+    ON absensi_sesi_siswa(siswa_id, status, tanggal)
+  `).run()
 }
 
 export type SiswaAbsensi = {

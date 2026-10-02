@@ -258,8 +258,8 @@ export async function getFinalAttendanceForClass(
           SELECT jm.hari, jm.jam_ke, jm.penugasan_id,
             COALESCE(mp.nama_mapel, 'Mata pelajaran') as nama_mapel,
             assignment_user.nama_lengkap as assignment_guru_nama
-          FROM jadwal_mengajar jm
-          JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
+          FROM penugasan_mengajar pm
+          CROSS JOIN jadwal_mengajar jm ON jm.penugasan_id = pm.id
           LEFT JOIN mata_pelajaran mp ON pm.mapel_id = mp.id
           LEFT JOIN "user" assignment_user ON pm.guru_id = assignment_user.id
           WHERE pm.kelas_id = ? AND jm.tahun_ajaran_id = ?
@@ -280,8 +280,8 @@ export async function getFinalAttendanceForClass(
     db.prepare(`
       SELECT ab.tanggal, ab.siswa_id, ab.penugasan_id, ab.status, ab.catatan, ab.jam_ke_mulai, ab.jam_ke_selesai,
         mp.nama_mapel, input_user.nama_lengkap as guru_nama
-      FROM absensi_siswa ab
-      JOIN penugasan_mengajar pm ON ab.penugasan_id = pm.id
+      FROM penugasan_mengajar pm
+      CROSS JOIN absensi_siswa ab ON ab.penugasan_id = pm.id
       JOIN mata_pelajaran mp ON pm.mapel_id = mp.id
       LEFT JOIN "user" input_user ON ab.diinput_oleh = input_user.id
       WHERE pm.kelas_id = ? AND ab.tanggal BETWEEN ? AND ?
@@ -289,16 +289,16 @@ export async function getFinalAttendanceForClass(
     `).bind(kelasId, startDate, endDate).all<any>(),
     db.prepare(`
       SELECT kawk.tanggal, kawk.siswa_id, kawk.status, kawk.keterangan
-      FROM keterangan_absensi_wali_kelas kawk
-      JOIN siswa s ON kawk.siswa_id = s.id
+      FROM siswa s
+      CROSS JOIN keterangan_absensi_wali_kelas kawk ON kawk.siswa_id = s.id
       WHERE s.kelas_id = ? AND kawk.tanggal BETWEEN ? AND ?
     `).bind(kelasId, startDate, endDate).all<any>(),
     db.prepare(`
       SELECT itk.tanggal, itk.siswa_id, itk.alasan, itk.keterangan, itk.jam_pelajaran,
         COALESCE(aik.hitung_sebagai_hadir, 0) as hitung_sebagai_hadir,
         u.nama_lengkap as pelapor_nama
-      FROM izin_tidak_masuk_kelas itk
-      JOIN siswa s ON itk.siswa_id = s.id
+      FROM siswa s
+      CROSS JOIN izin_tidak_masuk_kelas itk ON itk.siswa_id = s.id
       LEFT JOIN alasan_izin_kelas aik ON aik.alasan = itk.alasan
       LEFT JOIN "user" u ON itk.diinput_oleh = u.id
       WHERE s.kelas_id = ? AND itk.tanggal BETWEEN ? AND ?
@@ -316,8 +316,8 @@ export async function getFinalAttendanceForClass(
     `).bind(kelasId, startDate, endDate).all<any>(),
     db.prepare(`
       SELECT asg.tanggal, asg.penugasan_id, asg.diinput_oleh, input_user.nama_lengkap as guru_nama
-      FROM absensi_sesi_guru asg
-      JOIN penugasan_mengajar pm ON asg.penugasan_id = pm.id
+      FROM penugasan_mengajar pm
+      CROSS JOIN absensi_sesi_guru asg ON asg.penugasan_id = pm.id
       LEFT JOIN "user" input_user ON asg.diinput_oleh = input_user.id
       WHERE pm.kelas_id = ? AND asg.tanggal BETWEEN ? AND ?
     `).bind(kelasId, startDate, endDate).all<any>(),
