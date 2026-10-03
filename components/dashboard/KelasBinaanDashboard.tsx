@@ -114,6 +114,28 @@ function quickEditDomisiliLabel(tempatTinggal: string | null | undefined, desaKe
   return raw
 }
 
+function resolveDecisionDate(value: string | null | undefined, today: string, minDate: string) {
+  if (!value || !isValidDateOnly(value) || value > today) return today
+  return value < minDate ? minDate : value
+}
+
+function resolveSemesterStartDate(
+  ta: { nama: string; semester: number } | null,
+  today: string,
+  fallback: string,
+) {
+  const match = String(ta?.nama || '').match(/(\d{4})\D+(\d{4})/)
+  if (!match) return fallback
+
+  const firstYear = Number(match[1])
+  const secondYear = Number(match[2])
+  const startDate = Number(ta?.semester) === 1
+    ? `${firstYear}-07-01`
+    : `${secondYear}-01-01`
+
+  return startDate <= today ? startDate : fallback
+}
+
 export async function KelasBinaanDashboard({
   userId,
   taAktif,
@@ -131,13 +153,9 @@ export async function KelasBinaanDashboard({
   const show = (section: string) => dashboardVisibility[section] !== false
   const db = await getDB()
   const today = todayWIB()
-  const selectedDecisionDate = decisionDate && isValidDateOnly(decisionDate) && decisionDate <= today
-    ? decisionDate
-    : today
-
-  const todayDateObj = new Date(today + 'T00:00:00')
-  const startOfMonthObj = new Date(todayDateObj.getFullYear(), todayDateObj.getMonth(), 1)
-  const startOfMonthStr = startOfMonthObj.toISOString().split('T')[0]
+  const startOfMonthStr = `${today.slice(0, 7)}-01`
+  const semesterStartDate = resolveSemesterStartDate(taAktif, today, startOfMonthStr)
+  const selectedDecisionDate = resolveDecisionDate(decisionDate, today, semesterStartDate)
 
   const kelas = kelasIdOverride
     ? await db.prepare(`
@@ -152,6 +170,7 @@ export async function KelasBinaanDashboard({
         FROM kelas k
         LEFT JOIN "user" u ON k.wali_kelas_id = u.id
         WHERE k.wali_kelas_id = ?
+        ORDER BY k.tingkat, k.kelompok, CAST(k.nomor_kelas AS INTEGER)
         LIMIT 1
       `).bind(userId).first<any>()
 
@@ -162,17 +181,6 @@ export async function KelasBinaanDashboard({
       </div>
     )
   }
-
-  const taDates = await db.prepare(`
-    SELECT tanggal_mulai, tanggal_selesai
-    FROM tahun_ajaran
-    WHERE is_active = 1
-    LIMIT 1
-  `).first<{ tanggal_mulai: string | null; tanggal_selesai: string | null }>()
-
-  const semesterStartDate = taDates?.tanggal_mulai && taDates.tanggal_mulai <= today
-    ? taDates.tanggal_mulai
-    : startOfMonthStr
 
   await ensureSchemaOnce('kelas_binaan:parent_comm_v1', async () => {
     await db.prepare(`
