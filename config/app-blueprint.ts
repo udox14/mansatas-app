@@ -289,7 +289,7 @@ export const APP_MODULES: ModuleItem[] = [
     summary: 'Pemeriksaan izin keluar komplek madrasah dan pemantauan santri di pos gerbang.',
     description: 'Terintegrasi dengan modul Izin Keluar Komplek siswa. Satpam memvalidasi apakah siswa yang keluar memiliki izin sah dari wali kelas/kesiswaan.',
     roles: ['satpam', 'super_admin', 'admin_tu'],
-    keyFeatures: ['Validasi izin keluar santri', 'Pencatatan jam keluar & kembali', 'Laporan santri terlambat kembali'],
+    keyFeatures: ['Validasi izin keluar santri', 'Pencatatan jam keluar & kembali', 'Penutupan otomatis izin harian pada akhir pola jam pelajaran (cron tiap 5 menit, maksimal 100 izin per proses); izin hari sebelumnya dipulihkan tanpa terbawa ke presensi hari ini, dengan catatan otomatis yang bukan konfirmasi kepulangan fisik', 'Laporan santri terlambat kembali'],
     inputs: ['Verifikasi izin siswa', 'Waktu kembali'],
     outputs: ['Log gerbang keamanan'],
   },
@@ -417,7 +417,7 @@ export const CORE_WORKFLOWS: CoreWorkflow[] = [
         step: 4,
         actor: 'Wali Kelas',
         title: 'Validasi & Izin',
-        action: 'Memvalidasi rekap kehadiran kelas dan menambahkan keterangan surat dokter/izin siswa yang berhalangan.',
+        action: 'Memvalidasi rekap kehadiran kelas dan menambahkan keterangan surat dokter/izin siswa yang berhalangan. Izin keluar komplek yang belum ditandai kembali ditutup otomatis setelah akhir pola jam pelajaran tahun ajaran aktif melalui cron tiap 5 menit; waktu kembali manual tetap dipertahankan dan penutupan otomatis diberi catatan.',
         module: '/dashboard/kelas-binaan',
       },
       {
