@@ -79,7 +79,7 @@ export const APP_MODULES: ModuleItem[] = [
     summary: 'Pengisian jurnal mengajar harian, materi pelajaran, dan absensi kehadiran siswa di kelas.',
     description: 'Digunakan oleh guru mata pelajaran setiap jam mengajar untuk mencatat materi yang diajarkan, melampirkan foto dokumentasi kelas, dan otomatis menandai siswa hadir/absen.',
     roles: ['guru', 'guru_ppl', 'guru_tahfidz', 'super_admin', 'admin_tu'],
-    keyFeatures: ['Jurnal KBM harian', 'Upload foto kelas ber-timestamp', 'Presensi per jam pelajaran', 'Audit akses agenda'],
+    keyFeatures: ['Jurnal KBM harian', 'Upload foto kelas ber-timestamp dengan kompresi WebP/JPEG sesuai dukungan perangkat', 'Draft materi/foto dan kirim ulang jika koneksi gagal; sukses setelah penyimpanan dikonfirmasi server', 'Presensi per jam pelajaran', 'Audit akses agenda'],
     inputs: ['Materi pembelajaran', 'Status presensi siswa (Hadir/Sakit/Izin/Alfa)', 'Foto bukti mengajar'],
     outputs: ['Data rekap kehadiran siswa realtime', 'Arsip jurnal kelas', 'Status mengajar hari ini'],
   },
@@ -403,7 +403,7 @@ export const CORE_WORKFLOWS: CoreWorkflow[] = [
         step: 2,
         actor: 'Guru Mata Pelajaran',
         title: 'Buka Kelas & Isi Agenda',
-        action: 'Saat jam pelajaran dimulai, guru membuka agenda mengajar, memasukkan materi, dan menandai kehadiran siswa.',
+        action: 'Saat jam pelajaran dimulai, guru membuka agenda mengajar, memasukkan materi, dan menandai kehadiran siswa. Foto kamera diperkecil ke WebP atau JPEG sesuai perangkat sebelum agenda dikirim; draft dapat dilanjutkan saat gagal dan status diperbarui setelah server mengonfirmasi penyimpanan.',
         module: '/dashboard/agenda',
       },
       {

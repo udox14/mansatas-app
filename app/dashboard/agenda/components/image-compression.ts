@@ -9,20 +9,38 @@ type CompressOptions = {
   watermarkText?: string
 }
 
-async function canvasToWebpFile(
-  canvas: HTMLCanvasElement,
-  originalName: string,
-  quality: number
-): Promise<File | null> {
+type PhotoMime = 'image/webp' | 'image/jpeg'
+const MAX_PROCESSED_BYTES = 900 * 1024
+
+async function encodeCanvas(canvas: HTMLCanvasElement, mime: PhotoMime, quality: number): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('Pemrosesan foto terlalu lama. Ambil ulang foto lalu coba kirim lagi.')), 10_000)
-    canvas.toBlob((blob) => {
-      clearTimeout(timer)
-      if (!blob) return reject(new Error('Foto gagal dikompres. Ambil ulang foto lalu coba kirim lagi.'))
-      const extension = blob.type === 'image/webp' ? '.webp' : '.png'
-      resolve(new File([blob], originalName.replace(/\.\w+$/, extension), { type: blob.type }))
-    }, 'image/webp', quality)
+    try {
+      canvas.toBlob(blob => {
+        clearTimeout(timer)
+        if (!blob) return reject(new Error('Foto gagal dikompres. Ambil ulang foto lalu coba kirim lagi.'))
+        resolve(blob)
+      }, mime, quality)
+    } catch (error) { clearTimeout(timer); reject(error) }
   })
+}
+
+async function canvasToPhotoFile(
+  canvas: HTMLCanvasElement,
+  originalName: string,
+  quality: number,
+  mime: PhotoMime,
+): Promise<File> {
+  let blob = await encodeCanvas(canvas, mime, quality)
+  // Browser yang tidak mendukung encoder WebP mengembalikan PNG. PNG tidak
+  // mengikuti parameter quality, sehingga harus mencoba encoder JPEG.
+  if (mime === 'image/webp' && blob.type !== 'image/webp') blob = await encodeCanvas(canvas, 'image/jpeg', quality)
+  if (blob.type !== 'image/webp' && blob.type !== 'image/jpeg') {
+    throw new Error('Perangkat tidak dapat mengompres foto ke format yang didukung. Coba buka Agenda Guru melalui browser terbaru; materi tetap disimpan.')
+  }
+  const extension = blob.type === 'image/webp' ? '.webp' : '.jpg'
+  const baseName = originalName.replace(/\.[^.]+$/, '') || 'agenda'
+  return new File([blob], baseName + extension, { type: blob.type })
 }
 
 export async function compressAgendaImage(
@@ -50,14 +68,17 @@ export async function compressAgendaImage(
       clearTimeout(timer)
       URL.revokeObjectURL(url)
       try {
-      let width = img.width
-      let height = img.height
+      let width = img.naturalWidth || img.width
+      let height = img.naturalHeight || img.height
+      if (!width || !height) throw new Error('Ukuran foto tidak dapat dibaca. Materi tetap disimpan; ambil ulang foto.')
+      const originalWidth = width
+      const originalHeight = height
       const widthRatio = maxWidth / width
       const heightRatio = maxHeight / height
       const initialScale = Math.min(1, widthRatio, heightRatio)
 
-      width = Math.max(320, Math.round(width * initialScale))
-      height = Math.max(320, Math.round(height * initialScale))
+      width = Math.max(1, Math.round(width * initialScale))
+      height = Math.max(1, Math.round(height * initialScale))
 
       const canvas = document.createElement('canvas')
       const ctx = canvas.getContext('2d')
@@ -65,11 +86,16 @@ export async function compressAgendaImage(
 
       let bestFile: File | null = null
       let quality = initialQuality
+      let mime: PhotoMime = 'image/webp'
+      const minLongEdge = Math.min(320, Math.max(width, height))
 
       while (true) {
         canvas.width = width
         canvas.height = height
         ctx.clearRect(0, 0, width, height)
+        // JPEG tidak memiliki transparansi; berikan latar putih sebelum foto.
+        ctx.fillStyle = '#ffffff'
+        ctx.fillRect(0, 0, width, height)
         ctx.drawImage(img, 0, 0, width, height)
 
         if (watermarkText) {
@@ -85,17 +111,17 @@ export async function compressAgendaImage(
           ctx.restore()
         }
 
-        const compressed = await canvasToWebpFile(canvas, file.name, quality)
-        if (!compressed) throw new Error('Foto gagal dikompres. Ambil ulang foto.')
+        const compressed = await canvasToPhotoFile(canvas, file.name, quality, mime)
+        mime = compressed.type as PhotoMime
 
-        bestFile = compressed
+        if (!bestFile || compressed.size < bestFile.size) bestFile = compressed
 
-        if (compressed.size <= targetBytes) {
+        if (compressed.size <= Math.min(targetBytes, MAX_PROCESSED_BYTES)) {
           return resolve(compressed)
         }
 
         const canLowerQuality = quality > minQuality
-        const canShrinkDimensions = width > 720 || height > 720
+        const canShrinkDimensions = Math.max(width, height) > minLongEdge
 
         if (canLowerQuality) {
           quality = Math.max(minQuality, quality - 0.08)
@@ -103,13 +129,15 @@ export async function compressAgendaImage(
         }
 
         if (canShrinkDimensions) {
-          width = Math.max(720, Math.round(width * 0.82))
-          height = Math.max(720, Math.round(height * 0.82))
+          const nextLongEdge = Math.max(minLongEdge, Math.floor(Math.max(width, height) * 0.82))
+          const scale = nextLongEdge / Math.max(originalWidth, originalHeight)
+          width = Math.max(1, Math.round(originalWidth * scale))
+          height = Math.max(1, Math.round(originalHeight * scale))
           quality = Math.min(initialQuality, quality + 0.06)
           continue
         }
 
-        if (bestFile.size > 900 * 1024) throw new Error('Foto masih terlalu besar setelah diproses. Materi tetap disimpan; ambil ulang foto.')
+        if (bestFile.size > MAX_PROCESSED_BYTES) throw new Error('Foto belum dapat diperkecil untuk dikirim. Materi tetap disimpan; coba gunakan browser terbaru atau ambil foto dengan resolusi kamera lebih rendah.')
         return resolve(bestFile)
       }
       } catch (error) { reject(error) }
