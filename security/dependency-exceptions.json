@@ -13,6 +13,13 @@
       "severity": "high",
       "reviewBy": "2026-11-21",
       "reason": "Transitif dari @cloudflare/puppeteer 1.3.0 melalui @puppeteer/browsers. Kerentanan memerlukan ekstraksi arsip dengan entri symlink berbahaya, sedangkan runtime aplikasi hanya memanggil puppeteer.launch dengan binding Cloudflare BROWSER dan tidak menerima atau mengekstrak arsip browser. Tinjau ulang saat upstream menyediakan dependency yang telah ditambal."
+    },
+    {
+      "advisory": "GHSA-vfj7-8cjw-p6xm",
+      "package": "braces",
+      "severity": "high",
+      "reviewBy": "2026-11-21",
+      "reason": "Transitif dari build-time tooling tailwindcss (via chokidar/micromatch). Pola glob pattern hanya diproses saat proses kompilasi CSS di lokal/CI dan tidak pernah terpapar pada input runtime pengguna atau Cloudflare Worker."
     }
   ]
 }
