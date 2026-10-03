@@ -64,6 +64,8 @@ export type TeacherAttendanceReport = {
   guru: { id: string; nama_lengkap: string } | null
   start_date: string
   end_date: string
+  selected_tahun_ajaran: string | null
+  academic_years: Array<{ nama: string; is_active: number }>
   selected_penugasan_id: string | null
   suggested_penugasan_id: string | null
   assignments: TeacherAttendanceAssignment[]
@@ -97,6 +99,8 @@ function emptyReport(startDate: string, endDate: string, error: string | null = 
     guru: null,
     start_date: startDate,
     end_date: endDate,
+    selected_tahun_ajaran: null,
+    academic_years: [],
     selected_penugasan_id: null,
     suggested_penugasan_id: null,
     assignments: [],
@@ -167,10 +171,12 @@ export async function getTeacherAttendanceReport(input: {
   startDate: string
   endDate: string
   penugasanId?: string | null
+  tahunAjaran?: string | null
 }): Promise<TeacherAttendanceReport> {
   const startDate = String(input.startDate || '')
   const endDate = String(input.endDate || '')
   const requestedPenugasanId = String(input.penugasanId || '').trim() || null
+  const requestedTahunAjaran = String(input.tahunAjaran || '').trim() || null
 
   const user = await getCurrentUser()
   if (!user) return emptyReport(startDate, endDate, 'Unauthorized')
@@ -186,7 +192,7 @@ export async function getTeacherAttendanceReport(input: {
   const effective = await getEffectiveUser()
   const guruId = effective?.effectiveUserId || user.id
 
-  const [guru, assignmentRes] = await Promise.all([
+  const [guru, assignmentRes, yearRes] = await Promise.all([
     db.prepare('SELECT id, nama_lengkap FROM "user" WHERE id = ? LIMIT 1')
       .bind(guruId).first<{ id: string; nama_lengkap: string }>(),
     db.prepare(`
@@ -202,9 +208,22 @@ export async function getTeacherAttendanceReport(input: {
       ORDER BY ta.is_active DESC, ta.nama DESC, ta.semester DESC, k.tingkat, k.kelompok,
         CAST(k.nomor_kelas AS INTEGER), mp.nama_mapel
     `).bind(guruId, guruId, endDate, startDate).all<AssignmentRow>(),
+    db.prepare('SELECT nama, MAX(is_active) AS is_active FROM tahun_ajaran GROUP BY nama ORDER BY is_active DESC, nama DESC')
+      .all<{ nama: string; is_active: number }>(),
   ])
 
-  const assignmentRaw = assignmentRes.results || []
+  const academicYears = yearRes.results || []
+  const allAssignments = assignmentRes.results || []
+  // Ekspor lama yang hanya mengirim penugasan tetap dapat membuka arsip tahun sebelumnya.
+  const selectedTahunAjaran = requestedTahunAjaran
+    || allAssignments.find(item => item.id === requestedPenugasanId)?.tahun_ajaran
+    || academicYears.find(item => item.is_active === 1)?.nama
+    || academicYears[0]?.nama || null
+  const yearContext = { selected_tahun_ajaran: selectedTahunAjaran, academic_years: academicYears }
+  if (requestedTahunAjaran && !academicYears.some(item => item.nama === requestedTahunAjaran)) {
+    return { ...emptyReport(startDate, endDate, 'Tahun ajaran tidak ditemukan.'), ...yearContext, guru: guru || null }
+  }
+  const assignmentRaw = allAssignments.filter(item => item.tahun_ajaran === selectedTahunAjaran)
   const assignments: TeacherAttendanceAssignment[] = assignmentRaw.map(row => ({
     id: row.id,
     mapel_nama: row.mapel_nama,
@@ -215,7 +234,7 @@ export async function getTeacherAttendanceReport(input: {
   }))
 
   if (requestedPenugasanId && !assignments.some(item => item.id === requestedPenugasanId)) {
-    return { ...emptyReport(startDate, endDate, 'Penugasan tidak ditemukan atau bukan milik guru ini.'), guru: guru || null, assignments }
+    return { ...emptyReport(startDate, endDate, 'Penugasan tidak ditemukan atau bukan milik guru pada tahun ajaran ini.'), ...yearContext, guru: guru || null, assignments }
   }
 
   const suggestedPenugasanId = await getCurrentAssignmentId(db, guruId, assignments)
@@ -227,6 +246,7 @@ export async function getTeacherAttendanceReport(input: {
   if (scopedAssignments.length === 0) {
     return {
       ...emptyReport(startDate, endDate),
+      ...yearContext,
       guru: guru || null,
       selected_penugasan_id: selectedPenugasanId,
       suggested_penugasan_id: suggestedPenugasanId,
@@ -464,6 +484,7 @@ export async function getTeacherAttendanceReport(input: {
 
   return {
     error: null,
+    ...yearContext,
     guru: guru || null,
     start_date: startDate,
     end_date: endDate,

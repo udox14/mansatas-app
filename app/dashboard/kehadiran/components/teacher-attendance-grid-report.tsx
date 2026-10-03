@@ -40,13 +40,14 @@ function safeFilenamePart(value: string) {
   return value.replace(/[^a-zA-Z0-9-_]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60) || 'rekap'
 }
 
-type LoadOverrides = { startDate?: string; endDate?: string; penugasanId?: string }
+type LoadOverrides = { startDate?: string; endDate?: string; penugasanId?: string; tahunAjaran?: string }
 
 export function TeacherAttendanceReportPanel() {
   const defaults = useMemo(defaultRange, [])
   const [startDate, setStartDate] = useState(defaults.startDate)
   const [endDate, setEndDate] = useState(defaults.endDate)
   const [penugasanId, setPenugasanId] = useState('')
+  const [tahunAjaran, setTahunAjaran] = useState('')
   const [viewMode, setViewMode] = useState<'kelas' | 'siswa'>('kelas')
   const [selectedStudentId, setSelectedStudentId] = useState('')
   const [report, setReport] = useState<TeacherAttendanceReport | null>(null)
@@ -59,16 +60,18 @@ export function TeacherAttendanceReportPanel() {
     const nextStartDate = overrides.startDate ?? startDate
     const nextEndDate = overrides.endDate ?? endDate
     const nextPenugasanId = overrides.penugasanId ?? penugasanId
+    const nextTahunAjaran = overrides.tahunAjaran ?? tahunAjaran
     if (!nextStartDate || !nextEndDate) return
     const currentRequest = ++requestId.current
     setLoading(true)
     setLoadError('')
     setSelectedStudentId('')
     try {
-      const result = await getTeacherAttendanceReport({ startDate: nextStartDate, endDate: nextEndDate, penugasanId: nextPenugasanId || null })
+      const result = await getTeacherAttendanceReport({ startDate: nextStartDate, endDate: nextEndDate, penugasanId: nextPenugasanId || null, tahunAjaran: nextTahunAjaran || null })
       if (currentRequest !== requestId.current) return
       setReport(result)
       setPenugasanId(result.selected_penugasan_id || '')
+      setTahunAjaran(result.selected_tahun_ajaran || '')
     } catch (error) {
       if (currentRequest !== requestId.current) return
       console.error('Gagal memuat rekap sesi guru:', error)
@@ -87,7 +90,7 @@ export function TeacherAttendanceReportPanel() {
   const selectedAssignment = report?.assignments.find(item => item.id === penugasanId) || null
   const sessions = useMemo(() => orderedAttendanceSessions(report?.sessions || []), [report?.sessions])
   const selectedStudent = report?.rows.find(row => row.siswa_id === selectedStudentId) || null
-  const reportMatchesFilters = !!report && report.start_date === startDate && report.end_date === endDate && report.selected_penugasan_id === (penugasanId || null)
+  const reportMatchesFilters = !!report && report.start_date === startDate && report.end_date === endDate && report.selected_penugasan_id === (penugasanId || null) && report.selected_tahun_ajaran === (tahunAjaran || null)
 
   const exportPdf = async () => {
     if (!report || !selectedAssignment || !reportMatchesFilters) return
@@ -152,11 +155,18 @@ export function TeacherAttendanceReportPanel() {
             <label className="mb-1 block text-xs font-medium text-slate-500">Tanggal selesai</label>
             <input type="date" value={endDate} onChange={event => { const value = event.target.value; setEndDate(value); if (value) void load({ endDate: value }) }} className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950" />
           </div>
-          <div className="md:col-span-2">
+          <div>
+            <label htmlFor="rekap-tahun-ajaran" className="mb-1 block text-xs font-medium text-slate-500">Tahun ajaran</label>
+            <select id="rekap-tahun-ajaran" value={tahunAjaran} disabled={!report} onChange={event => { const value = event.target.value; setTahunAjaran(value); setPenugasanId(''); void load({ tahunAjaran: value, penugasanId: '' }) }} className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950">
+              {!report?.academic_years.length && <option value="">{loading ? 'Memuat tahun ajaran...' : 'Tahun ajaran belum tersedia'}</option>}
+              {(report?.academic_years || []).map(item => <option key={item.nama} value={item.nama}>{item.nama}{item.is_active === 1 ? ' (Aktif)' : ''}</option>)}
+            </select>
+          </div>
+          <div>
             <label className="mb-1 block text-xs font-medium text-slate-500">Mapel / kelas</label>
             <select value={penugasanId} onChange={event => { const value = event.target.value; setPenugasanId(value); void load({ penugasanId: value }) }} className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950">
               <option value="">Pilih kelas yang diajar...</option>
-              {(report?.assignments || []).map(item => <option key={item.id} value={item.id}>{item.mapel_nama} - {item.kelas_label} ({item.tahun_ajaran} Smt {item.semester})</option>)}
+              {(report?.assignments || []).filter(item => item.tahun_ajaran === tahunAjaran).map(item => <option key={item.id} value={item.id}>{item.mapel_nama} - {item.kelas_label} (Smt {item.semester})</option>)}
             </select>
           </div>
         </div>

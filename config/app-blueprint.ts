@@ -115,7 +115,7 @@ export const APP_MODULES: ModuleItem[] = [
     summary: 'Rekap kehadiran siswa dari hasil input agenda guru dan validasi wali kelas.',
     description: 'Memantau tingkat kehadiran siswa di setiap mata pelajaran secara harian, mingguan, dan bulanan.',
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru', 'wali_kelas', 'guru_piket'],
-    keyFeatures: ['Monitoring presensi jam ke jam', 'Ekspor rekap Excel/XLSX', 'Rekap persentase kehadiran per siswa'],
+    keyFeatures: ['Monitoring presensi jam ke jam', 'Ekspor rekap Excel/XLSX', 'Rekap persentase kehadiran per siswa', 'Rekap Sesi Saya dengan filter tahun ajaran terpisah dari mapel/kelas, default tahun ajaran aktif'],
     inputs: ['Filter tanggal', 'Kelas', 'Tahun ajaran'],
     outputs: ['Rekap persentase hadir/sakit/izin/alfa', 'Laporan kehadiran bulanan'],
   },
