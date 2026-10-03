@@ -28,7 +28,7 @@ const ROLE_LABEL: Record<string, string> = {
   wali_kelas: 'Wali Kelas',
 }
 
-const KELAS_BINAAN_VIEWS: KelasBinaanView[] = ['home', 'keputusan', 'siswa', 'rekap', 'perhatian', 'agenda', 'catatan']
+const KELAS_BINAAN_VIEWS: KelasBinaanView[] = ['home', 'keputusan', 'siswa', 'rekap', 'perhatian', 'catatan']
 
 export default async function KelasBinaanPage({
   searchParams,

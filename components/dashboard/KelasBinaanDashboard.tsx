@@ -7,6 +7,7 @@ import { getFinalAttendanceForClass } from '@/lib/wali-kelas-attendance'
 import { getKalenderDateStatus } from '@/lib/kalender-pendidikan'
 import { ParentCommActions } from './ParentCommActions'
 import { KeputusanAbsensiHariIni, type KeputusanAbsensiRow } from './KeputusanAbsensiHariIni'
+import { KelasBinaanRekapView } from './KelasBinaanRekapView'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
@@ -25,12 +26,12 @@ import {
 import {
   Warning as AlertTriangle,
   ArrowRight,
-  BookOpen,
   Calendar as CalendarCheck,
   Clipboard as ClipboardList,
   Books as Library,
   Notebook as NotebookPen,
   ShieldWarning as ShieldAlert,
+  SquaresFour as LayoutDashboard,
   UserCheck,
   Users,
 } from '@phosphor-icons/react/dist/ssr'
@@ -57,17 +58,17 @@ type Props = {
   noteStudentId?: string | null
 }
 
-export type KelasBinaanView = 'home' | 'keputusan' | 'siswa' | 'rekap' | 'perhatian' | 'agenda' | 'catatan'
+export type KelasBinaanView = 'home' | 'keputusan' | 'siswa' | 'rekap' | 'perhatian' | 'catatan'
 
 function badgeClass(status: string) {
   if (status === 'LIBUR') return 'bg-slate-100 text-slate-600 border-slate-200'
-  if (status === 'HADIR') return 'bg-emerald-100 text-emerald-700 border-emerald-200'
-  if (status === 'SAKIT') return 'bg-amber-100 text-amber-700 border-amber-200'
-  if (status === 'IZIN') return 'bg-blue-100 text-blue-700 border-blue-200'
-  if (status === 'ALFA') return 'bg-rose-100 text-rose-700 border-rose-200'
-  if (status === 'PARSIAL') return 'bg-violet-100 text-violet-700 border-violet-200'
-  if (status === 'PERLU_KONFIRMASI_WALI') return 'bg-purple-100 text-purple-700 border-purple-200'
-  return 'bg-slate-100 text-slate-600 border-slate-200'
+  if (status === 'HADIR') return 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+  if (status === 'SAKIT') return 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
+  if (status === 'IZIN') return 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800'
+  if (status === 'ALFA') return 'bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
+  if (status === 'PARSIAL') return 'bg-violet-100 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-300 dark:border-violet-800'
+  if (status === 'PERLU_KONFIRMASI_WALI') return 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800'
+  return 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
 }
 
 function attendanceStatusLabel(status: string | null | undefined) {
@@ -101,65 +102,42 @@ function isValidDateOnly(value: string) {
   return day <= daysInMonth
 }
 
-function resolveDecisionDate(value: string | null | undefined, today: string, minDate: string) {
-  if (!value || !isValidDateOnly(value) || value > today) return today
-  return value < minDate ? minDate : value
-}
-
-function resolveSemesterStartDate(
-  ta: { nama: string; semester: number } | null,
-  today: string,
-  fallback: string,
-) {
-  const match = String(ta?.nama || '').match(/(\d{4})\D+(\d{4})/)
-  if (!match) return fallback
-
-  const firstYear = Number(match[1])
-  const secondYear = Number(match[2])
-  const startDate = Number(ta?.semester) === 1
-    ? `${firstYear}-07-01`
-    : `${secondYear}-01-01`
-
-  return startDate <= today ? startDate : fallback
-}
-
-function quickEditDomisiliLabel(tempatTinggal: string | null, desaKelurahan: string | null) {
-  if (tempatTinggal?.startsWith('Pesantren ')) return tempatTinggal
-  if (tempatTinggal === 'Non-Pesantren') {
-    const desa = String(desaKelurahan || '').trim().toLowerCase()
-    if (desa.includes('sukarapih')) return 'Warga Desa Sukarapih'
-    if (desa.includes('wargakerta')) return 'Warga Desa Wargakerta'
-    return 'KELUAR DARI PESANTREN'
+function quickEditDomisiliLabel(tempatTinggal: string | null | undefined, desaKelurahan: string | null | undefined) {
+  const raw = String(tempatTinggal || '').trim()
+  if (!raw) return null
+  if (raw === 'KELUAR DARI PESANTREN') return 'KELUAR DARI PESANTREN'
+  if (raw === 'Pondok Pesantren') return 'PP Miftahul Huda III'
+  if (raw === 'Rumah Orang Tua') {
+    const desa = String(desaKelurahan || '').trim()
+    return desa ? `Non-Asrama (${desa})` : 'Non-Asrama'
   }
-  return tempatTinggal
+  return raw
 }
 
 export async function KelasBinaanDashboard({
   userId,
-  nama,
-  namaDepan,
-  avatarUrl,
-  roleLabel,
-  roleColor,
-  sapaan,
   taAktif,
-  isGuruPiket,
+  isGuruPiket = false,
   kelasIdOverride = null,
   riskFilter = 'all',
   view = 'home',
   decisionDate = null,
   showWelcome = true,
   showTopCards = true,
-  dashboardVisibility,
+  dashboardVisibility = {},
   quickEdit = false,
   noteStudentId = null,
 }: Props) {
-  const show = (id: string) => dashboardVisibility?.[id] !== false
+  const show = (section: string) => dashboardVisibility[section] !== false
   const db = await getDB()
   const today = todayWIB()
-  const startOfMonthStr = `${today.slice(0, 7)}-01`
-  const semesterStartDate = resolveSemesterStartDate(taAktif, today, startOfMonthStr)
-  const selectedDecisionDate = resolveDecisionDate(decisionDate, today, semesterStartDate)
+  const selectedDecisionDate = decisionDate && isValidDateOnly(decisionDate) && decisionDate <= today
+    ? decisionDate
+    : today
+
+  const todayDateObj = new Date(today + 'T00:00:00')
+  const startOfMonthObj = new Date(todayDateObj.getFullYear(), todayDateObj.getMonth(), 1)
+  const startOfMonthStr = startOfMonthObj.toISOString().split('T')[0]
 
   const kelas = kelasIdOverride
     ? await db.prepare(`
@@ -167,36 +145,36 @@ export async function KelasBinaanDashboard({
         FROM kelas k
         LEFT JOIN "user" u ON k.wali_kelas_id = u.id
         WHERE k.id = ?
+        LIMIT 1
       `).bind(kelasIdOverride).first<any>()
     : await db.prepare(`
         SELECT k.id, k.tingkat, k.nomor_kelas, k.kelompok, k.wali_kelas_id, u.nama_lengkap as wali_kelas_nama
         FROM kelas k
         LEFT JOIN "user" u ON k.wali_kelas_id = u.id
         WHERE k.wali_kelas_id = ?
-        ORDER BY k.tingkat, k.kelompok, CAST(k.nomor_kelas AS INTEGER)
         LIMIT 1
       `).bind(userId).first<any>()
 
   if (!kelas) {
     return (
-      <div className="space-y-3 animate-in fade-in duration-500 pb-12">
-        {showWelcome && null}
-        <div className="rounded-xl border border-surface bg-surface shadow-sm p-8 flex flex-col items-center gap-3 text-center">
-          <Library className="h-10 w-10 text-slate-300 dark:text-slate-700" />
-          <div>
-            <p className="text-sm font-medium text-slate-600 dark:text-slate-400">Belum ada kelas yang diasuh</p>
-            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Hubungi admin untuk penugasan kelas wali.</p>
-          </div>
-        </div>
-        <KehadiranPribadiCard userId={userId} />
-
-        {/* Penugasan Masuk (jika dia guru piket) */}
-        {isGuruPiket && <PenugasanMasukCard userId={userId} />}
+      <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
+        Anda tidak terdaftar sebagai wali kelas aktif, atau kelas binaan tidak ditemukan.
       </div>
     )
   }
 
-  await ensureSchemaOnce('parent-communication', async () => {
+  const taDates = await db.prepare(`
+    SELECT tanggal_mulai, tanggal_selesai
+    FROM tahun_ajaran
+    WHERE is_active = 1
+    LIMIT 1
+  `).first<{ tanggal_mulai: string | null; tanggal_selesai: string | null }>()
+
+  const semesterStartDate = taDates?.tanggal_mulai && taDates.tanggal_mulai <= today
+    ? taDates.tanggal_mulai
+    : startOfMonthStr
+
+  await ensureSchemaOnce('kelas_binaan:parent_comm_v1', async () => {
     await db.prepare(`
       CREATE TABLE IF NOT EXISTS parent_notifications (
         id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
@@ -252,7 +230,15 @@ export async function KelasBinaanDashboard({
     { tahunAjaranId: taAktif?.id },
   )
 
-  const [todayCalendarStatus, decisionCalendarStatus, attendanceSnapshot, topPelanggaran, agendaTerbaru, izinPembelajaranHariIni, komunikasiStatusRaw, komunikasiTimelineRaw] = await Promise.all([
+  // Efisiensi: query agendaTerbaru dan izinPembelajaranHariIni dihapus sesuai permintaan
+  const [
+    todayCalendarStatus,
+    decisionCalendarStatus,
+    attendanceSnapshot,
+    topPelanggaran,
+    komunikasiStatusRaw,
+    komunikasiTimelineRaw,
+  ] = await Promise.all([
     getKalenderDateStatus(db, today),
     getKalenderDateStatus(db, selectedDecisionDate),
     attendanceSnapshotPromise,
@@ -265,22 +251,6 @@ export async function KelasBinaanDashboard({
       GROUP BY sp.siswa_id
       ORDER BY total_poin DESC, jumlah_kasus DESC, s.nama_lengkap ASC
     `).bind(kelas.id).all<any>().then(result => result.results || []),
-    db.prepare(`
-      SELECT ag.tanggal, mp.nama_mapel, ag.materi
-      FROM agenda_guru ag
-      JOIN penugasan_mengajar pm ON ag.penugasan_id = pm.id
-      JOIN mata_pelajaran mp ON pm.mapel_id = mp.id
-      WHERE pm.kelas_id = ?
-      ORDER BY ag.created_at DESC
-      LIMIT 4
-    `).bind(kelas.id).all<any>().then(result => result.results || []),
-    db.prepare(`
-      SELECT itk.id, s.id AS siswa_id, s.nama_lengkap, s.foto_url, itk.alasan, itk.keterangan, itk.jam_pelajaran
-      FROM izin_tidak_masuk_kelas itk
-      JOIN siswa s ON itk.siswa_id = s.id
-      WHERE s.kelas_id = ? AND itk.tanggal = ?
-      ORDER BY s.nama_lengkap ASC
-    `).bind(kelas.id, today).all<any>().then(result => result.results || []),
     db.prepare(`
       SELECT s.id AS siswa_id,
              (
@@ -321,12 +291,20 @@ export async function KelasBinaanDashboard({
 
   const jumlahSiswa = attendanceSnapshot?.siswa.length ?? 0
   const isTodayEffective = todayCalendarStatus.isEffective
-  const todayHolidayReason = todayCalendarStatus.reason || 'Tidak efektif pembelajaran'
   const todayRows = attendanceSnapshot?.siswa.map(siswa => attendanceSnapshot.statusByStudent.get(siswa.id)?.find(row => row.tanggal === today)).filter(Boolean) ?? []
   const isDecisionDateEffective = decisionCalendarStatus.isEffective
   const decisionHolidayReason = decisionCalendarStatus.reason || 'Tidak efektif pembelajaran'
+  
+  // Format baris keputusan dengan foto siswa
   const decisionRows = attendanceSnapshot?.siswa
-    .map(siswa => attendanceSnapshot.statusByStudent.get(siswa.id)?.find(row => row.tanggal === selectedDecisionDate))
+    .map(siswa => {
+      const row = attendanceSnapshot.statusByStudent.get(siswa.id)?.find(r => r.tanggal === selectedDecisionDate)
+      if (!row) return null
+      return {
+        ...row,
+        foto_url: siswa.foto_url ?? null,
+      }
+    })
     .filter(Boolean) ?? []
 
   const todaySummary = summarizeKelasBinaanAttendance(todayRows)
@@ -399,18 +377,6 @@ export async function KelasBinaanDashboard({
     return true
   })
 
-  const summaryByDate = (attendanceSnapshot?.dates || []).filter(tanggal => tanggal >= startOfMonthStr).map(tanggal => {
-    const rows = attendanceSnapshot?.siswa
-      .map(siswa => attendanceSnapshot.statusByStudent.get(siswa.id)?.find(item => item.tanggal === tanggal))
-      .filter(Boolean) as NonNullable<(typeof todayRows)[number]>[]
-
-    const summary = summarizeKelasBinaanAttendance(rows)
-    return { tanggal, tidakHadir: summary.sakit + summary.izin + summary.alfa, ...summary }
-  }).slice(-7)
-
-  const maxTidakHadir = Math.max(1, ...summaryByDate.map(item => item.tidakHadir))
-  const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab']
-
   const tidakMasukHariIni = studentRows
     .filter(row => isTodayEffective && row.todayStatus && isDailyNonAttendance(row.todayStatus))
     .sort((a, b) => a.nama_lengkap.localeCompare(b.nama_lengkap))
@@ -419,14 +385,16 @@ export async function KelasBinaanDashboard({
     .filter(row =>
       (isTodayEffective && row.todayStatus && row.todayStatus.is_daily_final && row.todayStatus.status_akhir === 'ALFA') ||
       row.monthly.alfa >= 2 ||
-      row.totalPoin >= 25
+      row.totalPoin >= 25 ||
+      row.komunikasi.summonStatus === 'terkirim' ||
+      row.komunikasi.summonStatus === 'reschedule_diminta' ||
+      row.tempatTinggal === 'KELUAR DARI PESANTREN'
     )
     .sort((a, b) => (
       b.monthly.alfa - a.monthly.alfa ||
       b.totalPoin - a.totalPoin ||
       a.nama_lengkap.localeCompare(b.nama_lengkap)
     ))
-    .slice(0, 6)
 
   const namaKelas = formatNamaKelas(kelas.tingkat, kelas.nomor_kelas, kelas.kelompok)
   const keputusanAbsensiRows = decisionRows as KeputusanAbsensiRow[]
@@ -443,22 +411,31 @@ export async function KelasBinaanDashboard({
     return `/dashboard/kelas-binaan?${params.toString()}`
   }
   const returnToKelasBinaan = encodeURIComponent(viewHref(view))
-  const todaySummaryItems = [
-    { label: 'Hadir', value: todaySummary.hadir, tone: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { label: 'Sakit', value: todaySummary.sakit, tone: 'text-amber-600', bg: 'bg-amber-50' },
-    { label: 'Izin', value: todaySummary.izin, tone: 'text-blue-600', bg: 'bg-blue-50' },
-    { label: 'Alfa', value: todaySummary.alfa, tone: 'text-rose-600', bg: 'bg-rose-50' },
-    { label: 'Belum Input', value: todaySummary.belumAdaInput, tone: 'text-slate-600', bg: 'bg-slate-100' },
-    { label: 'Rekap Sementara', value: todaySummary.sementara, tone: 'text-slate-600', bg: 'bg-slate-100' },
-  ]
+
+  // Data serialisasi untuk Rekap Absensi in-place
+  const rekapStatusesByStudent: Record<string, any[]> = {}
+  if (attendanceSnapshot?.statusByStudent) {
+    for (const [siswaId, list] of attendanceSnapshot.statusByStudent.entries()) {
+      rekapStatusesByStudent[siswaId] = list
+    }
+  }
+
+  const rekapSiswaList = (attendanceSnapshot?.siswa || []).map(s => ({
+    id: s.id,
+    nama_lengkap: s.nama_lengkap,
+    nisn: s.nisn,
+    foto_url: s.foto_url ?? null,
+  }))
+
   const menuItems: Array<{ view: KelasBinaanView; title: string; desc: string; count: number | string; icon: any; tone: string }> = [
     { view: 'keputusan', title: 'Kehadiran Harian', desc: 'Pantau kehadiran dan koreksi jika diperlukan', count: jumlahSiswa, icon: ClipboardList, tone: 'text-purple-600 bg-purple-50 border-purple-100' },
-    { view: 'siswa', title: 'Daftar Siswa', desc: 'Data, komunikasi, dan tindak lanjut', count: jumlahSiswa, icon: Users, tone: 'text-slate-600 bg-slate-50 border-slate-200' },
-    { view: 'rekap', title: 'Rekap Absensi', desc: 'Ringkasan dan tren 7 hari', count: tidakMasukHariIni.length, icon: CalendarCheck, tone: 'text-blue-600 bg-blue-50 border-blue-100' },
-    { view: 'perhatian', title: 'Perlu Perhatian', desc: 'Catatan Alfa dan poin pelanggaran', count: perluPerhatian.length, icon: ShieldAlert, tone: 'text-amber-600 bg-amber-50 border-amber-100' },
-    { view: 'agenda', title: 'Agenda & Izin', desc: 'Materi terbaru dan izin pelajaran', count: agendaTerbaru.length + izinPembelajaranHariIni.length, icon: BookOpen, tone: 'text-emerald-600 bg-emerald-50 border-emerald-100' },
+    { view: 'rekap', title: 'Rekap Absensi', desc: 'Rekap harian per blok, bulanan, dan rentang tanggal', count: jumlahSiswa, icon: CalendarCheck, tone: 'text-blue-600 bg-blue-50 border-blue-100' },
+    { view: 'siswa', title: 'Daftar Siswa', desc: 'Data siswa, notifikasi ortu, dan tindak lanjut', count: jumlahSiswa, icon: Users, tone: 'text-slate-600 bg-slate-50 border-slate-200' },
+    { view: 'perhatian', title: 'Perlu Perhatian', desc: 'Siswa alfa berulang, poin tinggi, atau panggilan pending', count: perluPerhatian.length, icon: ShieldAlert, tone: 'text-amber-600 bg-amber-50 border-amber-100' },
     { view: 'catatan', title: 'Catatan Siswa', desc: 'Riwayat catatan dari guru pengajar', count: unreadStudentNotes, icon: NotebookPen, tone: 'text-cyan-600 bg-cyan-50 border-cyan-100' },
   ]
+
+  const totalAbsenHariIni = todaySummary.alfa + todaySummary.sakit + todaySummary.izin
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
@@ -473,6 +450,7 @@ export async function KelasBinaanDashboard({
         </>
       )}
 
+      {/* Banner Utama Kelas Binaan */}
       <div className="rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 via-amber-50/70 to-white px-4 py-4 shadow-sm dark:border-amber-800 dark:from-amber-900/20 dark:to-transparent sm:px-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-start gap-3.5">
@@ -494,40 +472,103 @@ export async function KelasBinaanDashboard({
         </div>
       </div>
 
+      {/* Tab Navigasi Kelas Binaan (Responsif & Mobile First) */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+        {[
+          { view: 'home' as const, label: 'Ringkasan', icon: LayoutDashboard },
+          {
+            view: 'keputusan' as const,
+            label: 'Kehadiran Harian',
+            icon: ClipboardList,
+            badge: totalAbsenHariIni > 0 ? `${totalAbsenHariIni} absen` : undefined,
+          },
+          { view: 'rekap' as const, label: 'Rekap Absensi', icon: CalendarCheck },
+          { view: 'siswa' as const, label: 'Daftar Siswa', icon: Users, count: jumlahSiswa },
+          {
+            view: 'perhatian' as const,
+            label: 'Perlu Perhatian',
+            icon: ShieldAlert,
+            count: perluPerhatian.length > 0 ? perluPerhatian.length : undefined,
+            alert: perluPerhatian.length > 0,
+          },
+          {
+            view: 'catatan' as const,
+            label: 'Catatan Siswa',
+            icon: NotebookPen,
+            count: unreadStudentNotes > 0 ? unreadStudentNotes : undefined,
+            alert: unreadStudentNotes > 0,
+          },
+        ].map(tab => {
+          const Icon = tab.icon
+          const isActive = view === tab.view
+          return (
+            <Link
+              key={tab.view}
+              href={viewHref(tab.view)}
+              className={`inline-flex items-center gap-2 whitespace-nowrap rounded-lg px-3.5 py-2 text-xs font-semibold transition-all shrink-0 ${
+                isActive
+                  ? 'border border-amber-300 bg-amber-50 text-amber-900 shadow-xs dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200 font-bold'
+                  : 'border border-surface bg-surface text-slate-600 hover:border-amber-200 hover:bg-amber-50/40 dark:text-slate-400 dark:hover:bg-slate-800/40'
+              }`}
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span>{tab.label}</span>
+              {tab.badge && (
+                <span className="rounded-full bg-rose-100 px-1.5 py-0.2 text-[10px] font-bold text-rose-700 dark:bg-rose-950/60 dark:text-rose-300">
+                  {tab.badge}
+                </span>
+              )}
+              {tab.count !== undefined && (
+                <span className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                  tab.alert
+                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
+                    : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                }`}>
+                  {tab.count}
+                </span>
+              )}
+            </Link>
+          )
+        })}
+      </div>
+
+      {/* ===================== VIEW: HOME (RINGKASAN MENU) ===================== */}
       {view === 'home' && (
         <>
           {show('menu_navigasi') && (
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-5">
-            {menuItems.map(item => {
-              const Icon = item.icon
-              return (
-                <Link
-                  key={item.view}
-                  href={viewHref(item.view)}
-                  className="group rounded-xl border border-surface bg-surface p-3 shadow-sm transition-colors hover:border-amber-200 hover:bg-amber-50/40"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className={`rounded-lg border p-2 ${item.tone}`}>
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">{item.title}</p>
-                        <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-amber-500" />
+            <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-3">
+              {menuItems.map(item => {
+                const Icon = item.icon
+                return (
+                  <Link
+                    key={item.view}
+                    href={viewHref(item.view)}
+                    className="group rounded-xl border border-surface bg-surface p-3.5 shadow-sm transition-all hover:border-amber-200 hover:bg-amber-50/40"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`rounded-lg border p-2.5 ${item.tone}`}>
+                        <Icon className="h-5 w-5" />
                       </div>
-                      <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-slate-500 dark:text-slate-400">{item.desc}</p>
-                      <p className="mt-2 text-[11px] font-semibold text-slate-500">{item.count} {item.view === 'keputusan' || item.view === 'siswa' ? 'siswa' : 'item'}</p>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">{item.title}</p>
+                          <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-amber-500" />
+                        </div>
+                        <p className="mt-0.5 line-clamp-2 text-xs leading-snug text-slate-500 dark:text-slate-400">{item.desc}</p>
+                        <p className="mt-2 text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                          {item.count} {item.view === 'keputusan' || item.view === 'siswa' || item.view === 'rekap' ? 'siswa' : 'item'}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                </Link>
-              )
-            })}
-          </div>
+                  </Link>
+                )
+              })}
+            </div>
           )}
-
         </>
       )}
 
+      {/* ===================== VIEW: KEHADIRAN HARIAN ===================== */}
       {view === 'keputusan' && (
         <KeputusanAbsensiHariIni
           kelasId={kelas.id}
@@ -540,6 +581,20 @@ export async function KelasBinaanDashboard({
         />
       )}
 
+      {/* ===================== VIEW: REKAP ABSENSI LENGKAP (IN-PLACE) ===================== */}
+      {view === 'rekap' && (
+        <KelasBinaanRekapView
+          kelasId={kelas.id}
+          namaKelas={namaKelas}
+          today={today}
+          semesterStartDate={semesterStartDate}
+          siswa={rekapSiswaList}
+          dates={attendanceSnapshot?.dates || []}
+          statusesByStudent={rekapStatusesByStudent}
+        />
+      )}
+
+      {/* ===================== VIEW: CATATAN SISWA ===================== */}
       {view === 'catatan' && (
         <KelasBinaanCatatanSiswaView
           kelasId={kelas.id}
@@ -550,357 +605,243 @@ export async function KelasBinaanDashboard({
         />
       )}
 
-      {view === 'rekap' && (
-      <div className="grid grid-cols-1 gap-4">
-        <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden xl:col-span-2">
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-2">
-            <div className="p-1.5 rounded-md bg-blue-50 border border-blue-100">
-              <ClipboardList className="h-3.5 w-3.5 text-blue-600" />
-            </div>
-            <div className="flex-1">
-              <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Ketidakhadiran 7 Hari</p>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500">Sakit, Izin, dan Alfa harian setelah KBM; berdasarkan data yang tersedia</p>
-            </div>
-            <Link href="/dashboard/rekap-absensi" className="text-[11px] text-slate-400 hover:text-slate-600 flex items-center gap-1">
-              Rekap <ArrowRight className="h-3 w-3" />
-            </Link>
-          </div>
-          <div className="p-4">
-            <div className="flex items-end gap-2 h-24">
-              {summaryByDate.map(item => {
-                const dateObj = new Date(item.tanggal + 'T00:00:00')
-                const pct = Math.round((item.tidakHadir / maxTidakHadir) * 100)
-                return (
-                  <div key={item.tanggal} className="flex-1 flex flex-col items-center gap-1">
-                    <span className="text-[10px] font-bold text-slate-500">{item.finalCount > 0 ? item.tidakHadir : item.sementara > 0 ? 'Sementara' : 'Tanpa input'}</span>
-                    <div className="w-full flex items-end h-14">
-                      <div className={`w-full rounded-t ${item.tidakHadir > 0 ? 'bg-rose-400' : 'bg-slate-200'}`} style={{ height: `${item.tidakHadir > 0 ? pct : 4}%` }} />
-                    </div>
-                    <span className="text-[10px] text-slate-400">{dayNames[dateObj.getDay()]}</span>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-      )}
-
-      {(view === 'perhatian' || view === 'agenda') && (
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-        {view === 'perhatian' && (
-        <>
+      {/* ===================== VIEW: PERLU PERHATIAN (BERSIH DARI DUPLIKASI) ===================== */}
+      {view === 'perhatian' && (
         <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-2">
-            <div className="p-1.5 rounded-md bg-rose-50 border border-rose-100">
-              <AlertTriangle className="h-3.5 w-3.5 text-rose-500" />
+          <div className="flex items-center gap-2.5 px-4 py-3.5 border-b border-surface-2 bg-amber-50/30 dark:bg-amber-950/10">
+            <div className="p-2 rounded-lg bg-amber-100 border border-amber-200 dark:bg-amber-950/40 dark:border-amber-800">
+              <ShieldAlert className="h-4 w-4 text-amber-700 dark:text-amber-400" />
             </div>
             <div className="flex-1">
-              <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Catatan Ketidakhadiran Harian</p>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500">Sakit, Izin, dan Alfa setelah KBM berakhir</p>
+              <p className="text-sm font-bold text-slate-800 dark:text-slate-100">Siswa Perlu Perhatian Khusus</p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Fokus pembinaan siswa: Alfa berulang (≥2x), akumulasi poin pelanggaran (≥25), atau panggilan wali santri
+              </p>
             </div>
+            <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+              {perluPerhatian.length} siswa
+            </span>
           </div>
-          <div className="divide-y divide-slate-50 dark:divide-slate-800/50">
-            {tidakMasukHariIni.length === 0 ? (
-              <div className="px-4 py-6 text-center text-xs text-slate-400">{todaySummary.sementara > 0 ? 'Rekap harian tersedia setelah pembelajaran selesai.' : 'Tidak ada catatan ketidakhadiran harian dari data yang tersedia.'}</div>
-            ) : (
-              tidakMasukHariIni.slice(0, 6).map(row => (
-                <Link key={row.siswa_id} href={`/dashboard/siswa/${row.siswa_id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                  <AvatarSiswa fotoUrl={row.foto_url} nama={row.nama_lengkap} size="sm" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate">{row.nama_lengkap}</p>
-                    <p className="text-[10px] text-slate-400">{sourceLabel(row.todayStatus?.sumber_status || 'belum_ada_data')}</p>
-                  </div>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${badgeClass(row.todayStatus?.status_akhir || 'BELUM_ADA_DATA')}`}>
-                    {attendanceStatusLabel(row.todayStatus?.status_akhir)}
-                  </span>
-                </Link>
-              ))
-            )}
-          </div>
-        </div>
 
-        <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-2">
-            <div className="p-1.5 rounded-md bg-amber-50 border border-amber-100">
-              <ShieldAlert className="h-3.5 w-3.5 text-amber-600" />
-            </div>
-            <div className="flex-1">
-              <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Perlu Perhatian</p>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500">Catatan Alfa harian, Alfa berulang, atau poin tinggi</p>
-            </div>
-          </div>
-          <div className="divide-y divide-slate-50 dark:divide-slate-800/50">
+          <div className="divide-y divide-surface-2">
             {perluPerhatian.length === 0 ? (
-              <div className="px-4 py-6 text-center text-xs text-slate-400">Belum ada siswa yang perlu perhatian khusus.</div>
+              <div className="px-4 py-12 text-center text-xs text-slate-400">
+                Alhamdulillah, saat ini tidak ada siswa binaan yang membutuhkan perhatian khusus.
+              </div>
             ) : (
               perluPerhatian.map(row => (
-                <Link key={row.siswa_id} href={`/dashboard/siswa/${row.siswa_id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                  <AvatarSiswa fotoUrl={row.foto_url} nama={row.nama_lengkap} size="sm" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate">{row.nama_lengkap}</p>
-                    <p className="text-[10px] text-slate-400">Alfa bulan ini: {row.monthly.alfa} • Poin: {row.totalPoin}</p>
-                  </div>
-                  <AlertTriangle className="h-4 w-4 text-amber-500" />
-                </Link>
-              ))
-            )}
-          </div>
-        </div>
-        </>
-        )}
-
-        {view === 'agenda' && (
-        <>
-        <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-2">
-            <div className="p-1.5 rounded-md bg-indigo-50 border border-indigo-100">
-              <UserCheck className="h-3.5 w-3.5 text-indigo-600" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Izin Tidak Ikut Pelajaran</p>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500">Siswa hadir di sekolah, tetapi izin dari pembelajaran</p>
-            </div>
-          </div>
-          <div className="divide-y divide-slate-50 dark:divide-slate-800/50">
-            {izinPembelajaranHariIni.length === 0 ? (
-              <div className="px-4 py-6 text-center text-xs text-slate-400">Belum ada siswa yang izin tidak ikut pelajaran hari ini.</div>
-            ) : (
-              izinPembelajaranHariIni.map((izin: any) => (
-                <div key={izin.id} className="flex items-start gap-3 px-4 py-3">
-                  <AvatarSiswa fotoUrl={izin.foto_url} nama={izin.nama_lengkap} size="sm" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-xs font-semibold text-slate-700 dark:text-slate-200">{izin.nama_lengkap}</p>
-                    <p className="mt-0.5 text-[11px] font-medium text-indigo-600 dark:text-indigo-400">{izin.alasan}</p>
-                    {izin.keterangan ? <p className="mt-0.5 text-[10px] leading-snug text-slate-500 dark:text-slate-400">{izin.keterangan}</p> : null}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-2">
-            <div className="p-1.5 rounded-md bg-emerald-50 border border-emerald-100">
-              <BookOpen className="h-3.5 w-3.5 text-emerald-600" />
-            </div>
-            <div className="flex-1">
-              <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Agenda Kelas Terbaru</p>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500">Materi mengajar terakhir yang tercatat</p>
-            </div>
-          </div>
-          <div className="divide-y divide-slate-50 dark:divide-slate-800/50">
-            {agendaTerbaru.length === 0 ? (
-              <div className="px-4 py-6 text-center text-xs text-slate-400">Belum ada agenda guru yang masuk untuk kelas ini.</div>
-            ) : (
-              agendaTerbaru.map((agenda: any, index: number) => (
-                <div key={`${agenda.tanggal}-${index}`} className="px-4 py-3">
-                  <p className="text-xs font-medium text-slate-700 dark:text-slate-200 truncate">{agenda.nama_mapel}</p>
-                  <p className="text-[10px] text-slate-400 truncate">{agenda.materi || 'Tanpa catatan materi'}</p>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-        </>
-        )}
-      </div>
-      )}
-
-      {view === 'siswa' && (
-      <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-2">
-          <div className="p-1.5 rounded-md bg-slate-100 border border-slate-200">
-            <Users className="h-3.5 w-3.5 text-slate-600" />
-          </div>
-          <div className="flex-1">
-            <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Daftar Siswa Binaan</p>
-            <p className="text-[10px] text-slate-400 dark:text-slate-500">Status harian, komunikasi orang tua, rekap bulan ini, poin, dan aksi tindak lanjut</p>
-          </div>
-          <Link
-            href={viewHref('siswa', { ...(riskFilter !== 'all' ? { risiko: riskFilter } : {}), edit: quickEdit ? '0' : '1' })}
-            className={`flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${quickEdit ? 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50' : 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'}`}
-          >
-            {quickEdit ? 'Selesai Edit' : 'EDIT DATA SISWA'}
-          </Link>
-        </div>
-
-        <div className="px-4 py-2 border-b border-surface-2 flex flex-wrap gap-2">
-          {[
-            { key: 'all', label: 'Semua' },
-            { key: 'high', label: 'Risiko Tinggi' },
-            { key: 'pending_comm', label: 'Komunikasi Pending' },
-            { key: 'alfa', label: 'Fokus Alfa' },
-            { key: 'point', label: 'Fokus Poin' },
-          ].map(item => {
-            const href = viewHref('siswa', { risiko: item.key })
-            const active = riskFilter === item.key
-            return (
-              <Link
-                key={item.key}
-                href={href}
-                className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${
-                  active
-                    ? 'border-amber-300 bg-amber-50 text-amber-700'
-                    : 'border-slate-200 bg-white text-slate-600 hover:text-slate-800'
-                }`}
-              >
-                {item.label}
-              </Link>
-            )
-          })}
-          <span className="ml-auto text-[10px] text-slate-400 self-center">{filteredStudentRows.length} siswa</span>
-        </div>
-
-        <div className="lg:hidden p-3 space-y-2">
-          {filteredStudentRows.map(row => {
-            const detailHref = `/dashboard/siswa/${row.siswa_id}?tab=absensi&returnTo=${returnToKelasBinaan}`
-            const statusHariIni = isTodayEffective ? (row.todayStatus?.status_akhir || 'BELUM_ADA_DATA') : 'LIBUR'
-            const sumberHariIni = isTodayEffective ? sourceLabel(row.todayStatus?.sumber_status || 'belum_ada_data') : 'Kalender Pendidikan'
-            const monthlyItems = [
-              { label: 'Sakit', value: row.monthly.sakit },
-              { label: 'Izin', value: row.monthly.izin },
-              { label: 'Alfa', value: row.monthly.alfa },
-            ]
-            const monthlyWithValue = monthlyItems.filter(item => item.value > 0)
-            return (
-              <Card key={row.siswa_id} className="overflow-hidden border-slate-200 shadow-sm dark:border-slate-800">
-                <div className="p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <Link href={detailHref} className="group flex min-w-0 flex-1 items-center gap-3">
+                <div key={row.siswa_id} className="p-3.5 sm:p-4 hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="flex items-start gap-3 min-w-0 flex-1">
                       <AvatarSiswa fotoUrl={row.foto_url} nama={row.nama_lengkap} size="sm" />
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1">
-                          <p className="min-w-0 flex-1 break-words text-sm font-bold leading-snug text-slate-900 group-hover:text-blue-700 dark:text-slate-100 dark:group-hover:text-blue-400">{row.nama_lengkap}</p>
-                          <ArrowRight className="h-3 w-3 shrink-0 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-blue-500" />
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <Link
+                            href={`/dashboard/siswa/${row.siswa_id}?tab=absensi&returnTo=${returnToKelasBinaan}`}
+                            className="text-sm font-bold text-slate-800 hover:text-blue-700 dark:text-slate-100 dark:hover:text-blue-400 truncate"
+                          >
+                            {row.nama_lengkap}
+                          </Link>
+                          <span className="text-[11px] text-slate-400">({row.nisn})</span>
                         </div>
-                        <p className="mt-0.5 text-[11px] font-medium tracking-wide text-slate-400">{row.nisn}</p>
+
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs">
+                          {row.monthly.alfa > 0 && (
+                            <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700 font-semibold text-[10px]">
+                              {row.monthly.alfa}x Alfa Bulan Ini
+                            </Badge>
+                          )}
+                          {row.totalPoin > 0 && (
+                            <Badge variant="outline" className={`font-semibold text-[10px] ${row.totalPoin >= 25 ? 'border-rose-300 bg-rose-100 text-rose-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+                              {row.totalPoin} Poin Pelanggaran ({row.jumlahKasus} kasus)
+                            </Badge>
+                          )}
+                          {row.komunikasi.summonStatus && (
+                            <Badge variant="secondary" className="text-[10px]">
+                              Panggilan: {summonStatusLabel(row.komunikasi.summonStatus)}
+                            </Badge>
+                          )}
+                          {row.tempatTinggal === 'KELUAR DARI PESANTREN' && (
+                            <Badge variant="destructive" className="text-[10px]">
+                              Keluar Dari Pesantren
+                            </Badge>
+                          )}
+                        </div>
+
+                        {row.timeline && (
+                          <p className="mt-1.5 text-[11px] text-slate-500 line-clamp-1 italic">
+                            Timeline: &ldquo;{row.timeline.content}&rdquo;
+                          </p>
+                        )}
                       </div>
-                    </Link>
-                    <Badge variant="outline" className={`shrink-0 px-2.5 py-1 text-[10px] ${badgeClass(statusHariIni)}`}>
-                      {attendanceStatusLabel(statusHariIni)}
-                    </Badge>
-                  </div>
+                    </div>
 
-                  {sumberHariIni !== 'Kalender Pendidikan' && (
-                    <div className="mt-3 border-l-2 border-muted-foreground/20 pl-2.5 text-[10px]">
-                      <span className="text-slate-400">Sumber status: </span>
-                      <span className="font-semibold text-slate-600 dark:text-slate-300">{sumberHariIni}</span>
-                      {row.todayStatus?.keterangan_wali_kelas ? (
-                        <p className="mt-0.5 line-clamp-2 text-slate-500 dark:text-slate-400">{row.todayStatus.keterangan_wali_kelas}</p>
-                      ) : null}
-                    </div>
-                  )}
-
-                  <div className="mt-4 grid grid-cols-3 gap-4 border-y py-3">
-                    <div>
-                      <p className="text-[10px] text-muted-foreground">Poin</p>
-                      <p className="mt-0.5 text-sm font-semibold">{row.totalPoin}</p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-muted-foreground">Komunikasi</p>
-                      <p className="mt-0.5 truncate text-[11px] font-medium">
-                        {row.komunikasi.unread > 0 ? `${row.komunikasi.unread} belum dibaca` : 'Terbaca'}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[10px] text-muted-foreground">Pemanggilan</p>
-                      <p className="mt-0.5 truncate text-[11px] font-medium">{summonStatusLabel(row.komunikasi.summonStatus)}</p>
+                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                      <ParentCommActions
+                        siswaId={row.siswa_id}
+                        kelasId={kelas.id}
+                        namaKelas={namaKelas}
+                        namaSiswa={row.nama_lengkap}
+                        summonStatus={row.komunikasi.summonStatus}
+                        phone={row.phone}
+                        compact
+                      />
                     </div>
                   </div>
-
-                  <div className="mt-3">
-                    <p className="text-[10px] text-muted-foreground">Bulan Ini</p>
-                    {monthlyWithValue.length === 0 ? (
-                      <p className="mt-1 text-xs font-medium text-foreground">Tidak ada catatan absensi.</p>
-                    ) : (
-                      <div className="mt-1.5 flex flex-wrap gap-1.5">
-                        {monthlyWithValue.map(item => (
-                          <Badge key={item.label} variant="secondary" className="gap-1 rounded-md font-normal">
-                            {item.label} <span className="font-semibold">{item.value}</span>
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {row.timeline ? (
-                    <div className="mt-3 border-l-2 border-slate-200 pl-2.5 dark:border-slate-700">
-                      <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Timeline Terakhir</p>
-                      <p className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-slate-600 dark:text-slate-300">{row.timeline.content}</p>
-                    </div>
-                  ) : null}
-
-                  {quickEdit ? (
-                    <QuickEditSiswa
-                      siswaId={row.siswa_id}
-                      initialTempatTinggal={row.tempatTinggal}
-                      initialPhone={row.phone}
-                      className="mt-3"
-                    />
-                  ) : row.tempatTinggal === 'KELUAR DARI PESANTREN' ? (
-                    <p className="mt-3 flex items-center gap-1.5 rounded-md border border-rose-200 bg-rose-50 px-2.5 py-2 text-[10px] font-semibold text-rose-700">
-                      <AlertTriangle className="h-3.5 w-3.5" /> Keluar dari pesantren
-                    </p>
-                  ) : null}
                 </div>
-
-                <div className="border-t p-3">
-                  <ParentCommActions
-                    siswaId={row.siswa_id}
-                    kelasId={kelas.id}
-                    namaKelas={namaKelas}
-                    namaSiswa={row.nama_lengkap}
-                    summonStatus={row.komunikasi.summonStatus}
-                    phone={row.phone}
-                  />
-                </div>
-              </Card>
-            )
-          })}
-        </div>
-
-        <div className="hidden lg:block">
-          <div className="grid grid-cols-[minmax(0,1.8fr)_minmax(140px,1fr)_minmax(170px,1fr)_minmax(160px,1fr)_80px_minmax(220px,1.4fr)] gap-3 px-4 py-3 bg-slate-50 dark:bg-slate-800/40 border-t border-surface-2 text-[11px] font-semibold text-slate-500">
-            <div>Siswa</div>
-            <div>Status Hari Ini</div>
-            <div>Komunikasi Ortu</div>
-            <div>Bulan Ini</div>
-            <div>Poin</div>
-            <div>Aksi Wali Kelas</div>
+              ))
+            )}
           </div>
-          <div className="divide-y divide-surface-2">
+        </div>
+      )}
+
+      {/* ===================== VIEW: DAFTAR SISWA (NOTIFIKASI) ===================== */}
+      {view === 'siswa' && (
+        <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
+          <div className="flex items-center gap-2 px-4 py-3 border-b border-surface-2">
+            <div className="p-1.5 rounded-md bg-slate-100 border border-slate-200 dark:bg-slate-800 dark:border-slate-700">
+              <Users className="h-3.5 w-3.5 text-slate-600 dark:text-slate-300" />
+            </div>
+            <div className="flex-1">
+              <p className="text-xs font-semibold text-slate-800 dark:text-slate-100">Daftar Siswa Binaan</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                Status harian, notifikasi orang tua, rekap bulan ini, poin, dan aksi tindak lanjut
+              </p>
+            </div>
+            <Link
+              href={viewHref('siswa', { ...(riskFilter !== 'all' ? { risiko: riskFilter } : {}), edit: quickEdit ? '0' : '1' })}
+              className={`flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${
+                quickEdit
+                  ? 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                  : 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
+              }`}
+            >
+              {quickEdit ? 'Selesai Edit' : 'EDIT DATA SISWA'}
+            </Link>
+          </div>
+
+          <div className="px-4 py-2 border-b border-surface-2 flex flex-wrap gap-2">
+            {[
+              { key: 'all', label: 'Semua' },
+              { key: 'high', label: 'Risiko Tinggi' },
+              { key: 'pending_comm', label: 'Notifikasi Pending' },
+              { key: 'alfa', label: 'Fokus Alfa' },
+              { key: 'point', label: 'Fokus Poin' },
+            ].map(item => {
+              const href = viewHref('siswa', { risiko: item.key })
+              const active = riskFilter === item.key
+              return (
+                <Link
+                  key={item.key}
+                  href={href}
+                  className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold ${
+                    active
+                      ? 'border-amber-300 bg-amber-50 text-amber-700'
+                      : 'border-slate-200 bg-white text-slate-600 hover:text-slate-800'
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              )
+            })}
+            <span className="ml-auto text-[10px] text-slate-400 self-center">{filteredStudentRows.length} siswa</span>
+          </div>
+
+          {/* Versi Mobile Card */}
+          <div className="lg:hidden p-3 space-y-2">
             {filteredStudentRows.map(row => {
               const detailHref = `/dashboard/siswa/${row.siswa_id}?tab=absensi&returnTo=${returnToKelasBinaan}`
               const statusHariIni = isTodayEffective ? (row.todayStatus?.status_akhir || 'BELUM_ADA_DATA') : 'LIBUR'
+              const sumberHariIni = isTodayEffective ? sourceLabel(row.todayStatus?.sumber_status || 'belum_ada_data') : 'Kalender Pendidikan'
+              const monthlyItems = [
+                { label: 'Sakit', value: row.monthly.sakit },
+                { label: 'Izin', value: row.monthly.izin },
+                { label: 'Alfa', value: row.monthly.alfa },
+              ]
+              const monthlyWithValue = monthlyItems.filter(item => item.value > 0)
               return (
-                <div key={row.siswa_id} className="grid grid-cols-[minmax(0,1.8fr)_minmax(140px,1fr)_minmax(170px,1fr)_minmax(160px,1fr)_80px_minmax(220px,1.4fr)] gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                  <div className="min-w-0 flex items-center gap-2.5">
-                    <AvatarSiswa fotoUrl={row.foto_url} nama={row.nama_lengkap} size="sm" />
-                    <div className="min-w-0">
-                      <Link href={detailHref} className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate block hover:underline">{row.nama_lengkap}</Link>
-                      <p className="text-[11px] text-slate-400 truncate">{row.nisn}</p>
-                      {row.timeline ? <p className="text-[10px] text-slate-500 truncate mt-0.5">{row.timeline.content}</p> : null}
-                    </div>
-                  </div>
-                  <div className="flex items-center">
-                    <div>
-                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${badgeClass(statusHariIni)}`}>
+                <Card key={row.siswa_id} className="overflow-hidden border-slate-200 shadow-sm dark:border-slate-800">
+                  <div className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <Link href={detailHref} className="group flex min-w-0 flex-1 items-center gap-3">
+                        <AvatarSiswa fotoUrl={row.foto_url} nama={row.nama_lengkap} size="sm" />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1">
+                            <p className="min-w-0 flex-1 break-words text-sm font-bold leading-snug text-slate-900 group-hover:text-blue-700 dark:text-slate-100 dark:group-hover:text-blue-400">{row.nama_lengkap}</p>
+                            <ArrowRight className="h-3 w-3 shrink-0 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-blue-500" />
+                          </div>
+                          <p className="mt-0.5 text-[11px] font-medium tracking-wide text-slate-400">{row.nisn}</p>
+                        </div>
+                      </Link>
+                      <Badge variant="outline" className={`shrink-0 px-2.5 py-1 text-[10px] ${badgeClass(statusHariIni)}`}>
                         {attendanceStatusLabel(statusHariIni)}
-                      </span>
-                      {row.todayStatus?.keterangan_wali_kelas ? (
-                        <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2">{row.todayStatus.keterangan_wali_kelas}</p>
-                      ) : null}
+                      </Badge>
                     </div>
+
+                    {sumberHariIni !== 'Kalender Pendidikan' && (
+                      <div className="mt-3 border-l-2 border-muted-foreground/20 pl-2.5 text-[10px]">
+                        <span className="text-slate-400">Sumber status: </span>
+                        <span className="font-semibold text-slate-600 dark:text-slate-300">{sumberHariIni}</span>
+                        {row.todayStatus?.keterangan_wali_kelas ? (
+                          <p className="mt-0.5 line-clamp-2 text-slate-500 dark:text-slate-400">{row.todayStatus.keterangan_wali_kelas}</p>
+                        ) : null}
+                      </div>
+                    )}
+
+                    <div className="mt-4 grid grid-cols-3 gap-4 border-y py-3">
+                      <div>
+                        <p className="text-[10px] text-muted-foreground">Poin</p>
+                        <p className="mt-0.5 text-sm font-semibold">{row.totalPoin}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground">Notifikasi</p>
+                        <p className="mt-0.5 truncate text-[11px] font-medium">
+                          {row.komunikasi.unread > 0 ? `${row.komunikasi.unread} belum dibaca` : 'Terbaca'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-muted-foreground">Pemanggilan</p>
+                        <p className="mt-0.5 truncate text-[11px] font-medium">{summonStatusLabel(row.komunikasi.summonStatus)}</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-3">
+                      <p className="text-[10px] text-muted-foreground">Bulan Ini</p>
+                      {monthlyWithValue.length === 0 ? (
+                        <p className="mt-1 text-xs font-medium text-foreground">Tidak ada catatan absensi.</p>
+                      ) : (
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {monthlyWithValue.map(item => (
+                            <Badge key={item.label} variant="secondary" className="gap-1 rounded-md font-normal">
+                              {item.label} <span className="font-semibold">{item.value}</span>
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {row.timeline ? (
+                      <div className="mt-3 border-l-2 border-slate-200 pl-2.5 dark:border-slate-700">
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Timeline Terakhir</p>
+                        <p className="mt-0.5 line-clamp-2 text-[10px] leading-relaxed text-slate-600 dark:text-slate-300">{row.timeline.content}</p>
+                      </div>
+                    ) : null}
+
+                    {quickEdit ? (
+                      <QuickEditSiswa
+                        siswaId={row.siswa_id}
+                        initialTempatTinggal={row.tempatTinggal}
+                        initialPhone={row.phone}
+                        className="mt-3"
+                      />
+                    ) : row.tempatTinggal === 'KELUAR DARI PESANTREN' ? (
+                      <p className="mt-3 flex items-center gap-1.5 rounded-md border border-rose-200 bg-rose-50 px-2.5 py-2 text-[10px] font-semibold text-rose-700">
+                        <AlertTriangle className="h-3.5 w-3.5" /> Keluar dari pesantren
+                      </p>
+                    ) : null}
                   </div>
-                  <div className="flex flex-col justify-center text-[11px] text-slate-500">
-                    <span>{row.komunikasi.unread > 0 ? `${row.komunikasi.unread} belum dibaca` : 'Terbaca'}</span>
-                    <span className="text-[10px] text-slate-400">Pemanggilan: {summonStatusLabel(row.komunikasi.summonStatus)}</span>
-                  </div>
-                  <div className="flex items-center text-[11px] text-slate-500">Sakit {row.monthly.sakit} • Izin {row.monthly.izin} • Alfa {row.monthly.alfa}</div>
-                  <div className="flex items-center text-[11px] font-semibold text-slate-700 dark:text-slate-200">{row.totalPoin}</div>
-                  <div className="flex flex-wrap gap-1.5 items-center">
+
+                  <div className="border-t p-3">
                     <ParentCommActions
                       siswaId={row.siswa_id}
                       kelasId={kelas.id}
@@ -908,61 +849,83 @@ export async function KelasBinaanDashboard({
                       namaSiswa={row.nama_lengkap}
                       summonStatus={row.komunikasi.summonStatus}
                       phone={row.phone}
-                      compact
                     />
                   </div>
-                  {quickEdit ? (
-                    <QuickEditSiswa
-                      siswaId={row.siswa_id}
-                      initialTempatTinggal={row.tempatTinggal}
-                      initialPhone={row.phone}
-                      className="col-span-full mt-1"
-                    />
-                  ) : row.tempatTinggal === 'KELUAR DARI PESANTREN' ? (
-                    <p className="col-span-full flex items-center gap-1.5 text-[10px] font-semibold text-rose-700 dark:text-rose-400">
-                      <AlertTriangle className="h-3.5 w-3.5" /> Keluar dari pesantren
-                    </p>
-                  ) : null}
-                </div>
+                </Card>
               )
             })}
           </div>
-        </div>
-      </div>
-      )}
 
-      {(view === 'home' || view === 'rekap') && show('today_summary') && (!isTodayEffective ? (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/50">
-          <div className="flex items-start gap-3">
-            <div className="rounded-lg bg-white p-2 text-slate-500 shadow-sm dark:bg-slate-800">
-              <CalendarCheck className="h-4 w-4" />
+          {/* Versi Desktop Tabel */}
+          <div className="hidden lg:block">
+            <div className="grid grid-cols-[minmax(0,1.8fr)_minmax(140px,1fr)_minmax(170px,1fr)_minmax(160px,1fr)_80px_minmax(220px,1.4fr)] gap-3 px-4 py-3 bg-slate-50 dark:bg-slate-800/40 border-t border-surface-2 text-[11px] font-semibold text-slate-500">
+              <div>Siswa</div>
+              <div>Status Hari Ini</div>
+              <div>Notifikasi Ortu</div>
+              <div>Bulan Ini</div>
+              <div>Poin</div>
+              <div>Aksi Wali Kelas</div>
             </div>
-            <div>
-              <p className="text-sm font-bold text-slate-800 dark:text-slate-100">Hari ini tidak efektif pembelajaran</p>
-              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                {todayHolidayReason}. Absensi harian siswa tidak dihitung untuk tanggal ini.
-              </p>
+            <div className="divide-y divide-surface-2">
+              {filteredStudentRows.map(row => {
+                const detailHref = `/dashboard/siswa/${row.siswa_id}?tab=absensi&returnTo=${returnToKelasBinaan}`
+                const statusHariIni = isTodayEffective ? (row.todayStatus?.status_akhir || 'BELUM_ADA_DATA') : 'LIBUR'
+                return (
+                  <div key={row.siswa_id} className="grid grid-cols-[minmax(0,1.8fr)_minmax(140px,1fr)_minmax(170px,1fr)_minmax(160px,1fr)_80px_minmax(220px,1.4fr)] gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                    <div className="min-w-0 flex items-center gap-2.5">
+                      <AvatarSiswa fotoUrl={row.foto_url} nama={row.nama_lengkap} size="sm" />
+                      <div className="min-w-0">
+                        <Link href={detailHref} className="text-sm font-medium text-slate-800 dark:text-slate-200 truncate block hover:underline">{row.nama_lengkap}</Link>
+                        <p className="text-[11px] text-slate-400 truncate">{row.nisn}</p>
+                        {row.timeline ? <p className="text-[10px] text-slate-500 truncate mt-0.5">{row.timeline.content}</p> : null}
+                      </div>
+                    </div>
+                    <div className="flex items-center">
+                      <div>
+                        <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${badgeClass(statusHariIni)}`}>
+                          {attendanceStatusLabel(statusHariIni)}
+                        </span>
+                        {row.todayStatus?.keterangan_wali_kelas ? (
+                          <p className="mt-1 text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2">{row.todayStatus.keterangan_wali_kelas}</p>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="flex flex-col justify-center text-[11px] text-slate-500">
+                      <span>{row.komunikasi.unread > 0 ? `${row.komunikasi.unread} belum dibaca` : 'Terbaca'}</span>
+                      <span className="text-[10px] text-slate-400">Pemanggilan: {summonStatusLabel(row.komunikasi.summonStatus)}</span>
+                    </div>
+                    <div className="flex items-center text-[11px] text-slate-500">Sakit {row.monthly.sakit} • Izin {row.monthly.izin} • Alfa {row.monthly.alfa}</div>
+                    <div className="flex items-center text-[11px] font-semibold text-slate-700 dark:text-slate-200">{row.totalPoin}</div>
+                    <div className="flex flex-wrap gap-1.5 items-center">
+                      <ParentCommActions
+                        siswaId={row.siswa_id}
+                        kelasId={kelas.id}
+                        namaKelas={namaKelas}
+                        namaSiswa={row.nama_lengkap}
+                        summonStatus={row.komunikasi.summonStatus}
+                        phone={row.phone}
+                        compact
+                      />
+                    </div>
+                    {quickEdit ? (
+                      <QuickEditSiswa
+                        siswaId={row.siswa_id}
+                        initialTempatTinggal={row.tempatTinggal}
+                        initialPhone={row.phone}
+                        className="col-span-full mt-1"
+                      />
+                    ) : row.tempatTinggal === 'KELUAR DARI PESANTREN' ? (
+                      <p className="col-span-full flex items-center gap-1.5 text-[10px] font-semibold text-rose-700 dark:text-rose-400">
+                        <AlertTriangle className="h-3.5 w-3.5" /> Keluar dari pesantren
+                      </p>
+                    ) : null}
+                  </div>
+                )
+              })}
             </div>
           </div>
         </div>
-      ) : (
-        <div className="space-y-2">
-          <p className="text-xs text-slate-500">{todaySummary.finalCount > 0 ? 'Rekap setelah KBM, berdasarkan data yang tersedia.' : 'Rekap harian belum tersedia. Status otomatis ditetapkan setelah KBM selesai jika sudah ada data absensi.'} {todaySummary.pendingBlocks} blok pelajaran masih memiliki input siswa tertunda. {todayRows.some(row => row && !row.is_daily_final && !row.kbm_end_at && row.total_blok > 0) && 'Jam pelajaran perlu dilengkapi agar akhir KBM dapat ditentukan.'} <Link href={viewHref('keputusan')} className="font-semibold text-purple-700 hover:underline">Lihat detail kehadiran</Link></p>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
-          {todaySummaryItems.map(item => (
-            <div key={item.label} className="rounded-lg border border-surface bg-surface px-3 py-2.5 shadow-sm">
-              <div className="flex items-center gap-2">
-                <div className={`inline-flex rounded-md p-1.5 ${item.bg}`}>
-                  <CalendarCheck className={`h-3.5 w-3.5 ${item.tone}`} />
-                </div>
-                <p className={`text-xl font-bold leading-none ${item.tone}`}>{item.value}</p>
-              </div>
-              <p className="mt-1 text-[11px] leading-tight text-slate-500 dark:text-slate-400">{item.label} hari ini</p>
-            </div>
-          ))}
-          </div>
-        </div>
-      ))}
+      )}
     </div>
   )
 }
