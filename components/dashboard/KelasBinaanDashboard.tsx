@@ -579,6 +579,7 @@ export async function KelasBinaanDashboard({
       {/* ===================== VIEW: KEHADIRAN HARIAN ===================== */}
       {view === 'keputusan' && (
         <KeputusanAbsensiHariIni
+          userId={userId}
           kelasId={kelas.id}
           tanggal={selectedDecisionDate}
           today={today}

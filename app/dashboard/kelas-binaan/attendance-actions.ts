@@ -194,6 +194,7 @@ export async function simpanKeputusanAbsensiWaliBatch(kelasId: string, tanggal: 
 }
 
 export type QuickAttendanceContext = {
+  userId: string;
   siswaId: string; kelasId: string; nama: string; kelas: string; tanggal: string; penugasanId: string;
   mapel: string; jam: string; catatanGuru: string; statusGuru: string; teacherUpdatedAt: string;
   waliStatus: WaliStatus | null; waliNote: string; revision: string;
@@ -227,7 +228,7 @@ export async function getKoreksiAbsensiCepat(siswaId: string, tanggal: string, p
   const waliStatus = wali?.status || null
   const waliNote = wali?.keterangan || ''
   const revision = JSON.stringify([statusGuru, teacherUpdatedAt, waliStatus, waliNote, block.status, day.sumber_status])
-  return { data: { siswaId, kelasId: student.kelas_id, nama: day.nama_lengkap, kelas: snapshot!.kelas.label,
+  return { data: { userId: user.id, siswaId, kelasId: student.kelas_id, nama: day.nama_lengkap, kelas: snapshot!.kelas.label,
     tanggal, penugasanId, mapel: raw.nama_mapel, jam: `${block.jam_ke_mulai}–${block.jam_ke_selesai}`,
     catatanGuru: raw.catatan || '', statusGuru, teacherUpdatedAt, waliStatus, waliNote, revision,
     pendingBlocks: day.pending_blok, isFinal: day.is_daily_final, dailyStatus: day.status_akhir,

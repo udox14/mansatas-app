@@ -14,7 +14,7 @@ const base: KeputusanAbsensiRow = {
   keterangan_wali_kelas: null, detail_guru: [{ status: 'ALFA', nama_mapel: 'Matematika', guru_nama: 'Guru', sumber: 'guru', jam_ke_mulai: 1, jam_ke_selesai: 2, catatan: '' }],
 }
 function render(overrides: Partial<KeputusanAbsensiRow> = {}, isEffective = true) {
-  return renderToStaticMarkup(<KeputusanAbsensiHariIni kelasId="k1" tanggal="2026-10-02" today="2026-10-02" minDate="2026-07-01" rows={[{ ...base, ...overrides }]} isEffective={isEffective} />)
+  return renderToStaticMarkup(<KeputusanAbsensiHariIni userId="wali" kelasId="k1" tanggal="2026-10-02" today="2026-10-02" minDate="2026-07-01" rows={[{ ...base, ...overrides }]} isEffective={isEffective} />)
 }
 beforeEach(() => vi.stubGlobal('React', React))
 

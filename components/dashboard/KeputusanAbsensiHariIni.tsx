@@ -1,6 +1,8 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useMemo, useState } from 'react'
+import { useAttendanceAutosave } from '@/hooks/use-attendance-autosave'
+import { attendanceDraftKey, clearAttendanceDraft, validAttendanceDraftStatus } from '@/lib/attendance-local-draft'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import {
   CheckCircle2,
@@ -62,6 +64,7 @@ export type KeputusanAbsensiRow = {
 }
 
 type Props = {
+  userId: string
   kelasId: string
   tanggal: string
   today: string
@@ -112,7 +115,7 @@ export function KeputusanAbsensiHariIni(props: Props) {
   return <KehadiranHarianEditor key={`${props.kelasId}:${props.tanggal}:${JSON.stringify(props.rows)}`} {...props} />
 }
 
-function KehadiranHarianEditor({ kelasId, tanggal, today, minDate, rows, isEffective, holidayReason }: Props) {
+function KehadiranHarianEditor({ userId, kelasId, tanggal, today, minDate, rows, isEffective, holidayReason }: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -126,7 +129,6 @@ function KehadiranHarianEditor({ kelasId, tanggal, today, minDate, rows, isEffec
   const [historyByStudent, setHistoryByStudent] = useState<Record<string, KeputusanAbsensiHistoryRow[]>>({})
   const [historyLoading, setHistoryLoading] = useState<string | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
-  const [isPending, startTransition] = useTransition()
 
   const sortedItems = useMemo(() => {
     return [...items].sort((a, b) => (
@@ -183,12 +185,12 @@ function KehadiranHarianEditor({ kelasId, tanggal, today, minDate, rows, isEffec
     setHistoryLoading(null)
   }
 
-  const save = () => {
-    startTransition(async () => {
+  const changedItems = items.filter(item => item.draft_status !== item.wali_status || item.draft_keterangan !== (item.keterangan_wali_kelas || ''))
+  const save = async () => {
       const res = await simpanKeputusanAbsensiWaliBatch(
         kelasId,
         tanggal,
-        items.filter(item => item.draft_status !== item.wali_status || item.draft_keterangan !== (item.keterangan_wali_kelas || '')).map(item => ({
+        changedItems.map(item => ({
           siswa_id: item.siswa_id,
           status: item.draft_status,
           keterangan: item.draft_keterangan,
@@ -196,14 +198,29 @@ function KehadiranHarianEditor({ kelasId, tanggal, today, minDate, rows, isEffec
       )
 
       if (res.error) {
-        setMessage({ type: 'error', text: res.error })
-        return
+        throw new Error(res.error)
       }
 
       setMessage({ type: 'success', text: 'Koreksi kehadiran disimpan.' })
+      setItems(previous => previous.map(item => changedItems.some(sent => sent.siswa_id === item.siswa_id) ? {
+        ...item, wali_status: item.draft_status, keterangan_wali_kelas: item.draft_keterangan,
+      } : item))
       router.refresh()
-    })
   }
+  const pendingChanges = changedItems.map(item => ({ siswa_id: item.siswa_id, status: item.draft_status, keterangan: item.draft_keterangan }))
+  const localKey = attendanceDraftKey(userId, `wali:${kelasId}:${tanggal}`)
+  const { saving: isPending, error: saveError, retry, restored } = useAttendanceAutosave(pendingChanges.length ? JSON.stringify(pendingChanges) : '', save, {
+    key: localKey, changes: pendingChanges,
+    restore: value => {
+      if (!isEffective) throw new Error('Draft tetap tersimpan di perangkat; tanggal ini tidak aktif untuk koreksi kehadiran.')
+      if (!Array.isArray(value) || value.some(change => !change || !rows.some(row => row.siswa_id === change.siswa_id) || !validAttendanceDraftStatus(change.status, true) || typeof change.keterangan !== 'string' || change.keterangan.length > 2000)) throw new Error('Draft koreksi memuat siswa atau status yang tidak tersedia.')
+      if (value.every(change => rows.some(row => row.siswa_id === change.siswa_id && row.wali_status === change.status && (row.keterangan_wali_kelas || '') === change.keterangan))) { clearAttendanceDraft(localKey,value); return }
+      setItems(previous => previous.map(item => {
+        const change = value.find(change => change.siswa_id === item.siswa_id)
+        return change ? { ...item, draft_status: change.status, draft_keterangan: change.keterangan } : item
+      }))
+    },
+  })
 
   return (
     <div className="rounded-xl border border-surface bg-surface shadow-sm overflow-hidden">
@@ -490,17 +507,10 @@ function KehadiranHarianEditor({ kelasId, tanggal, today, minDate, rows, isEffec
           {/* Sticky Bottom Save Bar */}
           <div className="sticky bottom-0 z-10 flex flex-col gap-2 border-t border-surface-2 bg-white/95 px-4 py-3 backdrop-blur dark:bg-slate-900/95 sm:flex-row sm:items-center sm:justify-between shadow-lg">
             <p className="text-xs text-slate-500">
-              {hasChanges ? 'Ada koreksi yang belum disimpan.' : 'Koreksi hanya diperlukan jika ada kekeliruan pada rekap.'}
+              <span role="status">{isPending ? 'Menyimpan koreksi…' : saveError ? 'Koreksi belum tersimpan di server.' : hasChanges ? 'Koreksi tersimpan di perangkat; dikirim otomatis setelah 2 detik tanpa perubahan baru.' : 'Koreksi hanya diperlukan jika ada kekeliruan pada rekap. Perubahan disimpan otomatis setelah 2 detik.'}</span>
+              {restored && <span className="block mt-1">Koreksi yang belum terkirim dipulihkan dari perangkat.</span>}
             </p>
-            <Button
-              onClick={save}
-              disabled={isPending || !hasChanges}
-              className="bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 shadow-sm"
-              size="sm"
-            >
-              {isPending ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <ClipboardCheck className="mr-1.5 h-3.5 w-3.5" />}
-              Simpan Koreksi
-            </Button>
+            {saveError && <><p role="alert" className="text-xs text-rose-600">{saveError}</p><Button onClick={retry} disabled={isPending} variant="outline" size="sm">Coba lagi</Button></>}
           </div>
         </>
       )}
