@@ -1,5 +1,7 @@
 'use client'
 
+import { parentSessionLabel } from '@/lib/parent-attendance-presentation'
+
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   BookOpenText,
@@ -33,6 +35,9 @@ type Row = {
   absensi?: {
     status: string
     catatan?: string | null
+    official?: boolean
+    teacherStatus?: string
+    teacherNote?: string|null
   } | null
 }
 
@@ -57,19 +62,6 @@ export function ScheduleTabs({ jadwalByDay }: { jadwalByDay: Record<number, Row[
   useEffect(() => {
     tabRefs.current[active]?.scrollIntoView({ block: 'nearest', inline: 'center' })
   }, [active])
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'HADIR': return 'Siswa hadir'
-      case 'SAKIT': return 'Siswa sakit'
-      case 'IZIN': return 'Siswa izin'
-      case 'ALFA': return 'Siswa alfa'
-      case 'KBM_EXCEPTION': return 'Kegiatan khusus'
-      case 'BELUM_ADA_DATA': return 'Belum diinput'
-      case 'LIBUR': return 'Libur'
-      default: return status
-    }
-  }
 
   return (
     <div className="space-y-4">
@@ -167,9 +159,9 @@ export function ScheduleTabs({ jadwalByDay }: { jadwalByDay: Record<number, Row[
 
                     <div className="mt-3 flex min-w-0 flex-col items-start gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                       {item.isToday && item.absensi && (
-                        <span className={`inline-flex max-w-full shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-semibold ${statusClass}`}>
+                        <span className={`inline-flex max-w-full items-center gap-1.5 whitespace-normal rounded-md border px-2.5 py-1 text-xs font-semibold ${statusClass}`}>
                           <StatusIcon className="h-3.5 w-3.5 shrink-0" />
-                          {getStatusLabel(item.absensi.status)}
+                          {parentSessionLabel(item.absensi.status,item.absensi.official)}
                         </span>
                       )}
                       {item.guruTidakHadir && (
@@ -182,6 +174,7 @@ export function ScheduleTabs({ jadwalByDay }: { jadwalByDay: Record<number, Row[
                     {item.isToday && item.absensi?.catatan && (
                       <p className="mt-3 border-l-2 border-[#D8D4CC] pl-3 text-xs leading-5 text-[#6B6B63]">{item.absensi.catatan}</p>
                     )}
+                    {item.isToday && item.absensi?.teacherStatus && <p className="mt-2 text-xs leading-5 text-[#6B6B63]">Catatan asli guru: {parentSessionLabel(item.absensi.teacherStatus)}{item.absensi.teacherNote ? ` · ${item.absensi.teacherNote}` : ''}</p>}
                     {guruIzin && item.guruTidakHadir?.keterangan && (
                       <p className="mt-3 border-l-2 border-[#487A7C] pl-3 text-xs leading-5 text-[#3F6F72]">
                         Keterangan izin guru: {item.guruTidakHadir.keterangan}

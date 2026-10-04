@@ -1,3 +1,4 @@
+import { summarizeParentAttendanceDays } from '@/lib/parent-attendance-presentation'
 import { redirect } from 'next/navigation'
 import { getAppSession } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
@@ -15,7 +16,7 @@ import {
   getParentTkaSelection,
   isParentTkaSelectionComplete,
 } from '@/lib/parent-tka'
-import { sanitizeParentAgenda } from '@/lib/parent-schedule'
+import { sanitizeParentAgenda, parentSessionAttendance } from '@/lib/parent-schedule'
 import { ensureParentDisciplineSchema, getParentDisciplineData, getParentDisciplineSettings } from '@/lib/parent-discipline'
 
 export const dynamic = 'force-dynamic'
@@ -64,10 +65,6 @@ type TodayIzinRow = {
   alasan: string
   keterangan: string | null
 }
-type TodayWaliDecisionRow = {
-  status: 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA'
-  keterangan: string | null
-}
 type GuruTidakHadir = {
   status: 'SAKIT' | 'IZIN'
   keterangan: string | null
@@ -100,19 +97,7 @@ function parseIzinJam(raw: TodayIzinRow['jam_pelajaran']) {
   }
 }
 
-function summarizeAttendanceRows(rows: any[]) {
-  const summary = { hadir: 0, sakit: 0, izin: 0, alfa: 0, perluKonfirmasi: 0, belumLengkap: 0, totalHari: rows.length }
-  for (const row of rows) {
-    const status = String(row.status_akhir || '')
-    if (status === 'HADIR') summary.hadir++
-    else if (status === 'SAKIT') summary.sakit++
-    else if (status === 'IZIN') summary.izin++
-    else if (status === 'ALFA') summary.alfa++
-    else if (status === 'PARSIAL' || status === 'PERLU_KONFIRMASI_WALI') summary.perluKonfirmasi++
-    else summary.belumLengkap++
-  }
-  return summary
-}
+function summarizeAttendanceRows(rows: any[]) { return summarizeParentAttendanceDays(rows).summary }
 
 async function ensureParentCommunicationTables(db: D1Database) {
   await db.prepare(`
@@ -634,12 +619,7 @@ export default async function PortalOrtuPage({ searchParams }: { searchParams: P
     ORDER BY created_at ASC
   `).bind(siswaId, todayRaw).all<TodayIzinRow>()
 
-  const todayWaliDecision = await db.prepare(`
-    SELECT status, keterangan
-    FROM keterangan_absensi_wali_kelas
-    WHERE siswa_id = ? AND tanggal = ?
-    LIMIT 1
-  `).bind(siswaId, todayRaw).first<TodayWaliDecisionRow>()
+  const todayAttendance = weeklyAttendanceResult?.statuses.find(day => day.tanggal === todayRaw)
 
   const todayAbsensiMap = new Map<string, { status: string; catatan: string | null }>()
   for (const row of todayAbsensiRows.results || []) {
@@ -654,14 +634,14 @@ export default async function PortalOrtuPage({ searchParams }: { searchParams: P
     }
   }
 
-  const todayIzinMap = new Map<number | 'all', string[]>()
+  const todayIzinMap = new Map<number | 'all', Array<{alasan:string;note:string}>>()
   for (const row of todayIzinRows.results || []) {
     const note = [row.alasan || 'Izin', row.keterangan].filter(Boolean).join(': ')
     const jamList = parseIzinJam(row.jam_pelajaran)
     const keys: Array<number | 'all'> = jamList.length > 0 ? jamList : ['all']
     for (const key of keys) {
       if (!todayIzinMap.has(key)) todayIzinMap.set(key, [])
-      todayIzinMap.get(key)!.push(note)
+      todayIzinMap.get(key)!.push({alasan:row.alasan,note})
     }
   }
 
@@ -722,7 +702,7 @@ export default async function PortalOrtuPage({ searchParams }: { searchParams: P
     if (!jadwalByDay.has(hari)) jadwalByDay.set(hari, [])
     const jamKe = Number(row.jam_ke)
     const slot = jamMap.get(hari)?.get(Number(row.jam_ke))
-    let absensi: { status: string; catatan: string | null } | null = null
+    let absensi: ReturnType<typeof parentSessionAttendance> | null = null
     if (hari === todayDay) {
       const exception = findSlotException(
         kbmExceptions,
@@ -735,24 +715,12 @@ export default async function PortalOrtuPage({ searchParams }: { searchParams: P
         ...(todayIzinMap.get(jamKe) || []),
       ]
       if (!calendarStatus.isEffective) {
-        absensi = { status: 'LIBUR', catatan: calendarStatus.reason || 'Hari libur' }
+        absensi = { status: 'LIBUR', catatan: calendarStatus.reason || 'Hari libur', official:false }
       } else if (exception) {
-        absensi = { status: 'KBM_EXCEPTION', catatan: exception.description || exception.judul }
-      } else if (todayWaliDecision) {
-        absensi = {
-          status: todayWaliDecision.status,
-          catatan: todayWaliDecision.keterangan
-            ? `Keputusan wali kelas: ${todayWaliDecision.keterangan}`
-            : 'Status final telah ditetapkan oleh wali kelas.',
-        }
-      } else if (izinNotes.length > 0) {
-        absensi = { status: 'IZIN', catatan: Array.from(new Set(izinNotes)).join(' | ') }
-      } else if (absRecord) {
-        absensi = absRecord
-      } else if (todaySubmittedSet.has(row.penugasan_id)) {
-        absensi = { status: 'HADIR', catatan: null }
+        absensi = { status: 'KBM_EXCEPTION', catatan: exception.description || exception.judul, official:false }
       } else {
-        absensi = { status: 'BELUM_ADA_DATA', catatan: 'Absensi jam ini belum diinput oleh guru.' }
+        absensi = parentSessionAttendance({day:todayAttendance,assignment:row.penugasan_id,jam:jamKe,raw:absRecord,
+          submitted:todaySubmittedSet.has(row.penugasan_id),permissions:izinNotes})
       }
     }
 
@@ -761,6 +729,7 @@ export default async function PortalOrtuPage({ searchParams }: { searchParams: P
     const canMerge = previous
       && previous.penugasan_id === row.penugasan_id
       && Number(previous.jam_ke_selesai) + 1 === jamKe
+      && JSON.stringify(previous.absensiRows.at(-1)) === JSON.stringify(absensi)
     if (canMerge) {
       previous.jam_ke_selesai = jamKe
       previous.waktu_selesai = slot?.selesai || previous.waktu_selesai
@@ -819,6 +788,7 @@ export default async function PortalOrtuPage({ searchParams }: { searchParams: P
     waUrl,
     pengumumanRows,
     weeklyAttendanceSummary,
+    todayAttendance,
     weekRange: { start: weekStart, end: weekEnd },
     attendanceYears: attendanceYears.results || [],
     attendanceInitial,

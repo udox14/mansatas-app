@@ -7,6 +7,14 @@ import {
 import { getNotificationDefinition } from './notification-catalog'
 
 describe('notification templates', () => {
+  it.each(['attendance_daily_final','attendance_daily_update'])('accepts optional reasons in %s and supports existing custom templates without them', key => {
+    const definition = getNotificationDefinition(key)!
+    expect(validateNotificationTemplate('Rekap: {alasan_status}',definition.placeholders)).toEqual([])
+    const context = {nama_siswa:'Alya',tanggal:'2026-10-02',status_kehadiran:'Alfa',alasan_status:'Ada catatan Alfa pada sesi pelajaran.',kelengkapan:' 1 sesi pelajaran belum diinput.'}
+    expect(renderNotificationTemplate(definition.defaultBody,context,definition.placeholders)).toContain(context.alasan_status)
+    expect(renderNotificationTemplate('Rekap {nama_siswa}: {status_kehadiran}',context,definition.placeholders)).toBe('Rekap Alya: Alfa')
+    expect(renderNotificationTemplate('{alasan_status}',{},definition.placeholders)).toBe('')
+  })
   it('renders valid placeholders', () => {
     expect(renderNotificationTemplate(
       'Ananda {nama_siswa} dari {kelas} hadir pada {tanggal}.',

@@ -286,6 +286,11 @@ export function hasActiveTeachingSlotsInRange(
 
 export async function getKalenderDateStatus(db: D1Database, tanggal: string): Promise<KalenderDateStatus> {
   const events = await getKalenderEventsForRange(db, tanggal, tanggal)
+  return kalenderDateStatusFromEvents(tanggal, events)
+}
+
+export function kalenderDateStatusFromEvents(tanggal: string, rangeEvents: KalenderEvent[]): KalenderDateStatus {
+  const events = rangeEvents.filter(event => event.start_date <= tanggal && event.end_date >= tanggal)
   const manualEvents = events.filter(event => event.source === 'manual')
   const officialEvents = events.filter(event => event.source === 'official')
   const decidingEvent = manualEvents[0] || officialEvents[0] || events[0] || null

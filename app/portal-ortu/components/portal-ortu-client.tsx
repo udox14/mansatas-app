@@ -36,6 +36,8 @@ import {
 } from '@phosphor-icons/react'
 import { MobileBottomNav } from './mobile-bottom-nav'
 import { ScheduleTabs } from './schedule-tabs'
+import { AttendanceHelp } from './attendance-help'
+import { parentDailyLabel, parentDailyPhase, parentDailyReason, parentSessionLabel } from '@/lib/parent-attendance-presentation'
 import { ChangePasswordForm } from './change-password-form'
 import { ParentWhatsAppForm } from './parent-whatsapp-form'
 import { SummonResponseForm } from './summon-response-form'
@@ -344,15 +346,17 @@ export function PortalOrtuClient({ data }: { data: any }) {
       { target: 'beranda-announcements', title: 'Pengumuman sekolah', description: 'Pengumuman resmi yang ditujukan untuk orang tua dapat dibuka dari daftar ini.' },
     ],
     jadwal: [
-      { target: 'jadwal-header', title: 'Jadwal pelajaran', description: 'Section ini membantu Bapak/Ibu melihat jadwal kelas anak dan status absensi per jam pelajaran.' },
+      { target: 'jadwal-header', title: 'Jadwal pelajaran', description: 'Lihat catatan anak pada setiap sesi. Catatan sesi berbeda dengan hasil kehadiran harian.' },
+      ...(data.todayAttendance ? [{ target: 'jadwal-daily-summary', title: 'Hasil harian', description: 'Rekap masih sementara sampai pelajaran selesai. Koreksi wali kelas berlaku untuk hasil harian; catatan sesi tetap dapat dilihat.' }] : []),
       { target: 'jadwal-day-tabs', title: 'Pilih hari', description: 'Gunakan tab hari untuk berpindah dari Senin sampai Sabtu. Titik biru menandai hari ini.' },
       { target: 'jadwal-list', title: 'Daftar jam pelajaran', description: 'Setiap baris menampilkan jam, mata pelajaran, guru, dan status absensi bila sudah diinput.' },
     ],
     kehadiran: [
-      { target: 'kehadiran-summary', title: 'Ringkasan kehadiran', description: 'Lihat total hadir, izin, sakit, dan tanpa keterangan dalam satu tampilan ringkas.' },
-      { target: 'kehadiran-recent', title: 'Catatan terbaru', description: 'Daftar ini menampilkan catatan kehadiran terbaru beserta catatan guru jika ada.' },
-      { target: 'kehadiran-discipline', title: 'Status pendampingan', description: 'Bagian ini memberi sinyal apakah ada catatan yang perlu didampingi bersama wali kelas atau BK.' },
-      { target: 'kehadiran-contact', title: 'Koordinasi sekolah', description: 'Jika butuh penjelasan lanjutan, gunakan tombol ini untuk menghubungi wali kelas.' },
+      { target: 'kehadiran-help', title: 'Cara membaca kehadiran', description: 'Buka penjelasan cara menghitung kehadiran harian dan membaca izin resmi.' },
+      { target: 'kehadiran-summary', title: 'Ringkasan kehadiran', description: 'Angka ini menghitung hari dengan hasil kehadiran setelah pelajaran selesai. Hari yang belum berdata tidak dianggap Hadir atau Alfa.' },
+      { target: 'kehadiran-calendar', title: 'Kalender kehadiran', description: 'Pilih tanggal untuk melihat hasil harian dan catatan setiap sesi. Satu catatan Alfa dapat membuat hasil harian Alfa.' },
+      { target: 'kehadiran-details', title: 'Rincian tanggal', description: 'Lihat alasan hasil harian, sesi yang belum diinput, izin resmi, serta koreksi wali kelas bila ada.' },
+      ...(disciplineEnabled ? [{ target: 'kehadiran-discipline', title: 'Status pendampingan', description: 'Bagian ini memberi sinyal apakah ada catatan yang perlu didampingi bersama wali kelas atau BK.' }] : []),
     ],
     kedisiplinan: [
       { target: 'discipline-summary', title: 'Ringkasan kedisiplinan', description: 'Lihat poin tahun ajaran terpilih, poin kumulatif, dan level pendampingan anak.' },
@@ -956,11 +960,14 @@ export function PortalOrtuClient({ data }: { data: any }) {
         <StandardCard data-tour-id="beranda-stats" className="order-4 overflow-hidden p-0">
           <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3.5">
             <div>
-              <p className="text-sm font-bold text-slate-900">Kehadiran minggu ini</p>
+              <p className="text-sm font-bold text-slate-900">Rekap harian minggu ini</p>
               <p className="mt-0.5 text-[11px] text-slate-500">Senin–Sabtu · {formatDateWIB(weekRange.start)}–{formatDateWIB(weekRange.end)}</p>
             </div>
             <CalendarRange className="h-5 w-5 text-teal-700" />
           </div>
+          <p className="px-4 pt-3 text-xs leading-5 text-slate-500">Jumlah hari berdasarkan rekap setelah pelajaran selesai. Hari yang belum berdata tidak dianggap Hadir atau Alfa.</p>
+          {weeklyAttendanceSummary?.belumLengkap > 0 && <p className="px-4 pt-2 text-xs text-slate-500">{weeklyAttendanceSummary.belumLengkap} hari belum memiliki hasil kehadiran harian.</p>}
+          {weeklyAttendanceSummary?.perluKonfirmasi > 0 && <p className="px-4 pt-2 text-xs text-slate-500">Data pada {weeklyAttendanceSummary.perluKonfirmasi} hari perlu ditinjau oleh sekolah.</p>}
           <div className="grid grid-cols-4 divide-x divide-slate-100">
             {[
               { label: 'Hadir', value: weeklyAttendanceSummary?.hadir || 0, tone: 'text-[#246142]' },
@@ -1196,10 +1203,17 @@ export function PortalOrtuClient({ data }: { data: any }) {
       <PortalPageHeader
         tourId="jadwal-header"
         title="Jadwal pelajaran"
-        description="Lihat jadwal kelas dan status absensi anak per jam berdasarkan input guru serta keputusan final wali kelas."
+        description="Lihat catatan kehadiran anak pada setiap sesi pelajaran. Rekap harian tersedia setelah pembelajaran selesai."
         Icon={CalendarDays}
       />
 
+      {data.todayAttendance && <StandardCard className="space-y-2 p-4" data-tour-id="jadwal-daily-summary">
+        <h2 className="text-sm font-bold">Rekap hari ini: {parentDailyLabel(data.todayAttendance)}</h2>
+        <p className="text-xs leading-5 text-slate-500">{parentDailyPhase(data.todayAttendance)}</p>
+        <p className="text-xs leading-5 text-slate-500">{parentDailyReason(data.todayAttendance)}</p>
+        {data.todayAttendance.pending_blok > 0 && <p className="text-xs text-slate-500">{data.todayAttendance.pending_blok} sesi pelajaran belum diinput.</p>}
+        {data.todayAttendance.wali_status && <p className="text-xs leading-5">Koreksi harian wali kelas: {data.todayAttendance.wali_status.toLowerCase()}. {data.todayAttendance.keterangan_wali_kelas || 'Catatan asli setiap sesi tetap dapat dilihat di bawah.'}</p>}
+      </StandardCard>}
       <div>
         <ScheduleTabs jadwalByDay={jadwalObject as any} />
       </div>
@@ -1214,11 +1228,14 @@ export function PortalOrtuClient({ data }: { data: any }) {
       SAKIT: { label: 'Sakit', className: 'bg-amber-50 text-amber-700' },
       IZIN: { label: 'Izin', className: 'bg-sky-50 text-sky-700' },
       ALFA: { label: 'Alfa', className: 'bg-rose-50 text-rose-700' },
-      PARSIAL: { label: 'Bolos', className: 'bg-violet-50 text-violet-700' },
-      PERLU_KONFIRMASI_WALI: { label: 'Menunggu verifikasi', className: 'bg-indigo-50 text-indigo-700' },
+      PARSIAL: { label: 'Data perlu ditinjau', className: 'bg-violet-50 text-violet-700' },
+      PERLU_KONFIRMASI_WALI: { label: 'Data perlu ditinjau', className: 'bg-indigo-50 text-indigo-700' },
+      BELUM_ADA_INPUT: { label: 'Belum ada catatan kehadiran', className: 'bg-slate-100 text-slate-600' },
+      BELUM_ADA_DATA: { label: 'Belum lengkap', className: 'bg-slate-100 text-slate-600' },
     }
     const calendarDays = attendanceDetail?.calendarDays || []
     const calendarDaysByDate = new Map<string, any>(calendarDays.map((day: any) => [String(day.tanggal), day]))
+    const holidaysByDate = new Map<string, any>((attendanceDetail?.calendarExceptions || []).map((day: any) => [day.tanggal, day]))
     const startMonth = attendanceMonthKey(attendanceDetail?.range?.startDate)
     const endMonth = attendanceMonthKey(attendanceDetail?.range?.endDate)
     const calendarMonths: string[] = []
@@ -1244,19 +1261,21 @@ export function PortalOrtuClient({ data }: { data: any }) {
     }
     while (calendarCells.length > 0 && calendarCells.length % 7 !== 0) calendarCells.push({ date: null, day: null })
     const selectedCalendarDay = selectedAttendanceDate ? calendarDaysByDate.get(selectedAttendanceDate) : null
+    const selectedHoliday = selectedAttendanceDate ? holidaysByDate.get(selectedAttendanceDate) : null
     const selectedBlockDetails = (selectedCalendarDay?.detail_guru || []).filter((detail: any) => (
       String(detail.status || '').toUpperCase() !== 'HADIR' || Boolean(detail.catatan)
     ))
-    const calendarLegend = ['HADIR', 'SAKIT', 'IZIN', 'ALFA', 'PARSIAL', 'PERLU_KONFIRMASI_WALI']
+    const calendarLegend = ['HADIR', 'SAKIT', 'IZIN', 'ALFA', 'BELUM_ADA_DATA', 'BELUM_ADA_INPUT']
 
     return (
       <motion.div key="kehadiran" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }} className="portal-tab-panel space-y-5">
         <PortalPageHeader
           title="Rekap kehadiran"
-          description="Bandingkan catatan anak per tahun ajaran dan semester."
+          description="Lihat hasil kehadiran harian dan catatan sesi anak per tahun ajaran dan semester."
           Icon={CalendarRange}
         />
 
+        <div data-tour-id="kehadiran-help"><AttendanceHelp /></div>
         <div className="rounded-2xl border border-[#D8D4CC] bg-white p-3">
           <label className="relative block min-w-0">
             <span className="sr-only">Pilih tahun ajaran dan semester</span>
@@ -1280,7 +1299,9 @@ export function PortalOrtuClient({ data }: { data: any }) {
                   </div>
                   <TrendingUp className="h-5 w-5 text-[#C2522D]" />
                 </div>
-                <p className="mt-4 text-xs leading-5 text-[#6B6B63]">{summary.hadir || 0} hari hadir dari {summary.completedDays || 0} hari dengan status final.</p>
+                <p className="mt-4 text-xs leading-5 text-[#6B6B63]">{summary.hadir || 0} hari Hadir dari {summary.completedDays || 0} hari dengan hasil harian setelah pelajaran selesai.</p>
+                {summary.belumLengkap > 0 && <p className="mt-2 text-xs leading-5 text-[#6B6B63]">{summary.belumLengkap} hari belum memiliki hasil harian dan tidak masuk perhitungan persentase.</p>}
+                {summary.perluKonfirmasi > 0 && <p className="mt-2 text-xs leading-5 text-[#6B6B63]">Data pada {summary.perluKonfirmasi} hari perlu ditinjau oleh sekolah dan tidak masuk perhitungan persentase.</p>}
               </div>
               {[
                 { label: 'Sakit', value: summary.sakit || 0, tone: 'text-amber-700', bg: 'bg-amber-50' },
@@ -1290,7 +1311,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                 <div key={item.label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                   <div className={`grid h-8 w-8 place-items-center rounded-lg ${item.bg}`}><Clock3 className={`h-4 w-4 ${item.tone}`} /></div>
                   <p className={`mt-4 text-2xl font-black tabular-nums ${item.tone}`}>{item.value}</p>
-                  <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">{item.label}</p>
+                  <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">hari {item.label}</p>
                 </div>
               ))}
             </div>
@@ -1298,12 +1319,12 @@ export function PortalOrtuClient({ data }: { data: any }) {
             <StandardCard className="space-y-4" data-tour-id="kehadiran-trend">
               <div>
                 <p className="text-sm font-bold text-slate-900">Perubahan bulanan</p>
-                <p className="mt-0.5 text-xs text-slate-500">Proporsi status final pada setiap bulan pembelajaran.</p>
+                <p className="mt-0.5 text-xs text-slate-500">Jumlah hari dengan hasil kehadiran setelah pelajaran selesai pada setiap bulan.</p>
               </div>
               {monthly.length === 0 ? <p className="py-6 text-center text-sm text-slate-500">Belum ada data pada periode ini.</p> : (
                 <div className="space-y-3">
                   {monthly.map((item: any) => {
-                    const total = item.hadir + item.sakit + item.izin + item.alfa + item.perluKonfirmasi
+                    const total = item.hadir + item.sakit + item.izin + item.alfa
                     return (
                       <div key={item.month} className="grid grid-cols-[74px_1fr_34px] items-center gap-3">
                         <span className="text-xs font-bold text-slate-600">{new Intl.DateTimeFormat('id-ID', { month: 'short', year: '2-digit' }).format(new Date(`${item.month}-01T00:00:00`))}</span>
@@ -1313,7 +1334,6 @@ export function PortalOrtuClient({ data }: { data: any }) {
                             <span className="bg-amber-400" style={{ width: `${(item.sakit / total) * 100}%` }} />
                             <span className="bg-sky-400" style={{ width: `${(item.izin / total) * 100}%` }} />
                             <span className="bg-rose-500" style={{ width: `${(item.alfa / total) * 100}%` }} />
-                            <span className="bg-violet-400" style={{ width: `${(item.perluKonfirmasi / total) * 100}%` }} />
                           </>}
                         </div>
                         <span className="text-right text-xs font-bold text-slate-500">{total}</span>
@@ -1323,7 +1343,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                 </div>
               )}
               <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-slate-100 pt-3 text-[10px] font-semibold text-slate-500">
-                {[['bg-teal-500', 'Hadir'], ['bg-amber-400', 'Sakit'], ['bg-sky-400', 'Izin'], ['bg-rose-500', 'Alfa'], ['bg-violet-400', 'Menunggu verifikasi']].map(([color, label]) => <span key={label} className="flex items-center gap-1.5"><i className={`h-2 w-2 rounded-full ${color}`} />{label}</span>)}
+                {[['bg-teal-500', 'Hadir'], ['bg-amber-400', 'Sakit'], ['bg-sky-400', 'Izin'], ['bg-rose-500', 'Alfa']].map(([color, label]) => <span key={label} className="flex items-center gap-1.5"><i className={`h-2 w-2 rounded-full ${color}`} />{label}</span>)}
               </div>
             </StandardCard>
 
@@ -1353,13 +1373,15 @@ export function PortalOrtuClient({ data }: { data: any }) {
                   {calendarCells.map((cell, index) => {
                     const dayData = cell.date ? calendarDaysByDate.get(cell.date) : null
                     const normalizedStatus = String(dayData?.status_akhir || '').replace(/\s+/g, '_').toUpperCase()
-                    const meta = statusMeta[normalizedStatus]
+                    const baseMeta = statusMeta[normalizedStatus]
+                    const meta = baseMeta && dayData ? { ...baseMeta, label: parentDailyLabel(dayData) } : baseMeta
+                    const holiday = cell.date ? holidaysByDate.get(cell.date) : null
                     return cell.date ? (
                       <button
                         key={cell.date}
                         type="button"
                         onClick={() => setSelectedAttendanceDate(cell.date)}
-                        aria-label={meta ? `${formatDateWIB(cell.date)}: ${meta.label}` : formatDateWIB(cell.date)}
+                        aria-label={`${formatDateWIB(cell.date)}: ${meta?.label || (holiday ? 'Hari libur' : 'Tidak ada sesi pelajaran aktif yang tercatat')}`}
                         className={`min-h-12 rounded-lg p-1.5 text-left transition-colors hover:ring-1 hover:ring-slate-300 ${meta?.className || 'bg-slate-50 text-slate-600'} ${selectedAttendanceDate === cell.date ? 'ring-2 ring-inset ring-[#C2522D]' : ''}`}
                       ><span className="text-xs font-bold">{cell.day}</span></button>
                     ) : <div key={`blank-${index}`} aria-hidden="true" />
@@ -1368,32 +1390,34 @@ export function PortalOrtuClient({ data }: { data: any }) {
 
                 <div className="flex flex-wrap gap-x-3 gap-y-2 border-t border-slate-100 pt-3 text-[10px] font-semibold text-slate-500">
                   {calendarLegend.map(status => <span key={status} className="flex items-center gap-1.5"><i className={`h-2.5 w-2.5 rounded-sm ${statusMeta[status].className.split(' ')[0]}`} />{statusMeta[status].label}</span>)}
+                  <span>Hari libur / tanpa sesi aktif: lihat rincian tanggal</span>
                 </div>
               </StandardCard>
 
-              <StandardCard className="space-y-3">
+              <StandardCard className="space-y-3" data-tour-id="kehadiran-details">
                 {!selectedAttendanceDate ? <p className="text-sm text-slate-500">Pilih tanggal pada kalender untuk melihat keterangan.</p> : <>
                   <div>
                     <p className="text-sm font-bold text-slate-900">{formatDateWIB(selectedAttendanceDate)}</p>
+                    {selectedHoliday && <p className="mt-2 text-sm text-slate-500">Hari libur{selectedHoliday.reason ? `: ${selectedHoliday.reason}` : ''}. Tidak dihitung sebagai hari Hadir atau Alfa.</p>}
                     {(() => {
                       const status = String(selectedCalendarDay?.status_akhir || '').replace(/\s+/g, '_').toUpperCase()
                       const meta = statusMeta[status]
-                      return meta ? <span className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ${meta.className}`}>{meta.label}</span> : null
+                      return meta ? <span className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ${meta.className}`}>{parentDailyLabel(selectedCalendarDay)}</span> : null
                     })()}
                   </div>
                   {selectedCalendarDay && <div className="space-y-1 text-xs leading-5 text-slate-500">
-                    <p>{selectedCalendarDay.is_daily_final ? 'Rekap setelah pembelajaran selesai' : 'Rekap sementara'} · {selectedCalendarDay.submitted_blok}/{selectedCalendarDay.total_blok} blok pelajaran sudah berdata.</p>
-                    {selectedCalendarDay.pending_blok > 0 && <p>{selectedCalendarDay.pending_blok} blok pelajaran belum diinput.</p>}
-                    <p>{selectedCalendarDay.status_reason}</p>
+                    <p>{parentDailyPhase(selectedCalendarDay)} {selectedCalendarDay.submitted_blok}/{selectedCalendarDay.total_blok} sesi pelajaran sudah berdata.</p>
+                    {selectedCalendarDay.pending_blok > 0 && <p>{selectedCalendarDay.pending_blok} sesi pelajaran belum diinput. Rekap dapat berubah setelah data dilengkapi.</p>}
+                    <p>{parentDailyReason(selectedCalendarDay)}</p>
                   </div>}
-                  {selectedCalendarDay?.keterangan_wali_kelas && <p className="rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-600">{selectedCalendarDay.keterangan_wali_kelas}</p>}
-                  {selectedBlockDetails.length === 0 ? <p className="text-sm text-slate-500">Tidak ada keterangan khusus pada tanggal ini.</p> : (
+                  {selectedCalendarDay?.wali_status && <p className="rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-600">Koreksi harian wali kelas: {selectedCalendarDay.wali_status.toLowerCase()}. {selectedCalendarDay.keterangan_wali_kelas}</p>}
+                  {selectedBlockDetails.length === 0 ? <p className="text-sm text-slate-500">{selectedHoliday ? 'Tidak ada catatan sesi pembelajaran pada hari libur.' : !selectedCalendarDay ? 'Tidak ada sesi pelajaran aktif yang tercatat pada tanggal ini.' : selectedCalendarDay.submitted_blok === 0 ? 'Belum ada catatan kehadiran pada sesi pelajaran.' : 'Tidak ada catatan khusus pada sesi yang sudah berdata.'}</p> : (
                     <div className="divide-y divide-slate-100 rounded-xl border border-slate-100">
                       {selectedBlockDetails.map((detail: any, index: number) => {
                         const detailStatus = String(detail.status || '').replace(/\s+/g, '_').toUpperCase()
                         const detailMeta = statusMeta[detailStatus]
                         return <div key={`${detail.nama_mapel}-${detail.jam_ke_mulai}-${index}`} className="p-3">
-                          <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-bold text-slate-800">{detail.nama_mapel || 'Pelajaran'}</p><p className="mt-0.5 text-[10px] font-semibold text-slate-400">Jam ke-{detail.jam_ke_mulai}-{detail.jam_ke_selesai}</p></div>{detailMeta && <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ${detailMeta.className}`}>{detailMeta.label}</span>}</div>
+                          <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm font-bold text-slate-800">{detail.nama_mapel || 'Pelajaran'}</p><p className="mt-0.5 text-[10px] font-semibold text-slate-400">Jam ke-{detail.jam_ke_mulai}-{detail.jam_ke_selesai} · {detail.sumber === 'perizinan_siswa' ? 'Perizinan resmi' : 'Catatan asli guru'}</p></div>{detailMeta && <span className={`max-w-full rounded-full px-2 py-1 text-[10px] font-bold ${detailMeta.className}`}>{parentSessionLabel(detailStatus,detail.sumber === 'perizinan_siswa')}</span>}</div>
                           {detail.catatan && <p className="mt-2 text-xs leading-5 text-slate-500">{detail.catatan}</p>}
                         </div>
                       })}

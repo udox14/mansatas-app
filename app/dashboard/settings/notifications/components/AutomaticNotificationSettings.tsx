@@ -80,6 +80,7 @@ const GROUP_LABEL: Record<NotificationEventDefinition['group'], string> = {
 }
 
 const CRON_REMINDER_KEYS = new Set([
+  'komite_review_pending_reminder',
   'attendance_missing_reminder',
   'meeting_reminder',
   'task_pending_reminder',
@@ -94,7 +95,8 @@ const SAMPLE_VALUES: Record<string, string> = {
   mapel: 'Matematika',
   rentang_jam: '5–6',
   keterangan_status: 'belum hadir pada sesi ini',
-  kelengkapan: ' 1 blok pelajaran belum diinput; rekap dapat diperbarui.',
+  kelengkapan: ' 1 sesi pelajaran belum diinput; rekap dapat diperbarui.',
+  alasan_status: 'Ada catatan Alfa pada sesi pelajaran. Ini bukan berarti anak tidak hadir sepanjang hari.',
   kelas: 'XII IPA 1',
   tanggal: '21 Agustus 2026',
   alasan: 'Keperluan keluarga',
@@ -484,7 +486,7 @@ export function AutomaticNotificationSettings({ definitions, settings }: Props) 
                   <div className="space-y-3 rounded-lg border p-4">
                     <Label>Channel</Label>
                     <div className="grid gap-3 sm:grid-cols-3">
-                      {CHANNELS.map((channel) => (
+                      {CHANNELS.filter(channel => selectedDefinition.key !== 'komite_review_pending_reminder' || channel.value !== 'in_app').map((channel) => (
                         <label key={channel.value} className="flex items-center gap-2 text-sm">
                           <Checkbox
                             checked={selectedDraft.channels.includes(channel.value)}
@@ -500,7 +502,10 @@ export function AutomaticNotificationSettings({ definitions, settings }: Props) 
                     </div>
                   </div>
 
-                  <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_180px]">
+                  {selectedDefinition.key === 'komite_review_pending_reminder' ? <div className="space-y-2">
+                    <Label>Penerima</Label>
+                    <p className="text-sm text-muted-foreground">Otomatis ke reviewer tahap aktif: Bendahara, Ketua atau penerima delegasinya, lalu Kepala Madrasah. Berhenti setelah tahap diproses.</p>
+                  </div> : <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_180px]">
                     <div className="space-y-2">
                       <Label>Penerima default</Label>
                       <Select
@@ -526,7 +531,7 @@ export function AutomaticNotificationSettings({ definitions, settings }: Props) 
                         placeholder={selectedDraft.target.kind === 'staff_role' ? 'mis. guru' : 'opsional'}
                       />
                     </div>
-                  </div>
+                  </div>}
 
                   {selectedDefinition.key in ATTENDANCE_DELAY_DEFAULTS && <div className="space-y-2 rounded-lg border p-4">
                     <Label htmlFor="notification-delay">Jeda pengiriman (menit)</Label>
@@ -543,7 +548,7 @@ export function AutomaticNotificationSettings({ definitions, settings }: Props) 
                       <p className="text-xs text-muted-foreground">Pengiriman mengikuti status event Aktif di atas.</p>
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="space-y-2">
+                      {selectedDefinition.key !== 'komite_review_pending_reminder' && <div className="space-y-2">
                         <Label htmlFor="notification-lead">Lead (menit)</Label>
                         <Input
                           id="notification-lead"
@@ -554,7 +559,7 @@ export function AutomaticNotificationSettings({ definitions, settings }: Props) 
                             reminder: { ...selectedDraft.reminder, leadMinutes: Number(event.target.value) },
                           })}
                         />
-                      </div>
+                      </div>}
                       <div className="space-y-2">
                         <Label htmlFor="notification-frequency">Frekuensi (menit)</Label>
                         <Input
@@ -568,6 +573,17 @@ export function AutomaticNotificationSettings({ definitions, settings }: Props) 
                         />
                       </div>
                     </div>
+                    {selectedDefinition.key === 'komite_review_pending_reminder' && <>
+                      <p className="text-xs text-muted-foreground">Reminder pertama menunggu satu interval sejak tahap aktif. Jam pengiriman menggunakan WIB.</p>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="space-y-2"><Label htmlFor="komite-window-start">Mulai (WIB)</Label>
+                          <Input id="komite-window-start" type="time" value={selectedDraft.reminder.windowStart || '07:00'}
+                            onChange={event => updateDraft(selectedDefinition.key, { reminder: { ...selectedDraft.reminder, windowStart: event.target.value } })} /></div>
+                        <div className="space-y-2"><Label htmlFor="komite-window-end">Selesai (WIB)</Label>
+                          <Input id="komite-window-end" type="time" value={selectedDraft.reminder.windowEnd || '17:00'}
+                            onChange={event => updateDraft(selectedDefinition.key, { reminder: { ...selectedDraft.reminder, windowEnd: event.target.value } })} /></div>
+                      </div>
+                    </>}
                   </div>}
 
                   <div className="space-y-2">

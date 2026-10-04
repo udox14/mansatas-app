@@ -1,5 +1,7 @@
 'use server'
 
+import { summarizeParentAttendanceDays } from '@/lib/parent-attendance-presentation'
+
 import { getDB } from '@/utils/db-server'
 import { getAppSession } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
@@ -9,6 +11,7 @@ import { uploadPaymentProof } from '@/utils/r2'
 import { ensureParentSuggestionTable, normalizeParentSuggestionCategory } from '@/lib/parent-suggestions'
 import { getKomitePaymentSettings } from '@/lib/komite-payment-settings'
 import { getFinalAttendanceForStudent } from '@/lib/wali-kelas-attendance'
+import { getKalenderEventsForRange, kalenderDateStatusFromEvents, enumerateDateStrings } from '@/lib/kalender-pendidikan'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
 import { emitConfiguredNotification, getStudentNotificationContext } from '@/lib/notification-engine'
 import { ensureParentPortalEnhancementSchema } from '@/lib/parent-portal-schema'
@@ -99,40 +102,7 @@ function academicYearRange(nama: string, semester: number) {
     : { startDate: `${secondYear}-01-01`, endDate: `${secondYear}-06-30` }
 }
 
-function summarizeParentAttendance(statuses: any[]) {
-  const summary = { hadir: 0, sakit: 0, izin: 0, alfa: 0, perluKonfirmasi: 0, belumLengkap: 0, totalHari: statuses.length }
-  const monthly = new Map<string, any>()
-
-  for (const row of statuses) {
-    const status = String(row.status_akhir || '')
-    if (status === 'HADIR') summary.hadir++
-    else if (status === 'SAKIT') summary.sakit++
-    else if (status === 'IZIN') summary.izin++
-    else if (status === 'ALFA') summary.alfa++
-    else if (status === 'PARSIAL' || status === 'PERLU_KONFIRMASI_WALI') summary.perluKonfirmasi++
-    else summary.belumLengkap++
-
-    const key = String(row.tanggal || '').slice(0, 7)
-    if (!key) continue
-    if (!monthly.has(key)) monthly.set(key, { month: key, hadir: 0, sakit: 0, izin: 0, alfa: 0, perluKonfirmasi: 0 })
-    const bucket = monthly.get(key)
-    if (status === 'HADIR') bucket.hadir++
-    else if (status === 'SAKIT') bucket.sakit++
-    else if (status === 'IZIN') bucket.izin++
-    else if (status === 'ALFA') bucket.alfa++
-    else if (status === 'PARSIAL' || status === 'PERLU_KONFIRMASI_WALI') bucket.perluKonfirmasi++
-  }
-
-  const completedDays = summary.hadir + summary.sakit + summary.izin + summary.alfa + summary.perluKonfirmasi
-  return {
-    summary: {
-      ...summary,
-      completedDays,
-      attendanceRate: completedDays > 0 ? Math.round((summary.hadir / completedDays) * 100) : null,
-    },
-    monthly: Array.from(monthly.values()).sort((a, b) => a.month.localeCompare(b.month)),
-  }
-}
+function summarizeParentAttendance(statuses: any[]) { return summarizeParentAttendanceDays(statuses) }
 
 export async function getParentAttendanceByAcademicYear(tahunAjaranId: string) {
   const session = await requireParentSession()
@@ -155,12 +125,18 @@ export async function getParentAttendanceByAcademicYear(tahunAjaranId: string) {
     : null
   const statuses = result?.statuses || []
   const aggregates = summarizeParentAttendance(statuses)
+  const events = endDate >= range.startDate ? await getKalenderEventsForRange(db, range.startDate, endDate) : []
+  const calendarExceptions = endDate >= range.startDate ? enumerateDateStrings(range.startDate, endDate)
+    .map(tanggal => kalenderDateStatusFromEvents(tanggal, events))
+    .filter(day => !day.isEffective)
+    .map(day => ({ tanggal: day.tanggal, label: 'Hari libur', reason: day.reason })) : []
 
   return {
     tahunAjaran: { id: ta.id, nama: ta.nama, semester: Number(ta.semester), isActive: Number(ta.is_active) === 1 },
     range: { startDate: range.startDate, endDate },
     ...aggregates,
     calendarDays: statuses,
+    calendarExceptions,
   }
 }
 

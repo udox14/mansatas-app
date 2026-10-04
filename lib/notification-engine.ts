@@ -17,10 +17,14 @@ import { getFinalAttendanceForClass } from '@/lib/wali-kelas-attendance'
 import { attendanceNoticeActivation, attendanceDateEligible, utcSourceTimestamp, teacherNoticeStillValid, effectiveInitialAttendanceStatus, initialAttendanceContext, readAttendanceNoticeState } from '@/lib/attendance-notice-state'
 import { ATTENDANCE_DELAY_DEFAULTS, attendanceDelayMinutes, validAttendanceDelay } from '@/lib/attendance-notification-delay'
 import { attendanceStatusLabel } from '@/lib/attendance-status'
+import { parentDailyReason } from '@/lib/parent-attendance-presentation'
 import { invalidateAttendanceCache } from '@/lib/attendance-cache'
 import { getKalenderDateStatus, getKbmExceptionsForDate, hasActiveTeachingSlotsInRange } from '@/lib/kalender-pendidikan'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
-import { formatNamaKelas } from '@/lib/utils'
+import { formatNamaKelas, formatRupiah } from '@/lib/utils'
+import { KOMITE_REVIEW_REMINDER_EVENT, komiteReminderSlot, komiteReminderSource, pendingKomiteReminders,
+  komiteReminderRecipients, validKomiteReminderRecipients, type KomiteReminderValidation } from '@/lib/komite-review-reminders'
+import { stageForStatus } from '@/lib/komite-pengajuan'
 
 export const NOTIFICATION_DIRECT_RECIPIENT_LIMIT = 25
 
@@ -55,7 +59,7 @@ export type NotificationQueueMessage = {
   }
   parentType: string
   level: string
-  validation?: {
+  validation?: KomiteReminderValidation | {
     kind: 'attendance_work'
     tanggal: string
     kelasId: string
@@ -221,7 +225,7 @@ async function ensureNotificationSchema(db: D1Database) {
   const existing = notificationSchemaPromiseByDb.get(key)
   if (existing) return existing
 
-  const promise = ensureSchemaOnce('notification-engine-attendance-fast-v4', async () => {
+  const promise = ensureSchemaOnce('notification-engine-attendance-fast-v6-parent-wording-komite-reminders', async () => {
     await db.batch([
       db.prepare(`
         CREATE TABLE IF NOT EXISTS notification_event_settings (
@@ -287,15 +291,17 @@ async function ensureNotificationSchema(db: D1Database) {
     await db.prepare(`UPDATE notification_event_settings SET url_template = ? WHERE event_key = 'attendance_homeroom_alert' AND url_template = ?`)
       .bind(waliDefinition.defaultUrl, '/dashboard/kelas-binaan?view=keputusan&kelas={kelasId}&tanggal={tanggal}').run()
     const parentDefinition = getNotificationDefinition('attendance_parent_alert')!
-    await db.prepare(`UPDATE notification_event_settings SET body_template = ? WHERE event_key = 'attendance_parent_alert' AND body_template = ?`)
-      .bind(parentDefinition.defaultBody, 'Pada {tanggal}, pelajaran {mapel}, jam {rentang_jam}, Ananda {nama_siswa} tercatat {keterangan_status}. Ini merupakan catatan sesi pembelajaran. Rekap harian tersedia setelah pembelajaran selesai.').run()
+    await db.prepare(`UPDATE notification_event_settings SET body_template = ? WHERE event_key = 'attendance_parent_alert' AND body_template = ? AND title_template = ?`)
+      .bind(parentDefinition.defaultBody, 'Pada {tanggal}, pelajaran {mapel}, jam {rentang_jam}, Ananda {nama_siswa} tercatat {keterangan_status}. Ini merupakan catatan sesi pembelajaran. Rekap harian tersedia setelah pembelajaran selesai.', parentDefinition.defaultTitle).run()
 
     // Upgrade only untouched defaults; keep custom templates and delivery preferences.
-    const oldBodies: Record<string, string> = {
-      attendance_parent_alert: 'Ananda {nama_siswa} tercatat ALFA oleh guru pada {tanggal}. Rekap kehadiran harian masih diproses; silakan buka Portal Orang Tua untuk rincian.',
-      attendance_daily_final: 'Rekap kehadiran Ananda {nama_siswa} pada {tanggal} telah selesai. Status akhir: {status_kehadiran}.',
-    }
-    for (const [key, oldBody] of Object.entries(oldBodies)) {
+    const oldBodies = [
+      ['attendance_parent_alert', 'Ananda {nama_siswa} tercatat ALFA oleh guru pada {tanggal}. Rekap kehadiran harian masih diproses; silakan buka Portal Orang Tua untuk rincian.'],
+      ['attendance_daily_final', 'Rekap kehadiran Ananda {nama_siswa} pada {tanggal} telah selesai. Status akhir: {status_kehadiran}.'],
+      ['attendance_daily_final', 'Pembelajaran pada {tanggal} telah selesai. Berdasarkan catatan yang tersedia, status harian Ananda {nama_siswa}: {status_kehadiran}.{kelengkapan} Rincian sesi tersedia di Portal Orang Tua.'],
+      ['attendance_daily_update', 'Rekap kehadiran Ananda {nama_siswa} pada {tanggal} telah diperbarui. Berdasarkan catatan terbaru, status harian: {status_kehadiran}.{kelengkapan} Rincian tersedia di Portal Orang Tua.'],
+    ] as const
+    for (const [key, oldBody] of oldBodies) {
       const definition = getNotificationDefinition(key)!
       await db.prepare(`UPDATE notification_event_settings
         SET body_template = ?, level = CASE WHEN event_key = 'attendance_parent_alert' AND level = 'warning' AND updated_by IS NULL THEN 'info' ELSE level END,
@@ -380,6 +386,18 @@ export async function saveNotificationSetting(
   const channels = [...new Set(patch.channels.filter((channel) => ['fcm', 'webpush', 'in_app'].includes(channel)))]
   if (channels.length === 0) return { error: 'Pilih minimal satu channel notifikasi.' }
   if (!['info', 'warning', 'critical'].includes(patch.level)) return { error: 'Level notifikasi tidak valid.' }
+
+  if (eventKey === KOMITE_REVIEW_REMINDER_EVENT) {
+    const clock = /^([01]\d|2[0-3]):[0-5]\d$/
+    if (!Number.isInteger(patch.reminder.frequencyMinutes) || patch.reminder.frequencyMinutes < 5) {
+      return { error: 'Frekuensi reminder harus berupa menit bulat, minimal 5 menit.' }
+    }
+    if (!clock.test(patch.reminder.windowStart || '') || !clock.test(patch.reminder.windowEnd || '') ||
+      patch.reminder.windowStart! >= patch.reminder.windowEnd!) {
+      return { error: 'Jam reminder WIB harus valid dan jam selesai harus setelah jam mulai.' }
+    }
+    if (channels.includes('in_app')) return { error: 'Reminder reviewer Komite menggunakan FCM atau Web Push.' }
+  }
 
   const target = normalizeTarget(JSON.stringify(patch.target), definition.defaultTarget)
   if (eventKey in ATTENDANCE_DELAY_DEFAULTS && patch.reminder.delayMinutes !== undefined && !validAttendanceDelay(patch.reminder.delayMinutes)) {
@@ -804,7 +822,8 @@ export async function notifyParentsDailyAttendanceFinal(
       parentType: 'absensi_rekap', targetOverride: { kind: 'parent_students' },
       context: { siswaId: student.id, siswaIds: [student.id], nama_siswa: student.nama_lengkap,
         kelas: data.kelas.label, tanggal: options.tanggal, status_kehadiran: attendanceStatusLabel(day.status_akhir),
-        kelengkapan: day.pending_blok > 0 ? ` ${day.pending_blok} blok pelajaran belum diinput; rekap dapat diperbarui.` : '' },
+        alasan_status: parentDailyReason(day),
+        kelengkapan: day.pending_blok > 0 ? ` ${day.pending_blok} sesi pelajaran belum diinput; rekap dapat diperbarui.` : '' },
       validation: { kind: 'attendance_daily', siswaId: student.id, tanggal: options.tanggal,
         status: day.status_akhir, revision: state.final_revision },
     })
@@ -996,6 +1015,14 @@ async function deliverNotification(
 }
 
 async function validatedQueueRecipientIds(db: D1Database, message: NotificationQueueMessage) {
+  if (message.validation?.kind === 'komite_review') {
+    const definition = getNotificationDefinition(KOMITE_REVIEW_REMINDER_EVENT)
+    const setting = await getNotificationSetting(KOMITE_REVIEW_REMINDER_EVENT, db)
+    if (message.eventKey !== KOMITE_REVIEW_REMINDER_EVENT || message.target.kind !== 'staff_users' ||
+      !definition || !setting || Number(setting.enabled) !== 1 ||
+      komiteReminderSlot(Date.now(), getNotificationReminderConfig(setting, definition)) !== message.validation.slot) return []
+    return validKomiteReminderRecipients(db, message.validation, message.target.ids)
+  }
   if (message.validation?.kind === 'attendance_homeroom_session') {
     const v = message.validation
     const activation = await attendanceNoticeActivation(db)
@@ -1054,7 +1081,8 @@ async function validatedQueueRecipientIds(db: D1Database, message: NotificationQ
     const definition = getNotificationDefinition(message.eventKey)!
     const context = { nama_siswa: day.nama_lengkap, kelas: data!.kelas.label, tanggal: v.tanggal,
       status_kehadiran: attendanceStatusLabel(day.status_akhir),
-      kelengkapan: day.pending_blok > 0 ? ` ${day.pending_blok} blok pelajaran belum diinput; rekap dapat diperbarui.` : '' }
+      alasan_status: parentDailyReason(day),
+      kelengkapan: day.pending_blok > 0 ? ` ${day.pending_blok} sesi pelajaran belum diinput; rekap dapat diperbarui.` : '' }
     message.title = renderNotificationTemplate(setting.title_template, context, definition.placeholders)
     message.body = renderNotificationTemplate(setting.body_template, context, definition.placeholders)
     return [v.siswaId]
@@ -1371,7 +1399,9 @@ export async function processNotificationQueueMessage(
 
   const validRecipientIds = await validatedQueueRecipientIds(db, message)
   if (validRecipientIds.length === 0) {
-    await markDispatch(db, message.dispatchId, 'sent', 'Dibatalkan: status kehadiran sudah berubah atau dikoreksi wali kelas.')
+    await markDispatch(db, message.dispatchId, 'sent', message.validation?.kind === 'komite_review'
+      ? 'Dibatalkan: tahap/penerima review atau jadwal reminder Komite sudah berubah.'
+      : 'Dibatalkan: status kehadiran sudah berubah atau dikoreksi wali kelas.')
     if (attendanceValidation) {
       const column = attendanceValidation.kind === 'attendance_session' ? 'initial_ref' : 'final_ref'
       const extra = attendanceValidation.kind === 'attendance_session' ? 'initial_due_at = NULL' : 'final_status = NULL, final_due_at = NULL, needs_recheck = needs_recheck + 1, next_check_at = NULL'
@@ -1386,7 +1416,7 @@ export async function processNotificationQueueMessage(
     return { retry: false, sent: 0, skipped: true }
   }
 
-  if (attendanceValidation || homeroomValidation) {
+  if (attendanceValidation || homeroomValidation || message.validation?.kind === 'komite_review') {
     const claimed = await db.prepare(`UPDATE notification_dispatches
       SET status = 'processing', attempts = attempts + 1, updated_at = datetime('now')
       WHERE id = ? AND (status IN ('queued','failed') OR (status = 'processing' AND updated_at <= datetime('now','-5 minutes')))
@@ -1418,7 +1448,7 @@ export async function processNotificationQueueMessage(
 
   if (delivered.retryable) {
     const error = delivered.errors.join('; ')
-    if (attendanceValidation || homeroomValidation) await markDispatch(db, message.dispatchId, 'failed', error.slice(0, 2000))
+    if (attendanceValidation || homeroomValidation || message.validation?.kind === 'komite_review') await markDispatch(db, message.dispatchId, 'failed', error.slice(0, 2000))
     if (attempts >= 3) {
       await markDispatch(db, message.dispatchId, 'failed', error.slice(0, 2000))
       return { retry: true, terminal: true, sent: delivered.sent, error }
@@ -1522,6 +1552,40 @@ export async function dispatchConfiguredReminders(db: D1Database, runtimeEnv?: F
     // reminder.enabled adalah field warisan UI lama; menjadikannya syarat kedua
     // membuat event tampak aktif tetapi tidak pernah diproses oleh cron.
     return { definition, setting, reminder }
+  }
+
+  const komite = await getActiveReminder(KOMITE_REVIEW_REMINDER_EVENT)
+  if (komite) {
+    try {
+      const slot = komiteReminderSlot(now, komite.reminder)
+      if (slot) {
+        // Schema is owned by the Komite module; do not recreate or mutate it here.
+        const exists = await db.prepare("SELECT 1 AS ok FROM sqlite_master WHERE type='table' AND name='komite_pengajuan'").first()
+        if (exists) {
+          const rows = await pendingKomiteReminders(db, slot, komite.reminder.frequencyMinutes, now)
+          for (const row of rows) {
+            const userIds = await komiteReminderRecipients(db, row)
+            if (!userIds.length) continue
+            const stage = stageForStatus(row.status)!
+            const tahap = { bendahara: 'Bendahara Komite', ketua: row.ketua_delegate_id ? 'delegasi Ketua Komite' : 'Ketua Komite', kepala: 'Kepala Madrasah' }[stage]
+            const result = await emitConfiguredNotification({
+              eventKey: KOMITE_REVIEW_REMINDER_EVENT,
+              sourceRef: komiteReminderSource(row, slot),
+              context: { userIds, judul_pengajuan: row.judul, nama_pengaju: row.pengaju_name, nominal: formatRupiah(row.nominal), tahap },
+              // Restrict to actual reviewers even when the event's saved target is edited.
+              targetOverride: { kind: 'staff_users' },
+              validation: { kind: 'komite_review', pengajuanId: row.id, version: row.current_version,
+                status: row.status, sourceUpdatedAt: row.updated_at, delegateId: row.ketua_delegate_id || null, slot },
+              db, runtimeEnv,
+            })
+            if (result.status !== 'skipped' && result.status !== 'disabled') processed += 1
+            if (result.status === 'failed') console.error('[notification] reminder Komite gagal:', result.error)
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[notification] reminder Komite gagal:', error)
+    }
   }
 
   const attendance = await getActiveReminder('attendance_missing_reminder')

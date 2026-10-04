@@ -247,6 +247,16 @@ describe('quick correction access and optimistic concurrency', () => {
 })
 
 describe('daily attendance from real source rows', () => {
+  it('presents wali correction separately without changing teacher session or official permission records', async () => {
+    raw('ALFA'); raw('HADIR','language')
+    sqlite.prepare('INSERT INTO keterangan_absensi_wali_kelas VALUES (?,?,?,NULL)').run('s',date,'SAKIT')
+    setTime('2026-10-02T05:00:00Z')
+    const {parentDailyReason} = await import('./parent-attendance-presentation')
+    const day = (await snapshot())!
+    expect(parentDailyReason(day)).toContain('koreksi wali kelas')
+    expect(day.detail_guru.some(detail => detail.sumber === 'guru' && detail.status === 'ALFA')).toBe(true)
+    expect(sqlite.prepare('SELECT status FROM absensi_siswa WHERE penugasan_id=?').get('math')?.status).toBe('ALFA')
+  })
   it('waits until the last effective slot, then uses one Alfa with pending input', async () => {
     raw('ALFA')
     expect(await snapshot()).toMatchObject({ status_akhir: 'BELUM_ADA_DATA', is_daily_final: false, pending_blok: 1 })
@@ -375,7 +385,8 @@ describe('delayed attendance delivery and daily revisions', () => {
     await consume(messages()[0])
     await dispatchAttendanceDailyNotices(runtime.db)
     expect(messages()).toHaveLength(2)
-    expect(messages()[1]).toMatchObject({ eventKey: 'attendance_daily_final', body: expect.stringContaining('1 blok pelajaran belum diinput') })
+    expect(messages()[1]).toMatchObject({ eventKey: 'attendance_daily_final', body: expect.stringContaining('1 sesi pelajaran belum diinput') })
+    expect(messages()[1].body).toContain('Ini bukan berarti anak tidak hadir sepanjang hari.')
     setTime('2026-10-02T05:00:01Z'); await consume(messages()[1])
     await dispatchAttendanceDailyNotices(runtime.db); expect(messages()).toHaveLength(2)
   })
@@ -413,7 +424,7 @@ describe('delayed attendance delivery and daily revisions', () => {
   it('refreshes completeness before final delivery without generating a status update', async () => {
     raw('ALFA'); await initial()
     setTime('2026-10-02T05:00:00Z'); await dispatchAttendanceDailyNotices(runtime.db)
-    expect(messages().at(-1)?.body).toContain('1 blok pelajaran belum diinput')
+    expect(messages().at(-1)?.body).toContain('1 sesi pelajaran belum diinput')
     raw('HADIR','language')
     setTime('2026-10-02T05:00:01Z'); await consume()
     expect(runtime.fcm.mock.calls.at(-1)?.[0].body).not.toContain('belum diinput')
@@ -452,6 +463,24 @@ describe('delayed attendance delivery and daily revisions', () => {
     runtime.db = { ...runtime.db }
     await dispatchAttendanceDailyNotices(runtime.db)
     expect(sqlite.prepare("SELECT body_template FROM notification_event_settings WHERE event_key='attendance_parent_alert'").get()?.body_template).toBe('Pesan khusus {nama_siswa}')
+  })
+  it.each(['attendance_daily_final','attendance_daily_update'])('upgrades only exact prior defaults for %s and keeps delivered messages', async key => {
+    await getNotificationSetting(key,runtime.db)
+    const definition = getNotificationDefinition(key)!
+    const oldBody = key === 'attendance_daily_final'
+      ? 'Pembelajaran pada {tanggal} telah selesai. Berdasarkan catatan yang tersedia, status harian Ananda {nama_siswa}: {status_kehadiran}.{kelengkapan} Rincian sesi tersedia di Portal Orang Tua.'
+      : 'Rekap kehadiran Ananda {nama_siswa} pada {tanggal} telah diperbarui. Berdasarkan catatan terbaru, status harian: {status_kehadiran}.{kelengkapan} Rincian tersedia di Portal Orang Tua.'
+    sqlite.prepare('UPDATE notification_event_settings SET body_template=? WHERE event_key=?').run(oldBody,key)
+    sqlite.prepare('INSERT INTO parent_notifications VALUES (?,?,?,?,?,?)').run('s','absensi_rekap','Arsip','Pesan lama','sent','info')
+    runtime.db = {...runtime.db}
+    expect((await getNotificationSetting(key,runtime.db))?.body_template).toBe(definition.defaultBody)
+    sqlite.prepare('UPDATE notification_event_settings SET body_template=?,title_template=? WHERE event_key=?').run(oldBody,'Judul khusus',key)
+    runtime.db = {...runtime.db}
+    expect((await getNotificationSetting(key,runtime.db))?.body_template).toBe(oldBody)
+    sqlite.prepare('UPDATE notification_event_settings SET body_template=?,title_template=? WHERE event_key=?').run('Pesan khusus {nama_siswa}',definition.defaultTitle,key)
+    runtime.db = {...runtime.db}
+    expect((await getNotificationSetting(key,runtime.db))?.body_template).toBe('Pesan khusus {nama_siswa}')
+    expect(sqlite.prepare('SELECT message FROM parent_notifications WHERE source_ref=?').get('sent')?.message).toBe('Pesan lama')
   })
   it('retries transient delivery with the same candidate and commits success only once', async () => {
     raw('ALFA'); await notifyParentsAttendanceConfigured(runtime.db, { penugasanId: 'math', tanggal: date })

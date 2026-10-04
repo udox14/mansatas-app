@@ -244,6 +244,18 @@ export const APP_MODULES: ModuleItem[] = [
     outputs: ['Kuitansi SPP', 'Laporan kas masuk bulanan'],
   },
   {
+    id: 'komite-pengajuan',
+    title: 'Pengajuan Komite',
+    href: '/dashboard/komite/pengajuan',
+    domain: 'keuangan',
+    summary: 'Pengajuan dana dengan review berjenjang Bendahara, Ketua Komite, dan Kepala Madrasah.',
+    description: 'Notifikasi FCM dan Web Push dikirim saat giliran review dimulai. Reminder berulang setiap 2 jam pada 07.00–17.00 WIB selama tahap belum diproses, mengikuti reviewer aktif dan delegasi Ketua. Interval, jam, kanal, dan aktivasi dapat diatur pada pengaturan notifikasi. Pesan antrean diperiksa ulang sebelum dikirim; keberhasilan pengiriman bukan bukti perangkat menampilkan atau pengguna membaca notifikasi.',
+    roles: ['super_admin', 'kepsek', 'wakamad', 'pembina_ekstrakurikuler', 'bendahara_komite', 'ketua_komite', 'anggota_komite'],
+    keyFeatures: ['Draft dan dokumen per versi', 'Review berjenjang dan delegasi Ketua', 'Notifikasi dan reminder review sampai tahap diproses', 'SPB setelah persetujuan final'],
+    inputs: ['Pengajuan dan rincian pembayaran', 'Dokumen PDF', 'Keputusan dan catatan reviewer'],
+    outputs: ['Riwayat review', 'Notifikasi reviewer aktif', 'Surat Perintah Bayar'],
+  },
+  {
     id: 'keuangan-kas-keluar',
     title: 'Kas Keluar & Pengajuan Anggaran',
     href: '/dashboard/keuangan/kas-keluar',
@@ -365,9 +377,9 @@ export const APP_MODULES: ModuleItem[] = [
     summary: 'Aplikasi web mandiri orang tua untuk memantau anak dan bertransaksi.',
     description: 'Dapat diakses orang tua dari HP tanpa akun email (login menggunakan NISN + Tanggal Lahir). Transparansi penuh untuk presensi, nilai, tagihan, dan komunikasi sekolah.',
     roles: ['parent', 'super_admin'],
-    keyFeatures: ['Monitoring presensi jam ke jam', 'Jadwal pelajaran hari ini', 'Cek tagihan & upload bukti bayar DSPT', 'Kuitansi pembayaran digital', 'Kotak saran ke sekolah'],
+    keyFeatures: ['Catatan kehadiran per sesi, izin sesuai jam, dan koreksi harian wali ditampilkan terpisah', 'Rekap setelah pembelajaran selesai dengan prioritas Alfa, Sakit, Izin guru, Hadir', 'Panduan membaca izin resmi yang dihitung Hadir; alasan dan jam tetap tersedia', 'Kalender dan ringkasan menghitung hari yang sudah memiliki hasil harian; sesi belum diinput ditampilkan', 'Jadwal pelajaran hari ini', 'Cek tagihan & upload bukti bayar DSPT', 'Kuitansi pembayaran digital', 'Kotak saran ke sekolah'],
     inputs: ['Login NISN + Tgl Lahir', 'Upload bukti transfer DSPT', 'Saran/masukan'],
-    outputs: ['Kuitansi pembayaran anak', 'Status kehadiran anak realtime'],
+    outputs: ['Kuitansi pembayaran anak', 'Catatan sesi, rekap sementara, dan rekap harian setelah pembelajaran selesai', 'Notifikasi rekap beserta alasan hasil dan jumlah sesi yang belum diinput'],
   },
 ]
 
