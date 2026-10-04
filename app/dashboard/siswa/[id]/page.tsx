@@ -33,16 +33,7 @@ export default async function DetailSiswaPage({
 
   const siswa = await db.prepare(`
     SELECT
-      s.id, s.nisn, s.nis_lokal, s.nama_lengkap, s.jenis_kelamin, s.status,
-      s.foto_url, s.tempat_tinggal, s.kelas_id, s.minat_jurusan,
-      s.nik, s.asal_sekolah, s.tempat_lahir, s.tanggal_lahir, s.agama,
-      s.jumlah_saudara, s.anak_ke, s.status_anak,
-      s.alamat_lengkap, s.rt, s.rw, s.desa_kelurahan, s.kecamatan,
-      s.kabupaten_kota, s.provinsi, s.kode_pos, s.nomor_whatsapp, s.nomor_kk,
-      s.nama_ayah, s.nik_ayah, s.tempat_lahir_ayah, s.tanggal_lahir_ayah,
-      s.status_ayah, s.pendidikan_ayah, s.pekerjaan_ayah, s.penghasilan_ayah,
-      s.nama_ibu, s.nik_ibu, s.tempat_lahir_ibu, s.tanggal_lahir_ibu,
-      s.status_ibu, s.pendidikan_ibu, s.pekerjaan_ibu, s.penghasilan_ibu,
+      s.*,
       k.tingkat, k.kelompok, k.nomor_kelas
     FROM siswa s
     LEFT JOIN kelas k ON s.kelas_id = k.id

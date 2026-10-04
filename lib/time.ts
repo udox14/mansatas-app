@@ -200,3 +200,87 @@ export function formatTanggalPanjang(dateString: string): string {
     year: 'numeric'
   }).format(tgl)
 }
+
+
+/**
+ * Parsing tanggal fleksibel yang mendukung:
+ * - Date instance
+ * - Angka serial Excel (misal 40179 -> 1 Januari 2010)
+ * - Format ISO (YYYY-MM-DD atau YYYY-MM-DDTHH:mm:ss)
+ * - Format garis miring/tanda hubung Indonesia (DD/MM/YYYY atau DD-MM-YYYY)
+ */
+export function parseFlexibleDate(value: unknown): Date | null {
+  if (value === null || value === undefined) return null
+  if (value instanceof Date) return isNaN(value.getTime()) ? null : value
+
+  const text = String(value).trim()
+  if (!text || text === '-' || text === 'null' || text === 'undefined') return null
+
+  // Deteksi nomor serial tanggal Excel (antara ~1954 s/d 2077)
+  if (/^\d{4,5}$/.test(text)) {
+    const num = Number(text)
+    if (num >= 20000 && num <= 65000) {
+      // 25569 adalah jumlah hari dari 1899-12-30/1900-01-01 ke 1970-01-01
+      const ms = Math.round((num - 25569) * 86400 * 1000)
+      const d = new Date(ms)
+      if (!isNaN(d.getTime())) return d
+    }
+  }
+
+  // Deteksi YYYY-MM-DD
+  const isoMatch = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/)
+  if (isoMatch) {
+    const y = Number(isoMatch[1])
+    const m = Number(isoMatch[2]) - 1
+    const d = Number(isoMatch[3])
+    const parsed = new Date(y, m, d)
+    if (parsed.getFullYear() === y && parsed.getMonth() === m && parsed.getDate() === d) {
+      return parsed
+    }
+  }
+
+  // Deteksi DD/MM/YYYY atau DD-MM-YYYY
+  const slashMatch = text.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/)
+  if (slashMatch) {
+    const d = Number(slashMatch[1])
+    const m = Number(slashMatch[2]) - 1
+    const y = Number(slashMatch[3])
+    const parsed = new Date(y, m, d)
+    if (parsed.getFullYear() === y && parsed.getMonth() === m && parsed.getDate() === d) {
+      return parsed
+    }
+  }
+
+  const general = new Date(text)
+  return isNaN(general.getTime()) ? null : general
+}
+
+/**
+ * Format tanggal ke bahasa Indonesia secara aman.
+ * Menghindari bug seperti "1/1/40179" jika input berupa serial Excel.
+ */
+export function formatTanggalIndoSafe(value: unknown, fallback = '-'): string {
+  if (!value && value !== 0) return fallback
+  const d = parseFlexibleDate(value)
+  if (!d) return String(value).trim() || fallback
+
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(d)
+}
+
+/**
+ * Konversi tanggal ke string "YYYY-MM-DD" untuk <input type="date">.
+ */
+export function dateToInputFormatSafe(value: unknown): string {
+  if (!value && value !== 0) return ''
+  const d = parseFlexibleDate(value)
+  if (!d) return ''
+
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const date = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${date}`
+}

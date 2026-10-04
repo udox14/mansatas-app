@@ -811,31 +811,24 @@ export async function editSiswaLengkap(prevState: any, formData: FormData) {
   const existing = await dbSelectOne<any>(db, 'siswa', { id })
   if (!existing) return { error: 'Data siswa tidak ditemukan', success: null }
 
-  // Sanitasi aman:
-  // - Field kosong dari form edit tidak menimpa data lama.
-  // - FK "none" hanya mengosongkan kelas jika data lama memang kosong atau user membuka detail lengkap
-  //   dengan default yang benar. Ini mencegah kasus daftar siswa mengirim "none" palsu.
+  // Sanitasi data
   Object.keys(payload).forEach(key => {
     const val = payload[key]
     if (FK_FIELDS.includes(key)) {
       if (!val || val === 'none' || val === 'null' || val === 'undefined') {
-        if (existing[key]) {
-          delete payload[key]
-        } else {
-          payload[key] = null
-        }
+        payload[key] = null
       }
     } else {
       if (val === '' || val === 'undefined' || val === 'null') {
-        delete payload[key]
+        payload[key] = null
       }
     }
   })
 
   // Konversi field numerik
-  if (payload.anak_ke !== null) payload.anak_ke = payload.anak_ke ? parseInt(payload.anak_ke) : null
-  if (payload.jumlah_saudara !== null) payload.jumlah_saudara = payload.jumlah_saudara ? parseInt(payload.jumlah_saudara) : null
-  if (payload.tahun_masuk !== null) payload.tahun_masuk = payload.tahun_masuk ? parseInt(payload.tahun_masuk) : null
+  payload.anak_ke = (payload.anak_ke !== null && payload.anak_ke !== undefined && String(payload.anak_ke).trim() !== '') ? parseInt(String(payload.anak_ke)) : null
+  payload.jumlah_saudara = (payload.jumlah_saudara !== null && payload.jumlah_saudara !== undefined && String(payload.jumlah_saudara).trim() !== '') ? parseInt(String(payload.jumlah_saudara)) : null
+  payload.tahun_masuk = (payload.tahun_masuk !== null && payload.tahun_masuk !== undefined && String(payload.tahun_masuk).trim() !== '') ? parseInt(String(payload.tahun_masuk)) : null
 
   payload.updated_at = new Date().toISOString()
 

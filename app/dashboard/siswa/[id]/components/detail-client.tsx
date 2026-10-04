@@ -8,17 +8,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator
+} from '@/components/ui/dropdown-menu'
 import { 
   User, GraduationCap, ShieldAlert, DoorOpen, LineChart, 
   MapPin, Phone, Users, CheckCircle2, History, AlertTriangle, 
   Image as ImageIcon, ChevronDown, ChevronUp, BookOpen, Pencil,
-  LogOut, RotateCcw, CalendarSearch, ShieldCheck, Wallet, Receipt, Landmark, NotebookPen, ArrowLeftRight, Printer
+  LogOut, RotateCcw, CalendarSearch, ShieldCheck, Wallet, Receipt, Landmark, NotebookPen, ArrowLeftRight, Printer, MoreVertical
 } from 'lucide-react'
 import { EditSiswaModal } from '../../components/edit-modal'
 import { TandaiKeluarModal, BatalkanKeluarModal } from './tandai-keluar-modal'
 import { RekapAbsensiTab } from './rekap-absensi-tab'
 import { formatNamaKelas } from '@/lib/utils'
-import { formatTimeWIB } from '@/lib/time'
+import { formatTimeWIB, formatTanggalIndoSafe } from '@/lib/time'
 import type { SanksiConfig } from '@/lib/sanksi-service'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 import { StudentNoteTimeline } from '@/components/student-notes/student-note-timeline'
@@ -264,132 +271,191 @@ export function DetailSiswaClient({
       )}
 
       {/* HEADER PROFIL */}
-      <div className="bg-surface rounded-xl p-5 sm:p-6 border border-surface shadow-sm flex flex-col lg:flex-row items-center lg:items-start gap-5 sm:gap-6">
-        {/* FOTO PROFIL / INISIAL */}
-        <div className="relative z-10 shrink-0">
-          <AvatarSiswa
-            fotoUrl={siswa.foto_url}
-            nama={siswa.nama_lengkap}
-            size="profile"
-            className={`rounded-xl border-2 border-white shadow-lg ${!siswa.foto_url ? `bg-gradient-to-br ${getAvatarColor(siswa.nama_lengkap)} text-white font-black` : ''}`}
-          />
-          {activeSanksi && activeSanksi.urutan >= 3 && (
-            <div className="absolute -bottom-2 -right-2 bg-rose-500 text-white p-2 rounded-full shadow-lg border-2 border-white animate-bounce" title="Siswa dalam pengawasan khusus">
-              <AlertTriangle className="h-5 w-5" />
-            </div>
-          )}
-        </div>
-
-        {/* INFO UTAMA */}
-        <div className="relative z-10 flex-1 text-center lg:text-left space-y-3 w-full">
-          <div className="flex flex-col gap-3">
-            <div>
-              <h1 className="text-lg font-bold text-slate-900 dark:text-slate-50 tracking-tight">{siswa.nama_lengkap}</h1>
-              <p className="text-sm font-bold text-slate-500 dark:text-slate-400 dark:text-slate-500 font-mono mt-1">NISN: {siswa.nisn} {siswa.nis_lokal && `• NIS: ${siswa.nis_lokal}`}</p>
-            </div>
-            
-            {/* BADGES + TOMBOL EDIT */}
-            <div className="flex flex-wrap justify-center lg:justify-start gap-2 items-center">
-              <div className="flex flex-col items-center gap-0.5">
-                <span className={`px-3 py-1.5 rounded-md text-[10px] font-bold uppercase tracking-wide border ${siswa.status === 'aktif' ? 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800' : siswa.status === 'lulus' ? 'bg-blue-100 text-blue-800 border-blue-200' : 'bg-rose-100 text-rose-800 border-rose-200'}`}>
-                  {siswa.status}
-                </span>
-                {siswa.status === 'keluar' && siswa.tanggal_keluar && (
-                  <span className="text-[10px] text-rose-500 font-medium">
-                    {new Date(siswa.tanggal_keluar).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </span>
-                )}
+      <div className="bg-surface rounded-xl p-4 sm:p-6 border border-surface shadow-sm">
+        <div className="flex flex-col md:flex-row items-center md:items-start gap-4 sm:gap-6">
+          {/* FOTO PROFIL / INISIAL */}
+          <div className="relative shrink-0">
+            <AvatarSiswa
+              fotoUrl={siswa.foto_url}
+              nama={siswa.nama_lengkap}
+              size="profile"
+              className={`rounded-2xl border-2 border-white dark:border-slate-800 shadow-md ${!siswa.foto_url ? `bg-gradient-to-br ${getAvatarColor(siswa.nama_lengkap)} text-white font-black` : ''}`}
+            />
+            {activeSanksi && activeSanksi.urutan >= 3 && (
+              <div className="absolute -bottom-1 -right-1 bg-rose-500 text-white p-1.5 rounded-full shadow border-2 border-white animate-bounce" title="Siswa dalam pengawasan khusus">
+                <AlertTriangle className="h-4 w-4" />
               </div>
-              <span className="px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider bg-surface-3 text-slate-700 dark:text-slate-300 dark:text-slate-200 border border-surface shadow-sm flex items-center gap-1.5">
-                <GraduationCap className="h-3.5 w-3.5" /> Kelas {namaKelasSekarang}
+            )}
+          </div>
+
+          {/* INFO UTAMA & AKSI */}
+          <div className="flex-1 text-center md:text-left space-y-3 w-full min-w-0">
+            {/* Top row: Name & Action Buttons */}
+            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+              <div className="space-y-1 min-w-0">
+                <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-50 tracking-tight truncate">
+                  {siswa.nama_lengkap}
+                </h1>
+                <p className="text-xs sm:text-sm font-semibold text-slate-500 dark:text-slate-400 font-mono">
+                  NISN: <span className="text-slate-700 dark:text-slate-300">{siswa.nisn}</span>
+                  {siswa.nis_lokal && <> &bull; NIS: <span className="text-slate-700 dark:text-slate-300">{siswa.nis_lokal}</span></>}
+                </p>
+              </div>
+
+              {/* ACTION BUTTONS: Primary Edit Biodata + Dropdown Aksi */}
+              <div className="flex items-center justify-center md:justify-end gap-2 shrink-0">
+                <Button
+                  onClick={() => setIsEditOpen(true)}
+                  size="sm"
+                  className="h-9 px-3.5 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white shadow-sm gap-1.5 rounded-lg"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  <span>Edit Biodata</span>
+                </Button>
+
+                {/* DROPDOWN MENU AKSI SISWA */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 px-2.5 sm:px-3 text-xs font-semibold border-surface-3 bg-surface hover:bg-surface-2 text-slate-700 dark:text-slate-200 gap-1.5 rounded-lg shadow-sm"
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                      <span className="hidden sm:inline">Aksi Lain</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    {canPrintFullReport && (
+                      <DropdownMenuItem asChild>
+                        <Link href={`/dashboard/siswa/${siswa.id}/full-report`} className="flex items-center gap-2 cursor-pointer">
+                          <Printer className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                          <span>Cetak Full Report</span>
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
+                    {canOpenInsight && (
+                      <DropdownMenuItem asChild>
+                        <Link href={`/dashboard/verifikasi-siswa/${siswa.id}`} className="flex items-center gap-2 cursor-pointer">
+                          <ShieldCheck className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                          <span>Buka Insight Verifikasi</span>
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
+                    {canFullEdit && siswa.status === 'aktif' && siswa.kelas && (
+                      <DropdownMenuItem onClick={() => setShowMutasiModal(true)} className="flex items-center gap-2 cursor-pointer">
+                        <ArrowLeftRight className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                        <span>Mutasi / Pindah Kelas</span>
+                      </DropdownMenuItem>
+                    )}
+                    {canFullEdit && siswa.status === 'aktif' && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => setShowKeluarModal(true)} className="flex items-center gap-2 cursor-pointer text-rose-600 dark:text-rose-400 focus:text-rose-600 focus:bg-rose-50 dark:focus:bg-rose-950/30">
+                          <LogOut className="h-4 w-4" />
+                          <span>Tandai Siswa Keluar</span>
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                    {canFullEdit && siswa.status === 'keluar' && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => setShowBatalkanModal(true)} className="flex items-center gap-2 cursor-pointer text-amber-600 dark:text-amber-400 focus:text-amber-600 focus:bg-amber-50 dark:focus:bg-amber-950/30">
+                          <RotateCcw className="h-4 w-4" />
+                          <span>Batalkan Status Keluar</span>
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+
+            {/* BADGES ROW */}
+            <div className="flex flex-wrap items-center justify-center md:justify-start gap-1.5 pt-1">
+              {/* Status Badge */}
+              <span className={`px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wider border ${
+                siswa.status === 'aktif'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800'
+                  : siswa.status === 'lulus'
+                  ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800'
+                  : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800'
+              }`}>
+                {siswa.status}
+                {siswa.status === 'keluar' && siswa.tanggal_keluar && ` (${formatTanggalIndoSafe(siswa.tanggal_keluar)})`}
               </span>
-              {siswa.tempat_tinggal !== 'Non-Pesantren' && (
-                 <span className="px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider bg-orange-100 text-orange-800 border border-orange-200 shadow-sm flex items-center gap-1.5">
-                   <MapPin className="h-3.5 w-3.5" /> {siswa.asrama ? `${siswa.tempat_tinggal} · ${siswa.asrama}${siswa.kamar ? ` · ${siswa.kamar}` : ''}` : siswa.tempat_tinggal}
-                 </span>
+
+              {/* Kelas Badge */}
+              <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-surface-2 text-slate-700 dark:text-slate-300 border border-surface flex items-center gap-1.5">
+                <GraduationCap className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                Kelas {namaKelasSekarang}
+              </span>
+
+              {/* Tempat Tinggal / Pesantren Badge */}
+              {siswa.tempat_tinggal && siswa.tempat_tinggal !== 'Non-Pesantren' ? (
+                <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 border border-amber-200/80 dark:border-amber-900/40 flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                  {siswa.tempat_tinggal}
+                  {siswa.asrama ? ` · Asr. ${siswa.asrama}` : ''}
+                  {siswa.kamar ? ` · Kamar ${siswa.kamar}` : ''}
+                </span>
+              ) : (
+                <span className="px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-surface flex items-center gap-1.5">
+                  <MapPin className="h-3.5 w-3.5 text-slate-400" />
+                  Non-Pesantren
+                </span>
               )}
-              <Button
-                onClick={() => setIsEditOpen(true)}
-                size="sm"
-                variant="outline"
-                className="h-9 px-3 text-xs font-semibold border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-300 gap-1.5"
-              >
-                <Pencil className="h-3.5 w-3.5" /> Edit Biodata
-              </Button>
-              {canPrintFullReport && (
-                <Button
-                  asChild
-                  size="sm"
-                  className="h-9 gap-1.5 bg-emerald-700 px-3 text-xs font-semibold text-white hover:bg-emerald-800"
+
+              {/* Tahun Masuk (Angkatan) if available */}
+              {siswa.tahun_masuk && (
+                <span className="px-2.5 py-1 rounded-md text-xs font-medium text-slate-600 dark:text-slate-400 bg-surface-2 border border-surface">
+                  Angkatan {siswa.tahun_masuk}
+                </span>
+              )}
+            </div>
+
+            {/* Quick Contact & Info */}
+            <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-xs font-medium text-slate-600 dark:text-slate-400 pt-1">
+              <span className="inline-flex items-center gap-1.5">
+                <User className="h-3.5 w-3.5 text-slate-400" />
+                {siswa.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan'}
+              </span>
+              <span className="text-slate-300 dark:text-slate-700">&bull;</span>
+              {siswa.nomor_whatsapp ? (
+                <a
+                  href={`https://wa.me/${siswa.nomor_whatsapp.replace(/\D/g, '').replace(/^0/, '62')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 hover:underline font-mono"
+                  title="Kirim pesan WhatsApp"
                 >
-                  <Link href={`/dashboard/siswa/${siswa.id}/full-report`}>
-                    <Printer className="h-3.5 w-3.5" /> Full Report
-                  </Link>
-                </Button>
-              )}
-              {canOpenInsight && (
-                <Button asChild size="sm" variant="outline" className="h-9 gap-1.5 border-violet-200 px-3 text-xs font-semibold text-violet-700 hover:bg-violet-50">
-                  <Link href={`/dashboard/verifikasi-siswa/${siswa.id}`}>
-                    <ShieldCheck className="h-3.5 w-3.5" /> Buka Insight
-                  </Link>
-                </Button>
-              )}
-              {canFullEdit && siswa.status === 'aktif' && siswa.kelas && (
-                <Button
-                  onClick={() => setShowMutasiModal(true)}
-                  size="sm"
-                  variant="outline"
-                  className="h-9 px-3 text-xs font-semibold border-indigo-200 text-indigo-700 hover:bg-indigo-50 hover:border-indigo-300 gap-1.5"
-                >
-                  <ArrowLeftRight className="h-3.5 w-3.5" /> Mutasi / Barter
-                </Button>
-              )}
-              {canFullEdit && siswa.status === 'aktif' && (
-                <Button
-                  onClick={() => setShowKeluarModal(true)}
-                  size="sm"
-                  variant="outline"
-                  className="h-9 px-3 text-xs font-semibold border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300 gap-1.5"
-                >
-                  <LogOut className="h-3.5 w-3.5" /> Tandai Keluar
-                </Button>
-              )}
-              {canFullEdit && siswa.status === 'keluar' && (
-                <Button
-                  onClick={() => setShowBatalkanModal(true)}
-                  size="sm"
-                  variant="outline"
-                  className="h-9 px-3 text-xs font-semibold border-amber-200 text-amber-600 hover:bg-amber-50 gap-1.5"
-                >
-                  <RotateCcw className="h-3.5 w-3.5" /> Batalkan Keluar
-                </Button>
+                  <Phone className="h-3.5 w-3.5" />
+                  {siswa.nomor_whatsapp}
+                </a>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-slate-400">
+                  <Phone className="h-3.5 w-3.5" /> Belum ada nomor WA
+                </span>
               )}
             </div>
           </div>
-          
-          <p className="text-sm font-medium text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 flex justify-center lg:justify-start items-center gap-2 pt-1">
-            <User className="h-4 w-4 text-slate-400 dark:text-slate-500" /> {siswa.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan'}
-            <span className="text-slate-300 dark:text-slate-600">|</span>
-            <Phone className="h-4 w-4 text-slate-400 dark:text-slate-500" /> {siswa.nomor_whatsapp || 'Belum ada nomor WA'}
-          </p>
         </div>
       </div>
 
-      {/* TABS SUPER LENGKAP */}
+      {/* TABS SUPER LENGKAP (Horizontal scrollable) */}
       <Tabs defaultValue={initialTab} className="w-full">
-        <div className="pb-2">
-          {/* Navigasi detail responsif; label boleh membungkus pada layar sempit. */}
-          <TabsList className="bg-surface border border-surface p-1 grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 w-full h-auto rounded-lg gap-1">
-            <TabsTrigger value="biodata" className="min-w-0 w-full whitespace-normal leading-tight py-2 px-2 rounded-md data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-xs font-medium gap-1.5"><User className="h-4 w-4"/> Biodata Lengkap</TabsTrigger>
-            <TabsTrigger value="akademik_nilai" className="min-w-0 w-full whitespace-normal leading-tight py-2 px-2 rounded-md data-[state=active]:bg-indigo-600 data-[state=active]:text-white text-xs font-medium gap-1.5"><GraduationCap className="h-4 w-4"/> Akademik & Nilai</TabsTrigger>
-            <TabsTrigger value="disiplin" className="min-w-0 w-full whitespace-normal leading-tight py-2 px-2 rounded-md data-[state=active]:bg-rose-600 data-[state=active]:text-white text-xs font-medium gap-1.5 relative">
+        <div className="overflow-x-auto pb-1 no-scrollbar">
+          <TabsList className="bg-surface border border-surface p-1 inline-flex w-max min-w-full justify-start h-auto rounded-xl gap-1">
+            <TabsTrigger value="biodata" className="py-2 px-3 rounded-lg data-[state=active]:bg-emerald-600 data-[state=active]:text-white text-xs font-semibold gap-1.5 shrink-0"><User className="h-4 w-4"/> Biodata Lengkap</TabsTrigger>
+            <TabsTrigger value="akademik_nilai" className="py-2 px-3 rounded-lg data-[state=active]:bg-indigo-600 data-[state=active]:text-white text-xs font-semibold gap-1.5 shrink-0"><GraduationCap className="h-4 w-4"/> Akademik & Nilai</TabsTrigger>
+            <TabsTrigger value="disiplin" className="py-2 px-3 rounded-lg data-[state=active]:bg-rose-600 data-[state=active]:text-white text-xs font-semibold gap-1.5 relative shrink-0">
               <ShieldAlert className="h-4 w-4"/> Tata Tertib
               {totalPoin > 0 && <span className="absolute top-1 right-2 h-2 w-2 rounded-full bg-rose-500 animate-pulse"></span>}
             </TabsTrigger>
-            <TabsTrigger value="izin" className="min-w-0 w-full whitespace-normal leading-tight py-2 px-2 rounded-md data-[state=active]:bg-orange-500 data-[state=active]:text-white text-xs font-medium gap-1.5"><DoorOpen className="h-4 w-4"/> Perizinan</TabsTrigger>
-            <TabsTrigger value="absensi" className="min-w-0 w-full whitespace-normal leading-tight py-2 px-2 rounded-md data-[state=active]:bg-cyan-600 data-[state=active]:text-white text-xs font-medium gap-1.5"><CalendarSearch className="h-4 w-4"/> Rekap Absensi</TabsTrigger>
-            <TabsTrigger value="catatan" className="min-w-0 w-full whitespace-normal leading-tight py-2 px-2 rounded-md data-[state=active]:bg-teal-600 data-[state=active]:text-white text-xs font-medium gap-1.5"><NotebookPen className="h-4 w-4"/> Catatan Siswa</TabsTrigger>
-            <TabsTrigger value="keuangan" className="min-w-0 w-full whitespace-normal leading-tight py-2 px-2 rounded-md data-[state=active]:bg-emerald-700 data-[state=active]:text-white text-xs font-medium gap-1.5"><Wallet className="h-4 w-4"/> Keuangan</TabsTrigger>
+            <TabsTrigger value="izin" className="py-2 px-3 rounded-lg data-[state=active]:bg-orange-500 data-[state=active]:text-white text-xs font-semibold gap-1.5 shrink-0"><DoorOpen className="h-4 w-4"/> Perizinan</TabsTrigger>
+            <TabsTrigger value="absensi" className="py-2 px-3 rounded-lg data-[state=active]:bg-cyan-600 data-[state=active]:text-white text-xs font-semibold gap-1.5 shrink-0"><CalendarSearch className="h-4 w-4"/> Rekap Absensi</TabsTrigger>
+            <TabsTrigger value="catatan" className="py-2 px-3 rounded-lg data-[state=active]:bg-teal-600 data-[state=active]:text-white text-xs font-semibold gap-1.5 shrink-0"><NotebookPen className="h-4 w-4"/> Catatan Siswa</TabsTrigger>
+            <TabsTrigger value="keuangan" className="py-2 px-3 rounded-lg data-[state=active]:bg-emerald-700 data-[state=active]:text-white text-xs font-semibold gap-1.5 shrink-0"><Wallet className="h-4 w-4"/> Keuangan</TabsTrigger>
           </TabsList>
         </div>
 
@@ -397,59 +463,110 @@ export function DetailSiswaClient({
         <TabsContent value="biodata" className="mt-4 space-y-6 animate-in fade-in">
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             
-            {/* Kartu 1: Data Pribadi */}
-            <div className="bg-surface p-4 rounded-lg shadow-sm border border-surface">
-              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 border-b border-surface-2 pb-4 mb-4 flex items-center gap-2"><User className="text-emerald-600 h-5 w-5"/> Data Pribadi Siswa</h3>
+            {/* Kartu 1: Data Pribadi Siswa */}
+            <div className="bg-surface p-5 rounded-xl shadow-sm border border-surface space-y-3">
+              <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 border-b border-surface-2 pb-3 flex items-center gap-2">
+                <User className="text-emerald-600 h-5 w-5" /> Data Pribadi Siswa
+              </h3>
               <DataItem label="NIK" value={siswa.nik} />
+              <DataItem label="Tempat, Tanggal Lahir" value={`${siswa.tempat_lahir || '-'}, ${formatTanggalIndoSafe(siswa.tanggal_lahir)}`} />
+              <DataItem label="Jenis Kelamin" value={siswa.jenis_kelamin === 'L' ? 'Laki-laki' : 'Perempuan'} />
+              <DataItem label="Agama" value={siswa.agama || 'Islam'} />
               <DataItem label="Asal Sekolah" value={siswa.asal_sekolah} />
-              <DataItem label="Tempat, Tanggal Lahir" value={`${siswa.tempat_lahir || '-'}, ${siswa.tanggal_lahir ? new Date(siswa.tanggal_lahir).toLocaleDateString('id-ID') : '-'}`} />
-              <DataItem label="Agama" value={siswa.agama} />
-              <div className="grid grid-cols-2 gap-4">
-                <DataItem label="Anak Ke" value={siswa.anak_ke} />
-                <DataItem label="Jml Saudara" value={siswa.jumlah_saudara} />
+              <div className="grid grid-cols-2 gap-3">
+                <DataItem label="Tahun Masuk" value={siswa.tahun_masuk ? `Tahun ${siswa.tahun_masuk}` : '-'} />
+                <DataItem label="Minat Jurusan" value={siswa.minat_jurusan || '-'} />
               </div>
-              <DataItem label="Status Anak" value={siswa.status_anak} />
-            </div>
-
-            {/* Kartu 2: Tempat Tinggal */}
-            <div className="bg-surface p-4 rounded-lg shadow-sm border border-surface">
-              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 border-b border-surface-2 pb-4 mb-4 flex items-center gap-2"><MapPin className="text-blue-600 h-5 w-5"/> Domisili & Alamat</h3>
-              <DataItem label="Status Domisili / Pesantren" value={siswa.tempat_tinggal} className="bg-blue-50/50 p-3 rounded-xl border border-blue-100" />
-              {siswa.tempat_tinggal !== 'Non-Pesantren' && (
-                <div className="grid grid-cols-2 gap-4 bg-orange-50/60 dark:bg-orange-900/10 border border-orange-100 dark:border-orange-900/30 p-3 rounded-xl mb-3">
-                  <DataItem label="Asrama" value={siswa.asrama} />
-                  <DataItem label="Kamar" value={siswa.kamar} />
+              <div className="grid grid-cols-2 gap-3">
+                <DataItem label="Anak Ke" value={siswa.anak_ke ? `Ke-${siswa.anak_ke}` : '-'} />
+                <DataItem label="Jumlah Saudara" value={siswa.jumlah_saudara ? `${siswa.jumlah_saudara} bersaudara` : '-'} />
+              </div>
+              <DataItem label="Status Anak" value={siswa.status_anak || '-'} />
+              {siswa.status === 'keluar' && (
+                <div className="mt-3 p-3 rounded-lg bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/40 space-y-2">
+                  <p className="text-xs font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider">Informasi Siswa Keluar</p>
+                  <DataItem label="Tanggal Keluar" value={formatTanggalIndoSafe(siswa.tanggal_keluar)} />
+                  <DataItem label="Alasan Keluar" value={siswa.alasan_keluar || '-'} />
+                  <DataItem label="Keterangan" value={siswa.keterangan_keluar || '-'} />
                 </div>
               )}
-              <DataItem label="Alamat Lengkap (Jalan/Kp)" value={siswa.alamat_lengkap} />
-              <div className="grid grid-cols-2 gap-4">
+            </div>
+
+            {/* Kartu 2: Domisili & Alamat */}
+            <div className="bg-surface p-5 rounded-xl shadow-sm border border-surface space-y-3">
+              <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 border-b border-surface-2 pb-3 flex items-center gap-2">
+                <MapPin className="text-blue-600 h-5 w-5" /> Domisili & Alamat
+              </h3>
+              <DataItem label="Status Domisili / Pesantren" value={siswa.tempat_tinggal} className="bg-blue-50/50 dark:bg-blue-950/20 p-3 rounded-xl border border-blue-100 dark:border-blue-900/30" />
+              {siswa.tempat_tinggal !== 'Non-Pesantren' && (
+                <div className="grid grid-cols-2 gap-3 bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/30 p-3 rounded-xl">
+                  <DataItem label="Asrama" value={siswa.asrama || '-'} />
+                  <DataItem label="Kamar" value={siswa.kamar || '-'} />
+                </div>
+              )}
+              <DataItem label="Alamat Lengkap (Jalan/Kp/Dusun)" value={siswa.alamat_lengkap} />
+              <div className="grid grid-cols-2 gap-3">
                 <DataItem label="RT" value={siswa.rt} />
                 <DataItem label="RW" value={siswa.rw} />
               </div>
-              <DataItem label="Desa / Kelurahan" value={siswa.desa_kelurahan} />
-              <DataItem label="Kecamatan" value={siswa.kecamatan} />
-              <DataItem label="Kabupaten / Kota" value={siswa.kabupaten_kota} />
+              <div className="grid grid-cols-2 gap-3">
+                <DataItem label="Desa / Kelurahan" value={siswa.desa_kelurahan} />
+                <DataItem label="Kecamatan" value={siswa.kecamatan} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <DataItem label="Kabupaten / Kota" value={siswa.kabupaten_kota} />
+                <DataItem label="Provinsi" value={siswa.provinsi} />
+              </div>
+              <DataItem label="Kode Pos" value={siswa.kode_pos} />
+              <DataItem label="No. WhatsApp" value={siswa.nomor_whatsapp} />
             </div>
 
-            {/* Kartu 3: Data Orang Tua */}
-            <div className="bg-surface p-4 rounded-lg shadow-sm border border-surface xl:col-span-1 md:col-span-2">
-              <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 border-b border-surface-2 pb-4 mb-4 flex items-center gap-2"><Users className="text-orange-600 h-5 w-5"/> Data Orang Tua / Wali</h3>
-              <DataItem label="Nomor Kartu Keluarga (KK)" value={siswa.nomor_kk} className="bg-orange-50/50 p-3 rounded-xl border border-orange-100" />
+            {/* Kartu 3: Data Orang Tua / Wali */}
+            <div className="bg-surface p-5 rounded-xl shadow-sm border border-surface space-y-4 xl:col-span-1 md:col-span-2">
+              <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 border-b border-surface-2 pb-3 flex items-center gap-2">
+                <Users className="text-orange-600 h-5 w-5" /> Data Orang Tua / Wali
+              </h3>
+              <DataItem label="Nomor Kartu Keluarga (KK)" value={siswa.nomor_kk} className="bg-orange-50/50 dark:bg-orange-950/20 p-3 rounded-xl border border-orange-200/60 dark:border-orange-900/30" />
               
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-1 gap-6 mt-4">
-                <div className="border border-surface-2 rounded-xl p-4 bg-slate-50 dark:bg-slate-800/50">
-                  <h4 className="font-bold text-slate-700 dark:text-slate-300 dark:text-slate-200 mb-3">Data Ayah</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-1 gap-4">
+                {/* Data Ayah */}
+                <div className="border border-surface-2 rounded-xl p-3.5 bg-slate-50/70 dark:bg-slate-800/40 space-y-2">
+                  <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200 flex items-center justify-between border-b border-surface-2 pb-2">
+                    <span>Data Ayah</span>
+                    {siswa.status_ayah && (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-surface border text-slate-600 dark:text-slate-300">
+                        {siswa.status_ayah}
+                      </span>
+                    )}
+                  </h4>
                   <DataItem label="Nama Ayah" value={siswa.nama_ayah} />
-                  <DataItem label="Status" value={siswa.status_ayah} />
-                  <DataItem label="Pekerjaan" value={siswa.pekerjaan_ayah} />
-                  <DataItem label="Penghasilan" value={siswa.penghasilan_ayah} />
+                  <DataItem label="NIK Ayah" value={siswa.nik_ayah} />
+                  <DataItem label="Tempat, Tanggal Lahir" value={`${siswa.tempat_lahir_ayah || '-'}, ${formatTanggalIndoSafe(siswa.tanggal_lahir_ayah)}`} />
+                  <DataItem label="Pendidikan Terakhir" value={siswa.pendidikan_ayah} />
+                  <div className="grid grid-cols-2 gap-3">
+                    <DataItem label="Pekerjaan" value={siswa.pekerjaan_ayah} />
+                    <DataItem label="Penghasilan" value={siswa.penghasilan_ayah} />
+                  </div>
                 </div>
-                <div className="border border-surface-2 rounded-xl p-4 bg-slate-50 dark:bg-slate-800/50">
-                  <h4 className="font-bold text-slate-700 dark:text-slate-300 dark:text-slate-200 mb-3">Data Ibu</h4>
+
+                {/* Data Ibu */}
+                <div className="border border-surface-2 rounded-xl p-3.5 bg-slate-50/70 dark:bg-slate-800/40 space-y-2">
+                  <h4 className="font-bold text-sm text-slate-800 dark:text-slate-200 flex items-center justify-between border-b border-surface-2 pb-2">
+                    <span>Data Ibu</span>
+                    {siswa.status_ibu && (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-surface border text-slate-600 dark:text-slate-300">
+                        {siswa.status_ibu}
+                      </span>
+                    )}
+                  </h4>
                   <DataItem label="Nama Ibu" value={siswa.nama_ibu} />
-                  <DataItem label="Status" value={siswa.status_ibu} />
-                  <DataItem label="Pekerjaan" value={siswa.pekerjaan_ibu} />
-                  <DataItem label="Penghasilan" value={siswa.penghasilan_ibu} />
+                  <DataItem label="NIK Ibu" value={siswa.nik_ibu} />
+                  <DataItem label="Tempat, Tanggal Lahir" value={`${siswa.tempat_lahir_ibu || '-'}, ${formatTanggalIndoSafe(siswa.tanggal_lahir_ibu)}`} />
+                  <DataItem label="Pendidikan Terakhir" value={siswa.pendidikan_ibu} />
+                  <div className="grid grid-cols-2 gap-3">
+                    <DataItem label="Pekerjaan" value={siswa.pekerjaan_ibu} />
+                    <DataItem label="Penghasilan" value={siswa.penghasilan_ibu} />
+                  </div>
                 </div>
               </div>
             </div>
