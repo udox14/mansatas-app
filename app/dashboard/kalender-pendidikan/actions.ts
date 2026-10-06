@@ -267,6 +267,7 @@ export async function saveKbmException(payload: {
   jam_ke_selesai: number
   target_type: KbmExceptionTargetType
   target_value?: string | null
+  target_values?: string[]
   description?: string
 }) {
   const user = await getCurrentUser()
@@ -280,13 +281,19 @@ export async function saveKbmException(payload: {
   if (!['ALL', 'TINGKAT', 'KELAS'].includes(payload.target_type)) return { error: 'Sasaran tidak valid.' }
 
   let targetValue: string | null = null
+  let classIds: string[] = []
   if (payload.target_type === 'TINGKAT') {
     const tingkat = Number(payload.target_value)
     if (!Number.isInteger(tingkat) || tingkat < 1 || tingkat > 12) return { error: 'Tingkat kelas tidak valid.' }
     targetValue = String(tingkat)
   } else if (payload.target_type === 'KELAS') {
-    if (!payload.target_value) return { error: 'Kelas target wajib dipilih.' }
-    targetValue = payload.target_value
+    const values = payload.target_values ?? (payload.target_value ? [payload.target_value] : [])
+    if (!Array.isArray(values) || values.some(value => typeof value !== 'string' || !value.trim())) {
+      return { error: 'Kelas target tidak valid.' }
+    }
+    classIds = Array.from(new Set(values.map(value => value.trim())))
+    if (classIds.length === 0) return { error: 'Kelas target wajib dipilih.' }
+    targetValue = classIds.length === 1 ? classIds[0] : JSON.stringify(classIds)
   }
 
   const db = await getDB()
@@ -295,9 +302,10 @@ export async function saveKbmException(payload: {
     ? await db.prepare('SELECT * FROM kbm_exceptions WHERE id = ?').bind(payload.id).first<any>()
     : null
 
-  if (payload.target_type === 'KELAS' && targetValue) {
-    const kelas = await db.prepare('SELECT id FROM kelas WHERE id = ?').bind(targetValue).first<{ id: string }>()
-    if (!kelas) return { error: 'Kelas target tidak ditemukan.' }
+  if (payload.target_type === 'KELAS') {
+    const kelas = await db.prepare('SELECT id FROM kelas').all<{ id: string }>()
+    const validIds = new Set((kelas.results || []).map(item => item.id))
+    if (classIds.some(id => !validIds.has(id))) return { error: 'Kelas target tidak ditemukan.' }
   }
 
   if (payload.id) {

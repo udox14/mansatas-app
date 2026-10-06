@@ -72,6 +72,18 @@ export const APP_DOMAINS: DomainGroup[] = [
 export const APP_MODULES: ModuleItem[] = [
   // --- KBM ---
   {
+    id: 'kalender-pendidikan',
+    title: 'Kalender Pendidikan',
+    href: '/dashboard/kalender-pendidikan',
+    domain: 'kbm',
+    summary: 'Mengatur hari efektif, libur, kegiatan, dan pengecualian jam KBM.',
+    description: 'Kalender menjadi acuan hari efektif pembelajaran. Pengecualian KBM berlaku pada tanggal dan rentang jam tertentu untuk semua kelas, satu tingkat, atau beberapa kelas yang dipilih melalui checkbox dalam dropdown. Pilihan kelas tersimpan dalam satu pengecualian dan dapat diedit bersama.',
+    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad'],
+    keyFeatures: ['Kalender bulanan dan hari efektif', 'Sinkron tanggal merah dan impor kalender resmi', 'Pengecualian jam KBM dengan pilihan beberapa kelas', 'Edit dan hapus pengecualian KBM'],
+    inputs: ['Tanggal dan kategori kegiatan', 'Rentang jam pelajaran', 'Sasaran semua kelas, tingkat, atau pilihan beberapa kelas'],
+    outputs: ['Status hari efektif', 'Pengecualian jam untuk agenda, absensi, dan rekap pembelajaran'],
+  },
+  {
     id: 'agenda',
     title: 'Agenda Guru',
     href: '/dashboard/agenda',

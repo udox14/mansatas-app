@@ -175,10 +175,25 @@ export async function getKbmExceptionsForDate(db: D1Database, tanggal: string) {
   return getKbmExceptionsForRange(db, tanggal, tanggal)
 }
 
+// Legacy targets contain one class ID; multiple targets use a JSON array in
+// the existing TEXT column so each exception remains one editable record.
+export function getKbmExceptionClassIds(targetValue: string | null): string[] {
+  if (!targetValue) return []
+  if (!targetValue.startsWith('[')) return [targetValue]
+  try {
+    const values: unknown = JSON.parse(targetValue)
+    return Array.isArray(values) && values.every(value => typeof value === 'string' && value.length > 0)
+      ? Array.from(new Set(values as string[]))
+      : []
+  } catch {
+    return []
+  }
+}
+
 export function kbmExceptionAppliesToClass(exception: KbmException, kelas: KbmExceptionClassTarget) {
   if (exception.target_type === 'ALL') return true
   if (exception.target_type === 'TINGKAT') return String(kelas.tingkat) === String(exception.target_value)
-  if (exception.target_type === 'KELAS') return kelas.id === exception.target_value
+  if (exception.target_type === 'KELAS') return getKbmExceptionClassIds(exception.target_value).includes(kelas.id)
   return false
 }
 

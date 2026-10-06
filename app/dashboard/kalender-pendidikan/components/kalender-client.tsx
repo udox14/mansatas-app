@@ -7,8 +7,9 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem } from '@/components/ui/dropdown-menu'
 import {
-  CalendarDays, ChevronLeft, ChevronRight, Loader2, Plus, RefreshCw,
+  CalendarDays, ChevronLeft, ChevronRight, ChevronDown, Loader2, Plus, RefreshCw,
   Pencil, Trash2, CheckCircle2, XCircle, Search, Upload, FileSpreadsheet,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -25,6 +26,7 @@ import {
 } from '../actions'
 import {
   KALENDER_CATEGORY_LABELS,
+  getKbmExceptionClassIds,
   type KbmException,
   type KbmExceptionTargetType,
   type KalenderDateStatus,
@@ -74,6 +76,7 @@ type KbmFormState = {
   jam_ke_selesai: string
   target_type: KbmExceptionTargetType
   target_value: string
+  target_values: string[]
   description: string
 }
 
@@ -127,6 +130,7 @@ function emptyKbmForm(date: string): KbmFormState {
     jam_ke_selesai: '1',
     target_type: 'ALL',
     target_value: '',
+    target_values: [],
     description: '',
   }
 }
@@ -134,8 +138,8 @@ function emptyKbmForm(date: string): KbmFormState {
 function targetLabel(item: KbmException, kelasOptions: KelasOption[]) {
   if (item.target_type === 'ALL') return 'Semua kelas'
   if (item.target_type === 'TINGKAT') return `Kelas ${item.target_value}`
-  const kelas = kelasOptions.find(k => k.id === item.target_value)
-  return kelas?.label || 'Kelas tertentu'
+  const ids = getKbmExceptionClassIds(item.target_value)
+  return ids.map(id => kelasOptions.find(k => k.id === id)?.label || 'Kelas tertentu').join(', ') || 'Kelas tertentu'
 }
 
 function isCkhWorkdayCategory(category: string | null | undefined) {
@@ -280,6 +284,7 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
         jam_ke_selesai: Number(kbmForm.jam_ke_selesai),
         target_type: kbmForm.target_type,
         target_value: kbmForm.target_type === 'ALL' ? null : kbmForm.target_value,
+        target_values: kbmForm.target_type === 'KELAS' ? kbmForm.target_values : undefined,
         description: kbmForm.description,
       })
       if (result.error) {
@@ -420,6 +425,7 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
       jam_ke_selesai: String(item.jam_ke_selesai),
       target_type: item.target_type,
       target_value: item.target_value || '',
+      target_values: item.target_type === 'KELAS' ? getKbmExceptionClassIds(item.target_value) : [],
       description: item.description || '',
     })
   }
@@ -772,7 +778,7 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Sasaran</Label>
-                  <Select value={kbmForm.target_type} onValueChange={value => setKbmForm({ ...kbmForm, target_type: value as KbmExceptionTargetType, target_value: '' })}>
+                  <Select value={kbmForm.target_type} onValueChange={value => setKbmForm({ ...kbmForm, target_type: value as KbmExceptionTargetType, target_value: '', target_values: [] })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="ALL">Semua kelas</SelectItem>
@@ -796,15 +802,38 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
                 )}
                 {kbmForm.target_type === 'KELAS' && (
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Kelas</Label>
-                    <Select value={kbmForm.target_value} onValueChange={value => setKbmForm({ ...kbmForm, target_value: value })}>
-                      <SelectTrigger><SelectValue placeholder="Pilih kelas" /></SelectTrigger>
-                      <SelectContent>
+                    <Label htmlFor="kbm-kelas" className="text-xs">Kelas</Label>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button id="kbm-kelas" type="button" variant="outline" className="w-full justify-between font-normal" disabled={isPending}>
+                          <span className="truncate">
+                            {kbmForm.target_values.length === 0 ? 'Pilih kelas' : kbmForm.target_values.length === 1
+                              ? kelasOptions.find(k => k.id === kbmForm.target_values[0])?.label || '1 kelas dipilih'
+                              : `${kbmForm.target_values.length} kelas dipilih`}
+                          </span>
+                          <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-[var(--radix-dropdown-menu-trigger-width)] max-h-64">
                         {kelasOptions.map(kelas => (
-                          <SelectItem key={kelas.id} value={kelas.id}>{kelas.label}</SelectItem>
+                          <DropdownMenuCheckboxItem
+                            key={kelas.id}
+                            checked={kbmForm.target_values.includes(kelas.id)}
+                            onSelect={event => event.preventDefault()}
+                            onCheckedChange={checked => setKbmForm(current => current ? {
+                              ...current,
+                              target_values: checked
+                                ? Array.from(new Set([...current.target_values, kelas.id]))
+                                : current.target_values.filter(id => id !== kelas.id),
+                            } : current)}
+                            className="before:absolute before:left-2 before:h-3.5 before:w-3.5 before:rounded-sm before:border before:border-slate-400"
+                          >{kelas.label}</DropdownMenuCheckboxItem>
                         ))}
-                      </SelectContent>
-                    </Select>
+                        {kelasOptions.length === 0 && <p className="px-2 py-2 text-xs text-slate-500">Belum ada kelas tersedia.</p>}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                    <p className="text-xs text-slate-500">Centang satu atau beberapa kelas.</p>
+                    {kbmForm.target_values.length > 0 && <p className="text-xs text-slate-600 dark:text-slate-300">{kbmForm.target_values.map(id => kelasOptions.find(k => k.id === id)?.label || 'Kelas tertentu').join(', ')}</p>}
                   </div>
                 )}
               </div>
