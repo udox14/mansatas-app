@@ -12,7 +12,7 @@ vi.mock('@/utils/db-server', () => ({ getDB: async () => runtime.db }))
 vi.mock('@opennextjs/cloudflare', () => ({ getCloudflareContext: async () => ({ env: { NOTIFICATION_QUEUE: { send: runtime.queue } } }) }))
 vi.mock('@/lib/schema-guard', () => ({ ensureSchemaOnce: async (_key: string, ensure: () => Promise<unknown>) => ensure() }))
 vi.mock('@/lib/fcm', () => ({ sendFcmNotification: runtime.fcm }))
-vi.mock('@/lib/web-push', () => ({ sendPushNotification: vi.fn() }))
+vi.mock('@/lib/web-push', () => ({ sendPushNotification: vi.fn(async () => ({ success:true,sent:0 })) }))
 vi.mock('@/lib/kalender-pendidikan', () => ({
   getEffectiveDatesInRange: async (_db: unknown, start: string, end: string) => {
     if (!runtime.effective) return []
@@ -513,9 +513,12 @@ describe('homeroom attendance session notifications', () => {
   it.each(['ALFA','SAKIT','IZIN'])('queues %s to the student homeroom teacher via FCM immediately', async status => {
     assignWali(); raw(status); await enqueue()
     const staff = staffMessages()[0]
-    expect(staff).toMatchObject({ target: { kind: 'staff_users', ids: ['wali'] }, channels: expect.arrayContaining(['fcm']),
+    expect(staff).toMatchObject({ target: { kind: 'staff_users', ids: ['wali'] }, channels: expect.arrayContaining(['fcm','in_app']),
       body: expect.stringContaining(initialAttendanceContext(status)), url: `/dashboard/kelas-binaan/koreksi?siswa=s&tanggal=${date}&penugasan=math` })
     expect((await consume(staff)).sent).toBeGreaterThan(0)
+    expect(sqlite.prepare('SELECT user_id,title,message,url,read_at FROM staff_notifications').get()).toMatchObject({user_id:'wali',title:staff.title,message:staff.body,url:staff.url,read_at:null})
+    await consume(staff)
+    expect(sqlite.prepare('SELECT count(*) AS n FROM staff_notifications').get()?.n).toBe(1)
     setTime('2026-10-02T04:05:00Z')
     expect(runtime.fcm).toHaveBeenCalledWith(expect.objectContaining({ body: staff.body }), { userIds: ['wali'] }, expect.anything())
     expect(sqlite.prepare('SELECT initial_sent_at FROM attendance_parent_notice_state').get()?.initial_sent_at).toBeNull()
@@ -530,6 +533,24 @@ describe('homeroom attendance session notifications', () => {
     expect(messages()).toHaveLength(1)
     expect(staffMessages()).toHaveLength(1)
     expect(sqlite.prepare('SELECT count(*) AS n FROM attendance_parent_notice_state').get()?.n).toBe(0)
+  })
+
+  it('keeps a readable in-app report even without an active FCM device', async () => {
+    assignWali(); raw('SAKIT'); await enqueue()
+    runtime.fcm.mockResolvedValueOnce({success:true,sent:0})
+    expect(await consume(staffMessages()[0])).toMatchObject({retry:false,sent:1})
+    expect(sqlite.prepare('SELECT user_id,message FROM staff_notifications').get()).toMatchObject({user_id:'wali',message:expect.stringContaining('sakit')})
+  })
+
+  it('retries a failed inbox write rather than silently losing the report after successful push', async () => {
+    assignWali(); raw('ALFA'); await enqueue()
+    const originalBatch = runtime.db.batch.bind(runtime.db)
+    runtime.db.batch = vi.fn().mockRejectedValueOnce(new Error('D1 temporarily unavailable'))
+    expect(await consume(staffMessages()[0])).toMatchObject({retry:true})
+    expect(sqlite.prepare('SELECT count(*) AS n FROM staff_notifications').get()?.n).toBe(0)
+    runtime.db.batch = originalBatch
+    expect(await consume(staffMessages()[0])).toMatchObject({retry:false})
+    expect(sqlite.prepare('SELECT count(*) AS n FROM staff_notifications').get()?.n).toBe(1)
   })
 
   it('reports another session even after a parent initial has been sent; concurrent saves deduplicate', async () => {
@@ -562,11 +583,13 @@ describe('homeroom attendance session notifications', () => {
     setTime('2026-10-02T04:05:00Z')
     runtime.fcm.mockResolvedValueOnce({ success: false, sent: 0, error: 'HTTP 503' })
     expect(await consume(staff)).toMatchObject({ retry: true })
+    expect(sqlite.prepare('SELECT count(*) AS n FROM staff_notifications').get()?.n).toBe(1)
     runtime.fcm.mockResolvedValue({ success: true, sent: 1 })
     const results = await Promise.all([consume(staff), consume(staff)])
     expect(results.filter(result => result.sent > 0)).toHaveLength(1)
     expect(runtime.fcm).toHaveBeenCalledTimes(2)
     expect((await consume(staff)).sent).toBe(0)
+    expect(sqlite.prepare('SELECT count(*) AS n FROM staff_notifications').get()?.n).toBe(1)
   })
 
   it('does not notify for ordinary present records or pre-activation data', async () => {

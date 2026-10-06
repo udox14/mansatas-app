@@ -56,7 +56,7 @@ type Feedback = {
 const CHANNELS: { value: NotificationChannel; label: string; shortLabel: string }[] = [
   { value: 'fcm', label: 'FCM / Android', shortLabel: 'FCM' },
   { value: 'webpush', label: 'Web Push / PWA', shortLabel: 'Web Push' },
-  { value: 'in_app', label: 'In-app portal', shortLabel: 'In-app' },
+  { value: 'in_app', label: 'In-app (di aplikasi)', shortLabel: 'In-app' },
 ]
 
 const TARGETS: { value: NotificationTargetConfig['kind']; label: string }[] = [

@@ -8,6 +8,7 @@ import { getAccessibleWaliKelasClasses } from '@/lib/wali-kelas-attendance'
 import { PageHeader } from '@/components/layout/page-header'
 import { KelasBinaanDashboard, type KelasBinaanView } from '@/components/dashboard/KelasBinaanDashboard'
 import { KelasSelector } from './components/kelas-selector'
+import { getUnreadStaffNotificationCount } from '@/lib/staff-notification-inbox'
 
 export const metadata = { title: 'Kelas Binaan - MANSATAS App' }
 export const dynamic = 'force-dynamic'
@@ -53,6 +54,7 @@ export default async function KelasBinaanPage({
   ])
 
   if (kelasList.length === 0) redirect('/dashboard')
+  const unreadNotifications = await getUnreadStaffNotificationCount(db,user.id)
 
   const selectedKelasId = kelasId && kelasList.some(item => item.id === kelasId)
     ? kelasId
@@ -84,7 +86,11 @@ export default async function KelasBinaanPage({
       <PageHeader
         title="Kelas Binaan"
         description="Pantau kehadiran harian, koreksi absensi bila diperlukan, dan tindak lanjut siswa binaan dari satu halaman."
-      />
+      >
+        <Link href="/dashboard/kelas-binaan/notifikasi" className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-amber-200 px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-50">
+          Notifikasi Masuk{unreadNotifications > 0 && <span className="rounded-full bg-amber-100 px-2 py-0.5">{unreadNotifications} belum dibaca</span>}
+        </Link>
+      </PageHeader>
 
       {kelasList.length > 1 && (
         isWaliKelasOnly ? (

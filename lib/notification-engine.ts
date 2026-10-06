@@ -18,6 +18,7 @@ import { attendanceNoticeActivation, attendanceDateEligible, utcSourceTimestamp,
 import { ATTENDANCE_DELAY_DEFAULTS, attendanceDelayMinutes, validAttendanceDelay } from '@/lib/attendance-notification-delay'
 import { attendanceStatusLabel } from '@/lib/attendance-status'
 import { parentDailyReason } from '@/lib/parent-attendance-presentation'
+import { ensureStaffNotificationInbox, writeStaffNotifications } from '@/lib/staff-notification-inbox'
 import { invalidateAttendanceCache } from '@/lib/attendance-cache'
 import { getKalenderDateStatus, getKbmExceptionsForDate, hasActiveTeachingSlotsInRange } from '@/lib/kalender-pendidikan'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
@@ -225,7 +226,7 @@ async function ensureNotificationSchema(db: D1Database) {
   const existing = notificationSchemaPromiseByDb.get(key)
   if (existing) return existing
 
-  const promise = ensureSchemaOnce('notification-engine-attendance-fast-v6-parent-wording-komite-reminders', async () => {
+  const promise = ensureSchemaOnce('notification-engine-v7-staff-inbox', async () => {
     await db.batch([
       db.prepare(`
         CREATE TABLE IF NOT EXISTS notification_event_settings (
@@ -288,6 +289,10 @@ async function ensureNotificationSchema(db: D1Database) {
     })
     for (let i = 0; i < rows.length; i += 50) await db.batch(rows.slice(i, i + 50))
     const waliDefinition = getNotificationDefinition('attendance_homeroom_alert')!
+    await ensureStaffNotificationInbox(db)
+    await db.prepare(`UPDATE notification_event_settings SET channels_json = json_insert(channels_json, '$[#]', 'in_app')
+      WHERE event_key = 'attendance_homeroom_alert' AND json_valid(channels_json)
+      AND NOT EXISTS (SELECT 1 FROM json_each(channels_json) WHERE value = 'in_app')`).run()
     await db.prepare(`UPDATE notification_event_settings SET url_template = ? WHERE event_key = 'attendance_homeroom_alert' AND url_template = ?`)
       .bind(waliDefinition.defaultUrl, '/dashboard/kelas-binaan?view=keputusan&kelas={kelasId}&tanggal={tanggal}').run()
     const parentDefinition = getNotificationDefinition('attendance_parent_alert')!
@@ -926,7 +931,7 @@ export async function notifyParentsGradeAvailable(
 async function deliverNotification(
   db: D1Database,
   runtimeEnv: FcmRuntimeOptions['env'] | undefined,
-  message: Pick<NotificationQueueMessage, 'title' | 'body' | 'url' | 'image' | 'channels' | 'parentType' | 'level'>,
+  message: Pick<NotificationQueueMessage, 'eventKey' | 'title' | 'body' | 'url' | 'image' | 'channels' | 'parentType' | 'level'>,
   audience: ExpandedAudience,
   ids: string[],
   sourceRef: string,
@@ -999,6 +1004,18 @@ async function deliverNotification(
     }
   }
 
+  if (message.channels.includes('in_app') && audience === 'staff') {
+    attemptedChannels += 1
+    try {
+      await writeStaffNotifications(db, ids, message.eventKey, sourceRef, message.title, message.body, message.url, message.level)
+      sent += ids.length
+      successfulChannels += 1
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : String(error))
+      retryable = true
+    }
+  }
+
   if (message.channels.includes('in_app') && audience === 'parent') {
     attemptedChannels += 1
     try {
@@ -1011,7 +1028,9 @@ async function deliverNotification(
     }
   }
 
-  return { ok: successfulChannels > 0 || attemptedChannels === 0, retryable, sent, errors }
+  // A durable staff inbox must not hide a transient push/write failure.
+  const staffInboxRetry = audience === 'staff' && message.channels.includes('in_app') && retryable
+  return { ok: !staffInboxRetry && (successfulChannels > 0 || attemptedChannels === 0), retryable, sent, errors }
 }
 
 async function validatedQueueRecipientIds(db: D1Database, message: NotificationQueueMessage) {

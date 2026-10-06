@@ -288,7 +288,7 @@ export const NOTIFICATION_EVENT_DEFINITIONS: NotificationEventDefinition[] = [
     defaultTitle: 'Catatan kehadiran siswa binaan',
     defaultBody: 'Pada {tanggal}, pelajaran {mapel}, jam {rentang_jam}, siswa {nama_siswa} (kelas {kelas}) tercatat {keterangan_status}. Ini merupakan catatan sesi pembelajaran. Rekap harian tersedia setelah pembelajaran selesai.',
     defaultUrl: '/dashboard/kelas-binaan/koreksi?siswa={siswaId}&tanggal={tanggal}&penugasan={penugasanId}',
-    defaultChannels: staffChannels,
+    defaultChannels: ['fcm', 'webpush', 'in_app'],
     defaultTarget: { kind: 'staff_users' },
     defaultLevel: 'info',
     placeholders: ['nama_siswa', 'kelas', 'kelasId', 'siswaId', 'penugasanId', 'status_kehadiran', 'tanggal', 'mapel', 'rentang_jam', 'keterangan_status', 'sumber_keterangan'],
