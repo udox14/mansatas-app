@@ -4,6 +4,7 @@ import { currentTimeWIB, nowWIB, todayWIB } from '@/lib/time'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
 import {
   defaultNotificationSettings,
+  KELAS_BINAAN_NOTIFICATION_EVENTS,
   getNotificationDefinition,
   NOTIFICATION_EVENT_DEFINITIONS,
   type NotificationChannel,
@@ -226,7 +227,7 @@ async function ensureNotificationSchema(db: D1Database) {
   const existing = notificationSchemaPromiseByDb.get(key)
   if (existing) return existing
 
-  const promise = ensureSchemaOnce('notification-engine-v7-staff-inbox', async () => {
+  const promise = ensureSchemaOnce('notification-engine-v8-kelas-binaan-inbox', async () => {
     await db.batch([
       db.prepare(`
         CREATE TABLE IF NOT EXISTS notification_event_settings (
@@ -291,8 +292,9 @@ async function ensureNotificationSchema(db: D1Database) {
     const waliDefinition = getNotificationDefinition('attendance_homeroom_alert')!
     await ensureStaffNotificationInbox(db)
     await db.prepare(`UPDATE notification_event_settings SET channels_json = json_insert(channels_json, '$[#]', 'in_app')
-      WHERE event_key = 'attendance_homeroom_alert' AND json_valid(channels_json)
-      AND NOT EXISTS (SELECT 1 FROM json_each(channels_json) WHERE value = 'in_app')`).run()
+      WHERE event_key IN (${KELAS_BINAAN_NOTIFICATION_EVENTS.map(() => '?').join(',')}) AND json_valid(channels_json)
+      AND NOT EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(channels_json) THEN channels_json ELSE '[]' END) WHERE value = 'in_app')`)
+      .bind(...KELAS_BINAAN_NOTIFICATION_EVENTS).run()
     await db.prepare(`UPDATE notification_event_settings SET url_template = ? WHERE event_key = 'attendance_homeroom_alert' AND url_template = ?`)
       .bind(waliDefinition.defaultUrl, '/dashboard/kelas-binaan?view=keputusan&kelas={kelasId}&tanggal={tanggal}').run()
     const parentDefinition = getNotificationDefinition('attendance_parent_alert')!

@@ -21,7 +21,7 @@ export default async function WaliInboxPage({ searchParams }: { searchParams: Pr
   const inbox = await getStaffInbox(db,user.id,{before:params.before,unread})
   const olderParams = new URLSearchParams({before:inbox.nextCursor || '', ...(unread ? {filter:'unread'} : {})})
   return <div className="w-full space-y-4 pb-12">
-    <PageHeader title="Notifikasi Masuk" description="Laporan yang diterima akun Anda tersimpan di sini, termasuk catatan kehadiran siswa binaan.">
+    <PageHeader title="Notifikasi Masuk" description="Notifikasi siswa binaan: kehadiran, pelanggaran, sanksi, surat peringatan, dan klarifikasi kedisiplinan.">
       <Link href="/dashboard/kelas-binaan" className="rounded-lg border px-3 py-2 text-xs font-semibold">Kembali ke Kelas Binaan</Link>
     </PageHeader>
     <div className="flex flex-wrap items-center gap-2">

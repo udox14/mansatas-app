@@ -11,6 +11,7 @@ vi.mock('next/cache', () => ({revalidatePath:vi.fn()}))
 vi.mock('next/navigation', () => ({redirect:(url:string)=>{throw new Error(`redirect:${url}`)}}))
 import { getStaffInbox, getUnreadStaffNotificationCount, readStaffNotification, staffNotificationHref, writeStaffNotifications } from './staff-notification-inbox'
 import { openStaffNotification } from '@/app/dashboard/kelas-binaan/notifikasi/actions'
+import { KELAS_BINAAN_NOTIFICATION_EVENTS } from './notification-catalog'
 
 let sqlite: DatabaseSync
 beforeEach(() => {
@@ -29,6 +30,53 @@ const url='/dashboard/kelas-binaan/koreksi?siswa=s&tanggal=2026-10-06&penugasan=
 const write=(source='session',ids=['wali'])=>writeStaffNotifications(runtime.db,ids,'attendance_homeroom_alert',source,'Catatan kehadiran','Belum hadir pada sesi ini',url,'info')
 
 describe('durable staff notification inbox',()=>{
+  it('includes every student/homeroom event but excludes teacher reminders from lists, counts and open actions',async()=>{
+    for(const event of KELAS_BINAAN_NOTIFICATION_EVENTS) {
+      await writeStaffNotifications(runtime.db,['wali'],event,event,'Laporan siswa','Catatan siswa',url,'info')
+    }
+    for(const event of ['kbm_teaching_reminder','attendance_missing_reminder','grade_incomplete_reminder','meeting_invitation','komite_review_pending_reminder','homeroom_unknown_event']) {
+      // A misleading class URL or title must not classify an unrelated event.
+      await writeStaffNotifications(runtime.db,['wali'],event,event,'Laporan siswa','Agenda guru',url,'info')
+    }
+    const inbox=await getStaffInbox(runtime.db,'wali')
+    expect(inbox.items.map(item=>item.event_key).sort()).toEqual([...KELAS_BINAAN_NOTIFICATION_EVENTS].sort())
+    expect(inbox.unreadCount).toBe(KELAS_BINAAN_NOTIFICATION_EVENTS.length)
+    expect(await getUnreadStaffNotificationCount(runtime.db,'wali')).toBe(inbox.unreadCount)
+    expect((await getStaffInbox(runtime.db,'wali',{unread:true})).items).toHaveLength(inbox.unreadCount)
+    const unrelated=sqlite.prepare('SELECT id FROM staff_notifications WHERE event_key=?').get('kbm_teaching_reminder')!
+    expect(await readStaffNotification(runtime.db,'wali',String(unrelated.id))).toBeNull()
+    const form=new FormData();form.set('id',String(unrelated.id))
+    await expect(openStaffNotification(form)).rejects.toThrow('redirect:/dashboard/kelas-binaan/notifikasi')
+    expect(sqlite.prepare('SELECT read_at FROM staff_notifications WHERE id=?').get(unrelated.id as string)?.read_at).toBeNull()
+  })
+
+  it('filters before pagination so unrelated records do not hide student reports',async()=>{
+    for(let i=0;i<24;i++) {
+      await write(`student-${i}`)
+      await writeStaffNotifications(runtime.db,['wali'],'kbm_teaching_reminder',`teacher-${i}`,'Agenda','Isi agenda','/dashboard/agenda','info')
+    }
+    const first=await getStaffInbox(runtime.db,'wali')
+    const last=await getStaffInbox(runtime.db,'wali',{before:first.nextCursor!})
+    expect(first.items).toHaveLength(20);expect(last.items).toHaveLength(4)
+    expect(first.unreadCount).toBe(24)
+    expect(new Set([...first.items,...last.items].map(item=>item.id)).size).toBe(24)
+    expect(last.nextCursor).toBeNull()
+  })
+
+  it('adds in-app to class event settings without touching teacher reminders, templates or history',async()=>{
+    sqlite.exec(readFileSync(new URL('../migrations/0086_add_notification_engine.sql',import.meta.url),'utf8'))
+    for(const event of [...KELAS_BINAAN_NOTIFICATION_EVENTS,'kbm_teaching_reminder']) {
+      sqlite.prepare('INSERT INTO notification_event_settings (event_key,title_template,body_template,channels_json) VALUES (?,?,?,?)')
+        .run(event,'Judul custom','Isi custom','["fcm"]')
+    }
+    const migration=readFileSync(new URL('../migrations/0119_kelas_binaan_notification_channels.sql',import.meta.url),'utf8')
+    sqlite.exec(migration);sqlite.exec(migration)
+    for(const event of KELAS_BINAAN_NOTIFICATION_EVENTS) {
+      expect(sqlite.prepare('SELECT title_template,body_template,channels_json FROM notification_event_settings WHERE event_key=?').get(event))
+        .toMatchObject({title_template:'Judul custom',body_template:'Isi custom',channels_json:'["fcm","in_app"]'})
+    }
+    expect(sqlite.prepare('SELECT channels_json FROM notification_event_settings WHERE event_key=?').get('kbm_teaching_reminder')?.channels_json).toBe('["fcm"]')
+  })
   it('deduplicates retries and keeps read state and original message intact',async()=>{
     await Promise.all([write(),write(),write()])
     const inbox=await getStaffInbox(runtime.db,'wali')

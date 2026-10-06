@@ -186,7 +186,7 @@ export const APP_MODULES: ModuleItem[] = [
     roles: ['wali_kelas', 'super_admin', 'admin_tu'],
     keyFeatures: ['Status harian otomatis setelah KBM: Alfa → Sakit → Izin → Hadir; koreksi wali tersimpan terpisah', 'Draft koreksi lokal per akun/kelas/tanggal, pemulihan setelah refresh, dan simpan batch otomatis setelah 2 detik tanpa perubahan baru', 'Tautan notifikasi ke /dashboard/kelas-binaan/koreksi untuk koreksi cepat satu siswa dengan pemeriksaan konflik', 'Rekap absensi in-place per blok mata pelajaran & bulanan', 'Status panggilan orang tua', 'Notifikasi wali via FCM dengan jeda bawaan 0 menit; orang tua 5 menit, dapat diatur di Notifikasi Otomatis', 'Catatan pembinaan siswa'],
     inputs: ['Koreksi status absensi siswa', 'Catatan koreksi wali kelas', 'Catatan pembinaan berkala', 'Surat panggilan ortu'],
-    outputs: ['Rekap absensi harian per blok & bulanan', 'Notifikasi otomatis ke portal ortu', 'Kotak masuk pribadi wali di /dashboard/kelas-binaan/notifikasi, diakses lewat tombol di sebelah Riwayat & Koreksi: FCM dan in-app, filter belum dibaca, riwayat bertahap, serta tautan langsung koreksi', 'Laporan pembinaan wali kelas'],
+    outputs: ['Rekap absensi harian per blok & bulanan', 'Notifikasi otomatis ke portal ortu', 'Kotak masuk pribadi wali di /dashboard/kelas-binaan/notifikasi, diakses lewat tombol di sebelah Riwayat & Koreksi: khusus kehadiran, pelanggaran, sanksi, surat peringatan, dan klarifikasi siswa; daftar dan jumlah belum dibaca tidak mencakup agenda guru atau modul lain', 'Laporan pembinaan wali kelas'],
   },
   {
     id: 'bk',

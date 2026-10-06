@@ -64,7 +64,7 @@ describe('parent and homeroom notification catalog', () => {
     ]) {
       const definition = getNotificationDefinition(key)
       expect(definition?.defaultTarget, key).toEqual({ kind: 'staff_users' })
-      expect(definition?.defaultChannels, key).toEqual(['fcm', 'webpush'])
+      expect(definition?.defaultChannels, key).toEqual(['fcm', 'webpush', 'in_app'])
       expect(validateNotificationTemplate(definition?.defaultBody || '', definition?.placeholders || []), key).toEqual([])
     }
   })

@@ -43,7 +43,14 @@ export type NotificationEventDefinition = {
 }
 
 const staffChannels: NotificationChannel[] = ['fcm', 'webpush']
+const homeroomChannels: NotificationChannel[] = ['fcm', 'webpush', 'in_app']
 const parentChannels: NotificationChannel[] = ['fcm', 'in_app']
+
+// Explicit module scope, including the existing raw clarification reply event.
+export const KELAS_BINAAN_NOTIFICATION_EVENTS = [
+  'attendance_homeroom_alert', 'homeroom_discipline_violation', 'homeroom_discipline_sanction',
+  'homeroom_warning_letter', 'discipline_parent_clarification_submitted', 'homeroom_discipline_clarification',
+] as const
 
 function staffRole(role: string): NotificationTargetConfig {
   return { kind: 'staff_role', value: role }
@@ -363,7 +370,7 @@ export const NOTIFICATION_EVENT_DEFINITIONS: NotificationEventDefinition[] = [
     defaultTitle: 'Catatan kedisiplinan siswa',
     defaultBody: 'Ananda {nama_siswa} ({kelas}) memiliki catatan kedisiplinan: {nama_pelanggaran}.',
     defaultUrl: '/dashboard/kelas-binaan',
-    defaultChannels: staffChannels,
+    defaultChannels: homeroomChannels,
     defaultTarget: { kind: 'staff_users' },
     defaultLevel: 'warning',
     placeholders: ['nama_siswa', 'kelas', 'nama_pelanggaran', 'poin', 'tanggal', 'keterangan'],
@@ -393,7 +400,7 @@ export const NOTIFICATION_EVENT_DEFINITIONS: NotificationEventDefinition[] = [
     defaultTitle: 'Level kedisiplinan siswa berubah',
     defaultBody: 'Ananda {nama_siswa} ({kelas}) mencapai level {level_sanksi} dengan akumulasi {total_poin} poin.',
     defaultUrl: '/dashboard/kelas-binaan',
-    defaultChannels: staffChannels,
+    defaultChannels: homeroomChannels,
     defaultTarget: { kind: 'staff_users' },
     defaultLevel: 'critical',
     placeholders: ['nama_siswa', 'kelas', 'level_sanksi', 'total_poin', 'tanggal'],
@@ -408,7 +415,7 @@ export const NOTIFICATION_EVENT_DEFINITIONS: NotificationEventDefinition[] = [
     defaultTitle: 'Klarifikasi kedisiplinan baru',
     defaultBody: 'Orang tua mengirim klarifikasi untuk {nama_pelanggaran} pada {tanggal}.',
     defaultUrl: '/dashboard/kedisiplinan',
-    defaultChannels: staffChannels,
+    defaultChannels: homeroomChannels,
     defaultTarget: { kind: 'staff_users' },
     defaultLevel: 'warning',
     placeholders: ['nama_pelanggaran', 'tanggal'],
@@ -438,7 +445,7 @@ export const NOTIFICATION_EVENT_DEFINITIONS: NotificationEventDefinition[] = [
     defaultTitle: 'Surat peringatan siswa diterbitkan',
     defaultBody: 'Surat peringatan {level_sp} untuk Ananda {nama_siswa} ({kelas}) telah diterbitkan. Nomor surat: {nomor_surat}.',
     defaultUrl: '/dashboard/kelas-binaan',
-    defaultChannels: staffChannels,
+    defaultChannels: homeroomChannels,
     defaultTarget: { kind: 'staff_users' },
     defaultLevel: 'critical',
     placeholders: ['nama_siswa', 'kelas', 'level_sp', 'nomor_surat', 'alasan', 'tanggal'],

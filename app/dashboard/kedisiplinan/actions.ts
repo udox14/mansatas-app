@@ -699,7 +699,7 @@ export async function updateDisciplineClarification(
       title,
       body: `Klarifikasi kedisiplinan Ananda ${wali.nama_lengkap}: ${response}`,
       url: '/dashboard/kelas-binaan',
-      channels: ['fcm', 'webpush'],
+      channels: ['fcm', 'webpush', 'in_app'],
       target: { kind: 'staff_users' },
       context: { userId: wali.id },
       db,
