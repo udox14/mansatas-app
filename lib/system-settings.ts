@@ -5,6 +5,7 @@ export { PARENT_LOGIN_TINGKAT_OPTIONS } from '@/lib/system-setting-constants'
 import { PARENT_LOGIN_TINGKAT_OPTIONS } from '@/lib/system-setting-constants'
 
 export const SYSTEM_SETTING_KEYS = {
+  komiteRequirePrincipalApproval: 'komite_require_principal_approval',
   agendaTimeRestriction: 'agenda_time_restriction_enabled',
   agendaLateEnabled: 'agenda_late_enabled',
   agendaLateThresholdMinutes: 'agenda_late_threshold_minutes',
@@ -112,8 +113,16 @@ export async function getSystemSettings<const T extends string>(
   return values
 }
 
-export async function getSystemSettingBoolean(key: string, fallback = false): Promise<boolean> {
-  const raw = await getSystemSetting(key, fallback ? '1' : '0')
+// Supplying the request DB bypasses the settings cache for workflow decisions.
+export async function getSystemSettingBoolean(key: string, fallback = false, db?: D1Database): Promise<boolean> {
+  let raw: string
+  if (db) {
+    await ensureSchemaOnce('system-settings', () => ensureSystemSettingsTable(db))
+    const row = await db.prepare('SELECT value FROM system_settings WHERE key = ?').bind(key).first<{ value: string }>()
+    raw = row?.value ?? (fallback ? '1' : '0')
+  } else {
+    raw = await getSystemSetting(key, fallback ? '1' : '0')
+  }
   return raw === '1' || raw.toLowerCase() === 'true'
 }
 

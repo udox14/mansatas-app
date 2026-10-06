@@ -227,7 +227,7 @@ async function ensureNotificationSchema(db: D1Database) {
   const existing = notificationSchemaPromiseByDb.get(key)
   if (existing) return existing
 
-  const promise = ensureSchemaOnce('notification-engine-v8-kelas-binaan-inbox', async () => {
+  const promise = ensureSchemaOnce('notification-engine-v9-komite-configurable-approval', async () => {
     await db.batch([
       db.prepare(`
         CREATE TABLE IF NOT EXISTS notification_event_settings (
@@ -303,6 +303,7 @@ async function ensureNotificationSchema(db: D1Database) {
 
     // Upgrade only untouched defaults; keep custom templates and delivery preferences.
     const oldBodies = [
+      ['komite_final_approved', 'Pengajuan "{judul_pengajuan}" telah disetujui sampai tahap Kepala Madrasah. SPB {nomor_spb} sudah tersedia.'],
       ['attendance_parent_alert', 'Ananda {nama_siswa} tercatat ALFA oleh guru pada {tanggal}. Rekap kehadiran harian masih diproses; silakan buka Portal Orang Tua untuk rincian.'],
       ['attendance_daily_final', 'Rekap kehadiran Ananda {nama_siswa} pada {tanggal} telah selesai. Status akhir: {status_kehadiran}.'],
       ['attendance_daily_final', 'Pembelajaran pada {tanggal} telah selesai. Berdasarkan catatan yang tersedia, status harian Ananda {nama_siswa}: {status_kehadiran}.{kelengkapan} Rincian sesi tersedia di Portal Orang Tua.'],

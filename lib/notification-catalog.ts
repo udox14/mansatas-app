@@ -218,7 +218,7 @@ export const NOTIFICATION_EVENT_DEFINITIONS: NotificationEventDefinition[] = [
     group: 'keuangan',
     defaultEnabled: true,
     defaultTitle: 'Pengajuan Komite disetujui final',
-    defaultBody: 'Pengajuan "{judul_pengajuan}" telah disetujui sampai tahap Kepala Madrasah. SPB {nomor_spb} sudah tersedia.',
+    defaultBody: 'Pengajuan "{judul_pengajuan}" telah disetujui final pada tahap {tahap}. SPB {nomor_spb} sudah tersedia.',
     defaultUrl: '/dashboard/komite/pengajuan',
     defaultChannels: staffChannels,
     defaultTarget: { kind: 'staff_users' },

@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -19,6 +20,7 @@ import {
 import {
   delegateKetuaReviewAction, deleteKomiteAction, deleteKomiteDraftAction, reviewKomiteAction,
   setNamedKomiteSubmitterAction, submitKomiteAction,
+  setKomiteApprovalFlowAction,
 } from './actions'
 
 type Item = any
@@ -33,6 +35,7 @@ type Props = {
   isSuper: boolean
   reviewCount: number
   nextNomorSpb?: string
+  requirePrincipalApproval: boolean
 }
 
 const MAX_TOTAL = 6 * 1024 * 1024
@@ -141,6 +144,18 @@ export function PengajuanKomiteClient(props: Props) {
 
   return (
     <>
+      {!detailItem && <div className="mb-4 flex flex-wrap items-start justify-between gap-3 border-b pb-4">
+        <div>
+          <p className="text-sm font-semibold">Alur persetujuan</p>
+          <p className="mt-1 text-sm text-muted-foreground">Bendahara → Ketua Komite{props.requirePrincipalApproval ? ' → Kepala Madrasah' : ''} → SPB</p>
+          <p className="mt-1 max-w-2xl text-xs text-muted-foreground">Berlaku saat persetujuan Ketua diproses. Pengajuan yang sudah menunggu Kepala Madrasah tetap mengikuti alur sebelumnya.</p>
+        </div>
+        {props.isSuper && <div className="flex items-center gap-2">
+          <Checkbox id="komite-principal-approval" checked={props.requirePrincipalApproval} disabled={pending}
+            onCheckedChange={checked => run(() => setKomiteApprovalFlowAction(checked === true))} />
+          <Label htmlFor="komite-principal-approval">Wajib persetujuan Kepala Madrasah</Label>
+        </div>}
+      </div>}
       {message && (
         <div className={`rounded-lg border px-3 py-2 text-sm ${message.toLowerCase().includes('gagal') || message.toLowerCase().includes('tidak') || message.toLowerCase().includes('wajib') ? 'border-rose-200 bg-rose-50 text-rose-700 dark:bg-rose-950/40' : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40'}`}>
           {message}
@@ -216,7 +231,7 @@ export function PengajuanKomiteClient(props: Props) {
         const result = await response.json().catch(() => ({ error: 'Respons upload tidak valid.' }))
         return response.ok ? result : { error: result.error || 'Gagal mengunggah dokumen.' }
       }, () => setFormOpen(false))} />
-      <ReviewDialog value={review} nextNomorSpb={props.nextNomorSpb} pending={pending} onClose={() => setReview(null)} onSubmit={formData => run(() => reviewKomiteAction(formData), () => { setReview(null); setDetailId(''); setActiveTab(detailOriginTab) })} />
+      <ReviewDialog value={review} requirePrincipalApproval={props.requirePrincipalApproval} nextNomorSpb={props.nextNomorSpb} pending={pending} onClose={() => setReview(null)} onSubmit={formData => run(() => reviewKomiteAction(formData), () => { setReview(null); setDetailId(''); setActiveTab(detailOriginTab) })} />
       <DelegationDialog item={delegation} members={props.committeeMembers} pending={pending} onClose={() => setDelegation(null)} onSubmit={formData => run(() => delegateKetuaReviewAction(formData), () => setDelegation(null))} />
     </>
   )
@@ -426,7 +441,7 @@ function DraftDialog({ open, item, pending, message, onClose, onSubmit }: { open
   </form></DialogContent></Dialog>
 }
 
-function ReviewDialog({ value, nextNomorSpb, pending, onClose, onSubmit }: { value: { item: Item; action: string } | null; nextNomorSpb?: string; pending: boolean; onClose: () => void; onSubmit: (data: FormData) => void }) {
+function ReviewDialog({ value, requirePrincipalApproval, nextNomorSpb, pending, onClose, onSubmit }: { value: { item: Item; action: string } | null; requirePrincipalApproval: boolean; nextNomorSpb?: string; pending: boolean; onClose: () => void; onSubmit: (data: FormData) => void }) {
   const isTreasurerApprove = value?.action === 'setujui' && value.item.status === 'menunggu_bendahara'
   const [rows, setRows] = useState<RincianRow[]>(rowsFromItem(value?.item))
   const [rejectConfirmation, setRejectConfirmation] = useState('')
@@ -442,6 +457,9 @@ function ReviewDialog({ value, nextNomorSpb, pending, onClose, onSubmit }: { val
     <div className={`rounded-lg border p-3 text-sm ${value.action === 'tolak' ? 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200' : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200'}`}>
       Pastikan keputusan sudah benar. Anda akan <strong>{actionLabel[value.action].toLowerCase()}</strong> pengajuan ini setelah menekan tombol konfirmasi.
     </div>
+    {value?.action === 'setujui' && value.item.status === 'menunggu_ketua' && <p className="text-sm text-muted-foreground">
+      {requirePrincipalApproval ? 'Pengajuan akan diteruskan ke Kepala Madrasah. SPB terbit setelah persetujuan Kepala.' : 'Persetujuan Ketua ini merupakan persetujuan akhir. SPB akan langsung tersedia.'}
+    </p>}
     {isTreasurerApprove && <>
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">

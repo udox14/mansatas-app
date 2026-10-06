@@ -12,6 +12,20 @@ export type KomiteStatus = 'draft' | 'menunggu_bendahara' | 'menunggu_ketua' | '
 export type KomiteStage = keyof typeof KOMITE_STAGE_ROLE
 export type KomiteReviewAction = 'setujui' | 'minta_revisi' | 'tolak'
 
+export function komiteNextReviewStatus(stage: KomiteStage, action: KomiteReviewAction, requirePrincipalApproval = false): KomiteStatus {
+  if (action === 'minta_revisi') return 'perlu_revisi'
+  if (action === 'tolak') return 'ditolak'
+  if (stage === 'bendahara') return 'menunggu_ketua'
+  if (stage === 'ketua' && requirePrincipalApproval) return 'menunggu_kepala'
+  return 'disetujui'
+}
+
+// Legacy approved proposals used the three-stage workflow. The stored final
+// stage is authoritative for new SPBs, regardless of subsequent setting changes.
+export function komiteSpbApprovalStages(finalStage?: string | null): KomiteStage[] {
+  return finalStage === 'ketua' ? ['bendahara', 'ketua'] : ['bendahara', 'ketua', 'kepala']
+}
+
 export type KomiteNotificationPlan = {
   eventKey: string
   recipient: 'applicant' | 'reviewer'
@@ -21,6 +35,7 @@ export type KomiteNotificationPlan = {
 export function komiteReviewNotificationPlans(
   stage: KomiteStage,
   action: KomiteReviewAction,
+  requirePrincipalApproval = false,
 ): KomiteNotificationPlan[] {
   if (action === 'minta_revisi') {
     return [{ eventKey: 'komite_revision_requested', recipient: 'applicant', suffix: 'revision-requested' }]
@@ -34,7 +49,7 @@ export function komiteReviewNotificationPlans(
       { eventKey: 'komite_chairman_review_requested', recipient: 'reviewer', suffix: 'waiting-chairman' },
     ]
   }
-  if (stage === 'ketua') {
+  if (stage === 'ketua' && requirePrincipalApproval) {
     return [
       { eventKey: 'komite_chairman_approved', recipient: 'applicant', suffix: 'approved' },
       { eventKey: 'komite_principal_review_requested', recipient: 'reviewer', suffix: 'waiting-principal' },
@@ -97,6 +112,7 @@ export async function ensureKomitePengajuanSchema(db: D1Database) {
   ])
 
   const alterStatements = [
+    `ALTER TABLE komite_pengajuan ADD COLUMN final_approval_stage TEXT CHECK (final_approval_stage IS NULL OR final_approval_stage IN ('ketua','kepala'))`,
     `ALTER TABLE komite_pengajuan ADD COLUMN tahun_anggaran TEXT`,
     `ALTER TABLE komite_pengajuan ADD COLUMN kode_rkas_program TEXT`,
     `ALTER TABLE komite_pengajuan ADD COLUMN realisasi_status TEXT NOT NULL DEFAULT 'belum' CHECK (realisasi_status IN ('belum','sudah'))`,

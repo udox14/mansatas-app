@@ -8,12 +8,14 @@ import {
   KOMITE_FEATURE_ID, KOMITE_STAGE_ROLE,
   canReviewKomite, canSubmitKomite, ensureKomitePengajuanSchema, stageForStatus,
   komiteReviewNotificationPlans,
+  komiteNextReviewStatus,
   type KomiteReviewAction,
 } from '@/lib/komite-pengajuan'
 import { deleteKomiteObjects, uploadKomitePdfs } from '@/utils/r2'
 import { logActivity } from '@/lib/activity-log'
 import { emitConfiguredNotification, type NotificationContext } from '@/lib/notification-engine'
 import { formatRupiah } from '@/lib/utils'
+import { SYSTEM_SETTING_KEYS, getSystemSettingBoolean, setSystemSetting } from '@/lib/system-settings'
 
 const PAGE_PATH = '/dashboard/komite/pengajuan'
 const MAX_DETAIL_ROWS = 10
@@ -165,12 +167,13 @@ function parseRincian(formData: FormData, fallback: { uraian: string; penerima?:
   return { rows, total: rows.reduce((sum, row) => sum + row.jumlah, 0) }
 }
 
-function detailStatements(db: D1Database, pengajuanId: string, rows: RincianInput[]) {
+function detailStatements(db: D1Database, pengajuanId: string, rows: RincianInput[], reviewId?: string) {
+  const guard = reviewId ? ' AND EXISTS (SELECT 1 FROM komite_pengajuan_reviews WHERE id=?)' : ''
   return [
-    db.prepare('DELETE FROM komite_pengajuan_rincian WHERE pengajuan_id=?').bind(pengajuanId),
+    db.prepare(`DELETE FROM komite_pengajuan_rincian WHERE pengajuan_id=?${guard}`).bind(pengajuanId, ...(reviewId ? [reviewId] : [])),
     ...rows.map(row => db.prepare(`INSERT INTO komite_pengajuan_rincian
-      (id,pengajuan_id,urutan,uraian,penerima_penyedia,jumlah) VALUES (?,?,?,?,?,?)`)
-      .bind(row.id, pengajuanId, row.urutan, row.uraian, row.penerima_penyedia, row.jumlah)),
+      (id,pengajuan_id,urutan,uraian,penerima_penyedia,jumlah) SELECT ?,?,?,?,?,?${reviewId ? ' WHERE EXISTS (SELECT 1 FROM komite_pengajuan_reviews WHERE id=?)' : ''}`)
+      .bind(row.id, pengajuanId, row.urutan, row.uraian, row.penerima_penyedia, row.jumlah, ...(reviewId ? [reviewId] : []))),
   ]
 }
 
@@ -284,6 +287,7 @@ export async function getKomiteDashboardData() {
     isSuper,
     reviewCount: reviewQueue.length,
     nextNomorSpb,
+    requirePrincipalApproval: await getSystemSettingBoolean(SYSTEM_SETTING_KEYS.komiteRequirePrincipalApproval, false, db),
   }
 }
 
@@ -462,10 +466,8 @@ export async function reviewKomiteAction(formData: FormData) {
   }
 
   const actor = await db.prepare('SELECT COALESCE(nama_lengkap,name,email) AS name,signature_url FROM "user" WHERE id=?').bind(user.id).first<any>()
-  const nextStatus = action === 'minta_revisi' ? 'perlu_revisi'
-    : action === 'tolak' ? 'ditolak'
-      : permission.stage === 'bendahara' ? 'menunggu_ketua'
-        : permission.stage === 'ketua' ? 'menunggu_kepala' : 'disetujui'
+  const requirePrincipalApproval = await getSystemSettingBoolean(SYSTEM_SETTING_KEYS.komiteRequirePrincipalApproval, false, db)
+  const nextStatus = komiteNextReviewStatus(permission.stage, action, requirePrincipalApproval)
   const actorRole = permission.bypass
     ? 'super_admin'
     : permission.stage === 'ketua' && row.ketua_delegate_id === user.id ? 'anggota_komite' : KOMITE_STAGE_ROLE[permission.stage]
@@ -474,20 +476,24 @@ export async function reviewKomiteAction(formData: FormData) {
     const statements = [
       db.prepare(`INSERT INTO komite_pengajuan_reviews
         (id,pengajuan_id,version_number,stage,action,catatan,actor_id,actor_name,actor_role,actor_signature_url,is_super_admin_bypass,nomor_spb_snapshot,penerima_snapshot)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-        .bind(reviewId,id,row.current_version,permission.stage,action,catatan || null,user.id,actor?.name || user.name,actorRole,actor?.signature_url || null,permission.bypass ? 1 : 0,nomorSpb || null,penerima || null),
+        SELECT ?,?,?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS (
+          SELECT 1 FROM komite_pengajuan WHERE id=? AND status=? AND current_version=? AND updated_at=? AND ketua_delegate_id IS ?)`)
+        .bind(reviewId,id,row.current_version,permission.stage,action,catatan || null,user.id,actor?.name || user.name,actorRole,actor?.signature_url || null,permission.bypass ? 1 : 0,nomorSpb || null,penerima || null,
+          id,row.status,row.current_version,row.updated_at,row.ketua_delegate_id || null),
       db.prepare(`UPDATE komite_pengajuan SET status=?,nomor_spb=?,penerima_pembayaran=?,nominal=?,tahun_anggaran=?,kode_rkas_program=?,
         ketua_delegate_id=CASE WHEN ?='bendahara' AND ?='setujui' THEN NULL ELSE ketua_delegate_id END,
         ketua_delegated_by=CASE WHEN ?='bendahara' AND ?='setujui' THEN NULL ELSE ketua_delegated_by END,
         ketua_delegated_at=CASE WHEN ?='bendahara' AND ?='setujui' THEN NULL ELSE ketua_delegated_at END,
         approved_at=CASE WHEN ?='disetujui' THEN datetime('now') ELSE approved_at END,
+        final_approval_stage=CASE WHEN ?='disetujui' THEN ? ELSE final_approval_stage END,
         rejected_at=CASE WHEN ?='ditolak' THEN datetime('now') ELSE rejected_at END,
-        updated_at=datetime('now') WHERE id=? AND status=?`)
+        updated_at=datetime('now') WHERE id=? AND status=? AND EXISTS (SELECT 1 FROM komite_pengajuan_reviews WHERE id=?)`)
         .bind(nextStatus,nomorSpb || null,penerima || null,nominal,tahunAnggaran,kodeRkasProgram,
-          permission.stage,action,permission.stage,action,permission.stage,action,nextStatus,nextStatus,id,row.status),
+          permission.stage,action,permission.stage,action,permission.stage,action,nextStatus,nextStatus,permission.stage,nextStatus,id,row.status,reviewId),
     ]
-    if (detailRows) statements.push(...detailStatements(db, id, detailRows))
-    await db.batch(statements)
+    if (detailRows) statements.push(...detailStatements(db, id, detailRows, reviewId))
+    const results = await db.batch(statements)
+    if (!results[0].meta.changes || !results[1].meta.changes) return { error: 'Pengajuan sudah berubah atau tahap ini sudah diproses. Muat ulang halaman.' }
   } catch (error: any) {
     if (error?.message?.includes('UNIQUE')) {
       const latest = await db.prepare('SELECT status FROM komite_pengajuan WHERE id=?').bind(id).first<{ status: string }>()
@@ -495,7 +501,7 @@ export async function reviewKomiteAction(formData: FormData) {
     }
     return { error: error?.message || 'Gagal menyimpan review.' }
   }
-  await logActivity({ db, module: 'komite_pengajuan', action: `review_${action}`, severity: action === 'tolak' ? 'warning' : 'info', summary: `${action === 'setujui' ? 'Menyetujui' : action === 'minta_revisi' ? 'Meminta revisi' : 'Menolak'} pengajuan ${row.judul} pada tahap ${permission.stage}`, entityType: 'komite_pengajuan', entityId: id, entityLabel: row.judul, metadata: { stage: permission.stage, bypass: permission.bypass, version: row.current_version } })
+  await logActivity({ db, module: 'komite_pengajuan', action: `review_${action}`, severity: action === 'tolak' ? 'warning' : 'info', summary: `${action === 'setujui' ? 'Menyetujui' : action === 'minta_revisi' ? 'Meminta revisi' : 'Menolak'} pengajuan ${row.judul} pada tahap ${permission.stage}`, entityType: 'komite_pengajuan', entityId: id, entityLabel: row.judul, metadata: { stage: permission.stage, bypass: permission.bypass, version: row.current_version, requirePrincipalApproval, nextStatus } })
 
   const commonContext = komiteNotificationContext({ ...row, nomor_spb: nomorSpb, nominal }, {
     userId: row.pengaju_id,
@@ -519,12 +525,26 @@ export async function reviewKomiteAction(formData: FormData) {
     context: reviewerContext,
   })
 
-  for (const plan of komiteReviewNotificationPlans(permission.stage, action)) {
+  for (const plan of komiteReviewNotificationPlans(permission.stage, action, requirePrincipalApproval)) {
     if (plan.recipient === 'applicant') await notifyApplicant(plan.eventKey, plan.suffix)
     else await notifyNextReviewer(plan.eventKey, plan.suffix)
   }
   revalidatePath(PAGE_PATH)
   return { success: nextStatus === 'disetujui' ? 'Pengajuan disetujui dan SPB telah terbit.' : 'Review berhasil disimpan.' }
+}
+
+export async function setKomiteApprovalFlowAction(requirePrincipalApproval: boolean) {
+  const { db, user, roles } = await requireContext()
+  if (!roles.includes('super_admin')) return { error: 'Hanya Super Admin yang dapat mengubah alur persetujuan Komite.' }
+  if (typeof requirePrincipalApproval !== 'boolean') return { error: 'Pengaturan persetujuan tidak valid.' }
+  const previous = await getSystemSettingBoolean(SYSTEM_SETTING_KEYS.komiteRequirePrincipalApproval, false, db)
+  await setSystemSetting(SYSTEM_SETTING_KEYS.komiteRequirePrincipalApproval, requirePrincipalApproval ? '1' : '0')
+  await logActivity({ db, module: 'komite_pengajuan', action: 'configure_approval_flow',
+    summary: `Mengatur persetujuan akhir Komite ke ${requirePrincipalApproval ? 'Kepala Madrasah' : 'Ketua Komite'}`,
+    entityType: 'system_setting', entityId: SYSTEM_SETTING_KEYS.komiteRequirePrincipalApproval,
+    metadata: { previous, requirePrincipalApproval, changedBy: user.id } })
+  revalidatePath(PAGE_PATH)
+  return { success: 'Alur persetujuan Komite berhasil diperbarui.' }
 }
 
 export async function delegateKetuaReviewAction(formData: FormData) {

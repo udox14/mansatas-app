@@ -3,7 +3,7 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
 import { getUserRoles } from '@/lib/features'
-import { canViewKomitePengajuan, ensureKomitePengajuanSchema } from '@/lib/komite-pengajuan'
+import { canViewKomitePengajuan, ensureKomitePengajuanSchema, komiteSpbApprovalStages } from '@/lib/komite-pengajuan'
 import { terbilang } from '@/lib/terbilang'
 import { renderPdfWithCache } from '@/lib/pdf-cache'
 
@@ -49,7 +49,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   ])
   const latest = new Map<string,any>()
   for (const review of reviewRows.results || []) latest.set(review.stage,review)
-  if (!latest.get('bendahara') || !latest.get('ketua') || !latest.get('kepala')) return new Response('Data persetujuan SPB belum lengkap',{ status:409 })
+  const approvalStages = komiteSpbApprovalStages(row.final_approval_stage)
+  if (approvalStages.some(stage => !latest.get(stage))) return new Response('Data persetujuan SPB belum lengkap',{ status:409 })
 
   const rincian = (detailRows.results || []).length ? detailRows.results || [] : [{
     urutan: 1,
@@ -111,7 +112,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     .checklist-title{font-weight:700;margin-bottom:1mm}
     .checks{display:grid;grid-template-columns:1fr 1fr;gap:1mm 5mm;font-size:9.2pt}
     .date-line{text-align:right;margin:5mm 0 0}
-    .approval{display:grid;grid-template-columns:repeat(3,1fr);gap:5mm;margin-top:6mm;page-break-inside:avoid}
+    .approval{display:grid;grid-template-columns:repeat(${approvalStages.length},1fr);gap:5mm;margin-top:6mm;page-break-inside:avoid}
     .sign{text-align:center;font-size:9pt}
     .sign-label{min-height:9mm}
     .sign-title{font-weight:700}
@@ -155,7 +156,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     <div class="date-line">Tasikmalaya, ${esc(tanggal(row.approved_at))}</div>
     <div class="approval">
       ${signer('ketua','Diperintahkan/Disetujui Oleh,','Ketua Komite Sekolah')}
-      ${signer('kepala','Mengetahui/Menyetujui,','Kepala Madrasah')}
+      ${approvalStages.includes('kepala') ? signer('kepala','Mengetahui/Menyetujui,','Kepala Madrasah') : ''}
       ${signer('bendahara','Diverifikasi/dibayarkan oleh,','Bendahara Komite')}
     </div>
     <div class="footer">Dokumen elektronik MANSATAS App - ID Pengajuan: ${esc(row.id)} - Versi: ${esc(row.current_version)}</div>
