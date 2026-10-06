@@ -38,6 +38,7 @@ import {
 
 type Props = {
   userId: string
+  unreadNotifications?: number
   nama: string
   namaDepan: string
   avatarUrl: string | null
@@ -137,6 +138,7 @@ function resolveSemesterStartDate(
 }
 
 export async function KelasBinaanDashboard({
+  unreadNotifications = 0,
   userId,
   taAktif,
   isGuruPiket = false,
@@ -474,9 +476,14 @@ export async function KelasBinaanDashboard({
               </div>
             </div>
           </div>
-          <Link href="/dashboard/keterangan-absensi" className="inline-flex w-full shrink-0 items-center justify-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-50 sm:w-auto sm:px-3 sm:py-2">
-            <NotebookPen className="h-3.5 w-3.5" /> Riwayat & Koreksi
-          </Link>
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:shrink-0">
+            <Link href="/dashboard/keterangan-absensi" className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-50">
+              <NotebookPen className="h-3.5 w-3.5 shrink-0" /><span>Riwayat & Koreksi</span>
+            </Link>
+            <Link href="/dashboard/kelas-binaan/notifikasi" className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border border-amber-200 bg-white px-3 py-2 text-xs font-semibold text-amber-800 transition-colors hover:bg-amber-50">
+              <span>Notifikasi Masuk</span>{unreadNotifications > 0 && <span aria-label={`${unreadNotifications} belum dibaca`} className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5">{unreadNotifications}</span>}
+            </Link>
+          </div>
         </div>
       </div>
 
