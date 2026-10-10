@@ -218,7 +218,7 @@ export const APP_MODULES: ModuleItem[] = [
     href: '/dashboard/ekstrakurikuler',
     domain: 'kesiswaan',
     summary: 'Pengelolaan kegiatan pengembangan diri, pendaftaran anggota, dan presensi mingguan.',
-    description: 'Mewadahi kegiatan minat dan bakat siswa di luar jam KBM reguler.',
+    description: 'Mewadahi kegiatan minat dan bakat siswa di luar jam KBM reguler. Input kegiatan hanya tersedia pukul 13.00–14.30 WIB pada hari jadwal latihan; tombol dinonaktifkan dengan penjelasan di luar jadwal dan waktu tersebut, serta divalidasi di server.',
     roles: ['pembina_ekstrakurikuler', 'super_admin', 'admin_tu', 'wakamad'],
     keyFeatures: ['Master ekstrakurikuler', 'Plotting anggota siswa', 'Presensi latihan rutin'],
     inputs: ['Nama ekskul', 'Pembina', 'Anggota siswa', 'Presensi'],

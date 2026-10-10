@@ -10,7 +10,8 @@ import {
   CheckCircle2, AlertCircle, ListChecks, SwitchCamera,
 } from 'lucide-react'
 import { compressAgendaImage } from '../../agenda/components/image-compression'
-import { formatDateWIB } from '@/lib/time'
+import { formatDateWIB, todayWIB } from '@/lib/time'
+import { EKSKUL_INPUT_RULE, getEkskulInputWindow, parseHariLatihan } from '@/lib/ekskul-input-window'
 import { buatPertemuan, getPertemuan, loadAbsensi, simpanAbsensi } from '../actions'
 import type { PertemuanRow, AbsensiSiswa } from '../actions'
 
@@ -22,38 +23,12 @@ const STATUS_OPT: Array<{ key: AbsensiSiswa['status']; label: string; cls: strin
   { key: 'ALFA', label: 'A', cls: 'bg-rose-600 text-white' },
 ]
 
-function todayLocal(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
 const HARI_NAMA = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
 
 function hariDariTanggal(tanggal: string): number | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) return null
   const date = new Date(`${tanggal}T12:00:00`)
   return Number.isNaN(date.getTime()) ? null : (date.getDay() || 7)
-}
-
-function parseHariLatihan(value: string | number | null): number[] {
-  if (typeof value === 'number') return [value]
-  if (!value) return []
-  try {
-    const parsed = JSON.parse(value)
-    return Array.isArray(parsed) ? parsed.map(Number).filter(hari => hari >= 1 && hari <= 7) : []
-  } catch {
-    const hari = Number(value)
-    return hari >= 1 && hari <= 7 ? [hari] : []
-  }
-}
-
-function tanggalJadwalBerikutnya(hariLatihan: number[]): string {
-  if (hariLatihan.length === 0) return todayLocal()
-  const date = new Date()
-  const hariIni = date.getDay() || 7
-  const selisih = Math.min(...hariLatihan.map(hari => (hari - hariIni + 7) % 7))
-  date.setDate(date.getDate() + selisih)
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
 function CameraCapture({ onCapture, onClose }: { onCapture: (file: File) => void; onClose: () => void }) {
@@ -129,13 +104,27 @@ function CameraCapture({ onCapture, onClose }: { onCapture: (file: File) => void
 
 export function PertemuanWizard({ ekskulId, hariLatihan: hariLatihanRaw }: { ekskulId: string; hariLatihan: string | number | null }) {
   const hariLatihan = parseHariLatihan(hariLatihanRaw)
+  const [clock, setClock] = useState<Date | null>(null)
+  const inputWindow = clock ? getEkskulInputWindow(hariLatihanRaw, clock) : null
+  const inputMessage = inputWindow?.error || EKSKUL_INPUT_RULE
+  useEffect(() => {
+    const refresh = () => setClock(new Date())
+    const initial = window.setTimeout(refresh, 0)
+    const interval = window.setInterval(refresh, 1000)
+    window.addEventListener('focus', refresh)
+    return () => {
+      window.clearTimeout(initial)
+      window.clearInterval(interval)
+      window.removeEventListener('focus', refresh)
+    }
+  }, [])
   const [view, setView] = useState<View>('list')
   const [pertemuanList, setPertemuanList] = useState<PertemuanRow[]>([])
   const [loadingList, setLoadingList] = useState(true)
   const [msg, setMsg] = useState<{ tipe: 'sukses' | 'error'; teks: string } | null>(null)
 
   // Step 1 form
-  const [tanggal, setTanggal] = useState(() => tanggalJadwalBerikutnya(hariLatihan))
+  const [tanggal, setTanggal] = useState(todayWIB)
   const [judul, setJudul] = useState('')
   const [catatan, setCatatan] = useState('')
   const [fotoFile, setFotoFile] = useState<File | null>(null)
@@ -160,7 +149,7 @@ export function PertemuanWizard({ ekskulId, hariLatihan: hariLatihanRaw }: { eks
   }, [reloadList])
 
   const resetStep1 = () => {
-    setTanggal(tanggalJadwalBerikutnya(hariLatihan)); setJudul(''); setCatatan('')
+    setTanggal(todayWIB()); setJudul(''); setCatatan('')
     setFotoFile(null); setFotoPreview(null); setShowCamera(false)
   }
 
@@ -187,6 +176,8 @@ export function PertemuanWizard({ ekskulId, hariLatihan: hariLatihanRaw }: { eks
 
   // Step 1 submit → create pertemuan → go step 2
   const handleCreate = async () => {
+    const currentWindow = getEkskulInputWindow(hariLatihanRaw)
+    if (!currentWindow.allowed) { setMsg({ tipe: 'error', teks: currentWindow.error! }); return }
     if (!tanggal) { setMsg({ tipe: 'error', teks: 'Tanggal wajib diisi.' }); return }
     if (hariLatihan.length === 0) { setMsg({ tipe: 'error', teks: 'Hari latihan belum diatur oleh admin.' }); return }
     if (!hariLatihan.includes(hariDariTanggal(tanggal) || 0)) {
@@ -233,12 +224,16 @@ export function PertemuanWizard({ ekskulId, hariLatihan: hariLatihanRaw }: { eks
   if (view === 'list') {
     return (
       <div className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-xs text-slate-500 dark:text-slate-400">{pertemuanList.length} pertemuan (semester ini)</p>
-          <Button size="sm" onClick={() => { resetStep1(); setMsg(null); setView('step1') }}>
+          <Button size="sm" disabled={!inputWindow?.allowed} aria-describedby="ekskul-input-window" onClick={() => {
+            if (!getEkskulInputWindow(hariLatihanRaw).allowed) { setClock(new Date()); return }
+            resetStep1(); setMsg(null); setView('step1')
+          }}>
             <CalendarPlus className="h-3.5 w-3.5 mr-1" /> Buat Pertemuan
           </Button>
         </div>
+        <p id="ekskul-input-window" role="status" className="text-xs text-slate-500 dark:text-slate-400">{inputMessage}</p>
 
         {msg && (
           <div className={`p-2.5 text-xs rounded-lg border ${msg.tipe === 'sukses' ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border-emerald-100' : 'text-rose-600 bg-rose-50 border-rose-100'}`}>{msg.teks}</div>
@@ -326,9 +321,10 @@ export function PertemuanWizard({ ekskulId, hariLatihan: hariLatihanRaw }: { eks
             )}
           </div>
 
-          <Button onClick={handleCreate} disabled={submitting || !tanggal} className="w-full">
+          <Button onClick={handleCreate} disabled={submitting || !tanggal || !inputWindow?.allowed} aria-describedby="ekskul-input-window" className="w-full">
             {submitting ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Menyimpan...</> : <>Lanjut: Absensi Siswa <ArrowRight className="h-4 w-4 ml-2" /></>}
           </Button>
+          <p id="ekskul-input-window" role="status" className="text-xs text-slate-500 dark:text-slate-400">{inputMessage}</p>
         </div>
       </div>
     )

@@ -16,6 +16,7 @@ import { uploadToR2 } from '@/utils/r2'
 import { revalidatePath } from 'next/cache'
 import { nowWIBISO } from '@/lib/time'
 import { formatNamaKelas } from '@/lib/utils'
+import { getEkskulInputWindow, parseHariLatihan } from '@/lib/ekskul-input-window'
 
 // ============================================================
 // TYPES
@@ -115,18 +116,6 @@ function getHariDariTanggal(tanggal: string): number | null {
   const date = new Date(`${tanggal}T12:00:00`)
   if (Number.isNaN(date.getTime())) return null
   return date.getDay() || 7
-}
-
-function parseHariLatihan(value: unknown): number[] {
-  if (value === null || value === undefined || value === '') return []
-  if (typeof value === 'number') return value >= 1 && value <= 7 ? [value] : []
-  try {
-    const parsed = JSON.parse(String(value))
-    return Array.isArray(parsed) ? parsed.map(Number).filter(hari => hari >= 1 && hari <= 7) : []
-  } catch {
-    const hari = Number(value)
-    return hari >= 1 && hari <= 7 ? [hari] : []
-  }
 }
 
 // ============================================================
@@ -292,6 +281,8 @@ export async function buatPertemuan(formData: FormData): Promise<{ error?: strin
   if (!(await canManage(db, ekskulId, effectiveUserId, realUserId))) return { error: 'Anda bukan pembina ekstrakurikuler ini.' }
 
   const ekskul = await db.prepare('SELECT hari_latihan FROM ekstrakurikuler WHERE id = ?').bind(ekskulId).first<{ hari_latihan: string | number | null }>()
+  const inputWindow = getEkskulInputWindow(ekskul?.hari_latihan)
+  if (!inputWindow.allowed) return { error: inputWindow.error! }
   const hariTanggal = getHariDariTanggal(tanggal)
   const hariLatihan = parseHariLatihan(ekskul?.hari_latihan)
   if (hariLatihan.length === 0) return { error: 'Hari latihan ekskul belum diatur oleh admin.' }
