@@ -30,6 +30,7 @@ import { attendanceSourceLabel, attendanceStatusCode, attendanceStatusLabel } fr
 import { downloadAttendanceWorkbook } from '@/lib/attendance-xlsx'
 
 type FilterOpt = {
+  liveOnly?: boolean
   angkatan: number[]
   kelas: Array<{ id: string; tingkat: number; label: string; wali_kelas_nama?: string | null }>
   siswa: any[]
@@ -309,6 +310,8 @@ export function RekapAbsensiClient({ filterOptions }: Props) {
     setActiveTab('siswa')
   }
 
+  if (filterOptions.liveOnly) return <TabKelas filterOptions={filterOptions} initialTingkat={initialTingkat} onOpenKelas={() => {}} />
+
   return (
     <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as TabValue)} className="space-y-3">
       <TabsList className="flex h-auto w-full max-w-3xl justify-start gap-0.5 overflow-x-auto p-1 sm:grid sm:grid-cols-5 sm:gap-0">
@@ -535,6 +538,7 @@ function TabKelas({ filterOptions, initialTingkat, onOpenKelas }: {
   onOpenKelas: (payload: any) => void
 }) {
   const [mode, setMode] = useState<Mode>('hari')
+  const [view, setView] = useState<'harian' | 'saat-ini'>('saat-ini')
   const [tingkat, setTingkat] = useState(initialTingkat)
   const [tanggal, setTanggal] = useState(today())
   const [tglMulai, setTglMulai] = useState(monthStart())
@@ -548,7 +552,7 @@ function TabKelas({ filterOptions, initialTingkat, onOpenKelas }: {
     setInfo('')
     try {
       const result = mode === 'hari'
-        ? await getAbsensiPerKelas(tanggal, Number(tingkat))
+        ? await getAbsensiPerKelas(tanggal, Number(tingkat), view)
         : await getAbsensiPerKelasRentang(Number(tingkat), tglMulai, tglSelesai)
       if (result.error) setInfo(result.error)
       else if ((result as any).calendarStatus && !(result as any).calendarStatus.isEffective) setInfo(`Tanggal ini tidak efektif pembelajaran: ${(result as any).calendarStatus.reason || 'tidak dihitung dalam rekap.'}`)
@@ -562,16 +566,23 @@ function TabKelas({ filterOptions, initialTingkat, onOpenKelas }: {
     }
   }
 
-  const followUpItems = data.filter(item =>
+  const followUpItems = data.filter(item => !item.live && (
     Number(item.belum_ada_input || 0) > 0 || Number(item.belum_ada_data || 0) > 0 || Number(item.perlu_konfirmasi_wali || 0) > 0
-  )
+  ))
 
   return (
     <div className="space-y-3">
       <div className="rounded-lg border bg-white p-4 dark:bg-slate-900">
         <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end max-sm:[&_input]:w-full max-sm:[&_[role=combobox]]:w-full">
-          <ModeSwitch mode={mode} setMode={(m) => { setMode(m); setData([]); setInfo('') }} />
+          {!filterOptions.liveOnly && <ModeSwitch mode={mode} setMode={(m) => { setMode(m); setData([]); setInfo('') }} />}
           <AngkatanSelect value={tingkat} onChange={(v) => { setTingkat(v); setData([]) }} options={filterOptions.angkatan} />
+          {mode === 'hari' && !filterOptions.liveOnly && <div>
+            <Label className="text-xs text-slate-500">Data kehadiran</Label>
+            <Select value={view} onValueChange={(value: 'harian' | 'saat-ini') => { setView(value); setData([]) }}>
+              <SelectTrigger className="mt-1 h-9 w-[190px]"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="saat-ini">Kehadiran Saat Ini</SelectItem><SelectItem value="harian">Rekap Harian</SelectItem></SelectContent>
+            </Select>
+          </div>}
           {mode === 'hari' ? (
             <div className="grid grid-cols-[2.25rem_minmax(0,1fr)_2.25rem] items-end gap-2 sm:flex">
               <Button variant="outline" size="sm" onClick={() => setTanggal(prev => shiftDateISO(prev, -1))} className="h-9 w-9 p-0"><ChevronRight className="h-4 w-4 rotate-180" /></Button>
@@ -589,7 +600,7 @@ function TabKelas({ filterOptions, initialTingkat, onOpenKelas }: {
           </Button>
         </div>
         <p className="text-xs text-slate-500">
-          {mode === 'hari' ? `Monitoring kelas pada ${fmtTglFull(tanggal)}.` : 'Rentang tanggal maksimal 31 hari, ditampilkan sebagai ringkasan per kelas.'}
+          {mode === 'hari' ? view === 'saat-ini' ? 'Data sementara untuk pembagian MBG. Jika jam berjalan belum diabsen, memakai jam sebelumnya yang sudah diinput. Klik Tampilkan untuk memperbarui.' : `Monitoring kelas pada ${fmtTglFull(tanggal)}.` : 'Rentang tanggal maksimal 31 hari, ditampilkan sebagai ringkasan per kelas.'}
         </p>
       </div>
 
@@ -643,6 +654,7 @@ function TabKelas({ filterOptions, initialTingkat, onOpenKelas }: {
             return (
               <button
                 key={k.kelas_id}
+                disabled={filterOptions.liveOnly}
                 onClick={() => onOpenKelas({
                   source: 'kelas',
                   mode,
@@ -660,15 +672,16 @@ function TabKelas({ filterOptions, initialTingkat, onOpenKelas }: {
                     <p className="text-xs text-slate-500">{mode === 'hari' ? `${k.total} siswa` : `${k.total_siswa} siswa, ${k.total_hari_efektif} hari efektif`}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-xl font-black text-slate-900 dark:text-slate-50">{k.persentase_hadir}%</p>
-                    <p className="text-[10px] text-slate-400">kehadiran</p>
+                    <p className="text-xl font-black text-slate-900 dark:text-slate-50">{k.live ? k.jam_acuan ? k.hadir : '—' : `${k.persentase_hadir}%`}</p>
+                    <p className="text-[10px] text-slate-400">{k.live ? 'siswa hadir' : 'kehadiran'}</p>
                   </div>
                 </div>
                 <div className="mb-3 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
                   <div className="h-full rounded-full bg-emerald-500" style={{ width: `${k.persentase_hadir}%` }} />
                 </div>
                 <SummaryChips item={k} />
-                <p className="mt-3 text-[11px] text-slate-400">Klik untuk melihat detail per siswa.</p>
+                {k.live && <p className="mt-3 text-xs font-medium text-slate-600 dark:text-slate-300">{k.jam_acuan ? `Data sementara · Acuan jam ${k.jam_acuan}` : 'Belum diabsen sampai jam berjalan'}</p>}
+                {!filterOptions.liveOnly && <p className="mt-3 text-[11px] text-slate-400">Klik untuk melihat detail per siswa.</p>}
               </button>
             )
           })}

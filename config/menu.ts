@@ -168,7 +168,7 @@ export const MENU_ITEMS: MenuItem[] = [
     title: 'Rekap Absensi',
     href: '/dashboard/rekap-absensi',
     icon: ClipboardList,
-    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'wali_kelas'],
+    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'wali_kelas', 'pramubakti'],
     desc: 'Laporan absensi siswa untuk monitoring kehadiran per kelas, per siswa, maupun rincian per jam pelajaran'
   },
   {

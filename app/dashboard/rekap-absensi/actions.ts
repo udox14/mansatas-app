@@ -24,6 +24,7 @@ import {
   getKalenderDateStatus,
 } from '@/lib/kalender-pendidikan'
 import { attendanceStatusCode } from '@/lib/attendance-status'
+import { liveAttendanceSummary } from '@/lib/attendance-live-summary'
 
 const HARI = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
 const MAX_RANGE_DAYS = 31
@@ -126,10 +127,12 @@ function validateRange(tglMulai: string, tglSelesai: string) {
   return null
 }
 
-async function getRekapScope(db: D1Database, userId: string): Promise<RekapScope> {
+async function getRekapScope(db: D1Database, userId: string, allowLiveSummary = false): Promise<RekapScope> {
   const roles = await getUserRoles(db, userId)
   const isAdmin = roles.some(role => ['super_admin', 'admin_tu', 'kepsek', 'wakamad'].includes(role))
   if (isAdmin) return { isAdmin: true, allowedClassIds: [] }
+  // Pramubakti only receive class totals through the live summary endpoint.
+  if (allowLiveSummary && roles.includes('pramubakti')) return { isAdmin: true, allowedClassIds: [] }
 
   if (roles.includes('guru_bk')) {
     const taAktif = await db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ id: string }>()
@@ -248,9 +251,12 @@ export async function getRekapFilterOptions() {
   if (!user) return { kelas: [], siswa: [], angkatan: [] }
 
   const scope = await getRekapScope(db, user.id)
-  const kelas = await getClassRows(db, scope)
+  const roles = await getUserRoles(db, user.id)
+  const liveOnly = roles.includes('pramubakti') && !scope.isAdmin && scope.allowedClassIds.length === 0
+  const kelas = await getClassRows(db, await getRekapScope(db, user.id, true))
 
   return {
+    liveOnly,
     angkatan: Array.from(new Set(kelas.map(k => k.tingkat))).sort((a, b) => a - b),
     kelas: kelas.map(k => ({
       id: k.id,
@@ -286,7 +292,7 @@ export async function getSiswaByKelas(kelasId: string) {
   return { error: null, data: rows.results || [] }
 }
 
-export async function getAbsensiPerKelas(tanggal: string, tingkat?: number) {
+export async function getAbsensiPerKelas(tanggal: string, tingkat?: number, view: 'harian' | 'saat-ini' = 'harian') {
   const db = await getDB()
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized', data: [] }
@@ -296,11 +302,20 @@ export async function getAbsensiPerKelas(tanggal: string, tingkat?: number) {
     return { error: null, data: [], calendarStatus }
   }
 
-  const scope = await getRekapScope(db, user.id)
+  const scope = await getRekapScope(db, user.id, view === 'saat-ini')
   const kelasList = await getClassRows(db, scope, tingkat)
   const data: any[] = []
 
   for (const kelas of kelasList) {
+    if (view === 'saat-ini') {
+      const matrix = await buildClassDailyMatrix(db, kelas.id, tanggal)
+      if (matrix.error) continue
+      const summary = liveAttendanceSummary(tanggal, matrix.slots, matrix.rows)
+      data.push({ kelas_id: kelas.id, tingkat: kelas.tingkat, label: kelas.label,
+        wali_kelas_nama: kelas.wali_kelas_nama || null, total: matrix.rows.length,
+        ...summary, persentase_hadir: percentage(summary.hadir, matrix.rows.length) })
+      continue
+    }
     const classData = await getFinalAttendanceForClass(db, kelas.id, tanggal, tanggal)
     if (!classData) continue
     const izinMap = await getIzinMapForClass(db, kelas.id, tanggal, tanggal)
@@ -447,6 +462,7 @@ async function buildClassDailyMatrix(db: D1Database, kelasId: string, tanggal: s
       return {
         jam_ke: slot.id,
         status,
+        teacher_submitted: submitted.has(jadwal.penugasan_id) || Boolean(absen),
         label: displayStatus(status),
         nama_mapel: jadwal.nama_mapel,
         catatan,

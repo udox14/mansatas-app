@@ -96,6 +96,18 @@ export const APP_MODULES: ModuleItem[] = [
     outputs: ['Data rekap kehadiran siswa realtime', 'Arsip jurnal kelas', 'Status mengajar hari ini'],
   },
   {
+    id: 'rekap-absensi',
+    title: 'Rekap Absensi Siswa',
+    href: '/dashboard/rekap-absensi',
+    domain: 'kbm',
+    summary: 'Ringkasan kehadiran per kelas, per siswa, dan per jam pelajaran.',
+    description: 'Kehadiran Saat Ini memakai satu jam acuan terakhir yang sudah diinput guru sampai jam berjalan per kelas untuk pembagian MBG. Jam yang belum diinput menggunakan jam sebelumnya; tanpa input ditandai belum diabsen. Data sementara terpisah dari rekap harian setelah KBM.',
+    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'wali_kelas', 'pramubakti'],
+    keyFeatures: ['Kehadiran Saat Ini dengan jam acuan per kelas', 'Pramubakti dapat membaca jumlah per kelas; akses detail tetap mengikuti cakupan kelas existing', 'Rekap harian setelah KBM', 'Ringkasan rentang tanggal', 'Rincian per siswa dan per jam'],
+    inputs: ['Absensi guru dan perizinan siswa', 'Tanggal dan angkatan'],
+    outputs: ['Jumlah hadir sementara untuk MBG', 'Laporan kehadiran harian'],
+  },
+  {
     id: 'jadwal',
     title: 'Jadwal Mengajar',
     href: '/dashboard/jadwal',
