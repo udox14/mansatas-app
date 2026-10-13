@@ -87,6 +87,8 @@ self.addEventListener('fetch', (event) => {
   if (!event.request.url.startsWith('http')) return
 
   const url = new URL(event.request.url)
+  // URI kamera milik perangkat ditangani bridge WebView, bukan jaringan/cache.
+  if (url.pathname.startsWith('/_capacitor_file_/') || url.pathname.startsWith('/_capacitor_content_/')) return
   const sameOrigin = url.origin === self.location.origin
   if (event.request.method !== 'GET') {
     if (sameOrigin && url.pathname.startsWith('/api/auth/sign-out')) {

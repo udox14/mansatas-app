@@ -91,7 +91,7 @@ export const APP_MODULES: ModuleItem[] = [
     summary: 'Pengisian jurnal mengajar harian, materi pelajaran, dan absensi kehadiran siswa di kelas.',
     description: 'Digunakan oleh guru mata pelajaran setiap jam mengajar untuk mencatat materi yang diajarkan, melampirkan foto dokumentasi kelas, dan otomatis menandai siswa hadir/absen.',
     roles: ['guru', 'guru_ppl', 'guru_tahfidz', 'super_admin', 'admin_tu'],
-    keyFeatures: ['Jurnal KBM harian', 'Upload foto kelas ber-timestamp dengan kompresi WebP/JPEG sesuai dukungan perangkat', 'Draft materi/foto dan kirim ulang jika koneksi gagal; sukses setelah penyimpanan dikonfirmasi server', 'Presensi per jam pelajaran', 'Audit akses agenda'],
+    keyFeatures: ['Jurnal KBM harian', 'Upload foto kelas ber-timestamp dengan kompresi WebP/JPEG sesuai dukungan perangkat', 'Kamera bawaan dengan fallback preview kamera browser langsung di halaman jika pengambilan/pembacaan foto gagal; kamera halaman juga dapat dipilih manual', 'Pemulihan foto kamera Android melalui file perangkat; lokasi foto disimpan sebelum kompresi', 'Draft materi/foto dan kirim ulang jika koneksi gagal; tombol ambil foto lagi jika hasil kamera belum tersedia; sukses setelah penyimpanan dikonfirmasi server', 'Presensi per jam pelajaran', 'Audit akses agenda'],
     inputs: ['Materi pembelajaran', 'Status presensi siswa (Hadir/Sakit/Izin/Alfa)', 'Foto bukti mengajar'],
     outputs: ['Data rekap kehadiran siswa realtime', 'Arsip jurnal kelas', 'Status mengajar hari ini'],
   },
@@ -446,7 +446,7 @@ export const CORE_WORKFLOWS: CoreWorkflow[] = [
         step: 2,
         actor: 'Guru Mata Pelajaran',
         title: 'Buka Kelas & Isi Agenda',
-        action: 'Saat jam pelajaran dimulai, guru membuka agenda mengajar, memasukkan materi, dan menandai kehadiran siswa. Foto kamera diperkecil ke WebP atau JPEG sesuai perangkat sebelum agenda dikirim; draft dapat dilanjutkan saat gagal dan status diperbarui setelah server mengonfirmasi penyimpanan.',
+        action: 'Saat jam pelajaran dimulai, guru membuka agenda mengajar, memasukkan materi, dan menandai kehadiran siswa. Lokasi foto kamera Android disimpan sebelum dibaca langsung dari perangkat dan diperkecil ke WebP atau JPEG. Jika kamera bawaan gagal, pengguna memotret melalui preview kamera browser di halaman yang sama. Setelah aplikasi dimuat ulang, draft materi/foto dapat dilanjutkan atau foto diambil lagi jika kamera belum mengembalikan hasil; status diperbarui setelah server mengonfirmasi penyimpanan.',
         module: '/dashboard/agenda',
       },
       {

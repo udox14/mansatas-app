@@ -4,19 +4,24 @@ import { useEffect, useRef, useState } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { Button } from '@/components/ui/button'
 import { AlertTriangle, Camera, Loader2 } from 'lucide-react'
-import { photoToFile } from '@/lib/agenda-draft'
+import { photoToFile, type AgendaCameraPhoto } from '@/lib/agenda-draft'
+import { InlineCameraCapture } from './inline-camera-capture'
 
 interface CameraProps {
   onCapture: (file: File) => void | Promise<void>
   onClose: () => void
   onBeforeOpen?: () => void
+  onNativePhoto?: (photo: AgendaCameraPhoto) => void
   onFinished?: () => void
+  allowInlineFallback?: boolean
+  startInline?: boolean
 }
 
-export function CameraCapture({ onCapture, onClose, onBeforeOpen, onFinished }: CameraProps) {
+export function CameraCapture({ onCapture, onClose, onBeforeOpen, onNativePhoto, onFinished, allowInlineFallback = false, startInline = false }: CameraProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState('')
   const [opening, setOpening] = useState(false)
+  const [inline, setInline] = useState(allowInlineFallback && startInline)
 
   useEffect(() => {
     const input = inputRef.current
@@ -40,6 +45,7 @@ export function CameraCapture({ onCapture, onClose, onBeforeOpen, onFinished }: 
       return
     }
     setOpening(true)
+    let fallingBack = false
     try {
       const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera')
       const photo = await Camera.getPhoto({
@@ -50,17 +56,35 @@ export function CameraCapture({ onCapture, onClose, onBeforeOpen, onFinished }: 
         width: 1600,
         height: 1600,
       })
+      onNativePhoto?.(photo)
       await onCapture(await photoToFile(photo))
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : typeof cause === 'object' && cause && 'message' in cause ? String(cause.message) : ''
-      setError(/cancel|batal|closed/i.test(message)
+      const cancelled = /cancel|batal|closed/i.test(message)
+      setError(cancelled
         ? 'Pengambilan foto dibatalkan. Agenda belum dikirim; buka kamera untuk melanjutkan.'
+        : allowInlineFallback ? 'Kamera bawaan gagal mengembalikan foto. Materi tetap disimpan; ambil foto dengan kamera di halaman ini.'
         : `Kamera atau pembacaan foto gagal${message ? `: ${message}` : '.'} Materi tetap disimpan; periksa izin kamera lalu coba lagi.`)
+      if (!cancelled && allowInlineFallback) { fallingBack = true; setInline(true) }
     } finally {
-      onFinished?.()
+      if (!fallingBack) onFinished?.()
       setOpening(false)
     }
   }
+
+  const openInline = () => {
+    try { onBeforeOpen?.(); setError(''); setInline(true) }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Draft gagal disimpan. Coba lagi.') }
+  }
+
+  if (inline) return (
+    <div className="mt-2 space-y-2">
+      {error && <p role="status" className="text-xs text-amber-700">{error}</p>}
+      <InlineCameraCapture
+        onCapture={async file => { try { await onCapture(file) } finally { onFinished?.() } }}
+        onClose={() => { onFinished?.(); onClose() }} />
+    </div>
+  )
 
   return (
     <div className="mt-2 space-y-2">
@@ -71,12 +95,16 @@ export function CameraCapture({ onCapture, onClose, onBeforeOpen, onFinished }: 
         capture="environment"
         className="sr-only"
         aria-label="Ambil foto kegiatan"
-        onChange={event => {
+        onChange={async event => {
           const file = event.target.files?.[0]
-          if (file) void Promise.resolve(onCapture(file)).catch(cause => setError(cause instanceof Error ? cause.message : 'Foto gagal diproses. Ambil ulang foto.'))
-          else setError('Tidak ada foto yang diambil. Agenda belum dikirim.')
-          onFinished?.()
           event.target.value = ''
+          try {
+            if (file) await onCapture(file)
+            else setError('Tidak ada foto yang diambil. Agenda belum dikirim.')
+          } catch (cause) {
+            setError(cause instanceof Error ? cause.message : 'Foto gagal diproses. Ambil ulang foto.')
+            if (allowInlineFallback) setInline(true)
+          } finally { onFinished?.() }
         }}
       />
       <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -94,6 +122,9 @@ export function CameraCapture({ onCapture, onClose, onBeforeOpen, onFinished }: 
         </Button>
         <Button type="button" variant="outline" onClick={onClose} disabled={opening}>Batal</Button>
       </div>
+      {allowInlineFallback && <Button type="button" variant="outline" onClick={openInline} disabled={opening} className="w-full">
+        <Camera className="mr-2 h-4 w-4" /> Gunakan Kamera di Halaman
+      </Button>}
     </div>
   )
 }

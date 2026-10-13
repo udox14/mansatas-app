@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { submitForgottenAgendaRequest } from '../actions'
 import { sendAgenda } from '@/lib/agenda-submission-client'
-import { agendaDraftKey, readAgendaDraft, saveAgendaDraft, clearAgendaDraft, beginAgendaCamera, finishAgendaCamera, draftPhotoFile, fileToDataUrl, AGENDA_DRAFT_RESTORED_EVENT } from '@/lib/agenda-draft'
+import { agendaDraftKey, readAgendaDraft, saveAgendaDraft, saveAgendaCameraPhoto, clearAgendaDraft, beginAgendaCamera, finishAgendaCamera, draftPhotoFile, fileToDataUrl, AGENDA_DRAFT_RESTORED_EVENT } from '@/lib/agenda-draft'
 import type { SlotJam } from '@/app/dashboard/settings/types'
 import { compressAgendaImage } from './image-compression'
 import type { KbmException } from '@/lib/kalender-pendidikan'
@@ -123,19 +123,25 @@ export function AgendaClient({ initialData, userRole, draftOwnerId, isActingAs =
   const [fotoPreview, setFotoPreview] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
-  const [pesan, setPesan] = useState<{ tipe: 'sukses' | 'error'; teks: string } | null>(null)
-  const [showCamera, setShowCamera] = useState(false)
+  const [pesan, setPesan] = useState<{ tipe: 'sukses' | 'error' | 'info'; teks: string } | null>(null)
+  const [showCamera, setShowCamera] = useState<false | 'native' | 'inline'>(false)
   const [forgottenBlock, setForgottenBlock] = useState<string | null>(null)
   const [forgottenMateri, setForgottenMateri] = useState('')
   const [isSubmittingForgotten, setIsSubmittingForgotten] = useState(false)
   const submittingRef = useRef(false)
   const captureRef = useRef(false)
+  const cameraOpenRef = useRef(false)
+  const restoreVersion = useRef(0)
   const scheduleVersion = useRef(0)
   const draftKey = agendaDraftKey(draftOwnerId, data.tanggal)
 
   useEffect(() => {
     let disposed = false
     const restore = async () => {
+      if (cameraOpenRef.current || captureRef.current || submittingRef.current) return
+      const version = ++restoreVersion.current
+      const isCurrent = () => !disposed && version === restoreVersion.current &&
+        !cameraOpenRef.current && !captureRef.current && !submittingRef.current
       try {
         const draft = readAgendaDraft(draftKey)
         if (!draft) return
@@ -145,17 +151,24 @@ export function AgendaClient({ initialData, userRole, draftOwnerId, isActingAs =
         setMateri(draft.materi)
         setShowCamera(false)
         const restored = await draftPhotoFile(draft)
-        const photo = restored ? await compressAgendaImage(restored) : null
-        if (disposed) return
+        const photo = restored ? (draft.photoDataUrl ? restored : await compressAgendaImage(restored)) : null
+        if (!isCurrent()) return
         if (photo) {
+          if (!draft.photoDataUrl) {
+            const photoDataUrl = await fileToDataUrl(photo)
+            if (!isCurrent()) return
+            const latest = readAgendaDraft(draftKey)
+            if (!latest || latest.penugasanId !== draft.penugasanId) return
+            saveAgendaDraft(draftKey, { ...latest, nativePhoto: undefined, photoDataUrl, photoName: photo.name, updatedAt: Date.now() })
+          }
           setFotoFile(photo)
           setFotoPreview(URL.createObjectURL(photo))
         }
-        setPesan({ tipe: 'error', teks: photo
+        setPesan({ tipe: photo ? 'error' : 'info', teks: photo
           ? 'Draft materi dan foto dipulihkan. Agenda belum dikonfirmasi tersimpan; tekan Coba Kirim Lagi untuk memeriksa dan melanjutkan.'
-          : 'Draft materi dipulihkan. Foto belum tersedia; ambil foto untuk melanjutkan pengiriman.' })
+          : 'Materi sudah dipulihkan. Foto belum diterima dari kamera; ambil foto lagi untuk melanjutkan.' })
       } catch (error) {
-        if (!disposed) setPesan({ tipe: 'error', teks: error instanceof Error ? error.message : 'Draft atau foto gagal dipulihkan. Isi materi dan ambil foto ulang.' })
+        if (isCurrent()) setPesan({ tipe: 'error', teks: error instanceof Error ? error.message : 'Draft atau foto gagal dipulihkan. Isi materi dan ambil foto ulang.' })
       }
     }
     void restore()
@@ -172,14 +185,14 @@ export function AgendaClient({ initialData, userRole, draftOwnerId, isActingAs =
     let disposed = false
     let controller: AbortController | undefined
     const refresh = async () => {
-      if (submittingRef.current || captureRef.current) return
+      if (submittingRef.current || captureRef.current || cameraOpenRef.current) return
       controller?.abort()
       controller = new AbortController()
       const currentController = controller
       const version = scheduleVersion.current
       try {
         const result = await loadAgendaSchedule(currentController)
-        if (!disposed && version === scheduleVersion.current && !submittingRef.current && !captureRef.current) setData(result)
+        if (!disposed && version === scheduleVersion.current && !submittingRef.current && !captureRef.current && !cameraOpenRef.current) setData(result)
       } catch (error) {
         if (!disposed && version === scheduleVersion.current && !currentController.signal.aborted) setPesan({ tipe: 'error', teks: error instanceof TypeError ? 'Koneksi terputus. Status agenda belum dapat diperbarui; periksa koneksi lalu tekan Refresh.' : error instanceof Error ? error.message : 'Status agenda gagal diperbarui. Tekan Refresh untuk mencoba lagi.' })
         if (!disposed && controller === currentController && currentController.signal.aborted) setPesan({ tipe: 'error', teks: 'Memuat status agenda melewati 45 detik. Periksa koneksi lalu tekan Refresh.' })
@@ -218,6 +231,7 @@ export function AgendaClient({ initialData, userRole, draftOwnerId, isActingAs =
     if (!capturedFoto && !isActingAs) { setPesan({ tipe: 'error', teks: 'Foto wajib diambil.' }); return }
 
     submittingRef.current = true
+    restoreVersion.current += 1
     scheduleVersion.current += 1
     setIsSubmitting(true)
     setPesan(null)
@@ -268,19 +282,21 @@ export function AgendaClient({ initialData, userRole, draftOwnerId, isActingAs =
   const handleCameraCapture = async (file: File, block: JadwalBlock) => {
     if (captureRef.current || submittingRef.current) return
     captureRef.current = true
+    restoreVersion.current += 1
     setPesan(null)
-    setShowCamera(false)
     setIsSubmitting(true)
 
     try {
       const compressed = await compressAgendaImage(file)
       setFotoFile(compressed)
       setFotoPreview(URL.createObjectURL(compressed))
+      setShowCamera(false)
       await handleSubmit(block, compressed)
     } catch (error) {
       setPesan({ tipe: 'error', teks: error instanceof Error ? error.message : 'Foto gagal diproses. Materi tetap disimpan; ambil ulang foto.' })
       setFotoFile(null)
       setFotoPreview(null)
+      throw error
     } finally {
       captureRef.current = false
       setIsSubmitting(false)
@@ -387,7 +403,7 @@ export function AgendaClient({ initialData, userRole, draftOwnerId, isActingAs =
       </div>
 
       {pesan && (
-        <div className={`rounded-lg border px-4 py-3 ${pesan.tipe === 'sukses' ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400' : 'bg-red-50 border-red-200 text-red-700'}`}>
+        <div className={`rounded-lg border px-4 py-3 ${pesan.tipe === 'sukses' ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400' : pesan.tipe === 'info' ? 'bg-sky-50 border-sky-200 text-sky-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
           <div className="flex items-center gap-3">
             {pesan.tipe === 'sukses'
               ? <CheckCircle2 className="h-7 w-7 shrink-0" />
@@ -395,6 +411,11 @@ export function AgendaClient({ initialData, userRole, draftOwnerId, isActingAs =
             <div>
               {pesan.tipe === 'sukses' && <p className="font-bold">Agenda berhasil dikirim</p>}
               <p className="text-sm">{pesan.teks}</p>
+              {pesan.tipe === 'info' && expandedBlock && !fotoFile && (
+                <Button type="button" size="sm" variant="outline" className="mt-2" disabled={isSubmitting || !materi.trim()} onClick={() => setShowCamera('inline')}>
+                  <Camera className="mr-2 h-4 w-4" /> Gunakan Kamera di Halaman
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -614,9 +635,15 @@ export function AgendaClient({ initialData, userRole, draftOwnerId, isActingAs =
                   </p>
 
                   {showCamera ? (
-                    <CameraCapture onCapture={(file) => handleCameraCapture(file, block)} onClose={() => setShowCamera(false)}
-                      onBeforeOpen={() => { persistDraft(block); beginAgendaCamera(draftKey) }}
-                      onFinished={() => finishAgendaCamera(draftKey)} />
+                    <CameraCapture allowInlineFallback startInline={showCamera === 'inline'} onCapture={(file) => handleCameraCapture(file, block)} onClose={() => setShowCamera(false)}
+                      onBeforeOpen={() => {
+                        persistDraft(block); beginAgendaCamera(draftKey)
+                        cameraOpenRef.current = true
+                        restoreVersion.current += 1
+                        scheduleVersion.current += 1
+                      }}
+                      onNativePhoto={photo => saveAgendaCameraPhoto(draftKey, photo)}
+                      onFinished={() => { cameraOpenRef.current = false; finishAgendaCamera(draftKey) }} />
                   ) : fotoPreview ? (
                     <div className="mt-1 relative">
                       <img src={fotoPreview} alt="Preview" className="w-full max-h-64 object-contain rounded-lg border" />
@@ -640,7 +667,7 @@ export function AgendaClient({ initialData, userRole, draftOwnerId, isActingAs =
                   ) : (
                     <button
                       type="button"
-                      onClick={() => setShowCamera(true)}
+                      onClick={() => setShowCamera('native')}
                       disabled={isSubmitting || !materi.trim()}
                       className="mt-1 w-full flex flex-col items-center justify-center gap-2 py-8 rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition-colors disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-slate-300 disabled:hover:bg-white dark:disabled:hover:bg-slate-900"
                     >
