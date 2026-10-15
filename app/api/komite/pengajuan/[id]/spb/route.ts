@@ -25,6 +25,23 @@ function tanggal(value?: string | null) {
 function todayIso() {
   return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Jakarta' }).format(new Date())
 }
+async function loadLetterhead(requestUrl: string, assets: CloudflareEnv['STATIC_ASSETS']) {
+  const url = new URL('/kopkomite.png', requestUrl)
+  // Gunakan binding aset agar renderer tidak bergantung pada akses HTTP publik.
+  // Fallback HTTP hanya untuk server Next.js lokal tanpa binding aset.
+  const response = assets
+    ? await assets.fetch(new Request(url))
+    : await fetch(url)
+  if (!response.ok) throw new Error('Kop Komite tidak dapat dimuat.')
+  const bytes = new Uint8Array(await response.arrayBuffer())
+  const pngSignature = [137, 80, 78, 71, 13, 10, 26, 10]
+  if (!pngSignature.every((value, index) => bytes[index] === value)) {
+    throw new Error('Kop Komite bukan gambar PNG yang valid.')
+  }
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return `data:image/png;base64,${btoa(binary)}`
+}
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser()
   if (!user) return new Response('Unauthorized',{ status:401 })
@@ -59,7 +76,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     jumlah: row.nominal,
   }]
   const total = rincian.reduce((sum: number, item: any) => sum + Number(item.jumlah || 0), 0) || Number(row.nominal || 0)
-  const origin = new URL(request.url).origin
+  let letterhead: string
+  try {
+    letterhead = await loadLetterhead(request.url, env.STATIC_ASSETS)
+  } catch {
+    return new Response('Kop Komite tidak dapat dimuat. Silakan coba cetak kembali.', {
+      status: 503, headers: { 'Cache-Control': 'private, no-store' },
+    })
+  }
   const signer = (stage: string, label: string, title: string) => {
     const review = latest.get(stage)
     const useChairmanIdentity = stage === 'ketua' && review.actor_role === 'anggota_komite' && delegatedChairman
@@ -128,7 +152,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     .footer{position:absolute;left:0;right:0;bottom:0;border-top:1px solid #aaa;padding-top:2mm;color:#666;font-size:7.5pt}
   </style></head><body>
   <section class="page">
-    <img class="kop" src="${origin}/kopkomite.png" alt="Kop Komite"><div class="rule"></div>
+    <img class="kop" src="${letterhead}" alt="Kop Komite"><div class="rule"></div>
     <h1>Surat Perintah Bayar</h1>
     <div class="nomor">Nomor: <strong>${esc(row.nomor_spb)}</strong></div>
     <table class="meta">
@@ -162,7 +186,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     <div class="footer">Dokumen elektronik MANSATAS App - ID Pengajuan: ${esc(row.id)} - Versi: ${esc(row.current_version)}</div>
   </section>
   <section class="page">
-    <img class="kop" src="${origin}/kopkomite.png" alt="Kop Komite"><div class="rule"></div>
+    <img class="kop" src="${letterhead}" alt="Kop Komite"><div class="rule"></div>
     <h2>Bukti Tanda Terima/Realisasi Pencairan</h2>
     <span class="status">${esc(receiptStatus)}</span>
     <div class="receipt-box">
@@ -201,7 +225,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       try {
         const page = await browser.newPage()
         await page.setContent(html,{ waitUntil:'networkidle0' })
-        await page.evaluate(async () => { await (document as any).fonts.ready; await Promise.all(Array.from(document.images).map(image => image.decode().catch(() => undefined))) })
+        // Gagal decode harus membatalkan render agar PDF tanpa kop tidak tersimpan di cache.
+        await page.evaluate(async () => {
+          await document.fonts.ready
+          await Promise.all(Array.from(document.images).map(image => image.decode()))
+        })
         return await page.pdf({ format:'A4',printBackground:true,preferCSSPageSize:true })
       } finally { await browser.close() }
     },
