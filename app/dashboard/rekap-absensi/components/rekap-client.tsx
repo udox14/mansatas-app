@@ -7,14 +7,16 @@ import { flushSync } from 'react-dom'
 import { buildStudentAttendancePrintHtml, type StudentPrintStatus } from '@/lib/student-attendance-print'
 import { reserveAttendancePrintWindow, printAttendanceDocument } from '@/lib/attendance-print-client'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
-  ArrowLeft, ChevronDown, ChevronRight, Clock,
-  FileSpreadsheet, Loader2, Printer, Search, Settings2, User, UserRoundX, Users,
+  ArrowLeft, CalendarDays, CalendarRange, ChevronDown, ChevronRight, ClipboardList, Clock,
+  FileSpreadsheet, Loader2, Printer, Search, Settings2, User, UserRoundX, Users, type LucideIcon,
 } from 'lucide-react'
 import {
   getAbsensiHeatmap,
@@ -1291,62 +1293,103 @@ tr { break-inside: avoid; page-break-inside: avoid; }
       setLoading(false)
     }
   }
-  const printChoices: Array<{ id: string; label: string; kind: PrintKind; monitoringMode?: 'bulanan' | 'semester' }> = [
-    { id: 'bulanan', label: 'Rekap Bulanan', kind: 'monitoring', monitoringMode: 'bulanan' },
-    { id: 'semester', label: 'Rekap Semester', kind: 'monitoring', monitoringMode: 'semester' },
-    { id: 'kelas', label: 'Per Kelas', kind: 'kelas' },
-    { id: 'siswa', label: 'Per Siswa', kind: 'siswa' },
-    { id: 'tidak-hadir', label: 'Daftar Tidak Hadir', kind: 'tidak-hadir' },
-    { id: 'catatan-guru', label: 'Catatan Absen oleh Guru', kind: 'catatan-guru' },
+  const printChoices: Array<{ id: string; label: string; description: string; icon: LucideIcon; kind: PrintKind; monitoringMode?: 'bulanan' | 'semester' }> = [
+    { id: 'bulanan', label: 'Rekap Bulanan', description: 'Kehadiran seluruh siswa dalam satu kelas selama satu bulan.', icon: CalendarDays, kind: 'monitoring', monitoringMode: 'bulanan' },
+    { id: 'semester', label: 'Rekap Semester', description: 'Ringkasan kehadiran siswa per bulan selama satu semester.', icon: CalendarRange, kind: 'monitoring', monitoringMode: 'semester' },
+    { id: 'kelas', label: 'Per Kelas', description: 'Rekap siswa sekelas untuk satu hari atau rentang tanggal.', icon: Users, kind: 'kelas' },
+    { id: 'siswa', label: 'Per Siswa', description: 'Laporan kehadiran satu siswa lengkap dengan rincian harian.', icon: User, kind: 'siswa' },
+    { id: 'tidak-hadir', label: 'Daftar Tidak Hadir', description: 'Daftar siswa sakit, izin, dan alfa pada periode yang dipilih.', icon: UserRoundX, kind: 'tidak-hadir' },
+    { id: 'catatan-guru', label: 'Catatan Absen oleh Guru', description: 'Catatan guru saat mengabsen, untuk satu kelas atau satu siswa.', icon: ClipboardList, kind: 'catatan-guru' },
   ]
 
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label="Jenis cetak">
-        {printChoices.map(choice => (
-          <Button key={choice.id} type="button" variant="outline" disabled={loading || loadingStudents}
-            aria-pressed={selectedChoice === choice.id}
-            className={`h-auto min-h-12 whitespace-normal px-3 py-3 text-left text-sm transition-colors ${selectedChoice === choice.id ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-200' : ''}`}
-            onClick={() => {
-              if (selectedChoice === choice.id) return
-              setSelectedChoice(choice.id)
-              setPrintKind(choice.kind)
-              if (choice.monitoringMode) setMonitoringMode(choice.monitoringMode)
-              setOrientation('portrait')
-              setKelasId('')
-              setSiswaKelasId('')
-              setSiswaId('')
-              setSiswaList([])
-              setPreviewHtml(null)
-              setError(null)
-              setShowPrintStatusOptions(false)
-              if (choice.kind === 'siswa') setStudentStatusCodes([...ALL_PRINT_STATUS_CODES])
-              if (choice.kind === 'tidak-hadir' || choice.kind === 'catatan-guru') {
-                setCollectiveStatusCodes(current => {
-                  const absent = current.filter(code => ['S', 'I', 'A'].includes(code))
-                  return absent.length ? absent : DEFAULT_PRINT_STATUS_CODES
-                })
-              }
-            }}>
-            {choice.label}
-          </Button>
-        ))}
+  if (!selectedChoice) return (
+    <section className="space-y-6" aria-labelledby="attendance-print-menu-title">
+      <div className="space-y-1 border-b pb-4">
+        <h2 id="attendance-print-menu-title" className="text-base font-semibold text-slate-900 dark:text-slate-50 sm:text-lg">Cetak Rekap Absensi</h2>
+        <p className="text-xs text-slate-500 dark:text-slate-400">Pilih dokumen absensi yang akan dicetak.</p>
       </div>
-      {selectedChoice && <fieldset disabled={loading || loadingStudents} inert={loading || loadingStudents} className="min-w-0 rounded-lg border bg-white p-4 dark:bg-slate-900">
-        <legend className="px-1 text-sm font-semibold">Konfigurasi {printChoices.find(choice => choice.id === selectedChoice)?.label}</legend>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-label="Jenis cetak">
+        {printChoices.map(choice => {
+          const Icon = choice.icon
+          return (
+            <Card key={choice.id} className="group overflow-hidden shadow-none transition-shadow hover:shadow-md">
+            <Button type="button" variant="ghost" aria-label={choice.label} aria-describedby={`attendance-print-description-${choice.id}`}
+              className="h-full w-full items-start justify-start whitespace-normal rounded-xl p-5 text-left transition-all [&_svg]:size-5 hover:bg-accent/50 active:scale-[0.98]"
+              onClick={() => {
+                setSelectedChoice(choice.id)
+                setPrintKind(choice.kind)
+                if (choice.monitoringMode) setMonitoringMode(choice.monitoringMode)
+                setOrientation('portrait')
+                setKelasId('')
+                setSiswaKelasId('')
+                setSiswaId('')
+                setSiswaList([])
+                setPreviewHtml(null)
+                setError(null)
+                setShowPrintStatusOptions(false)
+                if (choice.kind === 'siswa') setStudentStatusCodes([...ALL_PRINT_STATUS_CODES])
+                if (choice.kind === 'tidak-hadir' || choice.kind === 'catatan-guru') {
+                  setCollectiveStatusCodes(current => {
+                    const absent = current.filter(code => ['S', 'I', 'A'].includes(code))
+                    return absent.length ? absent : DEFAULT_PRINT_STATUS_CODES
+                  })
+                }
+              }}>
+              <span className="flex items-start gap-4">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-indigo-100 bg-indigo-50 transition-colors group-hover:bg-indigo-100 dark:border-indigo-900 dark:bg-indigo-950/50 dark:group-hover:bg-indigo-950">
+                  <Icon aria-hidden="true" className="size-5 text-indigo-500 dark:text-indigo-400" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="mb-1 block text-sm font-bold text-card-foreground">{choice.label}</span>
+                  <span id={`attendance-print-description-${choice.id}`} className="block text-xs font-normal leading-snug text-muted-foreground">{choice.description}</span>
+                </span>
+              </span>
+            </Button>
+            </Card>
+          )
+        })}
+      </div>
+    </section>
+  )
+
+  const selectedPrint = printChoices.find(choice => choice.id === selectedChoice)!
+  return (
+    <section className="space-y-6" aria-labelledby="attendance-print-view-title">
+      <div className="flex items-center gap-3 border-b pb-4">
+        <Button type="button" variant="ghost" size="icon" aria-label="Kembali ke menu cetak" title="Kembali ke menu cetak" disabled={loading || loadingStudents}
+          onClick={() => {
+            setSelectedChoice(null)
+            setPreviewHtml(null)
+            setError(null)
+            setShowPrintStatusOptions(false)
+          }}
+          className="shrink-0 rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-50 dark:text-slate-400 dark:hover:bg-slate-800">
+          <ArrowLeft aria-hidden="true" className="h-5 w-5" />
+        </Button>
+        <div className="min-w-0">
+          <h2 id="attendance-print-view-title" className="text-base font-semibold text-slate-900 dark:text-slate-50 sm:text-lg">{selectedPrint.label}</h2>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{selectedPrint.description}</p>
+        </div>
+      </div>
+      <Card className="shadow-none">
+        <CardContent className="p-5">
+      <fieldset aria-label={`Konfigurasi ${selectedPrint.label}`} disabled={loading || loadingStudents} inert={loading || loadingStudents} className="min-w-0">
         <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end max-sm:[&_input]:w-full max-sm:[&_[role=combobox]]:w-full">
-          {printKind === 'kelas' && <ModeSwitch mode={mode} setMode={(m) => { setMode(m); setPreviewHtml(null) }} />}
+          {printKind === 'kelas' && (
+            <div role="group" aria-label="Periode rekap kelas" className="flex gap-1 rounded-lg bg-muted p-1">
+              {([['hari', 'Per Hari'], ['rentang', 'Rentang Tanggal']] as const).map(([value, label]) => (
+                <Button key={value} type="button" size="sm" variant={mode === value ? 'secondary' : 'ghost'} aria-pressed={mode === value}
+                  onClick={() => { setMode(value); setPreviewHtml(null) }}>{label}</Button>
+              ))}
+            </div>
+          )}
           {printKind === 'catatan-guru' && (
-            <div className="flex w-full rounded-lg border bg-white p-0.5 sm:inline-flex sm:w-auto dark:bg-slate-900">
+            <div role="group" aria-label="Cakupan catatan guru" className="flex w-full gap-1 rounded-lg bg-muted p-1 sm:w-auto">
               {([['kelas', 'Per Kelas'], ['siswa', 'Per Siswa']] as const).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setCatatanPrintMode(value)}
-                  className={`flex-1 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors sm:flex-none ${catatanMode === value ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
-                >
+                <Button key={value} type="button" size="sm" variant={catatanMode === value ? 'secondary' : 'ghost'} aria-pressed={catatanMode === value}
+                  onClick={() => setCatatanPrintMode(value)} className="flex-1 sm:flex-none">
                   {label}
-                </button>
+                </Button>
               ))}
             </div>
           )}
@@ -1491,14 +1534,14 @@ tr { break-inside: avoid; page-break-inside: avoid; }
             <p className="text-xs text-slate-500">Status aktif: {printStatusSummary}</p>
             <div className="mb-2 flex items-center justify-between gap-3">
               <p className="text-[11px] text-slate-500">{printKind === 'siswa' ? 'Hanya hari dengan status terpilih yang dicetak.' : 'Status yang tidak dipilih tidak akan ditampilkan sebagai kolom.'}</p>
-              <button type="button" onClick={() => { setPrintStatusCodes(printableStatusOptions.map(option => option.code)); setPreviewHtml(null) }} className="shrink-0 text-xs font-semibold text-indigo-600 hover:underline">Semua</button>
+              <Button type="button" variant="ghost" size="sm" onClick={() => { setPrintStatusCodes(printableStatusOptions.map(option => option.code)); setPreviewHtml(null) }}>Semua</Button>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
               {printableStatusOptions.map(option => (
-                <label key={option.code} className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-xs">
-                  <input type="checkbox" checked={printStatusCodes.includes(option.code)} onChange={() => togglePrintStatus(option.code)} className="accent-indigo-600" />
+                <Label key={option.code} htmlFor={`attendance-print-status-${option.code}`} className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-xs">
+                  <Checkbox id={`attendance-print-status-${option.code}`} checked={printStatusCodes.includes(option.code)} onCheckedChange={() => togglePrintStatus(option.code)} />
                   {option.label}
-                </label>
+                </Label>
               ))}
             </div>
           </DialogContent>
@@ -1517,14 +1560,16 @@ tr { break-inside: avoid; page-break-inside: avoid; }
             <FileSpreadsheet className="mr-1 h-4 w-4" />Download Excel
           </Button>
         </div>
-      </fieldset>}
+      </fieldset>
+        </CardContent>
+      </Card>
       {(loading || loadingStudents) && <p role="status" className="flex items-center gap-2 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" />{loadingStudents ? 'Memuat daftar siswa...' : 'Menyiapkan dokumen...'}</p>}
       {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
       {previewHtml && <div className="space-y-2 rounded-lg border bg-white p-3">
         <h3 className="text-sm font-semibold text-slate-800">Pratinjau cetakan</h3>
         <iframe title="Pratinjau cetakan absensi" srcDoc={previewHtml} sandbox="allow-same-origin" className="h-[70vh] w-full rounded border bg-white" />
       </div>}
-    </div>
+    </section>
   )
 }
 
