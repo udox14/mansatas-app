@@ -25,6 +25,7 @@ vi.mock('@/lib/kalender-pendidikan', () => ({
 }))
 
 import { getFinalAttendanceForClass } from './wali-kelas-attendance'
+import { academicPeriodDates, loadFullReportAttendance, loadFullStudentReport } from '@/app/dashboard/siswa/[id]/full-report/report-data'
 import { invalidateAttendanceCache } from './attendance-cache'
 import { attendanceDateEligible, initialAttendanceContext } from './attendance-notice-state'
 import { notifyParentsAttendanceConfigured, notifyParentsDailyAttendanceFinal, dispatchAttendanceDailyNotices, processNotificationQueueMessage, prepareAttendanceNotificationWork, flushAttendanceNotificationOutbox, saveNotificationSetting, getNotificationSetting, type NotificationQueueMessage } from './notification-engine'
@@ -103,6 +104,80 @@ beforeEach(() => {
   } } as unknown as D1Database
 })
 afterEach(() => { sqlite.close(); invalidateAttendanceCache(); vi.useRealTimers() })
+
+describe('full report daily attendance', () => {
+  const semester = { id: 'year', nama: '2026/2027', semester: 1, label: '2026/2027 Semester 1', is_active: 1,
+    ...academicPeriodDates('2026/2027', 1) }
+  const dates = ['2026-08-28', '2026-09-04', '2026-09-11', '2026-09-18', '2026-09-25', date]
+  beforeEach(() => {
+    setTime('2026-10-16T10:00:00Z')
+    sqlite.exec(`
+      CREATE TABLE riwayat_kelas (siswa_id TEXT,kelas_id TEXT,tahun_ajaran_id TEXT,created_at TEXT);
+      INSERT INTO riwayat_kelas VALUES ('s','class','year','2026-07-01');
+      ALTER TABLE penugasan_mengajar ADD COLUMN tahun_ajaran_id TEXT DEFAULT 'year';
+    `)
+    for (const day of dates) {
+      sqlite.prepare(`INSERT INTO absensi_siswa (siswa_id,penugasan_id,tanggal,status,jam_ke_mulai,jam_ke_selesai,diinput_oleh)
+        VALUES ('s','math',?,'ALFA',1,2,'teacher')`).run(day)
+    }
+    sqlite.prepare(`INSERT INTO absensi_siswa (siswa_id,penugasan_id,tanggal,status,jam_ke_mulai,jam_ke_selesai,diinput_oleh)
+      VALUES ('s','language',?,'ALFA',5,6,'teacher')`).run(date)
+  })
+  const report = (period: typeof semester | null = null) => loadFullReportAttendance(runtime.db, 's', 'class', [semester], period)
+
+  it('counts seven alfa sessions on six dates as six days in all history', async () => {
+    expect(sqlite.prepare("SELECT COUNT(*) n FROM absensi_siswa WHERE status='ALFA'").get()?.n).toBe(7)
+    expect(await report()).toEqual({ hadir: 0, sakit: 0, izin: 0, alfa: 6, finalCount: 6 })
+    expect(await report(semester)).toEqual(await report())
+  })
+  it('prints daily totals and a daily presence denominator in the complete report', async () => {
+    await report() // Initialize the existing teacher-session schema.
+    sqlite.exec(`
+      ALTER TABLE "user" ADD COLUMN name TEXT;
+      ALTER TABLE "user" ADD COLUMN nip TEXT;
+      ALTER TABLE "user" ADD COLUMN signature_url TEXT;
+      ALTER TABLE tahun_ajaran ADD COLUMN nama TEXT DEFAULT '2026/2027';
+      ALTER TABLE tahun_ajaran ADD COLUMN semester INTEGER DEFAULT 1;
+      INSERT INTO absensi_sesi_guru (penugasan_id,tanggal,diinput_oleh) VALUES ('math','2026-10-09','teacher');
+    `)
+    const fullReport = await loadFullStudentReport(runtime.db, 's')
+    const attendance = fullReport?.sections.find(section => section.id === 'kehadiran')
+    expect(attendance?.tables.find(table => table.title === 'Status Kehadiran')).toMatchObject({
+      headers: ['Status', 'Jumlah Hari'],
+      rows: [['HADIR', '1'], ['SAKIT', '0'], ['IZIN', '0'], ['ALFA', '6']],
+    })
+    expect(attendance?.metrics).toContainEqual({ label: 'Hari Terekap', value: '7', detail: 'hari dengan status akhir' })
+    expect(attendance?.metrics).toContainEqual({ label: 'Tingkat Kehadiran', value: '14,29%' })
+  })
+  it('applies wali corrections and never infers presence from missing input', async () => {
+    sqlite.prepare("INSERT INTO keterangan_absensi_wali_kelas VALUES ('s',?,'SAKIT',NULL)").run(date)
+    expect(await report()).toEqual({ hadir: 0, sakit: 1, izin: 0, alfa: 5, finalCount: 6 })
+  })
+  it('uses school permission priority over alfa and wali corrections', async () => {
+    sqlite.exec(`INSERT INTO alasan_izin_kelas VALUES ('Tugas sekolah',1)`)
+    sqlite.prepare("INSERT INTO izin_tidak_masuk_kelas VALUES ('s',?,'Tugas sekolah',NULL,NULL,'teacher',NULL)").run(date)
+    sqlite.prepare("INSERT INTO keterangan_absensi_wali_kelas VALUES ('s',?,'SAKIT',NULL)").run(date)
+    expect(await report()).toEqual({ hadir: 1, sakit: 0, izin: 0, alfa: 5, finalCount: 6 })
+  })
+  it('preserves history for an inactive student who has moved class', async () => {
+    sqlite.exec("UPDATE siswa SET kelas_id='new-class',status='lulus' WHERE id='s'")
+    sqlite.prepare("INSERT INTO keterangan_absensi_wali_kelas VALUES ('s',?,'IZIN',NULL)").run(date)
+    expect(await report()).toEqual({ hadir: 0, sakit: 0, izin: 1, alfa: 5, finalCount: 6 })
+    // The live roster remains limited to active students in the current class.
+    expect((await getFinalAttendanceForClass(runtime.db, 'class', date, date))?.siswa).toEqual([])
+  })
+  it('does not count the current day until KBM ends', async () => {
+    setTime('2026-10-02T04:00:00Z')
+    expect(await report()).toEqual({ hadir: 0, sakit: 0, izin: 0, alfa: 5, finalCount: 5 })
+  })
+  it('does not apply the current roster to a previous semester without student history', async () => {
+    const oldSemester = { ...semester, id: 'old-year', nama: '2025/2026', semester: 2, is_active: 0,
+      ...academicPeriodDates('2025/2026', 2) }
+    expect(await loadFullReportAttendance(runtime.db, 's', 'class', [oldSemester, semester], null)).toEqual(await report())
+    expect(await loadFullReportAttendance(runtime.db, 's', 'class', [oldSemester, semester], oldSemester))
+      .toEqual({ hadir: 0, sakit: 0, izin: 0, alfa: 0, finalCount: 0 })
+  })
+})
 
 describe('configurable delays and durable attendance work', () => {
   it('applies the additive release migration without changing source rows or activation', () => {

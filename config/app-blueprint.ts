@@ -181,6 +181,7 @@ export const APP_MODULES: ModuleItem[] = [
       'Pencarian cepat nama/NISN',
       'Profil komprehensif siswa & buku induk digital dengan navigasi tab responsif',
       'Menu aksi terpadu responsif (Edit biodata, Cetak Full Report, Insight Verifikasi, Mutasi, Tandai Keluar)',
+      'Kehadiran Full Report menghitung status akhir per hari setelah KBM dengan koreksi wali dan perizinan; seluruh riwayat mengikuti kelas dan jadwal tiap semester, arsip bulanan ditampilkan terpisah',
       'Sinkronisasi lengkap biodata pribadi, domisili/asrama, dan data orang tua/wali',
       'Histori mutasi & kelas',
       'Import/Export data siswa',

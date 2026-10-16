@@ -1,6 +1,8 @@
 import { formatNamaKelas } from '@/lib/utils'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { createSignedMediaUrl } from '@/lib/media-security'
+import { getFinalAttendanceForClass } from '@/lib/wali-kelas-attendance'
+import { summarizeKelasBinaanAttendance } from '@/lib/kelas-binaan-attendance'
 
 export const FULL_REPORT_ROLES = ['super_admin', 'kepsek', 'wakamad', 'admin_tu', 'guru_bk'] as const
 
@@ -164,6 +166,47 @@ export async function canAccessFullStudentReport(
   return Boolean(assigned)
 }
 
+export async function loadFullReportAttendance(
+  db: D1Database,
+  studentId: string,
+  currentClassId: string | null,
+  semesters: Array<ReportPeriod & { is_active?: number }>,
+  period: ReportPeriod | null,
+) {
+  const history = await safeAll<{ kelas_id: string; tahun_ajaran_id: string }>(db, `
+    SELECT kelas_id, tahun_ajaran_id FROM riwayat_kelas
+    WHERE siswa_id = ? ORDER BY created_at DESC
+  `, [studentId])
+  const recordedClasses = await safeAll<{ kelas_id: string; tahun_ajaran_id: string }>(db, `
+    SELECT DISTINCT pm.kelas_id, pm.tahun_ajaran_id
+    FROM absensi_siswa ab JOIN penugasan_mengajar pm ON pm.id = ab.penugasan_id
+    WHERE ab.siswa_id = ?
+  `, [studentId])
+  const selectedIds = period ? period.semesterIds || [period.id] : null
+  const totals = { hadir: 0, sakit: 0, izin: 0, alfa: 0, finalCount: 0 }
+  // Keep semesters separate: historical days must use their own class and schedule.
+  for (const semester of semesters) {
+    if (selectedIds && !selectedIds.includes(semester.id)) continue
+    if (!semester.startDate || !semester.endDate) continue
+    const classId = history.find(row => row.tahun_ajaran_id === semester.id)?.kelas_id
+      || recordedClasses.find(row => row.tahun_ajaran_id === semester.id)?.kelas_id
+      || (semester.is_active ? currentClassId : null)
+    if (!classId) continue
+    const classData = await getFinalAttendanceForClass(db, classId, semester.startDate, semester.endDate, {
+      tahunAjaranId: semester.id,
+      historicalStudentId: studentId,
+      fresh: true,
+    })
+    const summary = summarizeKelasBinaanAttendance(classData?.statusByStudent.get(studentId) || [])
+    totals.hadir += summary.hadir
+    totals.sakit += summary.sakit
+    totals.izin += summary.izin
+    totals.alfa += summary.alfa
+    totals.finalCount += summary.finalCount
+  }
+  return totals
+}
+
 export async function loadFullStudentReport(
   db: D1Database,
   studentId: string,
@@ -192,8 +235,8 @@ export async function loadFullStudentReport(
   }
   if (!student) return null
 
-  const rawPeriods = await safeAll<{ id: string; nama: string; semester: number }>(db, `
-    SELECT id, nama, semester FROM tahun_ajaran
+  const rawPeriods = await safeAll<{ id: string; nama: string; semester: number; is_active: number }>(db, `
+    SELECT id, nama, semester, is_active FROM tahun_ajaran
     ORDER BY nama DESC, semester DESC
   `)
   const semesterPeriods = rawPeriods.map(row => ({
@@ -223,15 +266,11 @@ export async function loadFullStudentReport(
   const defaultTa = taFilter('tahun_ajaran_id')
   const taSql = defaultTa.sql
   const taBinds = defaultTa.binds
-  const periodClass = period ? await safeFirst<{ kelas_id: string }>(db,
-    `SELECT rk.kelas_id FROM riwayat_kelas rk WHERE rk.siswa_id = ?${taFilter('rk.tahun_ajaran_id').sql} ORDER BY rk.created_at DESC LIMIT 1`,
-    [studentId, ...taBinds]) : null
-  const reportClassId = periodClass?.kelas_id || student.kelas_id || null
 
   const [
     classHistory, admission, admissionAchievements, academicRecord, dailyGrades, programTests,
     tkaRows, psychology, plotting, futurePlans, universityResults,
-    attendanceSessions, attendance, monthlyAttendance, attendanceCorrections, classPermits, exitPermits,
+    dailyAttendance, monthlyAttendance, attendanceCorrections, classPermits, exitPermits,
     violations, warningLetters, warningFollowups, warningDecision, sanctionConfigs,
     bkRows, notesRows, tahfidzProgress, tahfidzLogs, tahfidzScores,
     extracurricularRows, extracurricularAttendance,
@@ -291,12 +330,7 @@ export async function loadFullStudentReport(
       FROM penerimaan_pt p LEFT JOIN tahun_ajaran ta ON ta.id = p.tahun_ajaran_id
       WHERE p.siswa_id = ?${taFilter('p.tahun_ajaran_id').sql}
       ORDER BY ta.nama, p.pilihan_ke`, [studentId, ...taBinds]),
-    safeFirst<any>(db, `SELECT COUNT(*) AS total FROM absensi_sesi_guru sg JOIN penugasan_mengajar pm ON pm.id=sg.penugasan_id
-      WHERE pm.kelas_id = ?${taFilter('pm.tahun_ajaran_id').sql}`, [reportClassId, ...taBinds]),
-    (() => { const f = dateFilter('tanggal'); return safeAll<any>(db, `SELECT status, COUNT(*) AS jumlah FROM (
-      SELECT UPPER(status) AS status,penugasan_id,tanggal FROM absensi_sesi_siswa WHERE siswa_id=? AND UPPER(status)<>'HADIR'${f.sql}
-      UNION SELECT UPPER(status) AS status,penugasan_id,tanggal FROM absensi_siswa WHERE siswa_id=? AND UPPER(status)<>'HADIR'${f.sql}
-      ) GROUP BY status`, [studentId, ...f.binds, studentId, ...f.binds]) })(),
+    loadFullReportAttendance(db, studentId, student.kelas_id || null, semesterPeriods, period),
     safeAll<any>(db, `SELECT r.bulan, SUM(r.sakit) AS sakit, SUM(r.izin) AS izin, SUM(r.alpa) AS alpa,
       ta.nama, ta.semester FROM rekap_kehadiran_bulanan r
       LEFT JOIN tahun_ajaran ta ON ta.id = r.tahun_ajaran_id
@@ -423,10 +457,14 @@ export async function loadFullStudentReport(
     }
   }
 
-  const totalAttendance = number(attendanceSessions?.total)
-  const totalAbsent = attendance.reduce((sum, row) => sum + number(row.jumlah), 0)
-  const present = Math.max(0, totalAttendance - totalAbsent)
-  const attendanceWithPresent = [{ status: 'HADIR', jumlah: present }, ...attendance]
+  const totalAttendance = dailyAttendance.finalCount
+  const present = dailyAttendance.hadir
+  const attendanceWithPresent = [
+    { status: 'HADIR', jumlah: present },
+    { status: 'SAKIT', jumlah: dailyAttendance.sakit },
+    { status: 'IZIN', jumlah: dailyAttendance.izin },
+    { status: 'ALFA', jumlah: dailyAttendance.alfa },
+  ]
   const violationPoints = violations.reduce((sum, row) => sum + number(row.poin), 0)
   const activeSanction = [...sanctionConfigs]
     .sort((a, b) => number(b.poin_minimal) - number(a.poin_minimal))
@@ -488,15 +526,15 @@ export async function loadFullStudentReport(
       { title: 'Penjurusan', headers: ['Tahun/Semester', 'Minat', 'Status'], rows: plotting.map(row => [`${text(row.nama)} / ${text(row.semester)}`, text(row.minat_jurusan), text(row.status)]) },
       { title: 'Pendidikan Lanjutan', headers: ['Tahun/Semester', 'Jenis', 'Perguruan Tinggi', 'Program Studi', 'Jalur/Status'], rows: universityResults.map(row => [`${text(row.nama)} / ${text(row.semester)}`, text(row.jenis_data), text(row.kampus_nama), text(row.program_studi), `${text(row.jalur)} / ${text(row.status)}`]) },
     ]),
-    section('kehadiran', 'Kehadiran dan Perizinan', `Rekap kehadiran tanpa menampilkan baris absensi per jam pada ${periodLabel(period)}.`, [
-      { label: 'Rekaman Absensi', value: integer(totalAttendance) },
+    section('kehadiran', 'Kehadiran dan Perizinan', `Status akhir per hari setelah KBM, termasuk koreksi wali dan perizinan, pada ${periodLabel(period)}. Hari tanpa hasil akhir belum dihitung.`, [
+      { label: 'Hari Terekap', value: integer(totalAttendance), detail: 'hari dengan status akhir' },
       { label: 'Tingkat Kehadiran', value: totalAttendance ? `${decimal((present / totalAttendance) * 100)}%` : '-' },
       { label: 'Koreksi Wali Kelas', value: integer(attendanceCorrections.reduce((s, r) => s + number(r.jumlah), 0)) },
       { label: 'Izin Kelas', value: integer(classPermits.reduce((s, r) => s + number(r.jumlah), 0)) },
       { label: 'Izin Keluar Kompleks', value: integer(exitPermits.reduce((s, r) => s + number(r.jumlah), 0)) },
     ], [
-      { title: 'Status Kehadiran', headers: ['Status', 'Jumlah'], rows: groupRows(attendanceWithPresent, 'status') },
-      { title: 'Rekap Bulanan', headers: ['Tahun/Semester', 'Bulan', 'Sakit', 'Izin', 'Alfa'], rows: monthlyAttendance.map(row => [`${text(row.nama)} / ${text(row.semester)}`, text(row.bulan), integer(row.sakit), integer(row.izin), integer(row.alpa)]) },
+      { title: 'Status Kehadiran', headers: ['Status', 'Jumlah Hari'], rows: groupRows(attendanceWithPresent, 'status') },
+      { title: 'Arsip Rekap Bulanan', headers: ['Tahun/Semester', 'Bulan', 'Sakit', 'Izin', 'Alfa'], rows: monthlyAttendance.map(row => [`${text(row.nama)} / ${text(row.semester)}`, text(row.bulan), integer(row.sakit), integer(row.izin), integer(row.alpa)]) },
       { title: 'Koreksi Wali Kelas', headers: ['Status Akhir', 'Jumlah'], rows: groupRows(attendanceCorrections, 'status') },
       { title: 'Alasan Izin Kelas', headers: ['Alasan', 'Jumlah'], rows: groupRows(classPermits, 'alasan') },
       { title: 'Izin Keluar Kompleks', headers: ['Status', 'Jumlah'], rows: groupRows(exitPermits, 'status') },
