@@ -1,7 +1,9 @@
 // Lokasi: app/dashboard/siswa/[id]/components/rekap-absensi-tab.tsx
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { buildStudentAttendancePrintHtml, STUDENT_PRINT_STATUSES, type StudentPrintStatus as StatusKey } from '@/lib/student-attendance-print'
+import { reserveAttendancePrintWindow, printAttendanceDocument } from '@/lib/attendance-print-client'
 import { getAbsensiPerSiswa, getWaliKelasForSiswa } from '@/app/dashboard/rekap-absensi/actions'
 import { Button } from '@/components/ui/button'
 import { nowWIB, todayWIB } from '@/lib/time'
@@ -46,7 +48,7 @@ type AbsensiDay = {
 
 type RekapResult = {
   error: string | null
-  siswa?: { nama: string; nisn: string; kelas: string }
+  siswa?: { nama: string; nisn: string; nis_lokal?: string | null; kelas: string }
   days?: AbsensiDay[]
   summary?: { hadir: number; parsial: number; sakit: number; izin: number; alfa: number; perlu_konfirmasi_wali?: number; belum_ada_input?: number; belum_ada_data?: number }
   totalHari?: number
@@ -93,8 +95,7 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
 
   // ── State dialog cetak ──
   const [showPrintDialog, setShowPrintDialog] = useState(false)
-  type StatusKey = 'HADIR' | 'BOLOS' | 'SAKIT' | 'IZIN' | 'ALFA' | 'PERLU KONFIRMASI WALI' | 'BELUM ADA INPUT' | 'BELUM_ADA_DATA'
-  const ALL_STATUS: StatusKey[] = ['HADIR', 'BOLOS', 'SAKIT', 'IZIN', 'ALFA', 'PERLU KONFIRMASI WALI', 'BELUM ADA INPUT', 'BELUM_ADA_DATA']
+  const ALL_STATUS = [...STUDENT_PRINT_STATUSES]
   const [printFilter, setPrintFilter] = useState<Set<StatusKey>>(new Set(ALL_STATUS))
   const [printPaper, setPrintPaper] = useState<'A4' | 'F4'>('F4')
   const [printOrientation, setPrintOrientation] = useState<'portrait' | 'landscape'>('portrait')
@@ -140,196 +141,31 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
   }
 
   // ── CETAK LAPORAN ──
-  const handlePrint = (filterStatus: Set<StatusKey>) => {
-    if (!result || result.error || !result.days) return
-    const { days: allDays, summary, siswa: siswaMeta, totalHari } = result
-
-    // Filter hari berdasarkan status yang dipilih
-    const days = allDays.filter(d => filterStatus.has(d.statusHari as StatusKey))
-
-    const fmtTgl = (t: string) => new Date(t + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
-    const fmtTglShort = (t: string) => new Date(t + 'T00:00:00').toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
-    const nowStr = new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-    const tglTtd = new Date().toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'long', year: 'numeric' })
-
-    const statusLabel: Record<string, string> = {
-      HADIR: 'Hadir', BOLOS: 'Bolos', SAKIT: 'Sakit', IZIN: 'Izin', ALFA: 'Alfa', 'PERLU KONFIRMASI WALI': 'Perlu Keputusan Wali', 'BELUM ADA INPUT': 'Belum Ada Input', BELUM_ADA_DATA: 'Belum Lengkap'
+  const [printing, setPrinting] = useState(false)
+  const [printError, setPrintError] = useState<string | null>(null)
+  const printBusy = useRef(false)
+  const handlePrint = async (filterStatus: Set<StatusKey>) => {
+    if (printBusy.current || !result || result.error || !result.days) return
+    printBusy.current = true
+    setPrinting(true)
+    setPrintError(null)
+    let printWindow: Window | null = null
+    try {
+      printWindow = reserveAttendancePrintWindow()
+      const html = buildStudentAttendancePrintHtml({
+        result: { ...result, siswa: result.siswa ? { ...result.siswa, nis_lokal: result.siswa.nis_lokal ?? siswa?.nis_lokal } : undefined },
+        waliKelas, startDate: tglMulai, endDate: tglSelesai, statuses: filterStatus,
+        paper: printPaper, orientation: printOrientation, origin: window.location.origin,
+      })
+      await printAttendanceDocument(html, printWindow)
+      setShowPrintDialog(false)
+    } catch (error) {
+      printWindow?.close()
+      setPrintError(error instanceof Error ? error.message : 'Gagal menyiapkan cetakan. Silakan coba lagi.')
+    } finally {
+      printBusy.current = false
+      setPrinting(false)
     }
-
-    const namaMeta  = siswa?.nama_lengkap || siswaMeta?.nama || '-'
-    const nisnMeta  = siswa?.nisn         || siswaMeta?.nisn || '-'
-    const nisMeta   = siswa?.nis_lokal    || '-'
-    const kelasMeta = result.siswa?.kelas || '-'
-    const wkNama    = waliKelas           || 'Belum Ditentukan'
-
-    const TD = 'border:1px solid #555;padding:3px 5px;vertical-align:top;'
-
-    // Baris tabel detail per hari
-    const tableRows = days.map((day, i) => {
-      const detailStr = day.detail.length > 0
-        ? day.detail.map(d =>
-            `${d.nama_mapel} (Jam ${d.jam_ke_mulai}${d.jam_ke_selesai > d.jam_ke_mulai ? '\u2013' + d.jam_ke_selesai : ''}):` +
-            ` ${statusLabel[d.status] || d.status}` +
-            `${d.catatan ? ' — ' + d.catatan : ''}`
-          ).join('<br/>')
-        : 'Hadir semua jam'
-
-      return `<tr style="background:${i % 2 === 0 ? '#fff' : '#f5f5f5'}">
-        <td style="${TD}text-align:center;width:24px">${i + 1}</td>
-        <td style="${TD}width:24px;text-align:center">${new Date(day.tanggal + 'T00:00:00').getDate()}</td>
-        <td style="${TD}width:44px">${day.hariNama}</td>
-        <td style="${TD}width:70px">${fmtTglShort(day.tanggal)}</td>
-        <td style="${TD}width:45px;text-align:center">${day.submittedBlok || 0}/${day.totalBlok}</td>
-        <td style="${TD}width:70px">${attendanceStatusLabel(day.statusHari)}</td>
-        <td style="${TD}width:70px">${attendanceSourceLabel(day.sumberStatus)}</td>
-        <td style="${TD}font-size:8.5px">${day.statusReason || '-'}</td>
-        <td style="${TD}font-size:8.5px;line-height:1.5">${detailStr}</td>
-      </tr>`
-    }).join('')
-
-    // Dapatkan origin untuk URL absolut gambar kopsurat
-    const origin = typeof window !== 'undefined' ? window.location.origin : ''
-
-    const base = printPaper === 'A4' ? { width: 210, height: 297 } : { width: 215, height: 330 }
-    const page = printOrientation === 'portrait' ? base : { width: base.height, height: base.width }
-    const html = `<!DOCTYPE html><html lang="id"><head><meta charset="utf-8">
-<title>Rekap Absensi \u2014 ${namaMeta}</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, Helvetica, sans-serif; font-size: 10pt; color: #000; background: #fff; }
-  @page { size: ${page.width}mm ${page.height}mm; margin: 0; }
-  @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-
-  .page { width: ${page.width}mm; min-height: ${page.height}mm; padding: 0 12mm 12mm 12mm; }
-
-  /* KOP */
-  .kop-img { width: 100%; display: block; margin-bottom: 8pt; }
-
-  /* GARIS BAWAH KOP */
-  .kop-line { border-top: 2pt solid #000; margin-bottom: 10pt; }
-
-  /* JUDUL */
-  .judul { text-align: center; margin-bottom: 10pt; }
-  .judul h2 { font-size: 13pt; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5pt; margin-bottom: 2pt; }
-  .judul .periode { font-size: 11pt; font-weight: normal; }
-
-  /* INFO SISWA */
-  .info-table { width: 100%; border-collapse: collapse; margin-bottom: 10pt; font-size: 10pt; }
-  .info-table td { padding: 1.5pt 0; vertical-align: top; }
-  .info-table td:first-child { width: 110pt; }
-  .info-table td:nth-child(2) { width: 10pt; text-align: center; }
-
-  /* RINGKASAN */
-  .summary-table { width: 100%; border-collapse: collapse; margin-bottom: 8pt; }
-  .summary-table th, .summary-table td { border: 1px solid #555; padding: 4pt 6pt; text-align: center; font-size: 10pt; }
-  .summary-table th { font-weight: bold; background: #eee; }
-
-  /* TABEL HARIAN */
-  table.main { width: 100%; border-collapse: collapse; font-size: 9pt; }
-  table.main thead tr { background: #ddd; }
-  table.main thead th { border: 1px solid #555; padding: 4pt 4pt; font-weight: bold; text-align: center; }
-  table.main tbody td { border: 1px solid #888; padding: 2.5pt 4pt; vertical-align: top; }
-
-  /* FOOTER */
-  .footer { margin-top: 14pt; display: flex; justify-content: space-between; align-items: flex-end; font-size: 10pt; }
-  .footer .keterangan p { margin-bottom: 1.5pt; }
-  .footer .ttd { text-align: center; }
-  .footer .ttd-space { height: 44pt; }
-  .footer .ttd-nama { font-weight: bold; border-top: 1pt solid #000; padding-top: 2pt; }
-
-  /* Colofon */
-  .colofon { font-size: 7.5pt; color: #777; text-align: center; margin-top: 10pt; }
-</style>
-</head>
-<body>
-<div class="page">
-
-  <img class="kop-img" src="${origin}/kopsurat.png" alt="Kop Surat" />
-
-  <div class="judul">
-    <h2>Rekap Kehadiran Siswa</h2>
-    <div class="periode">Periode: ${fmtTgl(tglMulai)} &ndash; ${fmtTgl(tglSelesai)}</div>
-  </div>
-
-  <table class="info-table">
-    <tr><td>Nama Siswa</td><td>:</td><td><strong>${namaMeta}</strong></td></tr>
-    <tr><td>NISN</td><td>:</td><td>${nisnMeta}</td></tr>
-    <tr><td>NIS Lokal</td><td>:</td><td>${nisMeta}</td></tr>
-    <tr><td>Kelas</td><td>:</td><td>${kelasMeta}</td></tr>
-    <tr><td>Total Hari Efektif</td><td>:</td><td>${totalHari || days.length} hari</td></tr>
-  </table>
-
-  <table class="summary-table">
-    <thead>
-      <tr>
-        <th>Hadir</th><th>Bolos</th><th>Sakit</th><th>Izin</th><th>Alfa</th><th>Perlu Keputusan Wali</th><th>Belum Ada Input</th><th>Belum Lengkap</th><th>Total Hari</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>${summary?.hadir ?? 0}</td>
-        <td>${summary?.parsial ?? 0}</td>
-        <td>${summary?.sakit ?? 0}</td>
-        <td>${summary?.izin ?? 0}</td>
-        <td>${summary?.alfa ?? 0}</td>
-        <td>${summary?.perlu_konfirmasi_wali ?? 0}</td>
-        <td>${summary?.belum_ada_input ?? 0}</td>
-        <td>${summary?.belum_ada_data ?? 0}</td>
-        <td>${days.length}</td>
-      </tr>
-    </tbody>
-  </table>
-
-  <table class="main">
-    <thead>
-      <tr>
-        <th style="width:24px">No</th>
-        <th style="width:24px">Tgl</th>
-        <th style="width:44px">Hari</th>
-        <th style="width:70px">Tanggal</th>
-        <th style="width:45px">Blok Disubmit</th>
-        <th style="width:70px">Status</th>
-        <th style="width:70px">Sumber</th>
-        <th>Alasan</th>
-        <th>Detail Ketidakhadiran</th>
-      </tr>
-    </thead>
-    <tbody>${tableRows}</tbody>
-  </table>
-
-  <div class="footer">
-    <div class="keterangan">
-      <p><strong>Keterangan:</strong></p>
-      <p>Hadir: Hadir semua blok jam pelajaran</p>
-      <p>Bolos: Hadir sebagian jam, lalu alfa di sebagian jam</p>
-      <p>Perlu Keputusan Wali: Ada campuran alfa, sakit, dan/atau izin dalam satu hari</p>
-      <p>Belum Ada Input: Belum ada satu pun blok jam yang disubmit</p>
-      <p>Belum Lengkap: Absensi harian belum selesai diinput semua guru</p>
-      <p>Sakit / Izin: Tidak hadir dengan keterangan</p>
-      <p>Alfa: Tidak hadir tanpa keterangan</p>
-    </div>
-    <div class="ttd">
-      <p>Tasikmalaya, ${tglTtd}</p>
-      <p style="margin-top:2pt">Wali Kelas,</p>
-      <div class="ttd-space"></div>
-      <div class="ttd-nama">${wkNama}</div>
-    </div>
-  </div>
-
-  <p class="colofon">Dicetak melalui Sistem Informasi Manajemen MAN 1 Tasikmalaya &bull; ${nowStr} WIB</p>
-</div>
-</body></html>`
-
-    let w = window.open('', '_blank')
-    if (!w && isMobile) {
-      w = window.open('', '_self')
-    }
-    if (!w) return
-    w.document.write(html)
-    w.document.close()
-    w.focus()
-    setTimeout(() => w.print(), 600)
-    setShowPrintDialog(false)
   }
 
   const summary = result?.summary
@@ -398,6 +234,7 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
                 <>
                   <Button
                     onClick={() => {
+                      setPrintError(null)
                       setPrintFilter(new Set(ALL_STATUS))
                       setShowPrintDialog(true)
                     }}
@@ -575,7 +412,7 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
                                   </p>
                                   {d.catatan && (
                                     <p className="text-[10px] italic text-slate-500 dark:text-slate-400 mt-0.5 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded px-2 py-0.5">
-                                      "{d.catatan}"
+                                      &quot;{d.catatan}&quot;
                                     </p>
                                   )}
                                 </div>
@@ -594,7 +431,7 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
       </div>
 
       {/* ─── DIALOG KONFIRMASI CETAK ─── */}
-      <Dialog open={showPrintDialog} onOpenChange={setShowPrintDialog}>
+      <Dialog open={showPrintDialog} onOpenChange={open => { if (!printing) setShowPrintDialog(open) }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
@@ -603,7 +440,7 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
             </DialogTitle>
           </DialogHeader>
 
-          <div className="py-1 space-y-2">
+          <fieldset disabled={printing} className="py-1 space-y-2">
             <p className="text-xs text-slate-500 dark:text-slate-400 pb-1">
               Centang status kehadiran yang ingin diikutkan dalam laporan cetak.
             </p>
@@ -667,23 +504,25 @@ export function RekapAbsensiTab({ siswaId, siswa }: { siswaId: string; siswa?: {
                 {result?.days?.filter(d => printFilter.has(d.statusHari as StatusKey)).length ?? 0} hari
               </strong>
             </div>
-          </div>
+          </fieldset>
 
+          {printError && <p role="alert" className="text-sm text-red-600">{printError}</p>}
           <DialogFooter className="gap-2 flex-row justify-end pt-2">
             <Button
               variant="outline"
               size="sm"
+              disabled={printing}
               onClick={() => setShowPrintDialog(false)}
             >
               Batal
             </Button>
             <Button
               size="sm"
-              disabled={printFilter.size === 0}
+              disabled={printing || printFilter.size === 0}
               onClick={() => handlePrint(printFilter)}
               className="bg-cyan-600 hover:bg-cyan-700 text-white gap-2"
             >
-              <Printer className="h-4 w-4" /> {isMobile ? 'Simpan PDF' : 'Cetak Sekarang'}
+              <Printer className="h-4 w-4" /> {printing ? 'Menyiapkan...' : isMobile ? 'Simpan PDF' : 'Cetak Sekarang'}
             </Button>
           </DialogFooter>
         </DialogContent>

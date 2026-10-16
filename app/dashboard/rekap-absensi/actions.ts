@@ -846,7 +846,7 @@ export async function getAbsensiPerSiswa(siswaId: string, tglMulai: string, tglS
 
   return {
     error: null,
-    siswa: { nama: result.siswa.nama_lengkap, nisn: result.siswa.nisn, kelas: result.kelas_label },
+    siswa: { nama: result.siswa.nama_lengkap, nisn: result.siswa.nisn, nis_lokal: result.siswa.nis_lokal, kelas: result.kelas_label },
     days,
     summary: { ...summary, parsial: summary.bolos },
     totalHari: days.length,

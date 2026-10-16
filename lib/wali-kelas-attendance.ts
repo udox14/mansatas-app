@@ -662,7 +662,7 @@ export async function getFinalAttendanceForStudent(
   options?: { tahunAjaranId?: string }
 ) {
   const siswa = await db.prepare(`
-    SELECT s.id, s.nama_lengkap, s.nisn, s.kelas_id, k.tingkat, k.nomor_kelas, k.kelompok
+    SELECT s.id, s.nama_lengkap, s.nisn, s.nis_lokal, s.kelas_id, k.tingkat, k.nomor_kelas, k.kelompok
     FROM siswa s
     LEFT JOIN kelas k ON s.kelas_id = k.id
     WHERE s.id = ?

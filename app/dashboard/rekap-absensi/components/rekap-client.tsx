@@ -1,7 +1,11 @@
 // Lokasi: app/dashboard/rekap-absensi/components/rekap-client.tsx
 'use client'
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { createRoot } from 'react-dom/client'
+import { flushSync } from 'react-dom'
+import { buildStudentAttendancePrintHtml, type StudentPrintStatus } from '@/lib/student-attendance-print'
+import { reserveAttendancePrintWindow, printAttendanceDocument } from '@/lib/attendance-print-client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -1009,12 +1013,16 @@ function TabJam({ filterOptions, initialTingkat }: { filterOptions: FilterOpt; i
 }
 
 function TabCetak({ filterOptions, initialTingkat }: { filterOptions: FilterOpt; initialTingkat: string }) {
+  const [selectedChoice, setSelectedChoice] = useState<string | null>(null)
   const [printKind, setPrintKind] = useState<PrintKind>('monitoring')
   const [catatanMode, setCatatanMode] = useState<'kelas' | 'siswa'>('kelas')
   const [mode, setMode] = useState<Mode>('hari')
   const [absencePeriod, setAbsencePeriod] = useState<AbsencePeriod>('hari')
   const [absenceMonth, setAbsenceMonth] = useState(today().slice(0, 7))
-  const [printStatusCodes, setPrintStatusCodes] = useState<PrintStatusCode[]>(DEFAULT_PRINT_STATUS_CODES)
+  const [collectiveStatusCodes, setCollectiveStatusCodes] = useState<PrintStatusCode[]>(DEFAULT_PRINT_STATUS_CODES)
+  const [studentStatusCodes, setStudentStatusCodes] = useState<PrintStatusCode[]>(ALL_PRINT_STATUS_CODES)
+  const printStatusCodes = printKind === 'siswa' ? studentStatusCodes : collectiveStatusCodes
+  const setPrintStatusCodes = printKind === 'siswa' ? setStudentStatusCodes : setCollectiveStatusCodes
   const [printStatusPreferencesLoaded, setPrintStatusPreferencesLoaded] = useState(false)
   const [showPrintStatusOptions, setShowPrintStatusOptions] = useState(false)
   const [monitoringMode, setMonitoringMode] = useState<'bulanan' | 'semester'>('bulanan')
@@ -1030,18 +1038,21 @@ function TabCetak({ filterOptions, initialTingkat }: { filterOptions: FilterOpt;
   const [siswaKelasId, setSiswaKelasId] = useState('')
   const [siswaList, setSiswaList] = useState<any[]>([])
   const [siswaId, setSiswaId] = useState('')
-  const [printData, setPrintData] = useState<any>(null)
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [paper, setPaper] = useState<PrintPaper>('F4')
   const [orientation, setOrientation] = useState<PrintOrientation>('portrait')
   const [loading, setLoading] = useState(false)
-  const printRef = useRef<HTMLDivElement>(null)
+  const busy = useRef(false)
+  const studentRequest = useRef(0)
+  const [loadingStudents, setLoadingStudents] = useState(false)
   const isMobile = typeof window !== 'undefined' && /Android|iPhone|iPad|iPod|Mobile/i.test(window.navigator.userAgent)
   const resolvedOrientation: PrintOrientation = printKind === 'monitoring' && monitoringMode === 'bulanan' ? 'portrait' : orientation
 
   useEffect(() => {
     try {
       const raw = window.localStorage.getItem(PRINT_STATUS_STORAGE_KEY)
-      if (raw) setPrintStatusCodes(normalizePrintStatusCodes(JSON.parse(raw)))
+      if (raw) setCollectiveStatusCodes(normalizePrintStatusCodes(JSON.parse(raw)))
     } catch {
       // Abaikan cache yang tidak tersedia atau rusak; gunakan default.
     } finally {
@@ -1052,16 +1063,22 @@ function TabCetak({ filterOptions, initialTingkat }: { filterOptions: FilterOpt;
   useEffect(() => {
     if (!printStatusPreferencesLoaded) return
     try {
-      window.localStorage.setItem(PRINT_STATUS_STORAGE_KEY, JSON.stringify(printStatusCodes))
+      window.localStorage.setItem(PRINT_STATUS_STORAGE_KEY, JSON.stringify(collectiveStatusCodes))
     } catch {
       // Browser dapat menolak localStorage dalam mode private atau kebijakan tertentu.
     }
-  }, [printStatusCodes, printStatusPreferencesLoaded])
+  }, [collectiveStatusCodes, printStatusPreferencesLoaded])
+
+  const configKey = JSON.stringify([selectedChoice, catatanMode, mode, absencePeriod, absenceMonth, printStatusCodes, tingkat, kelasId, tanggal, tglMulai, tglSelesai, bulan, tahun, tahunAjaranStart, semester, siswaId, paper, resolvedOrientation])
+  useEffect(() => {
+    setPreviewHtml(null)
+    setError(null)
+  }, [configKey])
 
   const kelasByTingkat = useMemo(() => filterOptions.kelas.filter(k => k.tingkat === Number(tingkat)), [filterOptions.kelas, tingkat])
   const absenceRange = useMemo(() => {
     if (absencePeriod === 'hari') return { start: tanggal, end: tanggal }
-    if (absencePeriod === 'minggu') return weekRange(tanggal)
+    if (absencePeriod === 'minggu') return /^\d{4}-\d{2}-\d{2}$/.test(tanggal) ? weekRange(tanggal) : { start: '', end: '' }
     if (absencePeriod === 'bulan') {
       const [year, month] = absenceMonth.split('-').map(Number)
       return monthRange(year, month)
@@ -1084,145 +1101,144 @@ function TabCetak({ filterOptions, initialTingkat }: { filterOptions: FilterOpt;
       }
       return [...current, code]
     })
-    setPrintData(null)
+    setPreviewHtml(null)
   }
 
   const setCatatanPrintMode = (nextMode: 'kelas' | 'siswa') => {
     setCatatanMode(nextMode)
-    setPrintData(null)
+    setPreviewHtml(null)
     setSiswaId('')
     setSiswaList([])
     if (nextMode === 'siswa' && kelasId) void loadSiswa(kelasId)
   }
 
   const loadSiswa = async (id: string) => {
+    const request = ++studentRequest.current
     setSiswaKelasId(id)
     setSiswaId('')
     setSiswaList([])
-    if (!id) return
-    try {
-      const res = await getSiswaByKelas(id)
-      setSiswaList(res.data || [])
-    } catch (error) {
-      console.error('Gagal memuat daftar siswa:', error)
-      setSiswaList([])
-    }
-  }
-
-  const load = async (printAfterLoad = false) => {
-    if (printKind !== 'siswa' && !kelasId) return
-    if (printKind === 'siswa' && !siswaId) return
-    if (printKind === 'catatan-guru' && catatanMode === 'siswa' && !siswaId) return
-    setLoading(true)
-    setPrintData(null)
-    try {
-      let nextPrintData: any = null
-      if (printKind === 'monitoring') {
-        if (monitoringMode === 'bulanan') {
-          const yearNum = Number(tahun)
-          const monthNum = Number(bulan)
-          const range = monthRange(yearNum, monthNum)
-          nextPrintData = await getCetakMonitoringSiswa({
-            kelasId,
-            mode: 'bulanan',
-            tglMulai: range.start,
-            tglSelesai: range.end,
-            months: [monthNum],
-            labelPeriode: `${MONTH_OPTIONS[monthNum - 1]} ${yearNum}`,
-          })
-        } else {
-          const range = semesterRange(Number(tahunAjaranStart), semester)
-          nextPrintData = await getCetakMonitoringSiswa({
-            kelasId,
-            mode: 'semester',
-            tglMulai: range.start,
-            tglSelesai: range.end,
-            months: range.months,
-            labelPeriode: range.label,
-          })
-        }
-      } else if (printKind === 'kelas') {
-        nextPrintData = await getCetakRekapKelas({
-          mode,
-          tanggal,
-          tglMulai,
-          tglSelesai,
-          kelasId,
-        })
-      } else if (printKind === 'tidak-hadir') {
-        nextPrintData = await getSiswaTidakHadir({
-          tglMulai: absenceRange.start,
-          tglSelesai: absenceRange.end,
-          status: 'SEMUA',
-          tingkat: Number(tingkat),
-          kelasId,
-        })
-      } else if (printKind === 'catatan-guru') {
-        nextPrintData = await getCatatanAbsenOlehGuru({
-          tglMulai: absenceRange.start,
-          tglSelesai: absenceRange.end,
-          statuses: printStatusCodes.flatMap(code => {
-            if (code === 'S') return ['SAKIT' as const]
-            if (code === 'I') return ['IZIN' as const]
-            if (code === 'A') return ['ALFA' as const]
-            return []
-          }),
-          tingkat: Number(tingkat),
-          kelasId,
-          siswaId: catatanMode === 'siswa' ? siswaId : undefined,
-        })
-      } else if (siswaId) {
-        nextPrintData = await getCetakRekapSiswa(siswaId, tglMulai, tglSelesai)
-      }
-
-      setPrintData(nextPrintData)
-      if (printAfterLoad && nextPrintData && !nextPrintData.error) {
-        setTimeout(() => handlePrint(), 250)
-      }
-    } catch (error) {
-      console.error('Gagal memuat data cetak rekap absensi:', error)
-      setPrintData({ error: 'Gagal memuat data cetak. Silakan coba lagi.', sections: [] })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handlePrint = useCallback(() => {
-    const el = printRef.current
-    if (!el) return
-    const w = window.open('', '_blank')
-    if (!w) {
-      alert('Popup diblokir browser. Izinkan popup untuk mencetak.')
+    setPreviewHtml(null)
+    if (!id) {
+      setLoadingStudents(false)
       return
     }
-    const title = printKind === 'monitoring'
-      ? (monitoringMode === 'bulanan' ? 'Rekap Bulanan' : 'Rekap Absensi Semester')
-      : printKind === 'tidak-hadir'
-        ? 'Daftar Siswa Tidak Hadir'
-        : printKind === 'catatan-guru' ? 'Catatan Absen oleh Guru' : `Rekap Absensi ${printKind}`
-    w.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
-<style>
+    setLoadingStudents(true)
+    setError(null)
+    try {
+      const res = await getSiswaByKelas(id)
+      if (request !== studentRequest.current) return
+      if (res.error) throw new Error(res.error)
+      setSiswaList(res.data || [])
+    } catch {
+      if (request === studentRequest.current) setError('Gagal memuat daftar siswa. Pilih kelas kembali untuk mencoba lagi.')
+    } finally {
+      if (request === studentRequest.current) setLoadingStudents(false)
+    }
+  }
+
+  const load = async () => {
+    let nextPrintData: any = null
+    if (printKind === 'monitoring') {
+      if (monitoringMode === 'bulanan') {
+        const yearNum = Number(tahun)
+        const monthNum = Number(bulan)
+        const range = monthRange(yearNum, monthNum)
+        nextPrintData = await getCetakMonitoringSiswa({
+          kelasId,
+          mode: 'bulanan',
+          tglMulai: range.start,
+          tglSelesai: range.end,
+          months: [monthNum],
+          labelPeriode: `${MONTH_OPTIONS[monthNum - 1]} ${yearNum}`,
+        })
+      } else {
+        const range = semesterRange(Number(tahunAjaranStart), semester)
+        nextPrintData = await getCetakMonitoringSiswa({
+          kelasId,
+          mode: 'semester',
+          tglMulai: range.start,
+          tglSelesai: range.end,
+          months: range.months,
+          labelPeriode: range.label,
+        })
+      }
+    } else if (printKind === 'kelas') {
+      nextPrintData = await getCetakRekapKelas({
+        mode,
+        tanggal,
+        tglMulai,
+        tglSelesai,
+        kelasId,
+      })
+    } else if (printKind === 'tidak-hadir') {
+      nextPrintData = await getSiswaTidakHadir({
+        tglMulai: absenceRange.start,
+        tglSelesai: absenceRange.end,
+        status: 'SEMUA',
+        tingkat: Number(tingkat),
+        kelasId,
+      })
+    } else if (printKind === 'catatan-guru') {
+      nextPrintData = await getCatatanAbsenOlehGuru({
+        tglMulai: absenceRange.start,
+        tglSelesai: absenceRange.end,
+        statuses: printStatusCodes.flatMap(code => {
+          if (code === 'S') return ['SAKIT' as const]
+          if (code === 'I') return ['IZIN' as const]
+          if (code === 'A') return ['ALFA' as const]
+          return []
+        }),
+        tingkat: Number(tingkat),
+        kelasId,
+        siswaId: catatanMode === 'siswa' ? siswaId : undefined,
+      })
+    } else if (siswaId) {
+      nextPrintData = await getCetakRekapSiswa(siswaId, tglMulai, tglSelesai)
+    }
+
+    const loadError = nextPrintData?.error || nextPrintData?.rekap?.error
+    if (loadError) throw new Error(loadError)
+    if (!nextPrintData) throw new Error('Data cetak tidak tersedia.')
+    return nextPrintData
+  }
+
+  const buildDocument = (data: any) => {
+    if (printKind === 'siswa') {
+      const statusKeys = { H: 'HADIR', S: 'SAKIT', I: 'IZIN', A: 'ALFA', B: 'BOLOS', K: 'PERLU KONFIRMASI WALI', BI: 'BELUM ADA INPUT', BL: 'BELUM_ADA_DATA' } as const
+      return buildStudentAttendancePrintHtml({
+        result: data.rekap, waliKelas: data.waliKelas, startDate: tglMulai, endDate: tglSelesai,
+        statuses: new Set<StudentPrintStatus>(printStatusCodes.map(code => statusKeys[code])),
+        paper, orientation: resolvedOrientation, origin: window.location.origin,
+      })
+    }
+    // Render directly from the returned data; no dependency on a preview or React state timing.
+    const container = document.createElement('div')
+    const root = createRoot(container)
+    let body = ''
+    try {
+      flushSync(() => root.render(
+        printKind === 'monitoring' ? <PrintMonitoringSiswa data={data} paper={paper} orientation={resolvedOrientation} selectedStatusCodes={printStatusCodes} />
+          : printKind === 'kelas' ? <PrintKelas data={data} mode={mode} tanggal={tanggal} tglMulai={tglMulai} tglSelesai={tglSelesai} paper={paper} orientation={resolvedOrientation} selectedStatusCodes={printStatusCodes} />
+            : printKind === 'tidak-hadir' ? <PrintTidakHadir data={data} tglMulai={absenceRange.start} tglSelesai={absenceRange.end} paper={paper} orientation={resolvedOrientation} selectedStatusCodes={printStatusCodes} />
+              : <PrintCatatanAbsenGuru data={data} tglMulai={absenceRange.start} tglSelesai={absenceRange.end} paper={paper} orientation={resolvedOrientation} selectedStatusCodes={printStatusCodes} />
+      ))
+      container.querySelectorAll('img').forEach(img => { img.src = new URL(img.getAttribute('src') || '', window.location.origin).href })
+      body = container.innerHTML
+    } finally {
+      root.unmount()
+    }
+    const title = printChoices.find(choice => choice.id === selectedChoice)?.label || 'Rekap Absensi'
+    return `<!DOCTYPE html><html lang="id"><head><meta charset="utf-8"><title>${title}</title><style>
 @page { size: ${printDimensions(paper, resolvedOrientation).width}mm ${printDimensions(paper, resolvedOrientation).height}mm; margin: 0; }
-html, body { margin: 0; padding: 0; background: #fff; }
+html, body { margin: 0; padding: 0; background: #fff; color: #000; }
 * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 .page-break { break-before: page; page-break-before: always; }
 thead { display: table-header-group; }
 tr { break-inside: avoid; page-break-inside: avoid; }
-</style>
-</head><body>${el.innerHTML}</body></html>`)
-    w.document.close()
-    const imgs = Array.from(w.document.images)
-    const ready = imgs.length === 0
-      ? Promise.resolve()
-      : Promise.all(imgs.map(img => img.complete ? Promise.resolve() : new Promise(r => { img.onload = r; img.onerror = r })))
-    ready.then(() => {
-      w.focus()
-      w.print()
-    })
-  }, [monitoringMode, paper, printKind, resolvedOrientation])
+</style></head><body>${body}</body></html>`
+  }
 
-  const handleExcel = async () => {
-    if (!printData || printData.error) return
+  const handleExcel = async (data: any) => {
     const period = printKind === 'monitoring'
       ? (monitoringMode === 'bulanan' ? `${tahun}-${pad2(Number(bulan))}` : `${tahunAjaranStart}-${semester}`)
       : printKind === 'tidak-hadir' || printKind === 'catatan-guru' ? `${absenceRange.start}_${absenceRange.end}`
@@ -1230,7 +1246,7 @@ tr { break-inside: avoid; page-break-inside: avoid; }
     await downloadAttendanceWorkbook({
       kind: printKind,
       mode,
-      data: printData,
+      data,
       selectedStatusCodes: printStatusCodes,
       filename: printKind === 'catatan-guru'
         ? `catatan-absen-oleh-guru-${catatanMode}-${period}`
@@ -1242,42 +1258,84 @@ tr { break-inside: avoid; page-break-inside: avoid; }
     })
   }
 
+  const needsStudent = printKind === 'siswa' || (printKind === 'catatan-guru' && catatanMode === 'siswa')
+  const ready = Boolean(selectedChoice && (printKind === 'siswa' ? siswaKelasId : kelasId) && (!needsStudent || siswaId))
+  const performAction = async (action: 'print' | 'preview' | 'excel') => {
+    if (busy.current || loadingStudents || !ready) return
+    const range = printKind === 'monitoring'
+      ? monitoringMode === 'bulanan' ? monthRange(Number(tahun), Number(bulan)) : semesterRange(Number(tahunAjaranStart), semester)
+      : printKind === 'tidak-hadir' || printKind === 'catatan-guru' ? absenceRange
+        : printKind === 'kelas' && mode === 'hari' ? { start: tanggal, end: tanggal } : { start: tglMulai, end: tglSelesai }
+    if (!range.start || !range.end || range.start > range.end || !/^\d{4}-\d{2}-\d{2}$/.test(range.start) || !/^\d{4}-\d{2}-\d{2}$/.test(range.end)) {
+      setError('Pilih periode yang valid. Tanggal akhir harus sama atau setelah tanggal awal.')
+      return
+    }
+    busy.current = true
+    setLoading(true)
+    setError(null)
+    let printWindow: Window | null = null
+    try {
+      if (action === 'print') printWindow = reserveAttendancePrintWindow()
+      const data = await load()
+      if (action === 'excel') await handleExcel(data)
+      else {
+        const html = buildDocument(data)
+        if (action === 'preview') setPreviewHtml(html)
+        else await printAttendanceDocument(html, printWindow)
+      }
+    } catch (error) {
+      printWindow?.close()
+      setError(error instanceof Error ? error.message : 'Gagal memuat data cetak. Silakan coba lagi.')
+    } finally {
+      busy.current = false
+      setLoading(false)
+    }
+  }
+  const printChoices: Array<{ id: string; label: string; kind: PrintKind; monitoringMode?: 'bulanan' | 'semester' }> = [
+    { id: 'bulanan', label: 'Rekap Bulanan', kind: 'monitoring', monitoringMode: 'bulanan' },
+    { id: 'semester', label: 'Rekap Semester', kind: 'monitoring', monitoringMode: 'semester' },
+    { id: 'kelas', label: 'Per Kelas', kind: 'kelas' },
+    { id: 'siswa', label: 'Per Siswa', kind: 'siswa' },
+    { id: 'tidak-hadir', label: 'Daftar Tidak Hadir', kind: 'tidak-hadir' },
+    { id: 'catatan-guru', label: 'Catatan Absen oleh Guru', kind: 'catatan-guru' },
+  ]
+
   return (
     <div className="space-y-3">
-      <div className="rounded-lg border bg-white p-4 dark:bg-slate-900">
-        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end max-sm:[&_input]:w-full max-sm:[&_[role=combobox]]:w-full">
-          <div>
-            <Label className="text-xs text-slate-500">Jenis Cetak</Label>
-            <Select value={printKind} onValueChange={(v) => {
-              const kind = v as PrintKind
-              setPrintKind(kind)
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3" aria-label="Jenis cetak">
+        {printChoices.map(choice => (
+          <Button key={choice.id} type="button" variant="outline" disabled={loading || loadingStudents}
+            aria-pressed={selectedChoice === choice.id}
+            className={`h-auto min-h-12 whitespace-normal px-3 py-3 text-left text-sm transition-colors ${selectedChoice === choice.id ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-200' : ''}`}
+            onClick={() => {
+              if (selectedChoice === choice.id) return
+              setSelectedChoice(choice.id)
+              setPrintKind(choice.kind)
+              if (choice.monitoringMode) setMonitoringMode(choice.monitoringMode)
               setOrientation('portrait')
-              if (kind === 'catatan-guru') {
-                setKelasId('')
-                setSiswaId('')
-                setSiswaList([])
-              } else if (kind !== 'siswa') {
-                setKelasId('')
-              }
-              if (kind === 'tidak-hadir' || kind === 'catatan-guru') {
-                setPrintStatusCodes(current => {
-                  const absentCodes = current.filter(code => ['S', 'I', 'A'].includes(code))
-                  return absentCodes.length ? absentCodes : DEFAULT_PRINT_STATUS_CODES
+              setKelasId('')
+              setSiswaKelasId('')
+              setSiswaId('')
+              setSiswaList([])
+              setPreviewHtml(null)
+              setError(null)
+              setShowPrintStatusOptions(false)
+              if (choice.kind === 'siswa') setStudentStatusCodes([...ALL_PRINT_STATUS_CODES])
+              if (choice.kind === 'tidak-hadir' || choice.kind === 'catatan-guru') {
+                setCollectiveStatusCodes(current => {
+                  const absent = current.filter(code => ['S', 'I', 'A'].includes(code))
+                  return absent.length ? absent : DEFAULT_PRINT_STATUS_CODES
                 })
               }
-              setPrintData(null)
             }}>
-              <SelectTrigger className="mt-1 h-9 w-[210px] text-sm"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="monitoring">Rekap Bulanan</SelectItem>
-                <SelectItem value="kelas">Per Kelas</SelectItem>
-                <SelectItem value="siswa">Per Siswa</SelectItem>
-                <SelectItem value="tidak-hadir">Daftar Tidak Hadir</SelectItem>
-                <SelectItem value="catatan-guru">Catatan Absen oleh Guru</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {printKind === 'kelas' && <ModeSwitch mode={mode} setMode={(m) => { setMode(m); setPrintData(null) }} />}
+            {choice.label}
+          </Button>
+        ))}
+      </div>
+      {selectedChoice && <fieldset disabled={loading || loadingStudents} inert={loading || loadingStudents} className="min-w-0 rounded-lg border bg-white p-4 dark:bg-slate-900">
+        <legend className="px-1 text-sm font-semibold">Konfigurasi {printChoices.find(choice => choice.id === selectedChoice)?.label}</legend>
+        <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end max-sm:[&_input]:w-full max-sm:[&_[role=combobox]]:w-full">
+          {printKind === 'kelas' && <ModeSwitch mode={mode} setMode={(m) => { setMode(m); setPreviewHtml(null) }} />}
           {printKind === 'catatan-guru' && (
             <div className="flex w-full rounded-lg border bg-white p-0.5 sm:inline-flex sm:w-auto dark:bg-slate-900">
               {([['kelas', 'Per Kelas'], ['siswa', 'Per Siswa']] as const).map(([value, label]) => (
@@ -1299,13 +1357,13 @@ tr { break-inside: avoid; page-break-inside: avoid; }
                 setKelasId('')
                 setSiswaId('')
                 setSiswaList([])
-                setPrintData(null)
+                setPreviewHtml(null)
               }} options={filterOptions.angkatan} />
               <div>
                 <Label className="text-xs text-slate-500">Kelas</Label>
                 <Select value={kelasId} onValueChange={(v) => {
                   setKelasId(v)
-                  setPrintData(null)
+                  setPreviewHtml(null)
                   if (printKind === 'catatan-guru') {
                     setSiswaId('')
                     setSiswaList([])
@@ -1321,7 +1379,7 @@ tr { break-inside: avoid; page-break-inside: avoid; }
               {printKind === 'catatan-guru' && catatanMode === 'siswa' && (
                 <div>
                   <Label className="text-xs text-slate-500">Siswa</Label>
-                  <Select value={siswaId} onValueChange={(v) => { setSiswaId(v); setPrintData(null) }} disabled={!kelasId}>
+                  <Select value={siswaId} onValueChange={(v) => { setSiswaId(v); setPreviewHtml(null) }} disabled={!kelasId}>
                     <SelectTrigger className="mt-1 h-9 w-[210px] text-sm"><SelectValue placeholder="Pilih siswa" /></SelectTrigger>
                     <SelectContent>{siswaList.map(s => <SelectItem key={s.id} value={s.id}>{s.nama_lengkap}</SelectItem>)}</SelectContent>
                   </Select>
@@ -1333,7 +1391,7 @@ tr { break-inside: avoid; page-break-inside: avoid; }
               <KelasSelect value={siswaKelasId} onChange={loadSiswa} kelas={filterOptions.kelas} />
               <div>
                 <Label className="text-xs text-slate-500">Siswa</Label>
-                <Select value={siswaId} onValueChange={(v) => { setSiswaId(v); setPrintData(null) }}>
+                <Select value={siswaId} onValueChange={(v) => { setSiswaId(v); setPreviewHtml(null) }}>
                   <SelectTrigger className="mt-1 h-9 min-w-[220px] text-sm"><SelectValue placeholder="Pilih siswa" /></SelectTrigger>
                   <SelectContent>
                     {siswaList.map(s => <SelectItem key={s.id} value={s.id}>{s.nama_lengkap}</SelectItem>)}
@@ -1346,42 +1404,22 @@ tr { break-inside: avoid; page-break-inside: avoid; }
             monitoringMode === 'bulanan' ? (
               <>
                 <div>
-                  <Label className="text-xs text-slate-500">Mode</Label>
-                  <Select value={monitoringMode} onValueChange={(v) => { setMonitoringMode(v as any); setPrintData(null) }}>
-                    <SelectTrigger className="mt-1 h-9 w-[135px] text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="bulanan">Per Bulan</SelectItem>
-                      <SelectItem value="semester">Per Semester</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
                   <Label className="text-xs text-slate-500">Bulan</Label>
-                  <Select value={bulan} onValueChange={(v) => { setBulan(v); setPrintData(null) }}>
+                  <Select value={bulan} onValueChange={(v) => { setBulan(v); setPreviewHtml(null) }}>
                     <SelectTrigger className="mt-1 h-9 w-[135px] text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {MONTH_OPTIONS.map((label, idx) => <SelectItem key={label} value={String(idx + 1)}>{label}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
-                <div><Label className="text-xs text-slate-500">Tahun</Label><Input type="number" value={tahun} onChange={e => { setTahun(e.target.value); setPrintData(null) }} className="mt-1 h-9 w-[105px] text-sm" /></div>
+                <div><Label className="text-xs text-slate-500">Tahun</Label><Input type="number" value={tahun} onChange={e => { setTahun(e.target.value); setPreviewHtml(null) }} className="mt-1 h-9 w-[105px] text-sm" /></div>
               </>
             ) : (
               <>
-                <div>
-                  <Label className="text-xs text-slate-500">Mode</Label>
-                  <Select value={monitoringMode} onValueChange={(v) => { setMonitoringMode(v as any); setPrintData(null) }}>
-                    <SelectTrigger className="mt-1 h-9 w-[135px] text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="bulanan">Per Bulan</SelectItem>
-                      <SelectItem value="semester">Per Semester</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div><Label className="text-xs text-slate-500">Awal TA</Label><Input type="number" value={tahunAjaranStart} onChange={e => { setTahunAjaranStart(e.target.value); setPrintData(null) }} className="mt-1 h-9 w-[105px] text-sm" /></div>
+                <div><Label className="text-xs text-slate-500">Awal TA</Label><Input type="number" value={tahunAjaranStart} onChange={e => { setTahunAjaranStart(e.target.value); setPreviewHtml(null) }} className="mt-1 h-9 w-[105px] text-sm" /></div>
                 <div>
                   <Label className="text-xs text-slate-500">Semester</Label>
-                  <Select value={semester} onValueChange={(v) => { setSemester(v as any); setPrintData(null) }}>
+                  <Select value={semester} onValueChange={(v) => { setSemester(v as any); setPreviewHtml(null) }}>
                     <SelectTrigger className="mt-1 h-9 w-[135px] text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="ganjil">Ganjil</SelectItem>
@@ -1395,7 +1433,7 @@ tr { break-inside: avoid; page-break-inside: avoid; }
             <>
               <div>
                 <Label className="text-xs text-slate-500">Periode</Label>
-                <Select value={absencePeriod} onValueChange={(value) => { setAbsencePeriod(value as AbsencePeriod); setPrintData(null) }}>
+                <Select value={absencePeriod} onValueChange={(value) => { setAbsencePeriod(value as AbsencePeriod); setPreviewHtml(null) }}>
                   <SelectTrigger className="mt-1 h-9 w-[145px] text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="hari">Per Hari</SelectItem>
@@ -1406,18 +1444,18 @@ tr { break-inside: avoid; page-break-inside: avoid; }
                 </Select>
               </div>
               {absencePeriod === 'hari' && (
-                <div><Label className="text-xs text-slate-500">Tanggal</Label><Input type="date" value={tanggal} onChange={e => { setTanggal(e.target.value); setPrintData(null) }} className="mt-1 h-9 w-[155px] text-sm" /></div>
+                <div><Label className="text-xs text-slate-500">Tanggal</Label><Input type="date" value={tanggal} onChange={e => { setTanggal(e.target.value); setPreviewHtml(null) }} className="mt-1 h-9 w-[155px] text-sm" /></div>
               )}
               {absencePeriod === 'minggu' && (
-                <div><Label className="text-xs text-slate-500">Tanggal dalam minggu</Label><Input type="date" value={tanggal} onChange={e => { setTanggal(e.target.value); setPrintData(null) }} className="mt-1 h-9 w-[180px] text-sm" /></div>
+                <div><Label className="text-xs text-slate-500">Tanggal dalam minggu</Label><Input type="date" value={tanggal} onChange={e => { setTanggal(e.target.value); setPreviewHtml(null) }} className="mt-1 h-9 w-[180px] text-sm" /></div>
               )}
               {absencePeriod === 'bulan' && (
-                <div><Label className="text-xs text-slate-500">Bulan</Label><Input type="month" value={absenceMonth} onChange={e => { setAbsenceMonth(e.target.value); setPrintData(null) }} className="mt-1 h-9 w-[155px] text-sm" /></div>
+                <div><Label className="text-xs text-slate-500">Bulan</Label><Input type="month" value={absenceMonth} onChange={e => { setAbsenceMonth(e.target.value); setPreviewHtml(null) }} className="mt-1 h-9 w-[155px] text-sm" /></div>
               )}
               {absencePeriod === 'rentang' && (
                 <>
-                  <div><Label className="text-xs text-slate-500">Dari</Label><Input type="date" value={tglMulai} onChange={e => { setTglMulai(e.target.value); setPrintData(null) }} className="mt-1 h-9 w-[155px] text-sm" /></div>
-                  <div><Label className="text-xs text-slate-500">Sampai</Label><Input type="date" value={tglSelesai} onChange={e => { setTglSelesai(e.target.value); setPrintData(null) }} className="mt-1 h-9 w-[155px] text-sm" /></div>
+                  <div><Label className="text-xs text-slate-500">Dari</Label><Input type="date" value={tglMulai} onChange={e => { setTglMulai(e.target.value); setPreviewHtml(null) }} className="mt-1 h-9 w-[155px] text-sm" /></div>
+                  <div><Label className="text-xs text-slate-500">Sampai</Label><Input type="date" value={tglSelesai} onChange={e => { setTglSelesai(e.target.value); setPreviewHtml(null) }} className="mt-1 h-9 w-[155px] text-sm" /></div>
                 </>
               )}
             </>
@@ -1452,19 +1490,16 @@ tr { break-inside: avoid; page-break-inside: avoid; }
             </DialogHeader>
             <p className="text-xs text-slate-500">Status aktif: {printStatusSummary}</p>
             <div className="mb-2 flex items-center justify-between gap-3">
-              <p className="text-[11px] text-slate-500">Status yang tidak dipilih tidak akan ditampilkan sebagai kolom.</p>
-              <button type="button" onClick={() => { setPrintStatusCodes(printableStatusOptions.map(option => option.code)); setPrintData(null) }} className="shrink-0 text-xs font-semibold text-indigo-600 hover:underline">Semua</button>
+              <p className="text-[11px] text-slate-500">{printKind === 'siswa' ? 'Hanya hari dengan status terpilih yang dicetak.' : 'Status yang tidak dipilih tidak akan ditampilkan sebagai kolom.'}</p>
+              <button type="button" onClick={() => { setPrintStatusCodes(printableStatusOptions.map(option => option.code)); setPreviewHtml(null) }} className="shrink-0 text-xs font-semibold text-indigo-600 hover:underline">Semua</button>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-            {printableStatusOptions.map(option => {
-              const selected = printStatusCodes.includes(option.code)
-              return (
-                <label key={option.code} className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${selected ? 'border-indigo-300 bg-indigo-50 text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-200' : 'border-slate-200 bg-white text-slate-500 dark:border-slate-700 dark:bg-slate-900'}`}>
-                  <input type="checkbox" checked={selected} onChange={() => togglePrintStatus(option.code)} className="h-3.5 w-3.5 accent-indigo-600" />
-                  {option.code} · {option.label}
+              {printableStatusOptions.map(option => (
+                <label key={option.code} className="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-xs">
+                  <input type="checkbox" checked={printStatusCodes.includes(option.code)} onChange={() => togglePrintStatus(option.code)} className="accent-indigo-600" />
+                  {option.label}
                 </label>
-              )
-            })}
+              ))}
             </div>
           </DialogContent>
         </Dialog>
@@ -1472,52 +1507,23 @@ tr { break-inside: avoid; page-break-inside: avoid; }
           <Button type="button" onClick={() => setShowPrintStatusOptions(true)} size="sm" variant="outline" className="w-full sm:w-auto">
             <Settings2 className="mr-1 h-4 w-4" />Status Cetak
           </Button>
-          <Button
-            onClick={() => load(false)}
-            disabled={loading || (printKind !== 'siswa' && !kelasId) || (printKind === 'siswa' && !siswaId) || (printKind === 'catatan-guru' && catatanMode === 'siswa' && !siswaId)}
-            size="sm"
-            className="w-full bg-indigo-600 text-white hover:bg-indigo-700 sm:w-auto"
-          >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Search className="mr-1 h-4 w-4" />Muat Data</>}
-          </Button>
-          <Button
-            onClick={() => printData ? handlePrint() : load(true)}
-            disabled={loading || (printKind !== 'siswa' && !kelasId) || (printKind === 'siswa' && !siswaId) || (printKind === 'catatan-guru' && catatanMode === 'siswa' && !siswaId)}
-            size="sm"
-            variant="outline"
-            className="w-full sm:w-auto"
-          >
+          <Button type="button" onClick={() => performAction('print')} disabled={!ready} size="sm" className="w-full bg-indigo-600 text-white hover:bg-indigo-700 sm:w-auto">
             <Printer className="mr-1 h-4 w-4" />{isMobile ? 'Simpan PDF' : 'Cetak'}
           </Button>
-          <Button onClick={handleExcel} disabled={loading || !printData || Boolean(printData?.error)} size="sm" variant="outline" className="col-span-2 w-full sm:col-auto sm:w-auto">
+          <Button type="button" onClick={() => performAction('preview')} disabled={!ready} size="sm" variant="outline" className="w-full sm:w-auto">
+            <Search className="mr-1 h-4 w-4" />Pratinjau
+          </Button>
+          <Button type="button" onClick={() => performAction('excel')} disabled={!ready} size="sm" variant="outline" className="w-full sm:w-auto">
             <FileSpreadsheet className="mr-1 h-4 w-4" />Download Excel
           </Button>
         </div>
-      </div>
-
-      {!printData && (
-        <div className="rounded-lg border border-dashed bg-slate-50 p-10 text-center text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900/50">
-          Pilih kriteria dan klik Muat Data.
-        </div>
-      )}
-
-      {printData && (
-        <div className="rounded-lg border bg-white p-4 dark:bg-slate-900">
-          <div ref={printRef} className="space-y-6 text-black">
-            {printKind === 'monitoring' ? (
-              <PrintMonitoringSiswa data={printData} paper={paper} orientation={resolvedOrientation} selectedStatusCodes={printStatusCodes} />
-            ) : printKind === 'kelas' ? (
-              <PrintKelas data={printData} mode={mode} tanggal={tanggal} tglMulai={tglMulai} tglSelesai={tglSelesai} paper={paper} orientation={resolvedOrientation} selectedStatusCodes={printStatusCodes} />
-            ) : printKind === 'tidak-hadir' ? (
-              <PrintTidakHadir data={printData} tglMulai={absenceRange.start} tglSelesai={absenceRange.end} paper={paper} orientation={resolvedOrientation} selectedStatusCodes={printStatusCodes} />
-            ) : printKind === 'catatan-guru' ? (
-              <PrintCatatanAbsenGuru data={printData} tglMulai={absenceRange.start} tglSelesai={absenceRange.end} paper={paper} orientation={resolvedOrientation} selectedStatusCodes={printStatusCodes} />
-            ) : (
-              <PrintSiswa data={printData} tglMulai={tglMulai} tglSelesai={tglSelesai} paper={paper} orientation={resolvedOrientation} selectedStatusCodes={printStatusCodes} />
-            )}
-          </div>
-        </div>
-      )}
+      </fieldset>}
+      {(loading || loadingStudents) && <p role="status" className="flex items-center gap-2 text-sm text-slate-500"><Loader2 className="h-4 w-4 animate-spin" />{loadingStudents ? 'Memuat daftar siswa...' : 'Menyiapkan dokumen...'}</p>}
+      {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+      {previewHtml && <div className="space-y-2 rounded-lg border bg-white p-3">
+        <h3 className="text-sm font-semibold text-slate-800">Pratinjau cetakan</h3>
+        <iframe title="Pratinjau cetakan absensi" srcDoc={previewHtml} sandbox="allow-same-origin" className="h-[70vh] w-full rounded border bg-white" />
+      </div>}
     </div>
   )
 }
@@ -2075,56 +2081,5 @@ function PrintCatatanAbsenGuru({ data, tglMulai, tglSelesai, paper, orientation,
         </div>
       ))}
     </>
-  )
-}
-
-function PrintSiswa({ data, tglMulai, tglSelesai, paper, orientation, selectedStatusCodes }: any) {
-  const rekap = data.rekap || {}
-  const siswa = rekap.siswa || {}
-  const summary = rekap.summary || {}
-  const selectedStatusOptions = getSelectedPrintStatusOptions(selectedStatusCodes)
-  return (
-    <div style={printablePageStyle(paper, orientation)}>
-      <PrintHeader title="Rekap Absensi Siswa" subtitle={`${formatNamaCetak(siswa.nama)} | Kelas ${siswa.kelas || '-'} | ${fmtTgl(tglMulai)} s/d ${fmtTgl(tglSelesai)}`} orientation={orientation} />
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 12, fontSize: 11 }}>
-        <tbody>
-          <tr><td style={{ padding: 3, width: 120 }}>Nama</td><td style={{ padding: 3 }}>: {formatNamaCetak(siswa.nama)}</td></tr>
-          <tr><td style={{ padding: 3 }}>NISN</td><td style={{ padding: 3 }}>: {siswa.nisn || '-'}</td></tr>
-          <tr><td style={{ padding: 3 }}>Kelas</td><td style={{ padding: 3 }}>: {siswa.kelas || '-'}</td></tr>
-          <tr><td style={{ padding: 3 }}>Wali Kelas</td><td style={{ padding: 3 }}>: {data.waliKelas ? formatNamaCetak(data.waliKelas) : 'Belum ditentukan'}</td></tr>
-        </tbody>
-      </table>
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 12, fontSize: 10 }}>
-        <thead><tr>{selectedStatusOptions.map(option => <th key={option.code} style={{ border: '1px solid #000', padding: 4, background: '#eee' }}>{option.label}</th>)}</tr></thead>
-        <tbody><tr>
-          {selectedStatusOptions.map(option => (
-            <td key={option.code} style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>
-              {printStatusCount(summary, option.code)}
-            </td>
-          ))}
-        </tr></tbody>
-      </table>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10 }}>
-        <thead>
-          <tr>{['No', 'Tanggal', 'Hari', 'Status Final', 'Sumber', 'Blok Disubmit', 'Alasan', 'Detail dan Keterangan'].map(h => <th key={h} style={{ border: '1px solid #000', padding: 4, background: '#eee' }}>{h}</th>)}</tr>
-        </thead>
-        <tbody>
-          {(rekap.days || []).map((day: any, i: number) => (
-            <tr key={day.tanggal}>
-              <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{i + 1}</td>
-              <td style={{ border: '1px solid #000', padding: 4 }}>{fmtTgl(day.tanggal)}</td>
-              <td style={{ border: '1px solid #000', padding: 4 }}>{day.hariNama}</td>
-              <td style={{ border: '1px solid #000', padding: 4 }}>{isSelectedPrintStatus(day.statusHari, selectedStatusCodes) ? attendanceStatusLabel(day.statusHari) : ''}</td>
-              <td style={{ border: '1px solid #000', padding: 4 }}>{isSelectedPrintStatus(day.statusHari, selectedStatusCodes) ? attendanceSourceLabel(day.sumberStatus) : ''}</td>
-              <td style={{ border: '1px solid #000', padding: 4, textAlign: 'center' }}>{isSelectedPrintStatus(day.statusHari, selectedStatusCodes) ? `${day.submittedBlok || 0}/${day.totalBlok || 0}` : ''}</td>
-              <td style={{ border: '1px solid #000', padding: 4 }}>{isSelectedPrintStatus(day.statusHari, selectedStatusCodes) ? day.statusReason || '-' : ''}</td>
-              <td style={{ border: '1px solid #000', padding: 4 }}>{isSelectedPrintStatus(day.statusHari, selectedStatusCodes) ? day.keterangan || day.detail?.map((d: any) => `${d.nama_mapel} jam ${d.jam_ke_mulai}-${d.jam_ke_selesai}: ${statusStyle(d.status).label}`).join(' | ') || '-' : ''}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p style={{ marginTop: 6, fontSize: 9 }}>Legenda: {selectedStatusLegend(selectedStatusCodes)}.</p>
-      <p style={{ marginTop: 12, textAlign: 'right', fontSize: 10 }}>Dicetak pada {formatTimeWIB(new Date().toISOString())}</p>
-    </div>
   )
 }
