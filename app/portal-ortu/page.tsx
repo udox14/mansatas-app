@@ -569,7 +569,9 @@ export default async function PortalOrtuPage({ searchParams }: { searchParams: P
     : null
 
   const jamMap = parseJamPelajaran(taAktif?.jam_pelajaran)
-  const calendarStatus = await getKalenderDateStatus(db, todayRaw)
+  const calendarStatus = await getKalenderDateStatus(db, todayRaw, profil.kelas_id
+    ? { kelasId: profil.kelas_id, tingkat: Number(profil.tingkat) }
+    : null)
   const kbmExceptions = profil.kelas_id ? await getKbmExceptionsForDate(db, todayRaw) : []
   const jadwalRows = profil.kelas_id
     ? await db.prepare(`

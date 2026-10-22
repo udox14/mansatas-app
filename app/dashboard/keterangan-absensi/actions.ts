@@ -95,7 +95,11 @@ export async function loadSiswaKeterangan(kelasId: string, tanggal: string): Pro
 
   const db = await getDB()
   const roles = await getUserRoles(db, user.id)
-  const calendarStatus = await getKalenderDateStatus(db, tanggal)
+  const kelasRow = await db.prepare('SELECT id, tingkat FROM kelas WHERE id = ?')
+    .bind(kelasId).first<{ id: string; tingkat: number }>()
+  const calendarStatus = await getKalenderDateStatus(db, tanggal, kelasRow
+    ? { kelasId: kelasRow.id, tingkat: Number(kelasRow.tingkat) }
+    : null)
 
   // Validasi: wali_kelas hanya boleh akses kelas binaannya
   if (!roles.includes('super_admin') && !roles.includes('admin_tu') && !roles.includes('kepsek') && !roles.includes('wakamad')) {

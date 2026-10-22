@@ -248,7 +248,10 @@ export async function getFinalAttendanceForClass(
   }
 
   const siswaList = siswaRes.results || []
-  const dates = (await getEffectiveDatesInRange(db, startDate, endDate))
+  const dates = (await getEffectiveDatesInRange(db, startDate, endDate, {
+    kelasId: kelas.id,
+    tingkat: Number(kelas.tingkat),
+  }))
     .filter(tanggal => !kelas.kbm_nonaktif_mulai || kelas.kbm_nonaktif_mulai > tanggal)
 
   const [jadwalRes, absensiRes, waliRes, izinRes, izinKeluarRes, sesiRes] = await Promise.all([

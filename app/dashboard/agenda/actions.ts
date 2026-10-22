@@ -329,9 +329,6 @@ export async function submitForgottenAgendaRequest(formData: FormData): Promise<
     return { error: 'Batas waktu agenda sedang dinonaktifkan; silakan isi agenda seperti biasa.' }
   }
 
-  const calendarStatus = await getKalenderDateStatus(db, tanggal)
-  if (!calendarStatus.isEffective) return { error: 'Tanggal ini bukan hari efektif pembelajaran.' }
-
   const hariDate = new Date(`${tanggal}T00:00:00`)
   const hari = hariDate.getDay() || 7
   const assignment = await db.prepare(`
@@ -346,6 +343,12 @@ export async function submitForgottenAgendaRequest(formData: FormData): Promise<
   if (assignment.kbm_nonaktif_mulai && assignment.kbm_nonaktif_mulai <= tanggal) {
     return { error: 'Kelas ini sudah tidak memiliki kewajiban KBM.' }
   }
+
+  const calendarStatus = await getKalenderDateStatus(db, tanggal, {
+    kelasId: assignment.kelas_id,
+    tingkat: Number(assignment.tingkat),
+  })
+  if (!calendarStatus.isEffective) return { error: 'Tanggal ini bukan hari efektif pembelajaran untuk kelas tersebut.' }
 
   const scheduleRows = await db.prepare(`SELECT jam_ke FROM jadwal_mengajar
     WHERE penugasan_id = ? AND tahun_ajaran_id = ? AND hari = ? ORDER BY jam_ke`)
@@ -485,9 +488,14 @@ export async function submitAgenda(formData: FormData): Promise<import('@/lib/ag
   const actingUserId = effective?.effectiveUserId || user.id
   const assignmentAccess = await resolveTeachingAssignmentAccess(db, actingUserId, penugasanId, tanggal)
   if (!assignmentAccess) return { error: 'Anda tidak memiliki akses ke penugasan ini.' }
-  const calendarStatus = await getKalenderDateStatus(db, tanggal)
+  const kelasRow = assignmentAccess.kelasId
+    ? await db.prepare('SELECT tingkat FROM kelas WHERE id = ?').bind(assignmentAccess.kelasId).first<{ tingkat: number }>()
+    : null
+  const calendarStatus = await getKalenderDateStatus(db, tanggal, kelasRow
+    ? { kelasId: assignmentAccess.kelasId, tingkat: Number(kelasRow.tingkat) }
+    : null)
   if (!calendarStatus.isEffective) {
-    return { error: `Tanggal ini tidak efektif pembelajaran${calendarStatus.reason ? `: ${calendarStatus.reason}` : ''}. Agenda tidak perlu disimpan.` }
+    return { error: `Tanggal ini tidak efektif pembelajaran untuk kelas tersebut${calendarStatus.reason ? `: ${calendarStatus.reason}` : ''}. Agenda tidak perlu disimpan.` }
   }
   const agendaTimeRestrictionEnabled = await getSystemSettingBoolean(
     SYSTEM_SETTING_KEYS.agendaTimeRestriction,

@@ -85,6 +85,11 @@ const STATUS_STYLE: Record<string, { bg: string; text: string; icon: any; label:
 const HARI_NAMA = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
 const REQUEST_TIMEOUT_MS = 45000
 
+/** Libur dari Kalender Pendidikan berlaku sehari penuh, bukan jam tertentu. */
+function isDayWideCalendarException(exceptionId: string | null | undefined) {
+  return !!exceptionId && exceptionId.startsWith('kalender:')
+}
+
 async function withTimeout<T>(promise: Promise<T>, message: string): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined
   const timeout = new Promise<never>((_, reject) => {
@@ -423,7 +428,9 @@ export function AgendaClient({ initialData, userRole, draftOwnerId, isActingAs =
 
       {activeExceptions.length > 0 && (
         <div className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-xs text-sky-700">
-          Pengecualian KBM hari ini: {activeExceptions.map(item => `${item.judul} (Jam ke-${item.jam_ke_mulai}-${item.jam_ke_selesai})`).join(', ')}
+          Pengecualian KBM hari ini: {activeExceptions.map(item => isDayWideCalendarException(item.id)
+            ? item.judul
+            : `${item.judul} (Jam ke-${item.jam_ke_mulai}-${item.jam_ke_selesai})`).join(', ')}
         </div>
       )}
 
@@ -451,7 +458,9 @@ export function AgendaClient({ initialData, userRole, draftOwnerId, isActingAs =
                   <div className="mt-2 space-y-1">
                     {block.exception_segments.map(segment => (
                       <p key={`${segment.exception_id}-${segment.jam_ke_mulai}`} className="inline-flex mr-1.5 items-center gap-1 rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-[10px] font-medium text-sky-700">
-                        <Ban className="h-3 w-3" /> Jam ke-{segment.jam_ke_mulai === segment.jam_ke_selesai ? segment.jam_ke_mulai : `${segment.jam_ke_mulai}-${segment.jam_ke_selesai}`} non-KBM: {segment.judul}
+                        <Ban className="h-3 w-3" /> {isDayWideCalendarException(segment.exception_id)
+                          ? segment.judul
+                          : `Jam ke-${segment.jam_ke_mulai === segment.jam_ke_selesai ? segment.jam_ke_mulai : `${segment.jam_ke_mulai}-${segment.jam_ke_selesai}`} non-KBM: ${segment.judul}`}
                       </p>
                     ))}
                     {!block.is_fully_excepted && <p className="text-[10px] text-emerald-600">Agenda dan absensi dimulai dari jam KBM aktif pertama.</p>}

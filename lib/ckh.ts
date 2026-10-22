@@ -128,7 +128,10 @@ export function joinIndonesian(items: string[]) {
 
 export async function getCkhEffectiveDates(db: D1Database, year: number, month: number) {
   const { startDate, endDate } = monthRange(year, month)
-  const events = await getKalenderEventsForRange(db, startDate, endDate)
+  // Libur yang hanya berlaku untuk tingkat/kelas tertentu tidak membebaskan guru
+  // dari kewajiban CKH, sehingga hanya event untuk semua kelas yang dipakai.
+  const events = (await getKalenderEventsForRange(db, startDate, endDate))
+    .filter(event => event.target_type === 'ALL')
   const byDate = new Map<string, typeof events>()
 
   for (const event of events) {

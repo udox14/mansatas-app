@@ -7,12 +7,11 @@ import { formatNamaKelas } from '@/lib/utils'
 import { todayWIB, currentTimeWIB } from '@/lib/time'
 import { getSystemSetting, setSystemSetting } from '@/lib/system-settings'
 import {
-  getEffectiveDatesInRange,
   getKbmExceptionsForDate,
-  getKalenderDateStatus,
   enumerateDateStrings,
   getKalenderEventsForRange,
   getKbmExceptionsForRange,
+  kalenderDateStatusFromEvents,
   splitTeachingSlotsByExceptions,
 } from '@/lib/kalender-pendidikan'
 import type { KalenderEvent, KbmException } from '@/lib/kalender-pendidikan'
@@ -384,7 +383,7 @@ async function buildAgendaKelasHari(
   const hari = hariNum(tanggal)
   const hariNama = HARI[hari] || ''
 
-  const [kelas, kepala, calendarStatus, ta] = await Promise.all([
+  const [kelas, kepala, dayEvents, ta] = await Promise.all([
     db.prepare(`
       SELECT k.id, k.tingkat, k.nomor_kelas, k.kelompok, k.kbm_nonaktif_mulai,
         wali.nama_lengkap as wali_kelas_nama,
@@ -405,10 +404,14 @@ async function buildAgendaKelasHari(
       ORDER BY u.nama_lengkap ASC
       LIMIT 1
     `).first<{ nama: string; nip: string | null; signature_url: string | null }>(),
-    getKalenderDateStatus(db, tanggal),
+    getKalenderEventsForRange(db, tanggal, tanggal),
     db.prepare('SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<any>(),
   ])
   if (!kelas) return { error: 'Kelas tidak ditemukan.', data: null }
+  const calendarStatus = kalenderDateStatusFromEvents(tanggal, dayEvents, {
+    kelasId: kelas.id,
+    tingkat: Number(kelas.tingkat),
+  })
 
   const baseRows: AgendaKelasRow[] = Array.from({ length: 10 }).map((_, index) => ({
     jam_ke: index + 1,
@@ -613,15 +616,22 @@ export async function getAgendaKelasCetakJobs(kelasIds: string[], months: string
   const kelasRows = await db.prepare(`
     SELECT id, tingkat, nomor_kelas, kelompok FROM kelas WHERE id IN (${placeholders})
   `).bind(...uniqueKelas).all<any>()
-  const kelasMap = new Map(kelasRows.results?.map(r => [r.id, formatNamaKelas(r.tingkat, r.nomor_kelas, r.kelompok)]) || [])
+  const classRows = kelasRows.results || []
+  const kelasMap = new Map(classRows.map(r => [r.id, formatNamaKelas(r.tingkat, r.nomor_kelas, r.kelompok)]))
+  const kelasTingkatMap = new Map(classRows.map(r => [r.id, Number(r.tingkat)]))
 
   const jobs: { kelasId: string; kelasLabel: string; tanggal: string }[] = []
 
   for (const month of uniqueMonths) {
     const { start, end } = monthRange(month)
-    const effectiveDates = await getEffectiveDatesInRange(db, start, end)
+    // Libur bisa berlaku hanya untuk tingkat/kelas tertentu, jadi tanggal cetak
+    // dihitung per kelas memakai event bulan tersebut.
+    const events = await getKalenderEventsForRange(db, start, end)
     for (const kelasId of uniqueKelas) {
       const label = kelasMap.get(kelasId) || kelasId
+      const scope = { kelasId, tingkat: kelasTingkatMap.get(kelasId) ?? null }
+      const effectiveDates = enumerateDateStrings(start, end)
+        .filter(tanggal => kalenderDateStatusFromEvents(tanggal, events, scope).isEffective)
       for (const tanggal of effectiveDates) {
         jobs.push({ kelasId, kelasLabel: label, tanggal })
       }
@@ -726,23 +736,13 @@ export async function getAgendaKelasCetakBatch(jobs: { kelasId: string; tanggal:
 
     // Resolve calendar status from our pre-fetched events
     const dayEvents = eventsByDate.get(tanggal) || []
-    const manual = dayEvents.find(e => e.source === 'manual')
-    const official = dayEvents.find(e => e.source === 'official')
-    const decidingEvent = manual || official || dayEvents[0] || null
-    const isSunday = hari === 7
-
-    let isEffective = true
-    let reason: string | null = null
-    let category: string | null = null
-    if (decidingEvent) {
-      isEffective = Number(decidingEvent.is_effective) === 1
-      reason = decidingEvent.title
-      category = decidingEvent.category
-    } else if (isSunday) {
-      isEffective = false
-      reason = 'Minggu'
-      category = 'MINGGU'
-    }
+    const dayCalendarStatus = kalenderDateStatusFromEvents(tanggal, dayEvents, {
+      kelasId,
+      tingkat: Number(kelas.tingkat),
+    })
+    const { isEffective } = dayCalendarStatus
+    const reason = dayCalendarStatus.reason
+    const category = dayCalendarStatus.category
 
     const baseRows: AgendaKelasRow[] = Array.from({ length: 10 }).map((_, index) => ({
       jam_ke: index + 1,
@@ -1073,23 +1073,14 @@ function buildAgendaKelasExportPage(input: {
   const hari = hariNum(tanggal)
   const hariNama = HARI[hari] || ''
   const dayEvents = input.eventsByDate.get(tanggal) || []
-  const manual = dayEvents.find(event => event.source === 'manual')
-  const official = dayEvents.find(event => event.source === 'official')
-  const decidingEvent = manual || official || dayEvents[0] || null
   const isSunday = hari === 7
-
-  let isEffective = true
-  let reason: string | null = null
-  let category: string | null = null
-  if (decidingEvent) {
-    isEffective = Number(decidingEvent.is_effective) === 1
-    reason = decidingEvent.title
-    category = decidingEvent.category
-  } else if (isSunday) {
-    isEffective = false
-    reason = 'Minggu'
-    category = 'MINGGU'
-  }
+  const dayCalendarStatus = kalenderDateStatusFromEvents(tanggal, dayEvents, {
+    kelasId,
+    tingkat: Number(kelas.tingkat),
+  })
+  const { isEffective } = dayCalendarStatus
+  const reason = dayCalendarStatus.reason
+  const category = dayCalendarStatus.category
 
   const baseRows = agendaKelasBaseRows()
   const baseData: AgendaKelasPageData = {

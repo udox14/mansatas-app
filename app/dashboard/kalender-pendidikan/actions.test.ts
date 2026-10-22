@@ -21,7 +21,7 @@ vi.mock('@/utils/db-server', () => ({
   }),
 }))
 
-import { saveKbmException } from './actions'
+import { saveKbmException, saveKalenderEvent } from './actions'
 
 const payload = {
   tanggal: '2026-10-06', judul: 'Pembinaan', kategori: 'KEGIATAN_MADRASAH' as const,
@@ -58,5 +58,49 @@ describe('save KBM exception class targets', () => {
     expect((await saveKbmException({ ...payload, target_values })).error).toBeTruthy()
     expect(state.writes).not.toHaveBeenCalled()
     expect(state.audit).not.toHaveBeenCalled()
+  })
+})
+
+const eventPayload = {
+  start_date: '2026-10-05',
+  end_date: '2026-10-08',
+  title: 'Libur kelas 12',
+  category: 'LIBUR_SEMESTER' as const,
+  is_effective: false,
+}
+
+describe('save calendar event targets', () => {
+  it('menyimpan libur untuk beberapa tingkat dalam satu event', async () => {
+    expect((await saveKalenderEvent({ ...eventPayload, target_type: 'TINGKAT', target_values: ['12', '10', '12'] })).success).toBeTruthy()
+    expect(state.writes).toHaveBeenCalledTimes(1)
+    const [sql, values] = state.writes.mock.calls[0]
+    expect(sql).toContain('INSERT INTO kalender_pendidikan_events')
+    expect(values[6]).toBe('TINGKAT')
+    expect(values[7]).toBe('["10","12"]')
+  })
+
+  it('menyimpan sasaran semua siswa tanpa target_value', async () => {
+    expect((await saveKalenderEvent({ ...eventPayload, target_type: 'ALL' })).success).toBeTruthy()
+    const [, values] = state.writes.mock.calls[0]
+    expect(values[6]).toBe('ALL')
+    expect(values[7]).toBeNull()
+  })
+
+  it('menolak hari efektif dengan sasaran tingkat/kelas', async () => {
+    const result = await saveKalenderEvent({
+      ...eventPayload,
+      is_effective: true,
+      target_type: 'TINGKAT',
+      target_values: ['12'],
+    })
+    expect(result.error).toBeTruthy()
+    expect(state.writes).not.toHaveBeenCalled()
+  })
+
+  it('menolak target tingkat atau kelas yang kosong', async () => {
+    expect((await saveKalenderEvent({ ...eventPayload, target_type: 'TINGKAT', target_values: [] })).error).toBeTruthy()
+    expect((await saveKalenderEvent({ ...eventPayload, target_type: 'KELAS', target_values: [] })).error).toBeTruthy()
+    expect((await saveKalenderEvent({ ...eventPayload, target_type: 'KELAS', target_values: ['missing'] })).error).toBeTruthy()
+    expect(state.writes).not.toHaveBeenCalled()
   })
 })

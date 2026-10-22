@@ -18,6 +18,7 @@ import {
   hariNumFromDateString,
   type KbmExceptionTargetType,
   type KalenderKategori,
+  type KalenderTargetType,
 } from '@/lib/kalender-pendidikan'
 import { createActivityDiff, logActivity } from '@/lib/activity-log'
 
@@ -132,7 +133,8 @@ export async function getKalenderPendidikanData(year: number, month: number) {
 
   const [events, kbmExceptions] = await Promise.all([
     getKalenderEventsForRange(db, startDate, endDate),
-    getKbmExceptionsForRange(db, startDate, endDate),
+    // Libur lintas kelas ditampilkan lewat event, bukan sebagai pengecualian KBM manual.
+    getKbmExceptionsForRange(db, startDate, endDate, { includeKalenderHolidays: false }),
   ])
   const dates = enumerateDateStrings(startDate, endDate)
   const statuses = await Promise.all(dates.map(tanggal => getKalenderDateStatus(db, tanggal)))
@@ -185,6 +187,9 @@ export async function saveKalenderEvent(payload: {
   category: KalenderKategori
   is_effective: boolean
   description?: string
+  target_type?: KalenderTargetType
+  target_value?: string | null
+  target_values?: string[]
 }) {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
@@ -193,8 +198,45 @@ export async function saveKalenderEvent(payload: {
   if (!payload.title.trim()) return { error: 'Judul wajib diisi.' }
   if (!VALID_CATEGORIES.has(payload.category)) return { error: 'Kategori tidak valid.' }
 
+  const targetType = payload.target_type ?? 'ALL'
+  if (!['ALL', 'TINGKAT', 'KELAS'].includes(targetType)) return { error: 'Sasaran event tidak valid.' }
+  // Modul absensi/agenda hanya menerapkan libur untuk sasaran tertentu; hari
+  // efektif pengganti lintas kelas belum didukung sehingga ditolak eksplisit.
+  if (targetType !== 'ALL' && payload.is_effective) {
+    return { error: 'Event khusus tingkat/kelas hanya bisa berstatus Non-KBM/Libur. Untuk hari efektif pengganti, gunakan sasaran semua siswa.' }
+  }
+
+  let targetValue: string | null = null
+  let targetClassIds: string[] = []
+  if (targetType === 'TINGKAT') {
+    const rawValues = payload.target_values ?? (payload.target_value ? [payload.target_value] : [])
+    const tingkatValues = Array.from(new Set(
+      rawValues
+        .map(value => Number(value))
+        .filter(value => Number.isInteger(value) && value >= 1 && value <= 12)
+        .map(value => String(value))
+    )).sort((a, b) => Number(a) - Number(b))
+    if (tingkatValues.length === 0) return { error: 'Pilih minimal satu tingkat kelas.' }
+    targetValue = tingkatValues.length === 1 ? tingkatValues[0] : JSON.stringify(tingkatValues)
+  } else if (targetType === 'KELAS') {
+    const rawValues = payload.target_values ?? (payload.target_value ? [payload.target_value] : [])
+    if (!Array.isArray(rawValues) || rawValues.some(value => typeof value !== 'string' || !value.trim())) {
+      return { error: 'Kelas target tidak valid.' }
+    }
+    targetClassIds = Array.from(new Set(rawValues.map(value => value.trim())))
+    if (targetClassIds.length === 0) return { error: 'Pilih minimal satu kelas.' }
+    targetValue = targetClassIds.length === 1 ? targetClassIds[0] : JSON.stringify(targetClassIds)
+  }
+
   const db = await getDB()
   await ensureKalenderPendidikanTables(db)
+
+  if (targetType === 'KELAS') {
+    const kelas = await db.prepare('SELECT id FROM kelas').all<{ id: string }>()
+    const validIds = new Set((kelas.results || []).map(item => item.id))
+    if (targetClassIds.some(id => !validIds.has(id))) return { error: 'Kelas target tidak ditemukan.' }
+  }
+
   const before = payload.id
     ? await db.prepare('SELECT * FROM kalender_pendidikan_events WHERE id = ?').bind(payload.id).first<any>()
     : null
@@ -203,7 +245,8 @@ export async function saveKalenderEvent(payload: {
     await db.prepare(`
       UPDATE kalender_pendidikan_events
       SET start_date = ?, end_date = ?, title = ?, category = ?, is_effective = ?,
-          source = 'manual', external_id = NULL, description = ?, updated_by = ?, updated_at = datetime('now')
+          source = 'manual', external_id = NULL, description = ?,
+          target_type = ?, target_value = ?, updated_by = ?, updated_at = datetime('now')
       WHERE id = ?
     `).bind(
       payload.start_date,
@@ -212,14 +255,16 @@ export async function saveKalenderEvent(payload: {
       payload.category,
       payload.is_effective ? 1 : 0,
       payload.description?.trim() || null,
+      targetType,
+      targetValue,
       user.id,
       payload.id,
     ).run()
   } else {
     await db.prepare(`
       INSERT INTO kalender_pendidikan_events
-        (start_date, end_date, title, category, is_effective, source, description, created_by, updated_by)
-      VALUES (?, ?, ?, ?, ?, 'manual', ?, ?, ?)
+        (start_date, end_date, title, category, is_effective, source, description, target_type, target_value, created_by, updated_by)
+      VALUES (?, ?, ?, ?, ?, 'manual', ?, ?, ?, ?, ?)
     `).bind(
       payload.start_date,
       payload.end_date,
@@ -227,14 +272,16 @@ export async function saveKalenderEvent(payload: {
       payload.category,
       payload.is_effective ? 1 : 0,
       payload.description?.trim() || null,
+      targetType,
+      targetValue,
       user.id,
       user.id,
     ).run()
   }
 
   const after = payload.id
-    ? { ...before, ...payload, title: payload.title.trim(), is_effective: payload.is_effective ? 1 : 0 }
-    : payload
+    ? { ...before, ...payload, title: payload.title.trim(), is_effective: payload.is_effective ? 1 : 0, target_type: targetType, target_value: targetValue }
+    : { ...payload, title: payload.title.trim(), target_type: targetType, target_value: targetValue }
   await logActivity({
     db,
     module: 'kalender-pendidikan',

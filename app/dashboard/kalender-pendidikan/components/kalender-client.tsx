@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useMemo, useState, useTransition, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -26,12 +26,17 @@ import {
 } from '../actions'
 import {
   KALENDER_CATEGORY_LABELS,
+  enumerateDateStrings,
   getKbmExceptionClassIds,
+  getKalenderTargetValues,
+  kalenderDateStatusFromEvents,
+  kalenderEventAppliesToScope,
   type KbmException,
   type KbmExceptionTargetType,
   type KalenderDateStatus,
   type KalenderEvent,
   type KalenderKategori,
+  type KalenderTargetType,
 } from '@/lib/kalender-pendidikan'
 
 type KalenderData = {
@@ -65,6 +70,8 @@ type FormState = {
   category: KalenderKategori
   is_effective: boolean
   description: string
+  target_type: KalenderTargetType
+  target_values: string[]
 }
 
 type KbmFormState = {
@@ -118,6 +125,8 @@ function emptyForm(date: string): FormState {
     category: 'LAINNYA',
     is_effective: false,
     description: '',
+    target_type: 'ALL',
+    target_values: [],
   }
 }
 
@@ -140,6 +149,19 @@ function targetLabel(item: KbmException, kelasOptions: KelasOption[]) {
   if (item.target_type === 'TINGKAT') return `Kelas ${item.target_value}`
   const ids = getKbmExceptionClassIds(item.target_value)
   return ids.map(id => kelasOptions.find(k => k.id === id)?.label || 'Kelas tertentu').join(', ') || 'Kelas tertentu'
+}
+
+/** Label sasaran event kalender; null berarti berlaku untuk semua siswa. */
+function eventTargetLabel(event: Pick<KalenderEvent, 'target_type' | 'target_value'>, kelasOptions: KelasOption[]) {
+  if (event.target_type === 'ALL') return null
+  if (event.target_type === 'TINGKAT') {
+    const values = getKalenderTargetValues(event.target_value)
+    if (values.length === 0) return 'Tingkat tertentu'
+    return values.length === 1 ? `Kelas ${values[0]}` : `Kelas ${values.join(', ')}`
+  }
+  const ids = getKalenderTargetValues(event.target_value)
+  if (ids.length === 0) return 'Kelas tertentu'
+  return ids.map(id => kelasOptions.find(k => k.id === id)?.label || 'Kelas tertentu').join(', ')
 }
 
 function isCkhWorkdayCategory(category: string | null | undefined) {
@@ -197,18 +219,69 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
   const [importError, setImportError] = useState('')
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [syncYear, setSyncYear] = useState(String(initialData.year))
+  const [scopeTingkat, setScopeTingkat] = useState<string>('SEMUA')
   const [isPending, startTransition] = useTransition()
+
+  useEffect(() => {
+    let active = true
+    getKalenderKelasOptions()
+      .then(options => { if (active) setKelasOptions(options) })
+      .catch(() => {})
+    return () => { active = false }
+  }, [])
+
+  const scope = useMemo(
+    () => (scopeTingkat === 'SEMUA' ? null : { tingkat: Number(scopeTingkat) }),
+    [scopeTingkat],
+  )
+
+  const scopedStatuses = useMemo(() => {
+    if (!scope) return data.statuses
+    return data.statuses.map(status => kalenderDateStatusFromEvents(status.tanggal, data.events, scope))
+  }, [data.statuses, data.events, scope])
 
   const statusByDate = useMemo(() => {
     const map = new Map<string, KalenderDateStatus>()
-    for (const status of data.statuses) map.set(status.tanggal, status)
+    for (const status of scopedStatuses) map.set(status.tanggal, status)
     return map
-  }, [data.statuses])
+  }, [scopedStatuses])
+
+  const eventsByDate = useMemo(() => {
+    const map = new Map<string, KalenderEvent[]>()
+    const knownDates = new Set(scopedStatuses.map(status => status.tanggal))
+    for (const event of data.events) {
+      for (const tanggal of enumerateDateStrings(event.start_date, event.end_date)) {
+        if (!knownDates.has(tanggal)) continue
+        if (!map.has(tanggal)) map.set(tanggal, [])
+        map.get(tanggal)!.push(event)
+      }
+    }
+    return map
+  }, [data.events, scopedStatuses])
+
+  const summary = useMemo(() => {
+    if (!scope) return data.summary
+    const scopedEvents = data.events.filter(event => kalenderEventAppliesToScope(event, scope))
+    return {
+      effective: scopedStatuses.filter(status => status.isEffective).length,
+      nonEffective: scopedStatuses.filter(status => !status.isEffective).length,
+      tanggalMerah: scopedEvents.filter(event => event.category === 'TANGGAL_MERAH' && Number(event.is_effective) === 0).length,
+      eventSekolah: scopedEvents.filter(event => event.category !== 'TANGGAL_MERAH').length,
+      kbmExceptions: data.summary.kbmExceptions,
+    }
+  }, [data.events, data.summary, scope, scopedStatuses])
+
+  const tingkatOptions = useMemo(
+    () => Array.from(new Set(kelasOptions.map(kelas => Number(kelas.tingkat)))).sort((a, b) => a - b),
+    [kelasOptions],
+  )
 
   const selectedStatus = selectedDate ? statusByDate.get(selectedDate) : null
+  const selectedDateEvents = selectedDate ? eventsByDate.get(selectedDate) || [] : []
   const selectedKbmExceptions = selectedDate ? data.kbmExceptions.filter(item => item.tanggal === selectedDate) : []
 
   const filteredEvents = data.events.filter(event => {
+    if (scope && !kalenderEventAppliesToScope(event, scope)) return false
     if (categoryFilter !== 'SEMUA' && event.category !== categoryFilter) return false
     if (query.trim()) {
       const q = query.toLowerCase()
@@ -402,7 +475,8 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
     XLSX.writeFile(workbook, `template_skb_${year}.xlsx`)
   }
 
-  const openEdit = (event: KalenderEvent) => {
+  const openEdit = async (event: KalenderEvent) => {
+    await ensureKelasOptions()
     setForm({
       id: event.id,
       start_date: event.start_date,
@@ -411,6 +485,8 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
       category: event.category,
       is_effective: Number(event.is_effective) === 1,
       description: event.description || '',
+      target_type: event.target_type || 'ALL',
+      target_values: getKalenderTargetValues(event.target_value),
     })
   }
 
@@ -430,7 +506,8 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
     })
   }
 
-  const openAdd = (date?: string) => {
+  const openAdd = async (date?: string) => {
+    await ensureKelasOptions()
     setForm(emptyForm(date || isoDate(data.year, data.month, 1)))
   }
 
@@ -454,10 +531,10 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         {[
-          ['Hari efektif KBM', data.summary.effective, 'text-emerald-700 bg-emerald-50 border-emerald-200'],
-          ['Non-KBM/Libur', data.summary.nonEffective, 'text-blue-700 bg-blue-50 border-blue-200'],
-          ['Tanggal merah', data.summary.tanggalMerah, 'text-amber-700 bg-amber-50 border-amber-200'],
-          ['Pengecualian KBM', data.summary.kbmExceptions || 0, 'text-blue-700 bg-blue-50 border-blue-200'],
+          ['Hari efektif KBM', summary.effective, 'text-emerald-700 bg-emerald-50 border-emerald-200'],
+          ['Non-KBM/Libur', summary.nonEffective, 'text-blue-700 bg-blue-50 border-blue-200'],
+          ['Tanggal merah', summary.tanggalMerah, 'text-amber-700 bg-amber-50 border-amber-200'],
+          ['Pengecualian KBM', summary.kbmExceptions || 0, 'text-blue-700 bg-blue-50 border-blue-200'],
         ].map(([label, value, tone]) => (
           <div key={String(label)} className={cn('rounded-lg border p-3', String(tone))}>
             <p className="text-[11px] font-medium opacity-80">{label}</p>
@@ -478,6 +555,21 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
             <Button variant="outline" size="sm" onClick={() => moveMonth(1)} className="h-9 w-9 p-0" disabled={isPending}>
               <ChevronRight className="h-4 w-4" />
             </Button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Label htmlFor="kalender-scope" className="whitespace-nowrap text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              Status untuk
+            </Label>
+            <Select value={scopeTingkat} onValueChange={setScopeTingkat}>
+              <SelectTrigger id="kalender-scope" className="h-9 w-[150px] text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="SEMUA">Semua kelas</SelectItem>
+                {tingkatOptions.map(tingkat => (
+                  <SelectItem key={tingkat} value={String(tingkat)}>Kelas {tingkat}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 xl:ml-auto">
@@ -512,6 +604,12 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
             Sinkron terakhir {data.syncLog.tahun}: {data.syncLog.status === 'SUCCESS' ? `${data.syncLog.jumlah_data} data dari ${data.syncLog.source}` : data.syncLog.message || 'gagal'}.
           </p>
         )}
+
+        {scope && (
+          <p className="text-[11px] text-emerald-700 dark:text-emerald-400">
+            Status hari dan ringkasan dihitung untuk Kelas {scope.tingkat}. Libur khusus tingkat/kelas lain tetap tampil sebagai event.
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-4 items-start">
@@ -524,7 +622,7 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
           <div className="grid grid-cols-7">
             {calendarCells.map((cell, idx) => {
               const status = cell.status
-              const events = status?.events || []
+              const dayEvents = (cell.date ? eventsByDate.get(cell.date) : []) || []
               const statusMeta = getStatusMeta(status)
               return (
                 <button
@@ -546,22 +644,26 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
                           : <CheckCircle2 className={cn('h-3.5 w-3.5', statusMeta.icon === 'ckh' ? 'text-blue-500' : 'text-emerald-500')} />}
                       </div>
                       <div className="mt-2 space-y-1">
-                        {events.slice(0, 2).map(event => (
-                          <div key={event.id} className={cn('truncate rounded border px-1.5 py-0.5 text-[10px] font-medium', CATEGORY_TONES[event.category])}>
-                            {event.title}
-                          </div>
-                        ))}
+                        {dayEvents.slice(0, 2).map(event => {
+                          const target = eventTargetLabel(event, kelasOptions)
+                          return (
+                            <div key={event.id} className={cn('truncate rounded border px-1.5 py-0.5 text-[10px] font-medium', CATEGORY_TONES[event.category])}>
+                              {event.title}
+                              {target && <span className="ml-1 opacity-70">· {target}</span>}
+                            </div>
+                          )
+                        })}
                         {data.kbmExceptions.filter(item => item.tanggal === cell.date).slice(0, 1).map(item => (
                           <div key={item.id} className="truncate rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-medium text-sky-700">
                             Jam ke-{item.jam_ke_mulai}-{item.jam_ke_selesai}: {item.judul}
                           </div>
                         ))}
-                        {events.length === 0 && !status?.isEffective && (
+                        {dayEvents.length === 0 && !status?.isEffective && (
                           <div className="truncate rounded border px-1.5 py-0.5 text-[10px] font-medium bg-slate-100 text-slate-500 border-slate-200">
                             Minggu
                           </div>
                         )}
-                        {events.length > 2 && <p className="text-[10px] text-slate-400">+{events.length - 2} event</p>}
+                        {dayEvents.length > 2 && <p className="text-[10px] text-slate-400">+{dayEvents.length - 2} event</p>}
                       </div>
                     </>
                   )}
@@ -597,12 +699,12 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
                     )
                   })()}
                 </div>
-                {selectedStatus.events.length === 0 ? (
+                {selectedDateEvents.length === 0 ? (
                   <p className="text-sm text-slate-500 dark:text-slate-400">{selectedStatus.reason || 'Tidak ada event.'}</p>
                 ) : (
                   <div className="space-y-2">
-                    {selectedStatus.events.map(event => (
-                      <EventRow key={event.id} event={event} onEdit={openEdit} onDelete={removeEvent} />
+                    {selectedDateEvents.map(event => (
+                      <EventRow key={event.id} event={event} kelasOptions={kelasOptions} onEdit={openEdit} onDelete={removeEvent} />
                     ))}
                   </div>
                 )}
@@ -657,7 +759,7 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
               {filteredEvents.length === 0 ? (
                 <p className="rounded-lg border border-dashed border-surface-2 px-3 py-8 text-center text-sm text-slate-400">Belum ada event.</p>
               ) : filteredEvents.map(event => (
-                <EventRow key={event.id} event={event} onEdit={openEdit} onDelete={removeEvent} />
+                <EventRow key={event.id} event={event} kelasOptions={kelasOptions} onEdit={openEdit} onDelete={removeEvent} />
               ))}
               {filteredKbmExceptions.map(item => (
                 <KbmExceptionRow
@@ -710,15 +812,68 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Status hari</Label>
-                  <Select value={form.is_effective ? 'effective' : 'non-effective'} onValueChange={value => setForm({ ...form, is_effective: value === 'effective' })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="non-effective">Non-KBM / Libur</SelectItem>
-                      <SelectItem value="effective">Hari efektif KBM</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  {form.target_type === 'ALL' ? (
+                    <Select value={form.is_effective ? 'effective' : 'non-effective'} onValueChange={value => setForm({ ...form, is_effective: value === 'effective' })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="non-effective">Non-KBM / Libur</SelectItem>
+                        <SelectItem value="effective">Hari efektif KBM</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="rounded-md border border-surface-2 bg-surface-2 px-3 py-2 text-xs text-slate-600 dark:text-slate-300">
+                      Non-KBM / Libur untuk sasaran terpilih
+                    </div>
+                  )}
                 </div>
               </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs">Berlaku untuk</Label>
+                <Select
+                  value={form.target_type}
+                  onValueChange={value => setForm({
+                    ...form,
+                    target_type: value as KalenderTargetType,
+                    target_values: [],
+                    is_effective: value === 'ALL' ? form.is_effective : false,
+                  })}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">Semua siswa</SelectItem>
+                    <SelectItem value="TINGKAT">Tingkat tertentu</SelectItem>
+                    <SelectItem value="KELAS">Kelas tertentu</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Pilih “Tingkat tertentu” agar libur hanya berlaku untuk kelas tersebut, misalnya kelas 12.
+                </p>
+              </div>
+
+              {form.target_type === 'TINGKAT' && (
+                <TargetPicker
+                  id="event-tingkat"
+                  label="Tingkat kelas"
+                  placeholder="Pilih tingkat"
+                  emptyLabel="Belum ada tingkat kelas tersedia."
+                  options={tingkatOptions.map(tingkat => ({ id: String(tingkat), label: `Kelas ${tingkat}` }))}
+                  values={form.target_values}
+                  onChange={values => setForm(current => current ? { ...current, target_values: values } : current)}
+                />
+              )}
+
+              {form.target_type === 'KELAS' && (
+                <TargetPicker
+                  id="event-kelas"
+                  label="Kelas"
+                  placeholder="Pilih kelas"
+                  emptyLabel="Belum ada kelas tersedia."
+                  options={kelasOptions.map(kelas => ({ id: kelas.id, label: kelas.label }))}
+                  values={form.target_values}
+                  onChange={values => setForm(current => current ? { ...current, target_values: values } : current)}
+                />
+              )}
 
               <div className="space-y-1.5">
                 <Label className="text-xs">Catatan</Label>
@@ -939,16 +1094,76 @@ export function KalenderPendidikanClient({ initialData }: { initialData: Kalende
   )
 }
 
+function TargetPicker({
+  id,
+  label,
+  placeholder,
+  emptyLabel,
+  options,
+  values,
+  onChange,
+}: {
+  id: string
+  label: string
+  placeholder: string
+  emptyLabel: string
+  options: Array<{ id: string; label: string }>
+  values: string[]
+  onChange: (values: string[]) => void
+}) {
+  const selectedLabel = values.length === 0
+    ? placeholder
+    : values.length === 1
+      ? options.find(option => option.id === values[0])?.label || '1 pilihan'
+      : `${values.length} pilihan`
+
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id} className="text-xs">{label}</Label>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button id={id} type="button" variant="outline" className="w-full justify-between font-normal">
+            <span className="truncate">{selectedLabel}</span>
+            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="max-h-64 w-[var(--radix-dropdown-menu-trigger-width)]">
+          {options.map(option => (
+            <DropdownMenuCheckboxItem
+              key={option.id}
+              checked={values.includes(option.id)}
+              onSelect={event => event.preventDefault()}
+              onCheckedChange={checked => onChange(checked
+                ? Array.from(new Set([...values, option.id]))
+                : values.filter(value => value !== option.id))}
+              className="before:absolute before:left-2 before:h-3.5 before:w-3.5 before:rounded-sm before:border before:border-slate-400"
+            >{option.label}</DropdownMenuCheckboxItem>
+          ))}
+          {options.length === 0 && <p className="px-2 py-2 text-xs text-slate-500">{emptyLabel}</p>}
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {values.length > 0 && (
+        <p className="text-xs text-slate-600 dark:text-slate-300">
+          {values.map(value => options.find(option => option.id === value)?.label || value).join(', ')}
+        </p>
+      )}
+    </div>
+  )
+}
+
 function EventRow({
   event,
+  kelasOptions,
   onEdit,
   onDelete,
 }: {
   event: KalenderEvent
+  kelasOptions: KelasOption[]
   onEdit: (event: KalenderEvent) => void
   onDelete: (event: KalenderEvent) => void
 }) {
   const statusMeta = getEventStatusMeta(event)
+  const target = eventTargetLabel(event, kelasOptions)
 
   return (
     <div className="rounded-lg border border-surface-2 bg-surface-2 p-3">
@@ -959,6 +1174,11 @@ function EventRow({
             <span className={cn('rounded-full border px-2 py-0.5 text-[10px] font-semibold', CATEGORY_TONES[event.category])}>
               {KALENDER_CATEGORY_LABELS[event.category]}
             </span>
+            {target && (
+              <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
+                Khusus {target}
+              </span>
+            )}
           </div>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
             {formatDate(event.start_date)}{event.start_date !== event.end_date ? ` s/d ${formatDate(event.end_date)}` : ''}

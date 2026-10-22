@@ -22,6 +22,8 @@ import {
   getEffectiveDatesInRange,
   getKbmExceptionsForDate,
   getKalenderDateStatus,
+  getKalenderEventsForRange,
+  kalenderDateStatusFromEvents,
 } from '@/lib/kalender-pendidikan'
 import { attendanceStatusCode } from '@/lib/attendance-status'
 import { liveAttendanceSummary } from '@/lib/attendance-live-summary'
@@ -304,9 +306,17 @@ export async function getAbsensiPerKelas(tanggal: string, tingkat?: number, view
 
   const scope = await getRekapScope(db, user.id, view === 'saat-ini')
   const kelasList = await getClassRows(db, scope, tingkat)
+  const dayEvents = await getKalenderEventsForRange(db, tanggal, tanggal)
   const data: any[] = []
 
   for (const kelas of kelasList) {
+    // Libur bisa berlaku hanya untuk tingkat/kelas tertentu.
+    const classStatus = kalenderDateStatusFromEvents(tanggal, dayEvents, {
+      kelasId: kelas.id,
+      tingkat: Number(kelas.tingkat),
+    })
+    if (!classStatus.isEffective) continue
+
     if (view === 'saat-ini') {
       const matrix = await buildClassDailyMatrix(db, kelas.id, tanggal)
       if (matrix.error) continue
@@ -376,13 +386,16 @@ export async function getAbsensiPerKelasRentang(tingkat: number, tglMulai: strin
 }
 
 async function buildClassDailyMatrix(db: D1Database, kelasId: string, tanggal: string) {
-  const calendarStatus = await getKalenderDateStatus(db, tanggal)
+  const classData = await getFinalAttendanceForClass(db, kelasId, tanggal, tanggal)
+  if (!classData) return { error: 'Kelas tidak ditemukan.', rows: [], slots: [], kelas: null }
+
+  const calendarStatus = await getKalenderDateStatus(db, tanggal, {
+    kelasId: classData.kelas.id,
+    tingkat: Number(classData.kelas.tingkat),
+  })
   if (!calendarStatus.isEffective) {
     return { error: null, rows: [], slots: [], kelas: null, calendarStatus }
   }
-
-  const classData = await getFinalAttendanceForClass(db, kelasId, tanggal, tanggal)
-  if (!classData) return { error: 'Kelas tidak ditemukan.', rows: [], slots: [], kelas: null }
 
   const ta = await db.prepare('SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<any>()
   const hari = hariNum(new Date(tanggal + 'T00:00:00'))

@@ -413,13 +413,15 @@ export async function simpanAbsensi(
 
   const db = await getDB()
   await ensureSchemaOnce('absensi-session', () => ensureAbsensiSessionTable(db))
-  const calendarStatus = await getKalenderDateStatus(db, tanggal)
-  if (!calendarStatus.isEffective) {
-    return { error: `Tanggal ini tidak efektif pembelajaran${calendarStatus.reason ? `: ${calendarStatus.reason}` : ''}. Absensi tidak perlu disimpan.` }
-  }
-
   const penugasan = await getAccessiblePenugasan(db, penugasanId, guruId, tanggal)
   if (!penugasan) return { error: 'Penugasan tidak ditemukan atau bukan sesi mengajar Anda.' }
+  const calendarStatus = await getKalenderDateStatus(db, tanggal, {
+    kelasId: penugasan.kelas_id,
+    tingkat: Number(penugasan.tingkat),
+  })
+  if (!calendarStatus.isEffective) {
+    return { error: `Tanggal ini tidak efektif pembelajaran untuk kelas tersebut${calendarStatus.reason ? `: ${calendarStatus.reason}` : ''}. Absensi tidak perlu disimpan.` }
+  }
   if (penugasan.kbm_nonaktif_mulai && penugasan.kbm_nonaktif_mulai <= tanggal) {
     return { error: 'Kelas ini sudah dinonaktifkan dari kewajiban KBM. Absensi tidak perlu disimpan.' }
   }

@@ -249,8 +249,8 @@ export async function KelasBinaanDashboard({
     komunikasiStatusRaw,
     komunikasiTimelineRaw,
   ] = await Promise.all([
-    getKalenderDateStatus(db, today),
-    getKalenderDateStatus(db, selectedDecisionDate),
+    getKalenderDateStatus(db, today, { kelasId: kelas.id, tingkat: Number(kelas.tingkat) }),
+    getKalenderDateStatus(db, selectedDecisionDate, { kelasId: kelas.id, tingkat: Number(kelas.tingkat) }),
     attendanceSnapshotPromise,
     db.prepare(`
       SELECT sp.siswa_id, s.nama_lengkap, s.nisn, SUM(mp.poin) as total_poin, COUNT(*) as jumlah_kasus

@@ -27,6 +27,7 @@ import {
   type CkhTemplate,
   type CkhTemplateNote,
 } from '@/lib/ckh'
+import { ensureKalenderEventTargetSchema } from '@/lib/kalender-pendidikan'
 
 type CkhUser = {
   id: string
@@ -397,10 +398,13 @@ async function buildGeneratedRows(db: D1Database, userId: string, year: number, 
     })
   }
 
+  // Kolom target_type pada event kalender wajib ada sebelum query langsung di bawah.
+  await ensureKalenderEventTargetSchema(db)
   const calendarRes = await db.prepare(`
     SELECT id, start_date, end_date, title
     FROM kalender_pendidikan_events
     WHERE source = 'manual'
+      AND COALESCE(target_type, 'ALL') = 'ALL'
       AND category IN ('RAPAT','UJIAN','KEGIATAN_MADRASAH','LAINNYA')
       AND start_date <= ?
       AND end_date >= ?

@@ -126,8 +126,17 @@ export async function getParentAttendanceByAcademicYear(tahunAjaranId: string) {
   const statuses = result?.statuses || []
   const aggregates = summarizeParentAttendance(statuses)
   const events = endDate >= range.startDate ? await getKalenderEventsForRange(db, range.startDate, endDate) : []
+  const siswaKelas = await db.prepare(`
+    SELECT k.id AS kelas_id, k.tingkat
+    FROM siswa s
+    LEFT JOIN kelas k ON k.id = s.kelas_id
+    WHERE s.id = ?
+  `).bind(session.user.siswa_id).first<{ kelas_id: string | null; tingkat: number | null }>()
+  const calendarScope = siswaKelas?.kelas_id
+    ? { kelasId: siswaKelas.kelas_id, tingkat: Number(siswaKelas.tingkat) }
+    : null
   const calendarExceptions = endDate >= range.startDate ? enumerateDateStrings(range.startDate, endDate)
-    .map(tanggal => kalenderDateStatusFromEvents(tanggal, events))
+    .map(tanggal => kalenderDateStatusFromEvents(tanggal, events, calendarScope))
     .filter(day => !day.isEffective)
     .map(day => ({ tanggal: day.tanggal, label: 'Hari libur', reason: day.reason })) : []
 
