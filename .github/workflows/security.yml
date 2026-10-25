@@ -3,6 +3,8 @@ name: Security checks
 on:
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: '17 2 * * *'
 
 permissions:
   contents: read
