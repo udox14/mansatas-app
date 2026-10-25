@@ -14,7 +14,7 @@ export function DashboardSPAShell({ children, heroNode, polaJam = EMPTY_PATTERNS
   return <div className="dashboard-home">
     {heroNode}
     <div className="dashboard-home-content relative mx-auto max-w-7xl px-4 pb-6 sm:px-6 lg:px-8">
-      <section aria-labelledby="dashboard-favorites-title" className="max-w-[560px] py-5 sm:py-6 lg:max-w-none">
+      <section aria-labelledby="dashboard-favorites-title" data-dashboard-guide-target="dashboard-favorites" className="max-w-[560px] py-5 sm:py-6 lg:max-w-none">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-x-2">
           <h2 id="dashboard-favorites-title" className="sr-only">Menu favorit</h2>
           <PeriodChip patterns={polaJam} />
@@ -31,7 +31,7 @@ export function DashboardSPAShell({ children, heroNode, polaJam = EMPTY_PATTERNS
         </div>
         {!shortcutIds.length && <button onClick={editShortcuts} className="min-h-24 w-full rounded-2xl border border-dashed border-emerald-200 p-5 text-sm text-emerald-700 dark:border-emerald-900 dark:text-emerald-400">Tambahkan menu yang paling sering Anda gunakan.</button>}
       </section>
-      <div className="dashboard-widgets">{children}</div>
+      <div className="dashboard-widgets" data-dashboard-guide-target="dashboard-widgets">{children}</div>
     </div>
   </div>
 }

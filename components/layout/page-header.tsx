@@ -28,7 +28,7 @@ export function PageHeader({
     <div className={cn(
       "flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1 lg:pt-2", 
       className
-    )}>
+    )} data-dashboard-guide-target="page-title" data-dashboard-guide-title={title}>
       <div className="flex items-center gap-2.5 min-w-0">
         {/* Icon dihilangkan sesuai permintaan user untuk semua fitur */}
         {/* {Icon && <Icon className={cn("h-5 w-5 shrink-0", iconColor)} />} */}
@@ -44,7 +44,7 @@ export function PageHeader({
         </div>
       </div>
       {children && (
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap" data-dashboard-guide-target="actions">
           {children}
         </div>
       )}

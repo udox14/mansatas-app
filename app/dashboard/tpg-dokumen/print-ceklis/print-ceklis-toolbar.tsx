@@ -3,6 +3,7 @@
 import { ArrowLeft, Printer } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
+import { DashboardGuideButton } from '@/components/layout/dashboard-guide'
 
 interface PrintCeklisToolbarProps {
   teacherCount: number
@@ -24,13 +25,14 @@ export function PrintCeklisToolbar({ teacherCount }: PrintCeklisToolbarProps) {
           Kembali
         </Button>
         <div>
-          <p className="text-sm font-semibold text-slate-800">Cetak Ceklis Berkas TPG</p>
+          <p className="text-sm font-semibold text-slate-800" data-dashboard-guide-target="page-title" data-dashboard-guide-title="Cetak Ceklis Berkas TPG">Cetak Ceklis Berkas TPG</p>
           <p className="text-xs text-slate-500">
             {teacherCount} Guru terpilih &bull; {teacherCount * 2} Lembar (Asli &amp; Salinan)
           </p>
         </div>
       </div>
       <div className="flex items-center gap-2">
+        <DashboardGuideButton />
         <Button onClick={() => window.print()} className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm">
           <Printer className="h-4 w-4" />
           Cetak / Simpan PDF

@@ -292,14 +292,6 @@ export const MENU_ITEMS: MenuItem[] = [
     desc: 'Memantau status dan pelaksanaan pendelegasian/penitipan tugas mengajar antar guru'
   },
   {
-    id: 'monitoring-kedisiplinan',
-    title: 'Monitoring Kedisiplinan',
-    href: '/dashboard/monitoring-kedisiplinan',
-    icon: AlertTriangle,
-    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk', 'guru_piket', 'wali_kelas'],
-    desc: 'Memantau statistik pelanggar, akumulasi poin, radar siswa berisiko, dan analitik kedisiplinan'
-  },
-  {
     id: 'rapat',
     title: 'Undangan Rapat',
     href: '/dashboard/rapat',
@@ -329,7 +321,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/kedisiplinan',
     icon: AlertTriangle,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk', 'guru_piket', 'resepsionis', 'satpam', 'guru_ppl', 'wali_kelas'],
-    desc: 'Mencatat pelanggaran tata tertib siswa dan mengelola daftar poin aturan sekolah'
+    desc: 'Mencatat pelanggaran, mengelola poin dan sanksi, serta memantau risiko dan tindak lanjut siswa'
   },
   {
     id: 'sp',
@@ -565,7 +557,7 @@ export const DEFAULT_SIDEBAR_GROUPS: SidebarGroupConfig[] = [
   { id: 'data-master', label: 'Data Master', items: ['siswa', 'guru', 'kelas', 'plotting', 'ekstrakurikuler-master', 'pmb'] },
   { id: 'tugas-harian-guru', label: 'Tugas Harian Guru', items: ['agenda', 'catatan-siswa', 'agenda-kelas', 'ckh-generator', 'rppm-generator', 'kehadiran', 'nilai-harian', 'penugasan', 'ekstrakurikuler'] },
   { id: 'monitoring-akademik', label: 'Monitoring Akademik', items: ['akademik', 'kalender-pendidikan', 'analitik', 'verifikasi-siswa'] },
-  { id: 'monitoring-rekap', label: 'Monitoring & Rekap', items: ['monitoring-agenda', 'audit-akses-agenda', 'monitoring-penugasan', 'monitoring-kedisiplinan', 'rekap-absensi', 'akademik-nilai'] },
+  { id: 'monitoring-rekap', label: 'Monitoring & Rekap', items: ['monitoring-agenda', 'audit-akses-agenda', 'monitoring-penugasan', 'rekap-absensi', 'akademik-nilai'] },
   { id: 'program-khusus', label: 'Program Khusus', items: ['tahfidz'] },
   { id: 'kesiswaan-bk', label: 'Kesiswaan & BK', items: ['kelas-binaan', 'keterangan-absensi', 'jadwal-piket', 'izin', 'kedisiplinan', 'sp', 'bk', 'psikotes', 'tka', 'penerimaan-pt'] },
   { id: 'administrasi-hr', label: 'Administrasi & HR', items: ['tpg-dokumen', 'documentation', 'surat', 'rapat', 'kelola-ppl', 'buku-tamu'] },

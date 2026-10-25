@@ -271,7 +271,7 @@ function DetailKasusModal({
 
 // ─── Main Component ──────────────────────────────────────────
 export function KedisiplinanClient({
-  currentUser, kasusList, masterList, taAktifId, sanksiList = [], lifetimePoin = {}, tingkatList = [], reviewableRecordIds = [], clarifications = []
+  currentUser, kasusList, masterList, taAktifId, sanksiList = [], lifetimePoin = {}, tingkatList = [], reviewableRecordIds = [], clarifications = [], initialTab = 'riwayat', showTabNavigation = true
 }: {
   currentUser: { id: string, role: string, roles?: string[], nama: string }
   kasusList: any[]
@@ -282,6 +282,8 @@ export function KedisiplinanClient({
   tingkatList?: string[]
   reviewableRecordIds?: string[]
   clarifications?: any[]
+  initialTab?: 'riwayat' | 'kamus' | 'klarifikasi'
+  showTabNavigation?: boolean
 }) {
   const userRoles = currentUser.roles?.length ? currentUser.roles : [currentUser.role]
   const isSuperAdmin = userRoles.includes('super_admin')
@@ -556,22 +558,24 @@ export function KedisiplinanClient({
     <>
       <Script src="/vendor/xlsx-0.20.3.full.min.js" strategy="lazyOnload" />
       <div className="space-y-3">
-        <Tabs defaultValue="riwayat" className="space-y-3">
-          <TabsList className={cn("bg-surface border border-surface rounded-lg w-full grid p-0.5 gap-0.5 h-auto", canManageMaster && canReviewAny ? 'grid-cols-3' : (canManageMaster || canReviewAny) ? 'grid-cols-2' : 'grid-cols-1')}>
-            <TabsTrigger value="riwayat" className="py-2 rounded-md data-[state=active]:bg-rose-600 data-[state=active]:text-white text-xs sm:text-sm font-medium">
-              Riwayat Pelanggaran
-            </TabsTrigger>
-            {canManageMaster && (
-              <TabsTrigger value="kamus" className="py-2 rounded-md data-[state=active]:bg-slate-800 data-[state=active]:text-white text-xs sm:text-sm font-medium">
-                Kamus &amp; Poin
+        <Tabs key={initialTab} defaultValue={initialTab} className="space-y-3">
+          {showTabNavigation && (
+            <TabsList className={cn("bg-surface border border-surface rounded-lg w-full grid p-0.5 gap-0.5 h-auto", canManageMaster && canReviewAny ? 'grid-cols-3' : (canManageMaster || canReviewAny) ? 'grid-cols-2' : 'grid-cols-1')}>
+              <TabsTrigger value="riwayat" className="py-2 rounded-md data-[state=active]:bg-rose-600 data-[state=active]:text-white text-xs sm:text-sm font-medium">
+                Riwayat Pelanggaran
               </TabsTrigger>
-            )}
-            {canReviewAny && (
-              <TabsTrigger value="klarifikasi" className="py-2 rounded-md data-[state=active]:bg-sky-700 data-[state=active]:text-white text-xs sm:text-sm font-medium">
-                Klarifikasi Ortu{clarificationRows.some(row => row.status === 'baru') ? ` (${clarificationRows.filter(row => row.status === 'baru').length})` : ''}
-              </TabsTrigger>
-            )}
-          </TabsList>
+              {canManageMaster && (
+                <TabsTrigger value="kamus" className="py-2 rounded-md data-[state=active]:bg-slate-800 data-[state=active]:text-white text-xs sm:text-sm font-medium">
+                  Kamus &amp; Poin
+                </TabsTrigger>
+              )}
+              {canReviewAny && (
+                <TabsTrigger value="klarifikasi" className="py-2 rounded-md data-[state=active]:bg-sky-700 data-[state=active]:text-white text-xs sm:text-sm font-medium">
+                  Klarifikasi Ortu{clarificationRows.some(row => row.status === 'baru') ? ` (${clarificationRows.filter(row => row.status === 'baru').length})` : ''}
+                </TabsTrigger>
+              )}
+            </TabsList>
+          )}
 
           {/* ── TAB RIWAYAT ── */}
           <TabsContent value="riwayat" className="space-y-3 m-0">
@@ -938,14 +942,13 @@ export function KedisiplinanClient({
           </TabsContent>
 
           {/* ── TAB KAMUS ── */}
-          {canManageMaster && (
-            <TabsContent value="kamus" className="space-y-3 m-0">
+          <TabsContent value="kamus" className="space-y-3 m-0">
               <div className="bg-surface border border-surface rounded-lg p-3 flex flex-wrap gap-2 items-center">
                 <div className="relative flex-1 min-w-0" style={{ minWidth: '140px' }}>
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
                   <Input placeholder="Cari pelanggaran..." value={searchMaster} onChange={e => setSearchMaster(e.target.value)} className="pl-8 h-8 text-sm rounded-md" />
                 </div>
-                <div className="flex gap-2 ml-auto">
+                {canManageMaster && <div className="flex gap-2 ml-auto">
                   <Dialog>
                     <DialogTrigger asChild>
                       <Button variant="outline" size="sm" className="h-8 text-xs rounded-md">
@@ -979,7 +982,7 @@ export function KedisiplinanClient({
                   <Button onClick={() => { setEditMasterData(null); setIsMasterModalOpen(true) }} size="sm" className="h-8 text-xs rounded-md bg-slate-800 hover:bg-slate-700 text-white">
                     <BookOpen className="h-3.5 w-3.5 mr-1" /> Tambah
                   </Button>
-                </div>
+                </div>}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
@@ -994,22 +997,20 @@ export function KedisiplinanClient({
                       </div>
                       <p className="text-xs font-medium text-slate-700 dark:text-slate-300 dark:text-slate-200 leading-snug">{m.nama_pelanggaran}</p>
                     </div>
-                    <div className="flex justify-end gap-1 mt-2.5 pt-2 border-t border-surface-2 opacity-30 group-hover:opacity-100 transition-opacity">
+                    {canManageMaster && <div className="flex justify-end gap-1 mt-2.5 pt-2 border-t border-surface-2 opacity-30 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => { setEditMasterData(m); setIsMasterModalOpen(true) }} className="p-1.5 rounded text-blue-600 hover:bg-blue-50">
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
                       <button onClick={() => handleHapusMaster(m.id)} className="p-1.5 rounded text-rose-500 hover:bg-rose-50">
                         <Trash2 className="h-3.5 w-3.5" />
                       </button>
-                    </div>
+                    </div>}
                   </div>
                 ))}
               </div>
-            </TabsContent>
-          )}
+          </TabsContent>
 
-          {canReviewAny && (
-            <TabsContent value="klarifikasi" className="space-y-3 m-0">
+          <TabsContent value="klarifikasi" className="space-y-3 m-0">
               {clarificationRows.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-200 bg-surface py-12 text-center">
                   <ShieldCheck className="mx-auto h-8 w-8 text-emerald-400" />
@@ -1026,7 +1027,7 @@ export function KedisiplinanClient({
                   </div>
                   <p className="mt-3 rounded-lg bg-surface-2 p-3 text-sm leading-6 text-slate-600 dark:text-slate-300">{row.request_message}</p>
                   {row.response_message && <p className="mt-2 rounded-lg border border-emerald-100 bg-emerald-50 p-3 text-sm leading-6 text-emerald-800"><strong>Jawaban:</strong> {row.response_message}</p>}
-                  {!['selesai', 'ditolak'].includes(row.status) && (
+                  {canReviewAny && !['selesai', 'ditolak'].includes(row.status) && (
                     <div className="mt-3 space-y-2">
                       <textarea
                         value={clarificationResponses[row.id] || ''}
@@ -1044,8 +1045,7 @@ export function KedisiplinanClient({
                   )}
                 </div>
               ))}
-            </TabsContent>
-          )}
+          </TabsContent>
         </Tabs>
 
         {/* Modal: Form lapor/edit */}

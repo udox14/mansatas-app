@@ -64,7 +64,7 @@ const ROLE_DEFINITIONS: Record<
     description: 'Koordinator bidang kurikulum, kesiswaan, sarpras, dan kehumasan.',
     primaryDuties: [
       'Penetapan plotting penugasan guru dan verifikasi jadwal pelajaran mingguan',
-      'Monitoring kedisiplinan santri, akumulasi poin pelanggaran, dan penerbitan SP',
+      'Pencatatan dan monitoring kedisiplinan, akumulasi poin, analitik risiko, serta tindak lanjut',
       'Evaluasi pemeliharaan sarana dan kinerja pramubakti/satpam',
     ],
   },

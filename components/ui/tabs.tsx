@@ -18,6 +18,7 @@ const TabsList = React.forwardRef<
       className
     )}
     {...props}
+    data-dashboard-guide-target="tabs"
   />
 ))
 TabsList.displayName = TabsPrimitive.List.displayName
@@ -48,6 +49,7 @@ const TabsContent = React.forwardRef<
       className
     )}
     {...props}
+    data-dashboard-guide-target="tab-content"
   />
 ))
 TabsContent.displayName = TabsPrimitive.Content.displayName

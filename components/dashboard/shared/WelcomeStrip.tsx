@@ -6,6 +6,7 @@ import { CalendarCheck, LogOut, Megaphone, Menu, MoreHorizontal, RotateCw, Setti
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { unregisterNativePushToken } from '@/components/native/mobile-runtime'
+import { DashboardGuideButton } from '@/components/layout/dashboard-guide'
 import { FittedUserName } from './FittedUserName'
 import { RunningText } from './RunningText'
 
@@ -33,7 +34,7 @@ export function WelcomeStrip({ nama, namaDepan, avatarUrl, roleLabel, taAktif, s
     } catch { setLogoutError('Belum berhasil keluar. Silakan coba lagi.'); setLoggingOut(false) }
   }
   const lightText = textColor === 'white'
-  return <section aria-label="Selamat datang" className="overflow-hidden">
+  return <section aria-label="Selamat datang" data-dashboard-guide-target="page-title" data-dashboard-guide-title="Dashboard" className="overflow-hidden">
     <div className={`dashboard-hero relative flex flex-col justify-between ${lightText ? 'bg-emerald-900 text-white' : 'bg-emerald-50 text-slate-900'}`}
       style={bgImageUrl ? { backgroundImage: `url(${JSON.stringify(bgImageUrl)})`, backgroundPosition: 'center', backgroundSize: 'cover' } : undefined}>
       <div aria-hidden="true" className={`absolute inset-0 ${lightText ? 'bg-gradient-to-t from-emerald-950/85 via-emerald-950/25 to-transparent' : 'bg-gradient-to-t from-white/90 via-white/35 to-transparent'}`} />
@@ -41,6 +42,7 @@ export function WelcomeStrip({ nama, namaDepan, avatarUrl, roleLabel, taAktif, s
       <div className="relative z-10 mx-auto flex w-full max-w-7xl items-center justify-between px-3 py-2 text-white">
         <button type="button" aria-label="Buka sidebar" onClick={() => document.getElementById('mobile-sidebar-trigger')?.click()} className="dashboard-icon-button drop-shadow-md"><Menu className="h-6 w-6" /></button>
         <div className="flex items-center gap-1">
+          <DashboardGuideButton variant="hero" />
           <button type="button" aria-label="Refresh halaman" onClick={() => window.location.reload()} className="dashboard-icon-button drop-shadow-md"><RotateCw className="h-5 w-5" /></button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

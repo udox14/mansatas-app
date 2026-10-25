@@ -216,13 +216,13 @@ export const APP_MODULES: ModuleItem[] = [
   },
   {
     id: 'kedisiplinan',
-    title: 'Kedisiplinan & Tata Tertib',
+    title: 'Kedisiplinan',
     href: '/dashboard/kedisiplinan',
     domain: 'kesiswaan',
-    summary: 'Pencatatan pelanggaran tata tertib, akumulasi poin, dan penerbitan Surat Peringatan (SP).',
-    description: 'Menegakkan aturan madrasah secara transparan. Setiap pelanggaran menambah poin negatif yang otomatis memicu status SP 1, SP 2, SP 3, atau pemanggilan orang tua.',
-    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk', 'guru_piket', 'wali_kelas'],
-    keyFeatures: ['Master jenis & poin pelanggaran', 'Akumulasi poin otomatis', 'Cetak Surat Peringatan (SP)', 'Pemicu surat panggilan ortu'],
+    summary: 'Pusat pencatatan, pemantauan, analitik, dan tindak lanjut pelanggaran tata tertib siswa.',
+    description: 'Menyatukan pencatatan riwayat pelanggaran dan pemantauan siswa per kelas, akumulasi poin serta radar risiko, analitik kedisiplinan, pengelolaan kamus pelanggaran, dan klarifikasi orang tua.',
+    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk', 'guru_piket', 'resepsionis', 'satpam', 'guru_ppl', 'wali_kelas'],
+    keyFeatures: ['Riwayat dan input pelanggaran', 'Monitoring pelanggar dengan filter lanjutan', 'Analitik dan radar risiko siswa', 'Kamus jenis serta poin pelanggaran', 'Klarifikasi orang tua dan tindak lanjut'],
     inputs: ['Input kejadian pelanggaran', 'Siswa terlibat', 'Bukti/keterangan'],
     outputs: ['Surat Peringatan resmi', 'Notifikasi level pelanggaran ke portal ortu'],
   },
@@ -432,6 +432,28 @@ export type CoreWorkflow = {
 
 export const CORE_WORKFLOWS: CoreWorkflow[] = [
   {
+    id: 'flow-panduan-kontekstual-dashboard',
+    title: 'Panduan Kontekstual Dashboard',
+    subtitle: 'Tour singkat sesuai halaman dashboard yang sedang dibuka',
+    description: 'Pengguna staf dapat membuka ulang tour dari ikon tanda tanya di header. Panduan menyorot judul, tab, filter, data, dan aksi yang tersedia di halaman aktif; isi langkah mengikuti modul dan elemen yang tampil untuk peran pengguna.',
+    steps: [
+      {
+        step: 1,
+        actor: 'Pengguna Staf',
+        title: 'Buka Panduan Halaman',
+        action: 'Tekan ikon tanda tanya di header halaman atau beranda dashboard untuk memulai panduan kontekstual.',
+        module: '/dashboard',
+      },
+      {
+        step: 2,
+        actor: 'Sistem MANSATAS',
+        title: 'Ikuti Langkah yang Tersedia',
+        action: 'Sistem menyorot bagian halaman yang relevan seperti tab, filter, data, atau aksi sesuai tampilan dan akses pengguna. Tour dapat dilanjutkan, kembali, dilewati, ditutup, dan dijalankan ulang kapan saja.',
+        module: '/dashboard',
+      },
+    ],
+  },
+  {
     id: 'flow-kbm',
     title: 'Alur KBM Harian & Presensi Realtime',
     subtitle: 'Dari penugasan jam mengajar hingga notifikasi kehadiran ke orang tua',
@@ -533,8 +555,8 @@ export const CORE_WORKFLOWS: CoreWorkflow[] = [
       {
         step: 2,
         actor: 'Sistem MANSATAS',
-        title: 'Akumulasi Poin',
-        action: 'Otomatis menambah poin kumulatif santri dan memicu status alert jika melewati batas ambang peringatan.',
+        title: 'Akumulasi Poin & Monitoring Risiko',
+        action: 'Menambah poin kumulatif, menampilkan radar siswa berisiko dan analitik pelanggaran, serta memicu status alert jika melewati batas peringatan.',
         module: '/dashboard/kedisiplinan',
       },
       {

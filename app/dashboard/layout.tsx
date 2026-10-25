@@ -10,6 +10,7 @@ import { getUserAllowedFeatures, getUserRoles } from '@/lib/features'
 import { DashboardFrame } from '@/components/layout/dashboard-frame'
 import { DashboardShell } from '@/components/layout/dashboard-shell'
 import { DashboardNavigationProvider } from '@/components/layout/dashboard-navigation'
+import { DashboardGuideProvider } from '@/components/layout/dashboard-guide'
 import { groupDashboardMenus, parseDashboardShortcuts, resolveDashboardMenus, resolveDashboardShortcuts } from '@/lib/dashboard-menu'
 import { PushNotificationBanner } from '@/components/shared/PushNotificationBanner'
 import { PageSkeleton } from '@/components/shared/PageSkeleton'
@@ -151,6 +152,7 @@ export default async function DashboardLayout({
   const shortcutIds = resolveDashboardShortcuts(storedShortcuts, navLinks, menuGroups, [...new Set([primaryRole, ...userRoles])])
 
   return (
+    <DashboardGuideProvider>
     <DashboardShell printContent={<Suspense fallback={<PageSkeleton />}>{children}</Suspense>}>
     <DashboardNavigationProvider key={user.id} menus={menus} groups={menuGroups} initialShortcutIds={shortcutIds} readOnly={isPlayReviewer}>
     <div className="flex h-[100dvh] w-full overflow-hidden bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
@@ -185,5 +187,6 @@ export default async function DashboardLayout({
     </div>
     </DashboardNavigationProvider>
     </DashboardShell>
+    </DashboardGuideProvider>
   )
 }

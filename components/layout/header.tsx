@@ -2,6 +2,7 @@
 'use client'
 
 import { Menu, LogOut, User, Settings, RotateCw } from 'lucide-react'
+import { DashboardGuideButton } from '@/components/layout/dashboard-guide'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -93,6 +94,8 @@ export function Header({ userRoles, primaryRole, userName, userEmail, avatarUrl 
       <div className="flex-1 min-w-0">
         <LiveDate />
       </div>
+
+      <DashboardGuideButton />
 
       {/* Refresh button */}
       <button

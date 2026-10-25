@@ -6,9 +6,8 @@ import { getDB as getRawDB } from '@/utils/db-server'
 import { requireActionAccess } from '@/lib/action-security'
 
 async function getDB() {
-  // Komponen input dan analitik juga dipakai dari halaman Monitoring
-  // Kedisiplinan. Terima user yang memiliki akses baca ke salah satu modul;
-  // pemeriksaan role khusus tetap dilakukan oleh setiap aksi mutasi.
+  // Terima ID fitur lama selama masa transisi; migrasi menyatukannya ke
+  // Kedisiplinan. Setiap aksi mutasi tetap memeriksa role secara terpisah.
   await requireActionAccess(['kedisiplinan', 'monitoring-kedisiplinan'], 'read')
   return getRawDB()
 }
