@@ -121,9 +121,9 @@ export async function SuperAdminDashboard({
         (k.tingkat || '-' || k.nomor_kelas || COALESCE(' ' || k.kelompok, '')) as kelas, 
         COUNT(s.id) as count 
       FROM siswa s
-      JOIN riwayat_kelas rk ON s.id = rk.siswa_id
-      JOIN kelas k ON rk.kelas_id = k.id
-      WHERE s.status = 'aktif' AND rk.tahun_ajaran_id = ?
+      JOIN kelas k ON k.id = COALESCE((SELECT rk.kelas_id FROM riwayat_kelas rk WHERE rk.siswa_id = s.id AND rk.tahun_ajaran_id = ? LIMIT 1), s.kelas_id)
+
+      WHERE s.status = 'aktif'
       GROUP BY k.id
       ORDER BY k.tingkat ASC, k.nomor_kelas ASC, k.kelompok ASC
     `).bind(taAktif.id).all<{ kelas: string; count: number }>() : Promise.resolve({ results: [] }),

@@ -16,6 +16,7 @@ export function StatCard({ title, value, sub, icon, iconBg, iconColor, href }: P
   return (
     <Link
       href={href}
+      prefetch={false}
       className="group flex items-center gap-3 rounded-2xl bg-white dark:bg-slate-800 p-3 sm:p-4 shadow-sm border border-slate-100 dark:border-slate-700/50 hover:shadow-md transition-all active:scale-[0.98]"
     >
       <div className={`p-2.5 rounded-xl ${iconBg} ${iconColor} shrink-0`}>{icon}</div>

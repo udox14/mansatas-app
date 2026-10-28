@@ -200,7 +200,7 @@ export function Sidebar({
           theme.border,
           collapsed ? 'justify-center px-3' : 'px-4 gap-2.5'
         )}>
-          <Link href="/dashboard" className={cn("flex items-center min-w-0", collapsed ? "justify-center w-full" : "gap-2.5 flex-1")}>
+          <Link href="/dashboard" prefetch={false} className={cn("flex items-center min-w-0", collapsed ? "justify-center w-full" : "gap-2.5 flex-1")}>
             <div className="relative w-8 h-8 shrink-0">
               <Image src="/logokemenag.png" alt="MAN 1 Tasikmalaya" fill className="object-contain drop-shadow-sm" />
             </div>
@@ -262,6 +262,7 @@ export function Sidebar({
                   <Link
                     key={item.href}
                     href={item.href}
+                    prefetch={false}
                     title={collapsed ? (featureLabels[item.id] || item.title) : undefined}
                     className={cn(
                       'group flex items-center rounded-xl transition-all duration-300',
@@ -358,6 +359,7 @@ export function Sidebar({
                           <Link
                             key={item.href}
                             href={item.href}
+                            prefetch={false}
                             title={collapsed ? (featureLabels[item.id] || item.title) : undefined}
                             className={cn(
                               'group flex items-center rounded-xl transition-all duration-300',
@@ -423,7 +425,7 @@ export function Sidebar({
           )}
 
           {/* User */}
-          <Link href="/dashboard/settings/profile"
+          <Link href="/dashboard/settings/profile" prefetch={false}
             className={cn(
               'flex items-center rounded-xl transition-all duration-200',
               theme.hoverBg,

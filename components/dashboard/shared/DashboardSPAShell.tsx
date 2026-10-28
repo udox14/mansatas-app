@@ -26,7 +26,7 @@ export function DashboardSPAShell({ children, heroNode, polaJam = EMPTY_PATTERNS
         <div className="grid grid-cols-4 gap-x-2 gap-y-2 sm:gap-x-4 lg:grid-cols-8">
           {shortcutIds.map(id => {
             const item = menus.find(item => item.id === id)
-            return item ? <Link key={id} href={item.href} className={menuTileClass}><MenuTile item={item} /></Link> : null
+            return item ? <Link key={id} href={item.href} prefetch={false} className={menuTileClass}><MenuTile item={item} /></Link> : null
           })}
         </div>
         {!shortcutIds.length && <button onClick={editShortcuts} className="min-h-24 w-full rounded-2xl border border-dashed border-emerald-200 p-5 text-sm text-emerald-700 dark:border-emerald-900 dark:text-emerald-400">Tambahkan menu yang paling sering Anda gunakan.</button>}

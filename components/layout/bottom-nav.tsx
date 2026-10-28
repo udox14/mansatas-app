@@ -15,7 +15,7 @@ export function BottomNav({ activeIds }: { activeIds: string[] }) {
     if (!menu) return <span aria-hidden="true" />
     const Icon = getIconComponent(menu.icon)
     const active = pathname === menu.href || pathname.startsWith(`${menu.href}/`)
-    return <Link href={menu.href} className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 focus-visible:ring-2 focus-visible:ring-emerald-500 ${active ? 'font-semibold text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
+    return <Link href={menu.href} prefetch={false} className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-xl px-1 focus-visible:ring-2 focus-visible:ring-emerald-500 ${active ? 'font-semibold text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}>
       <span className="relative"><Icon weight={active ? 'fill' : 'regular'} className="h-[22px] w-[22px]" />{menu.badge > 0 && <span className="absolute -right-2 -top-1 h-2 w-2 rounded-full bg-rose-500"><span className="sr-only">{menu.badge} pemberitahuan</span></span>}</span>
       <span className="line-clamp-2 text-center text-[10px] leading-3">{menu.title}</span>
     </Link>
@@ -28,7 +28,7 @@ export function BottomNav({ activeIds }: { activeIds: string[] }) {
         <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">Home</span>
       </button>
       {item(2)}
-      {selected.length ? item(3) : <Link href="/dashboard/settings/profile" className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-slate-500 focus-visible:ring-2 focus-visible:ring-emerald-500"><User className="h-[22px] w-[22px]" /><span className="text-[10px]">Profil</span></Link>}
+      {selected.length ? item(3) : <Link href="/dashboard/settings/profile" prefetch={false} className="flex min-h-14 flex-col items-center justify-center gap-1 rounded-xl text-slate-500 focus-visible:ring-2 focus-visible:ring-emerald-500"><User className="h-[22px] w-[22px]" /><span className="text-[10px]">Profil</span></Link>}
     </nav>
   </div>
 }

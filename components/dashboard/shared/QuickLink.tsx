@@ -17,6 +17,7 @@ export function QuickLink({ href, icon, iconBg, iconColor, title, desc, badge, b
   return (
     <Link
       href={href}
+      prefetch={false}
       className="flex items-center gap-3 p-3 rounded-2xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/50 hover:shadow-md transition-all group active:scale-[0.98]"
     >
       <div className={`p-2 rounded-xl ${iconBg} ${iconColor} shrink-0`}>{icon}</div>

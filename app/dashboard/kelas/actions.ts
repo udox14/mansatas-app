@@ -8,6 +8,7 @@ import { formatNamaKelas } from '@/lib/utils'
 import { createActivityDiff, logActivity } from '@/lib/activity-log'
 import { ADMINISTRATIVE_ROLES, requireActionAccess } from '@/lib/action-security'
 import { syncAllWaliKelasRoles } from '@/lib/kelas-role-service'
+import { syncSiswaRiwayatKelas } from '@/lib/riwayat-kelas'
 import { publicServerError } from '@/lib/security-log'
 import { z } from 'zod'
 import { isImportChunkWithinLimits } from '@/lib/payload-limits'
@@ -462,6 +463,7 @@ export async function assignSiswaKeKelas(siswaId: string, kelasId: string) {
   const db = await getDB()
   const before = await db.prepare('SELECT id, nama_lengkap, kelas_id FROM siswa WHERE id = ?').bind(siswaId).first<any>()
   const result = await dbUpdate(db, 'siswa', { kelas_id: kelasId }, { id: siswaId })
+  if (!result.error) await syncSiswaRiwayatKelas(db, siswaId, kelasId)
   if (result.error) return { error: result.error }
   await logActivity({
     db,
@@ -552,6 +554,11 @@ export async function prosesMutasi(payload: unknown) {
         .prepare('UPDATE siswa SET kelas_id = ? WHERE id = ?')
         .bind(safePayload.kelasIdTujuan, safePayload.siswaIdLama)
         .run()
+    }
+
+    await syncSiswaRiwayatKelas(db, safePayload.siswaIdLama, safePayload.kelasIdTujuan)
+    if (safePayload.siswaIdBarter) {
+      await syncSiswaRiwayatKelas(db, safePayload.siswaIdBarter, safePayload.kelasIdLama)
     }
 
     await logActivity({

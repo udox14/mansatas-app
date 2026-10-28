@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { AlertCircle, BellRing, CheckCircle2, ExternalLink, Loader2, Settings } from 'lucide-react'
@@ -199,7 +199,7 @@ export function MobileRuntime({
 
     let cancelled = false
     const refreshRequirement = () => {
-      fetch('/api/public/mobile-access', { cache: 'no-store' })
+      fetch('/api/public/mobile-access')
         .then(response => response.ok ? response.json() : null)
         .then(data => {
           if (!cancelled && typeof data?.androidPlayStoreRequired === 'boolean') {
@@ -213,7 +213,7 @@ export function MobileRuntime({
       if (document.visibilityState === 'visible') refreshRequirement()
     }
     refreshRequirement()
-    const interval = window.setInterval(refreshRequirement, 60_000)
+    const interval = window.setInterval(refreshRequirement, 300_000)
     window.addEventListener('focus', refreshRequirement)
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
@@ -324,20 +324,25 @@ export function MobileRuntime({
     return () => window.removeEventListener('mansatas-sw-update-available', handleSwUpdate)
   }, [])
 
+  const sessionContextSetRef = useRef<boolean>(false)
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
     if (!isAuthenticatedArea) {
+      sessionContextSetRef.current = false
       if (pathname === '/login' || pathname.startsWith('/portal-ortu/login')) {
         navigator.serviceWorker.controller?.postMessage({ type: 'CLEAR_PRIVATE_CACHE' })
       }
       return
     }
 
+    if (sessionContextSetRef.current) return
+
     let cancelled = false
     fetch('/api/auth/get-session', { credentials: 'include', cache: 'no-store' })
       .then(response => response.ok ? response.json() : null)
       .then(data => {
         if (cancelled || !data?.session?.id) return
+        sessionContextSetRef.current = true
         navigator.serviceWorker.controller?.postMessage({
           type: 'SET_CACHE_CONTEXT',
           context: data.session.id,

@@ -50,8 +50,8 @@ export function WelcomeStrip({ nama, namaDepan, avatarUrl, roleLabel, taAktif, s
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-60 rounded-2xl p-2">
             <p className="px-2 py-2 text-sm font-semibold">{nama}</p>
-            <DropdownMenuItem asChild className="min-h-11 rounded-xl"><Link href="/dashboard/settings/profile"><User className="mr-2 h-4 w-4" />Profil saya</Link></DropdownMenuItem>
-            <DropdownMenuItem asChild className="min-h-11 rounded-xl"><Link href={primaryRole === 'super_admin' ? '/dashboard/settings' : '/dashboard/settings/profile'}><Settings className="mr-2 h-4 w-4" />Pengaturan</Link></DropdownMenuItem>
+            <DropdownMenuItem asChild className="min-h-11 rounded-xl"><Link href="/dashboard/settings/profile" prefetch={false}><User className="mr-2 h-4 w-4" />Profil saya</Link></DropdownMenuItem>
+            <DropdownMenuItem asChild className="min-h-11 rounded-xl"><Link href={primaryRole === 'super_admin' ? '/dashboard/settings' : '/dashboard/settings/profile'} prefetch={false}><Settings className="mr-2 h-4 w-4" />Pengaturan</Link></DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem disabled={loggingOut} onClick={logout} className="min-h-11 rounded-xl text-rose-600"><LogOut className="mr-2 h-4 w-4" />{loggingOut ? 'Keluar...' : 'Keluar sistem'}</DropdownMenuItem>
           </DropdownMenuContent>

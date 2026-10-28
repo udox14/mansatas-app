@@ -141,7 +141,7 @@ export function DashboardNavigationProvider({ children, menus, groups, initialSh
               const items = group.items.filter(item => results.has(item.id))
               if (!items.length) return null
               return <section key={group.id} className="mb-6"><h3 className="mb-2 text-sm font-semibold">{group.label}</h3><div className="grid grid-cols-4 gap-x-2 gap-y-1">
-                {items.map(item => <Link key={item.id} href={item.href} className={menuTileClass} onClick={event => {
+                {items.map(item => <Link key={item.id} href={item.href} prefetch={false} className={menuTileClass} onClick={event => {
                   if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
                   event.preventDefault(); close(item.href)
                 }}><MenuTile item={item} /></Link>)}

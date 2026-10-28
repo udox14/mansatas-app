@@ -7,6 +7,7 @@ import { uploadFotoSiswa, validateImageFile, deleteFromR2 } from '@/utils/r2'
 import { getCurrentUser } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
 import { getUserRoles } from '@/lib/features'
+import { syncSiswaRiwayatKelas } from '@/lib/riwayat-kelas'
 import { createActivityDiff, logActivity } from '@/lib/activity-log'
 
 const FK_FIELDS = ['kelas_id', 'wali_murid_id']
@@ -179,6 +180,10 @@ export async function editSiswa(id: string, payload: any) {
     }
   }
 
+  if (payload.kelas_id !== undefined && payload.kelas_id !== before.kelas_id) {
+    await syncSiswaRiwayatKelas(db, id, payload.kelas_id || null)
+  }
+
   const after = { ...before, ...payload, updated_at: new Date().toISOString() }
   await logActivity({
     db,
@@ -222,6 +227,10 @@ export async function editDetailSiswa(id: string, payload: any) {
   )
 
   if (result.error) return { error: result.error, success: null }
+
+  if (payload.kelas_id !== undefined && payload.kelas_id !== before.kelas_id) {
+    await syncSiswaRiwayatKelas(db, id, payload.kelas_id || null)
+  }
 
   const after = { ...before, ...payload, updated_at: new Date().toISOString() }
   await logActivity({
@@ -355,6 +364,9 @@ export async function batalkanKeluarSiswa(siswa_id: string) {
     keterangan_keluar: null,
     updated_at: new Date().toISOString(),
   }, { id: siswa_id })
+  if (!result.error && kelasId) {
+    await syncSiswaRiwayatKelas(db, siswa_id, kelasId)
+  }
   if (result.error) return { error: result.error }
   const after = {
     ...before,
@@ -842,6 +854,10 @@ export async function editSiswaLengkap(prevState: any, formData: FormData) {
         : result.error,
       success: null,
     }
+  }
+
+  if (payload.kelas_id !== undefined && payload.kelas_id !== existing.kelas_id) {
+    await syncSiswaRiwayatKelas(db, id, payload.kelas_id || null)
   }
 
   const after = { ...existing, ...payload }

@@ -807,6 +807,10 @@ export async function notifyParentsDailyAttendanceFinal(
     let state = await readAttendanceNoticeState(db, student.id, options.tanggal)
     if (!state?.initial_sent_at) continue
     if (!day?.is_daily_final || !FINAL_DAILY_ATTENDANCE_STATUSES.has(day.status_akhir)) {
+      if (options.tanggal < todayWIB()) {
+        await db.prepare('UPDATE attendance_parent_notice_state SET needs_recheck = 0, next_check_at = NULL WHERE siswa_id = ? AND tanggal = ? AND needs_recheck = ?').bind(student.id, options.tanggal, recheckVersions.get(student.id)).run()
+        continue
+      }
       const next = day?.kbm_end_at && Date.parse(day.kbm_end_at) > Date.now() ? new Date(day.kbm_end_at).toISOString() : new Date(Date.now() + 300_000).toISOString()
       await db.prepare('UPDATE attendance_parent_notice_state SET next_check_at = ? WHERE siswa_id = ? AND tanggal = ? AND needs_recheck = ?').bind(next, student.id, options.tanggal, recheckVersions.get(student.id)).run()
       continue
@@ -845,13 +849,17 @@ export async function dispatchAttendanceDailyNotices(db: D1Database) {
   await ensureNotificationSchema(db)
   const activation = await attendanceNoticeActivation(db)
   await flushAttendanceNotificationOutbox(db)
+  const today = todayWIB()
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+  const activationDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date(activation))
+  const minDate = activationDate > yesterday ? activationDate : yesterday
   const rows = await db.prepare(`SELECT n.tanggal, n.siswa_id, s.kelas_id FROM attendance_parent_notice_state n
     JOIN siswa s ON s.id = n.siswa_id
     WHERE n.initial_sent_at IS NOT NULL AND n.needs_recheck > 0
       AND (n.next_check_at IS NULL OR n.next_check_at <= ?)
       AND s.status = 'aktif' AND s.kelas_id IS NOT NULL AND n.tanggal >= ? AND n.tanggal <= ?
     ORDER BY n.next_check_at, n.tanggal, n.siswa_id LIMIT 100`)
-    .bind(new Date().toISOString(), new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date(activation)), todayWIB())
+    .bind(new Date().toISOString(), minDate, today)
     .all<{ tanggal: string; siswa_id: string; kelas_id: string }>()
   const groups = new Map<string, { tanggal: string; kelasId: string; siswaIds: string[] }>()
   for (const row of rows.results || []) {
@@ -1650,18 +1658,23 @@ export async function dispatchConfiguredReminders(db: D1Database, runtimeEnv?: F
   const tasks = await getActiveReminder('task_pending_reminder')
   if (tasks) {
     try {
-      const rows = await db.prepare(`
-        SELECT dtk.id AS delegasi_kelas_id, dt.tanggal, dt.kepada_user_id,
-               dtk.pelaksana_user_id, COUNT(*) OVER (PARTITION BY dtk.delegasi_id) AS jumlah_sesi
-        FROM delegasi_tugas_kelas dtk
-        JOIN delegasi_tugas dt ON dt.id = dtk.delegasi_id
-        WHERE dt.status = 'DIKIRIM'
-          AND dt.tanggal <= ?
-          AND dtk.absen_selesai = 0
-          AND COALESCE(dtk.pelaksana_user_id, dt.kepada_user_id) IS NOT NULL
-        ORDER BY dt.tanggal ASC
-        LIMIT 200
-      `).bind(today).all<any>()
+      const currentHhmm = currentTimeWIB().hhmm
+      const windowStart = tasks.reminder.windowStart || '06:00'
+      const windowEnd = tasks.reminder.windowEnd || '20:00'
+      if (currentHhmm >= windowStart && currentHhmm <= windowEnd) {
+        const rows = await db.prepare(`
+          SELECT dtk.id AS delegasi_kelas_id, dt.tanggal, dt.kepada_user_id,
+                 dtk.pelaksana_user_id, COUNT(*) OVER (PARTITION BY dtk.delegasi_id) AS jumlah_sesi
+          FROM delegasi_tugas_kelas dtk
+          JOIN delegasi_tugas dt ON dt.id = dtk.delegasi_id
+          WHERE dt.status = 'DIKIRIM'
+            AND dt.tanggal <= ?
+            AND dt.tanggal >= date(?, '-14 day')
+            AND dtk.absen_selesai = 0
+            AND COALESCE(dtk.pelaksana_user_id, dt.kepada_user_id) IS NOT NULL
+          ORDER BY dt.tanggal ASC
+          LIMIT 100
+        `).bind(today, today).all<any>()
       const bucket = Math.floor(now / (Math.max(5, tasks.reminder.frequencyMinutes) * 60_000))
       for (const row of rows.results || []) {
         const userId = row.pelaksana_user_id || row.kepada_user_id
@@ -1673,6 +1686,7 @@ export async function dispatchConfiguredReminders(db: D1Database, runtimeEnv?: F
           runtimeEnv,
         })
         if (result.status !== 'skipped' && result.status !== 'disabled') processed += 1
+        }
       }
     } catch (error) {
       console.error('[notification] task_pending_reminder gagal:', error)
