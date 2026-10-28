@@ -26,6 +26,7 @@ import {
   splitTeachingSlotsByExceptions,
 } from '@/lib/kalender-pendidikan'
 import { currentTimeWIB, nowWIBISO, todayWIB } from '@/lib/time'
+import { filterAndCountTeacherAttendanceHistory, type TeacherAttendanceHistoryFilter, type TeacherAttendanceHistoryStatus } from '@/lib/teacher-attendance-history'
 
 export type { ForgottenAgendaRequestStatus } from '@/lib/agenda-forgotten'
 
@@ -327,18 +328,24 @@ function validHistoryRange(start: string, end: string) {
 export async function getAgendaHistoryTeachers() {
   const db = await getDB()
   const result = await db.prepare(`
-    SELECT u.id, u.nama_lengkap AS nama FROM "user" u
-    WHERE u.id IN (SELECT guru_id FROM agenda_guru UNION SELECT dari_user_id FROM delegasi_tugas)
+    SELECT DISTINCT u.id, u.nama_lengkap AS nama
+    FROM penugasan_mengajar pm
+    JOIN tahun_ajaran ta ON ta.id = pm.tahun_ajaran_id AND ta.is_active = 1
+    JOIN "user" u ON u.id = pm.guru_id
     ORDER BY u.nama_lengkap
   `).all<{ id: string; nama: string }>()
   return result.results || []
 }
 
-// Riwayat izin membaca catatan asli, termasuk yang berada di luar hari KBM efektif.
-// Agenda dan delegasi tetap ditampilkan terpisah agar asal izin dapat ditinjau.
-export async function getMonthlyTeacherLeaves(month: string) {
-  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error('Bulan tidak valid.')
-  const db = await getDB()
+type MonthlyTeacherLeaveRow = {
+  id: string; source: 'agenda' | 'delegasi'; guru_id: string; guru_nama: string
+  tanggal: string; waktu_input: string | null; deskripsi: string | null
+  alasan_nama: string | null; alasan_izin_guru_id: string | null
+  kepentingan_sekolah: boolean; kelas: string; mapel: string; jam: string
+  target: { penugasan_id: string; tanggal: string } | { delegasi_id: string }
+}
+
+async function getMonthlyTeacherLeaveRows(db: D1Database, month: string): Promise<MonthlyTeacherLeaveRow[]> {
   const start = `${month}-01`
   const end = monthEndForHistory(month)
   const [agenda, delegation] = await Promise.all([
@@ -379,15 +386,8 @@ export async function getMonthlyTeacherLeaves(month: string) {
       WHERE dt.alasan_ketidakhadiran = 'IZIN' AND dt.tanggal BETWEEN ? AND ?
       ORDER BY dt.tanggal, u.nama_lengkap, dt.created_at`).bind(start, end).all<any>(),
   ])
-  type LeaveHistoryRow = {
-    id: string; source: 'agenda' | 'delegasi'; guru_id: string; guru_nama: string
-    tanggal: string; waktu_input: string | null; deskripsi: string | null
-    alasan_nama: string | null; alasan_izin_guru_id: string | null
-    kepentingan_sekolah: boolean; kelas: string; mapel: string; jam: string
-    target: { penugasan_id: string; tanggal: string } | { delegasi_id: string }
-  }
-  const rows: LeaveHistoryRow[] = (agenda.results || []).map(row => ({
-    id: `agenda:${row.id}`, source: 'agenda' as const, guru_id: row.guru_id,
+  const rows: MonthlyTeacherLeaveRow[] = (agenda.results || []).map(row => ({
+    id: `agenda:${row.id}`, source: 'agenda', guru_id: row.guru_id,
     guru_nama: row.guru_nama, tanggal: row.tanggal, waktu_input: row.waktu_input,
     deskripsi: row.deskripsi, alasan_nama: row.alasan_nama,
     alasan_izin_guru_id: row.alasan_izin_guru_id,
@@ -396,8 +396,8 @@ export async function getMonthlyTeacherLeaves(month: string) {
     mapel: row.nama_mapel, jam: `Jam ${row.jam_ke_mulai}–${row.jam_ke_selesai}`,
     target: { penugasan_id: row.penugasan_id, tanggal: row.tanggal },
   }))
-  // Satu pengajuan delegasi bisa mencakup beberapa kelas.
-  const delegated = new Map<string, LeaveHistoryRow>()
+  // Satu pengajuan delegasi yang mencakup beberapa kelas tetap ditampilkan sekali.
+  const delegated = new Map<string, MonthlyTeacherLeaveRow>()
   for (const row of delegation.results || []) {
     const id = `delegasi:${row.id}`
     const label = row.tingkat == null ? '' : `${formatNamaKelas(row.tingkat, row.nomor_kelas, row.kelompok)}${row.nama_mapel ? ` · ${row.nama_mapel}` : ''}`
@@ -415,6 +415,13 @@ export async function getMonthlyTeacherLeaves(month: string) {
   return [...rows, ...delegated.values()].sort((a, b) => a.tanggal.localeCompare(b.tanggal) || a.guru_nama.localeCompare(b.guru_nama))
 }
 
+// Riwayat izin membaca catatan asli, termasuk yang berada di luar hari KBM efektif.
+// Agenda dan delegasi tetap ditampilkan terpisah agar asal izin dapat ditinjau.
+export async function getMonthlyTeacherLeaves(month: string) {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error('Bulan tidak valid.')
+  return getMonthlyTeacherLeaveRows(await getDB(), month)
+}
+
 function monthEndForHistory(month: string) {
   const [year, number] = month.split('-').map(Number)
   return new Date(Date.UTC(year, number, 0)).toISOString().slice(0, 10)
@@ -424,29 +431,35 @@ export async function getTeacherAgendaSubmissions(guruId: string, start: string,
   validHistoryRange(start, end)
   if (!guruId) throw new Error('Pilih guru terlebih dahulu.')
   const db = await getDB()
-  const result = await db.prepare(`SELECT ag.id, ag.penugasan_id, ag.guru_id, ag.tanggal, ag.jam_ke_mulai, ag.jam_ke_selesai,
-    ag.materi, ag.foto_url, ag.status, ag.waktu_input, ag.catatan_admin,
-    ag.alasan_izin_guru_id,
-    EXISTS (SELECT 1 FROM absensi_sesi_guru ass WHERE ass.penugasan_id = ag.penugasan_id AND ass.tanggal = ag.tanggal) AS sudah_absen_siswa,
-    editor.nama_lengkap AS diubah_oleh_nama, ppl.nama_lengkap AS ppl_nama,
-    mp.nama_mapel, k.tingkat, k.nomor_kelas, k.kelompok
-    FROM agenda_guru ag JOIN penugasan_mengajar pm ON pm.id = ag.penugasan_id
-    JOIN mata_pelajaran mp ON mp.id = pm.mapel_id JOIN kelas k ON k.id = pm.kelas_id
-    LEFT JOIN "user" editor ON editor.id = ag.diubah_oleh
-    LEFT JOIN "user" ppl ON ppl.id = ag.ppl_user_id
-    WHERE ag.guru_id = ? AND ag.waktu_input IS NOT NULL AND ag.tanggal BETWEEN ? AND ?
-    ORDER BY ag.tanggal DESC, ag.jam_ke_mulai, ag.id`).bind(guruId, start, end).all<any>()
-  return (result.results || []).map(row => ({
-    id: row.id, penugasan_id: row.penugasan_id, guru_id: row.guru_id,
-    jam_ke_mulai: row.jam_ke_mulai, jam_ke_selesai: row.jam_ke_selesai,
-    tanggal: row.tanggal, jam: `Jam ${row.jam_ke_mulai}–${row.jam_ke_selesai}`,
-    kelas: formatNamaKelas(row.tingkat, row.nomor_kelas, row.kelompok), mapel: row.nama_mapel,
-    materi: row.materi, foto_url: row.foto_url, status: row.status,
-    waktu_input: row.waktu_input, catatan_admin: row.catatan_admin,
+  const ta = await db.prepare('SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1')
+    .first<{ id: string; jam_pelajaran: string | null }>()
+  if (!ta) return []
+
+  const sessions = await getCanonicalTeacherSessions(db, ta, start, end, { guruId })
+  return sessions.map(row => ({
+    id: row.agenda_id,
+    penugasan_id: row.penugasan_id,
+    guru_id: row.guru_id,
+    jam_ke_mulai: row.jam_ke_mulai,
+    jam_ke_selesai: row.jam_ke_selesai,
+    tanggal: row.tanggal,
+    jam: `Jam ${row.jam_ke_mulai}–${row.jam_ke_selesai}`,
+    kelas: formatNamaKelas(row.tingkat, row.nomor_kelas, row.kelompok),
+    mapel: row.nama_mapel,
+    materi: row.materi,
+    foto_url: row.foto_url,
+    status: row.status,
+    waktu_input: row.waktu_input,
+    catatan_admin: row.catatan_admin,
+    keterangan: row.keterangan,
+    sumber: row.sumber,
     alasan_izin_guru_id: row.alasan_izin_guru_id,
-    sudah_absen_siswa: Boolean(row.sudah_absen_siswa),
-    diubah_oleh_nama: row.diubah_oleh_nama, ppl_nama: row.ppl_nama,
-  }))
+    alasan_izin_guru_nama: row.alasan_izin_guru_nama,
+    kepentingan_sekolah: row.kepentingan_sekolah,
+    sudah_absen_siswa: row.sudah_absen_siswa,
+    diubah_oleh_nama: row.diubah_oleh_nama,
+    ppl_nama: row.ppl_nama,
+  })).sort((a, b) => b.tanggal.localeCompare(a.tanggal) || a.jam_ke_mulai - b.jam_ke_mulai)
 }
 
 // ============================================================
@@ -629,6 +642,7 @@ export async function reviewForgottenAgendaRequest(
 //    Hitung total: TEPAT_WAKTU, TELAT, ALFA, SAKIT, IZIN per guru
 // ============================================================
 type CanonicalTeacherSession = TeacherLeaveMetadata & {
+  agenda_id: string | null
   penugasan_id: string
   tanggal: string
   guru_id: string
@@ -641,9 +655,11 @@ type CanonicalTeacherSession = TeacherLeaveMetadata & {
   jam_ke_mulai: number
   jam_ke_selesai: number
   materi: string | null
+  foto_url: string | null
   status: 'TEPAT_WAKTU' | 'TELAT' | 'ALFA' | 'SAKIT' | 'IZIN'
   waktu_input: string | null
   catatan_admin: string | null
+  diubah_oleh_nama: string | null
   keterangan: string | null
   sudah_absen_siswa: boolean
   ppl_user_id: string | null
@@ -715,9 +731,10 @@ async function getCanonicalTeacherSessions(
 
   const agendaParams: unknown[] = [ta.id, tanggalMulai, tanggalSelesai]
   let agendaSql = `
-    SELECT ag.*, u_ppl.nama_lengkap AS ppl_nama FROM agenda_guru ag
+    SELECT ag.*, u_ppl.nama_lengkap AS ppl_nama, u_editor.nama_lengkap AS diubah_oleh_nama FROM agenda_guru ag
     JOIN penugasan_mengajar pm ON pm.id = ag.penugasan_id
     LEFT JOIN "user" u_ppl ON u_ppl.id = ag.ppl_user_id
+    LEFT JOIN "user" u_editor ON u_editor.id = ag.diubah_oleh
     WHERE pm.tahun_ajaran_id = ? AND ag.guru_id = pm.guru_id
       AND ag.tanggal BETWEEN ? AND ?
   `
@@ -806,6 +823,7 @@ async function getCanonicalTeacherSessions(
         : null
 
       sessions.push({
+        agenda_id: agenda?.id || null,
         penugasan_id: schedule.penugasan_id,
         tanggal,
         guru_id: schedule.guru_id,
@@ -818,9 +836,11 @@ async function getCanonicalTeacherSessions(
         jam_ke_mulai: jamKeMulai,
         jam_ke_selesai: jamKeSelesai,
         materi: agenda?.materi || null,
+        foto_url: agenda?.foto_url || null,
         status: agendaStatus || delegationStatus || 'ALFA',
         waktu_input: agenda?.waktu_input || null,
         catatan_admin: agenda?.catatan_admin || null,
+        diubah_oleh_nama: agenda?.diubah_oleh_nama || null,
         keterangan: agenda?.catatan_admin || delegation?.deskripsi_ketidakhadiran || null,
         sudah_absen_siswa: attendanceKeys.has(key),
         ppl_user_id: agenda?.ppl_user_id || null,
@@ -837,6 +857,56 @@ async function getCanonicalTeacherSessions(
     a.guru_nama.localeCompare(b.guru_nama) ||
     a.jam_ke_mulai - b.jam_ke_mulai
   )
+}
+
+export type MonthlyTeacherHistoryStatus = TeacherAttendanceHistoryFilter
+
+type MonthlyTeacherHistoryRow = Omit<MonthlyTeacherLeaveRow, 'source' | 'target'> & {
+  status: TeacherAttendanceHistoryStatus
+  source: MonthlyTeacherLeaveRow['source'] | 'AGENDA' | 'OVERRIDE' | 'PENUGASAN' | 'OTOMATIS'
+  target?: MonthlyTeacherLeaveRow['target']
+}
+
+export async function getMonthlyTeacherAttendanceHistory(
+  month: string,
+  statusFilter: MonthlyTeacherHistoryStatus = 'ALL'
+) {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error('Bulan tidak valid.')
+  if (!['ALL', 'IZIN', 'SAKIT', 'ALFA'].includes(statusFilter)) throw new Error('Filter status tidak valid.')
+
+  const db = await getDB()
+  const [leaveRows, ta] = await Promise.all([
+    getMonthlyTeacherLeaveRows(db, month),
+    db.prepare('SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1')
+      .first<{ id: string; jam_pelajaran: string | null }>(),
+  ])
+  const start = `${month}-01`
+  const end = monthEndForHistory(month)
+  const canonicalRows = ta
+    ? await getCanonicalTeacherSessions(db, ta, start, end)
+    : []
+
+  const rows: MonthlyTeacherHistoryRow[] = [
+    ...leaveRows.map(row => ({ ...row, status: 'IZIN' as const })),
+    ...canonicalRows.filter(row => row.status === 'SAKIT' || row.status === 'ALFA').map(row => ({
+      id: `session:${row.penugasan_id}:${row.tanggal}`,
+      status: row.status as 'SAKIT' | 'ALFA',
+      source: row.sumber,
+      guru_id: row.guru_id,
+      guru_nama: row.guru_nama,
+      tanggal: row.tanggal,
+      waktu_input: row.waktu_input,
+      deskripsi: row.keterangan,
+      alasan_nama: row.alasan_izin_guru_nama || null,
+      alasan_izin_guru_id: row.alasan_izin_guru_id || null,
+      kepentingan_sekolah: Boolean(row.kepentingan_sekolah),
+      kelas: formatNamaKelas(row.tingkat, row.nomor_kelas, row.kelompok),
+      mapel: row.nama_mapel,
+      jam: `Jam ${row.jam_ke_mulai}–${row.jam_ke_selesai}`,
+    })),
+  ].sort((a, b) => a.tanggal.localeCompare(b.tanggal) || a.guru_nama.localeCompare(b.guru_nama) || a.status.localeCompare(b.status))
+
+  return filterAndCountTeacherAttendanceHistory(rows, statusFilter)
 }
 
 async function buildRekapKehadiranGuru(
