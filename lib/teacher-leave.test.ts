@@ -17,7 +17,8 @@ vi.mock('@/lib/features', () => ({ getUserRoles: async () => state.roles, checkF
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('@/lib/kalender-pendidikan', async importOriginal => ({
   ...await importOriginal<typeof import('@/lib/kalender-pendidikan')>(),
-  getEffectiveDatesInRange: async () => ['2026-08-03'],
+  getEffectiveDatesInRange: async (_db: D1Database, start: string, end: string) =>
+    ['2026-08-03'].filter(date => date >= start && date <= end),
   getKalenderDateStatus: async () => ({ isEffective: true }),
   getKbmExceptionsForDate: async () => [],
   getKbmExceptionsForRange: async () => [],
@@ -85,7 +86,7 @@ afterEach(() => sqlite.close())
 const sessions = () => ['p1', 'p2'].map(penugasan_id => ({ penugasan_id, tanggal: '2026-08-03', status: 'IZIN' }))
 
 describe('master dan pemetaan izin guru dengan migrasi SQLite', () => {
-  it('menampilkan izin bulanan per pengajuan dan agenda yang benar-benar disubmit per guru', async () => {
+  it('menampilkan izin bulanan per pengajuan serta sesi agenda dan delegasi per guru', async () => {
     await mapTeacherLeaveReasons([{ delegasi_id: 'd1' }], 'rapat')
     sqlite.exec(`INSERT INTO agenda_guru (guru_id, penugasan_id, tanggal, jam_ke_mulai, jam_ke_selesai, status, materi, waktu_input, catatan_admin)
       VALUES ('guru', 'p1', '2026-08-03', 1, 2, 'IZIN', 'Materi pertama', '2026-08-03 08:00:00', 'Izin tambahan');`)
@@ -94,8 +95,13 @@ describe('master dan pemetaan izin guru dengan migrasi SQLite', () => {
     expect(leaves.find(row => row.source === 'delegasi')).toMatchObject({ deskripsi: 'Deskripsi lama', kelas: expect.any(String) })
     expect(leaves.find(row => row.source === 'agenda')).toMatchObject({ deskripsi: 'Izin tambahan', kepentingan_sekolah: true })
     const agendas = await getTeacherAgendaSubmissions('guru', '2026-08-01', '2026-08-31')
-    expect(agendas).toHaveLength(1)
-    expect(agendas[0]).toMatchObject({ materi: 'Materi pertama', status: 'IZIN' })
+    expect(agendas).toHaveLength(2)
+    expect(agendas.find(row => row.penugasan_id === 'p1')).toMatchObject({
+      materi: 'Materi pertama', status: 'IZIN', sumber: 'AGENDA', keterangan: 'Izin tambahan',
+    })
+    expect(agendas.find(row => row.penugasan_id === 'p2')).toMatchObject({
+      id: null, materi: null, status: 'IZIN', sumber: 'PENUGASAN', keterangan: 'Deskripsi lama',
+    })
     expect(await getTeacherAgendaSubmissions('guru', '2026-09-01', '2026-09-30')).toHaveLength(0)
   })
 
