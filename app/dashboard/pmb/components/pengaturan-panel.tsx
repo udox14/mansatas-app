@@ -139,22 +139,20 @@ export function PengaturanPanel({ pengaturan, onFlash }: {
   const activeCategory = CATEGORIES.find((c) => c.id === activeTab)!
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="max-w-5xl space-y-5">
       {/* Header Panel */}
       <div className="space-y-0.5">
-        <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-50">Pengaturan PMB</h2>
+        <h2 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50">Pengaturan PMB</h2>
         <p className="text-sm text-muted-foreground">
           Kelola konfigurasi sistem penerimaan murid baru, landing page, alur pendaftaran, dan cetak dokumen.
         </p>
       </div>
 
-      <hr className="border-slate-200 dark:border-slate-800" />
-
       {/* Main Container */}
-      <div className="flex flex-col md:flex-row gap-6 md:gap-8">
+      <div className="flex flex-col gap-5 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-950 sm:p-5 md:flex-row md:gap-7">
         {/* Sidebar Navigasi */}
         <aside className="w-full md:w-56 shrink-0">
-          <nav className="flex md:flex-col gap-1 overflow-x-auto md:overflow-x-visible pb-2 md:pb-0 scrollbar-none border-b md:border-b-0 border-slate-100 dark:border-slate-800 whitespace-nowrap">
+          <nav className="flex gap-1 overflow-x-auto whitespace-nowrap border-b border-slate-200 pb-2 scrollbar-none dark:border-slate-800 md:flex-col md:overflow-x-visible md:border-b-0 md:pb-0">
             {CATEGORIES.map((cat) => {
               const Icon = cat.icon
               const isActive = activeTab === cat.id
@@ -163,13 +161,13 @@ export function PengaturanPanel({ pengaturan, onFlash }: {
                   key={cat.id}
                   type="button"
                   onClick={() => setActiveTab(cat.id)}
-                  className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-lg transition-colors md:w-full text-left ${
+                  className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 md:w-full ${
                     isActive
-                      ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-100'
-                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900/50 hover:text-slate-950 dark:hover:text-slate-100'
+                      ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-950 dark:text-slate-400 dark:hover:bg-slate-900/50 dark:hover:text-slate-100'
                   }`}
                 >
-                  <Icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
+                  <Icon className={`h-4 w-4 shrink-0 ${isActive ? 'text-emerald-700 dark:text-emerald-300' : 'text-muted-foreground'}`} />
                   <span>{cat.label}</span>
                 </button>
               )
@@ -178,20 +176,20 @@ export function PengaturanPanel({ pengaturan, onFlash }: {
         </aside>
 
         {/* Content Area */}
-        <div className="flex-1 space-y-6">
+        <div className="min-w-0 flex-1 space-y-5">
           <div className="space-y-0.5">
             <h3 className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-50">{activeCategory.label}</h3>
             <p className="text-sm text-muted-foreground">{activeCategory.description}</p>
           </div>
 
-          <hr className="border-slate-150 dark:border-slate-800" />
+          <hr className="border-slate-200 dark:border-slate-800" />
 
           {/* Form Fields berdasarkan Tab Aktif */}
           <div className="space-y-4 min-h-[280px]">
             {activeTab === 'sistem' && (
               <div className="space-y-4 animate-in fade-in-50 duration-150">
-                <Alert className="border-blue-200 bg-blue-50 text-blue-700">
-                  <Info className="h-4 w-4 text-blue-600" />
+                <Alert className="rounded-lg border-emerald-200 bg-emerald-50/70 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200">
+                  <Info className="h-4 w-4 text-emerald-700 dark:text-emerald-300" />
                   <AlertDescription>
                     Prefix nomor pendaftaran: <b>{prefixDariTahun(tahun)}</b> → contoh: {prefixDariTahun(tahun)}001
                   </AlertDescription>
@@ -378,11 +376,11 @@ export function PengaturanPanel({ pengaturan, onFlash }: {
           </div>
 
           {/* Footer terintegrasi */}
-          <div className="pt-5 border-t border-slate-150 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex flex-col items-start justify-between gap-4 border-t border-slate-200 pt-5 dark:border-slate-800 sm:flex-row sm:items-center">
             <p className="text-xs text-muted-foreground">
               Pastikan semua perubahan data telah diisi dengan benar sebelum disimpan.
             </p>
-            <Button disabled={pending} onClick={() => start(async () => onFlash(await simpanPengaturan(vals)))} className="w-full sm:w-auto">
+            <Button disabled={pending} onClick={() => start(async () => onFlash(await simpanPengaturan(vals)))} className="w-full rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-700 sm:w-auto">
               {pending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
               Simpan Pengaturan
             </Button>

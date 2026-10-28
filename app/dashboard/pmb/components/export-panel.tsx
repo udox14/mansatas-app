@@ -161,7 +161,7 @@ export function ExportPanel({ pendaftar, selectedIds, pengaturan, onFlash }: {
 
   return (
     <div className="space-y-4">
-      <Card><CardContent className="pt-4"><div className="grid gap-2 md:grid-cols-3 lg:grid-cols-5">
+      <Card className="rounded-xl border-slate-200 shadow-sm dark:border-slate-800"><CardContent className="pt-4"><div className="grid gap-3 md:grid-cols-3 lg:grid-cols-5">
         <Filter label="Tahun" value={tahun} set={setTahun} options={[['all','Semua Tahun'], ...years.map(value => [value,value] as [string,string])]} />
         <Filter label="Jalur" value={jalur} set={setJalur} options={[['all','Semua'],['REGULER','Reguler'],['PRESTASI','Prestasi']]} />
         <Filter label="Gender" value={gender} set={setGender} options={[['all','Semua'],['LAKI_LAKI','Laki-laki'],['PEREMPUAN','Perempuan']]} />
@@ -175,16 +175,16 @@ export function ExportPanel({ pendaftar, selectedIds, pengaturan, onFlash }: {
       </div>{selectedIds.length > 0 && <p className="mt-2 text-xs text-blue-600">Export dibatasi ke {selectedIds.length} pendaftar terpilih.</p>}</CardContent></Card>
     <div className="grid gap-4 md:grid-cols-2">
       {/* ── Export Excel ── */}
-      <Card>
+      <Card className="rounded-xl border-slate-200 shadow-sm dark:border-slate-800">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
+            <FileSpreadsheet className="h-5 w-5 text-emerald-700 dark:text-emerald-400" />
             Export Excel
           </CardTitle>
           <CardDescription>Pilih kolom yang ingin disertakan dalam file Excel.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center gap-2 pb-2 border-b">
+          <div className="flex items-center gap-2 border-b border-slate-200 pb-2 dark:border-slate-800">
             <Checkbox id="all-cols" checked={cols.size === EXCEL_COLS.length} onCheckedChange={toggleAll} />
             <Label htmlFor="all-cols" className="text-sm font-semibold cursor-pointer">Pilih Semua ({EXCEL_COLS.length} kolom)</Label>
           </div>
@@ -196,7 +196,7 @@ export function ExportPanel({ pendaftar, selectedIds, pengaturan, onFlash }: {
               </div>
             ))}
           </div>
-          <Button className="w-full" onClick={exportExcel} disabled={exporting || !cols.size}>
+          <Button className="w-full rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-700" onClick={exportExcel} disabled={exporting || !cols.size}>
             {exporting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
             Download Excel ({pendaftar.length} baris)
           </Button>
@@ -204,10 +204,10 @@ export function ExportPanel({ pendaftar, selectedIds, pengaturan, onFlash }: {
       </Card>
 
       {/* ── Export ZIP Berkas ── */}
-      <Card>
+      <Card className="rounded-xl border-slate-200 shadow-sm dark:border-slate-800">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <Archive className="h-5 w-5 text-blue-600" />
+            <Archive className="h-5 w-5 text-slate-600 dark:text-slate-300" />
             Export ZIP Berkas
           </CardTitle>
           <CardDescription>
@@ -215,7 +215,7 @@ export function ExportPanel({ pendaftar, selectedIds, pengaturan, onFlash }: {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="rounded-md bg-blue-50 border border-blue-200 p-3 text-sm text-blue-700">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300">
             <p className="font-semibold mb-1">Isi ZIP:</p>
             <ul className="list-disc list-inside space-y-0.5 text-xs">
               <li>Folder per pendaftar: <code>{'{no_pendaftaran}_{nama}/'}</code></li>
@@ -233,17 +233,17 @@ export function ExportPanel({ pendaftar, selectedIds, pengaturan, onFlash }: {
               <span>Ada foto</span><span className="font-semibold">{pendaftar.filter((p: any) => (p as any).foto_url).length}</span>
             </div>
           </div>
-          <Button variant="outline" className="w-full" onClick={exportZip} disabled={zipping}>
+          <Button variant="outline" className="w-full rounded-lg" onClick={exportZip} disabled={zipping}>
             {zipping ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Archive className="h-4 w-4 mr-2" />}
             Download ZIP
           </Button>
         </CardContent>
       </Card>
-      <Card className="md:col-span-2"><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Printer className="h-5 w-5"/>Cetak Massal PDF</CardTitle><CardDescription>Gunakan data terpilih; jika tidak ada, gunakan filter tahun dan jalur.</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-2"><Button disabled={printing} onClick={() => printPdf('kartu')}><Printer className="mr-2 h-4 w-4"/>Kartu Ujian</Button><Button disabled={printing} variant="outline" onClick={() => printPdf('prestasi')}><Printer className="mr-2 h-4 w-4"/>Form Verifikasi Prestasi</Button></CardContent></Card>
+      <Card className="rounded-xl border-slate-200 shadow-sm dark:border-slate-800 md:col-span-2"><CardHeader><CardTitle className="flex items-center gap-2 text-base"><Printer className="h-5 w-5 text-emerald-700 dark:text-emerald-400"/>Cetak Massal PDF</CardTitle><CardDescription>Gunakan data terpilih; jika tidak ada, gunakan filter tahun dan jalur.</CardDescription></CardHeader><CardContent className="flex flex-wrap gap-2"><Button className="rounded-lg" disabled={printing} onClick={() => printPdf('kartu')}><Printer className="mr-2 h-4 w-4"/>Kartu Ujian</Button><Button className="rounded-lg" disabled={printing} variant="outline" onClick={() => printPdf('prestasi')}><Printer className="mr-2 h-4 w-4"/>Form Verifikasi Prestasi</Button></CardContent></Card>
     </div></div>
   )
 }
 
 function Filter({ label, value, set, options }: { label: string; value: string; set: (value: string) => void; options: [string,string][] }) {
-  return <label className="space-y-1 text-xs"><span className="font-medium">{label}</span><select className="h-9 w-full rounded-md border bg-background px-2" value={value} onChange={event => set(event.target.value)}>{options.map(([key,text]) => <option key={key} value={key}>{text}</option>)}</select></label>
+  return <label className="space-y-1 text-xs"><span className="font-medium text-slate-600 dark:text-slate-300">{label}</span><select className="h-9 w-full rounded-lg border border-slate-200 bg-background px-2 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15 dark:border-slate-700" value={value} onChange={event => set(event.target.value)}>{options.map(([key,text]) => <option key={key} value={key}>{text}</option>)}</select></label>
 }

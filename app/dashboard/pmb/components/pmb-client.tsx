@@ -186,9 +186,9 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {msg && (
-        <Alert className={msg.type === 'ok' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}>
+        <Alert className={msg.type === 'ok' ? 'rounded-xl border-emerald-200 bg-emerald-50/80 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200' : 'rounded-xl border-rose-200 bg-rose-50/80 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200'}>
           <AlertDescription className="font-medium">{msg.text}</AlertDescription>
         </Alert>
       )}
@@ -196,7 +196,7 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
       {/* ── Stats Cards ── */}
       {/* Stats Mobile (Collapsible) */}
       <div className="block lg:hidden space-y-2">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2.5">
           {(showAllStats
             ? [
                 { label: "Total", value: stats.total, color: "blue", icon: Users },
@@ -220,7 +220,7 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
         <Button
           variant="ghost"
           size="sm"
-          className="w-full text-xs text-muted-foreground flex items-center justify-center gap-1 py-1 h-8 hover:bg-slate-50 dark:hover:bg-slate-900 border border-slate-100 dark:border-slate-800"
+          className="w-full text-xs text-muted-foreground flex items-center justify-center gap-1 py-1 h-9 hover:bg-slate-50 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg"
           onClick={() => setShowAllStats(!showAllStats)}
         >
           {showAllStats ? (
@@ -232,7 +232,7 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
       </div>
 
       {/* Stats Desktop (Always Grid) */}
-      <div className="hidden lg:grid lg:grid-cols-9 gap-2">
+      <div className="hidden lg:grid lg:grid-cols-3 xl:grid-cols-5 gap-2.5">
         <StatCard label="Total" value={stats.total} color="blue" icon={Users} />
         <StatCard label="Reguler" value={stats.reguler} color="teal" icon={GraduationCap} />
         <StatCard label="Prestasi" value={stats.prestasi} color="indigo" icon={Trophy} />
@@ -245,11 +245,11 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
       </div>
 
       <Tabs defaultValue="pendaftar">
-        <TabsList className="w-full flex justify-start items-center overflow-x-auto scrollbar-none bg-slate-100/80 dark:bg-slate-900/60 p-1 h-10 rounded-lg gap-1 border border-slate-200/50 dark:border-slate-800/80">
-          <TabsTrigger value="pendaftar" className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all shrink-0"><Users className="h-4 w-4 shrink-0" />Data Pendaftar</TabsTrigger>
-          <TabsTrigger value="jadwal" className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all shrink-0"><CalendarClock className="h-4 w-4 shrink-0" />Jadwal &amp; Plotting</TabsTrigger>
-          <TabsTrigger value="export" className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all shrink-0"><PackageOpen className="h-4 w-4 shrink-0" />Export Data</TabsTrigger>
-          <TabsTrigger value="pengaturan" className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all shrink-0"><Settings className="h-4 w-4 shrink-0" />Pengaturan</TabsTrigger>
+        <TabsList className="w-full flex justify-start items-center overflow-x-auto scrollbar-none bg-slate-50 dark:bg-slate-900/60 p-1 h-11 rounded-xl gap-1 border border-slate-200 dark:border-slate-800">
+          <TabsTrigger value="pendaftar" className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors shrink-0 data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-emerald-300"><Users className="h-4 w-4 shrink-0" />Data Pendaftar</TabsTrigger>
+          <TabsTrigger value="jadwal" className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors shrink-0 data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-emerald-300"><CalendarClock className="h-4 w-4 shrink-0" />Jadwal &amp; Plotting</TabsTrigger>
+          <TabsTrigger value="export" className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors shrink-0 data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-emerald-300"><PackageOpen className="h-4 w-4 shrink-0" />Export Data</TabsTrigger>
+          <TabsTrigger value="pengaturan" className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors shrink-0 data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-emerald-300"><Settings className="h-4 w-4 shrink-0" />Pengaturan</TabsTrigger>
         </TabsList>
 
         {/* ════════════════════════ TAB PENDAFTAR ════════════════════════ */}
@@ -257,7 +257,7 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
 
           {/* Filter & Search Bar */}
           {/* Mobile Filter & Search */}
-          <div className="flex lg:hidden gap-2 w-full">
+          <div className="flex lg:hidden gap-2 w-full rounded-xl border border-slate-200 bg-white p-2 dark:border-slate-800 dark:bg-slate-950">
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Cari nama / NISN / asal sekolah / HP..." value={q}
@@ -319,7 +319,7 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
           </div>
 
           {/* Desktop Filter & Search */}
-          <div className="hidden lg:flex flex-wrap gap-2 items-center w-full">
+          <div className="hidden lg:flex flex-wrap gap-2 items-center w-full rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Cari nama / NISN / asal sekolah / NIK / HP..." value={q}
@@ -346,8 +346,8 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
 
           {/* Bulk actions bar */}
           {selected.size > 0 && (
-            <div className="flex flex-wrap gap-2 items-center bg-slate-900 text-white rounded-md p-3">
-              <span className="text-sm font-semibold px-1">{selected.size} dipilih</span>
+            <div className="flex flex-wrap gap-2 items-center rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 text-slate-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-slate-100">
+              <span className="px-1 text-sm font-semibold text-emerald-800 dark:text-emerald-300">{selected.size} dipilih</span>
               <div className="flex flex-wrap gap-1.5">
                 <Button size="sm" variant="secondary" disabled={pending} onClick={() => doVerif(true)}>
                   <CheckCircle2 className="h-3.5 w-3.5 mr-1" />Verifikasi
@@ -374,8 +374,8 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
           )}
 
           {/* Table */}
-          <div className="border rounded-md overflow-hidden">
-            <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/30">
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50/80 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-900/50">
               <div className="flex items-center gap-2">
                 <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1) }}>
                   <SelectTrigger className="h-7 w-[110px] text-xs"><SelectValue /></SelectTrigger>
@@ -397,11 +397,11 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
             </div>
 
             {/* Mobile compact cards list view */}
-            <div className="block lg:hidden divide-y divide-slate-100 dark:divide-slate-800">
+            <div className="block divide-y divide-slate-100 dark:divide-slate-800 lg:hidden">
               {paginated.map((p) => {
                 const isSel = selected.has(p.id)
                 return (
-                  <div key={p.id} className={`p-3 flex items-start gap-3 transition-all ${isSel ? 'bg-primary/5' : 'bg-transparent'}`}>
+                  <div key={p.id} className={`flex items-start gap-3 p-3 transition-colors ${isSel ? 'bg-emerald-50/70 dark:bg-emerald-950/30' : 'bg-transparent'}`}>
                     <div className="pt-1.5 flex-shrink-0">
                       <Checkbox checked={isSel} onCheckedChange={() => toggle(p.id)} />
                     </div>
@@ -480,7 +480,7 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
             <div className="hidden lg:block overflow-x-auto">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-muted/50">
+                  <TableRow className="border-b border-slate-200 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-900/60">
                     <TableHead className="w-8 py-2">
                       <Checkbox checked={selected.size > 0 && selected.size === paginated.length} onCheckedChange={toggleAll} />
                     </TableHead>
@@ -507,7 +507,7 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
                 </TableHeader>
                 <TableBody>
                   {paginated.map((p) => (
-                    <TableRow key={p.id} className="hover:bg-muted/30">
+                    <TableRow key={p.id} className="transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-900/50">
                       <TableCell className="py-2"><Checkbox checked={selected.has(p.id)} onCheckedChange={() => toggle(p.id)} /></TableCell>
                       <TableCell className="py-1 pl-1 pr-0">
                         <button
@@ -590,14 +590,14 @@ export function PmbClient({ pendaftar, jadwal, pengaturan }: {
 
 /* ── Sub-komponen ─────────────────────────────────────────── */
 
-const STAT_CONFIG: Record<string, { bg: string; text: string; border: string; iconBg: string }> = {
-  blue:   { bg: 'bg-blue-50/40 dark:bg-blue-950/10', text: 'text-blue-600 dark:text-blue-400', border: 'border-blue-100 dark:border-blue-900/50', iconBg: 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300' },
-  teal:   { bg: 'bg-teal-50/40 dark:bg-teal-950/10', text: 'text-teal-600 dark:text-teal-400', border: 'border-teal-100 dark:border-teal-900/50', iconBg: 'bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300' },
-  indigo: { bg: 'bg-indigo-50/40 dark:bg-indigo-950/10', text: 'text-indigo-600 dark:text-indigo-400', border: 'border-indigo-100 dark:border-indigo-900/50', iconBg: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300' },
-  amber:  { bg: 'bg-amber-50/40 dark:bg-amber-950/10', text: 'text-amber-600 dark:text-amber-400', border: 'border-amber-100 dark:border-amber-900/50', iconBg: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' },
-  green:  { bg: 'bg-emerald-50/40 dark:bg-emerald-950/10', text: 'text-emerald-600 dark:text-emerald-400', border: 'border-emerald-100 dark:border-emerald-900/50', iconBg: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300' },
-  red:    { bg: 'bg-red-50/40 dark:bg-red-950/10', text: 'text-red-600 dark:text-red-400', border: 'border-red-100 dark:border-red-900/50', iconBg: 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300' },
-  gray:   { bg: 'bg-slate-50/40 dark:bg-slate-900/10', text: 'text-slate-600 dark:text-slate-400', border: 'border-slate-200/60 dark:border-slate-800', iconBg: 'bg-slate-100 text-slate-700 dark:bg-slate-900 dark:text-slate-350' },
+const STAT_CONFIG: Record<string, { text: string; iconBg: string }> = {
+  blue:   { text: 'text-slate-800 dark:text-slate-100', iconBg: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' },
+  teal:   { text: 'text-slate-800 dark:text-slate-100', iconBg: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' },
+  indigo: { text: 'text-slate-800 dark:text-slate-100', iconBg: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' },
+  amber:  { text: 'text-amber-700 dark:text-amber-300', iconBg: 'bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300' },
+  green:  { text: 'text-emerald-700 dark:text-emerald-300', iconBg: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' },
+  red:    { text: 'text-rose-700 dark:text-rose-300', iconBg: 'bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300' },
+  gray:   { text: 'text-slate-700 dark:text-slate-300', iconBg: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' },
 }
 
 function StatCard({ label, value, color, icon: Icon }: {
@@ -605,18 +605,18 @@ function StatCard({ label, value, color, icon: Icon }: {
 }) {
   const conf = STAT_CONFIG[color] || STAT_CONFIG.gray
   return (
-    <Card className={`border shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 duration-200 ${conf.border} ${conf.bg}`}>
-      <CardContent className="p-3 flex flex-col justify-between h-full space-y-2">
+    <Card className="h-full rounded-xl border-slate-200 bg-white shadow-none transition-colors hover:border-slate-300 dark:border-slate-800 dark:bg-slate-950 dark:hover:border-slate-700">
+      <CardContent className="flex h-full min-h-[82px] flex-col justify-between space-y-2 p-3.5">
         <div className="flex items-center justify-between">
-          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider truncate mr-1">
+          <span className="mr-1 truncate text-xs font-medium text-slate-500 dark:text-slate-400">
             {label}
           </span>
-          <div className={`p-1 rounded-md ${conf.iconBg} flex-shrink-0`}>
+          <div className={`flex-shrink-0 rounded-lg p-1.5 ${conf.iconBg}`}>
             <Icon className="h-3.5 w-3.5" />
           </div>
         </div>
         <div>
-          <div className={`text-2xl font-black tracking-tight leading-none ${conf.text}`}>
+          <div className={`text-2xl font-semibold tracking-tight leading-none ${conf.text}`}>
             {value}
           </div>
         </div>
@@ -638,30 +638,30 @@ function FilterSelect({ value, onChange, placeholder, options, className }: {
 
 export function JalurBadge({ jalur }: { jalur: string }) {
   return jalur === 'PRESTASI'
-    ? <Badge variant="outline" className="text-[10px] border-amber-400 text-amber-700 bg-amber-50">PRESTASI</Badge>
-    : <Badge variant="outline" className="text-[10px] border-blue-400 text-blue-700 bg-blue-50">REGULER</Badge>
+    ? <Badge variant="outline" className="rounded-md border-emerald-200 bg-emerald-50 text-[10px] text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300">PRESTASI</Badge>
+    : <Badge variant="outline" className="rounded-md border-slate-200 bg-slate-50 text-[10px] text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">REGULER</Badge>
 }
 export function VerifBadge({ v }: { v: number | null }) {
-  if (v === 1) return <span className="text-xs text-emerald-600 font-semibold flex items-center gap-1"><CheckCircle2 className="h-3.5 w-3.5" />Terverifikasi</span>
-  if (v === 0) return <span className="text-xs text-red-600 font-semibold flex items-center gap-1"><XCircle className="h-3.5 w-3.5" />Ditolak</span>
-  return <span className="text-xs text-amber-600 font-semibold flex items-center gap-1"><Clock className="h-3.5 w-3.5" />Menunggu</span>
+  if (v === 1) return <span className="flex items-center gap-1 text-xs font-medium text-emerald-700 dark:text-emerald-300"><CheckCircle2 className="h-3.5 w-3.5" />Terverifikasi</span>
+  if (v === 0) return <span className="flex items-center gap-1 text-xs font-medium text-rose-700 dark:text-rose-300"><XCircle className="h-3.5 w-3.5" />Ditolak</span>
+  return <span className="flex items-center gap-1 text-xs font-medium text-amber-700 dark:text-amber-300"><Clock className="h-3.5 w-3.5" />Menunggu</span>
 }
 export function LulusBadge({ s }: { s: string }) {
-  if (s === 'DITERIMA') return <Badge className="text-[10px] bg-emerald-100 text-emerald-700 border-emerald-300 hover:bg-emerald-100">DITERIMA</Badge>
-  if (s === 'TIDAK DITERIMA') return <Badge variant="destructive" className="text-[10px]">TIDAK</Badge>
-  return <Badge variant="outline" className="text-[10px] text-slate-500">PENDING</Badge>
+  if (s === 'DITERIMA') return <Badge className="rounded-md border border-emerald-200 bg-emerald-50 text-[10px] text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-950/50">DITERIMA</Badge>
+  if (s === 'TIDAK DITERIMA') return <Badge variant="destructive" className="rounded-md text-[10px]">TIDAK DITERIMA</Badge>
+  return <Badge variant="outline" className="rounded-md border-slate-200 text-[10px] text-slate-500 dark:border-slate-700 dark:text-slate-400">PENDING</Badge>
 }
 export function DsptBadge({ s }: { s: string | null }) {
-  if (s === 'lunas') return <Badge className="text-[10px] bg-emerald-100 text-emerald-700 border-emerald-300 hover:bg-emerald-100">Lunas</Badge>
-  if (s === 'nyicil') return <Badge className="text-[10px] bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-100">Nyicil</Badge>
-  if (s === 'belum_bayar') return <Badge className="text-[10px] bg-red-100 text-red-700 border-red-300 hover:bg-red-100">Belum Bayar</Badge>
+  if (s === 'lunas') return <Badge className="rounded-md border border-emerald-200 bg-emerald-50 text-[10px] text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300 dark:hover:bg-emerald-950/50">Lunas</Badge>
+  if (s === 'nyicil') return <Badge className="rounded-md border border-amber-200 bg-amber-50 text-[10px] text-amber-700 hover:bg-amber-50 dark:border-amber-900 dark:bg-amber-950/50 dark:text-amber-300 dark:hover:bg-amber-950/50">Nyicil</Badge>
+  if (s === 'belum_bayar') return <Badge className="rounded-md border border-rose-200 bg-rose-50 text-[10px] text-rose-700 hover:bg-rose-50 dark:border-rose-900 dark:bg-rose-950/50 dark:text-rose-300 dark:hover:bg-rose-950/50">Belum Bayar</Badge>
   return <span className="text-xs text-slate-300">—</span>
 }
 
 function DaftarUlangBadge({ p }: { p: Pendaftar }) {
   const stage = pmbRegistrationStage(p)
-  if (stage === 'SELESAI') return <span className="text-xs text-emerald-600 font-semibold">Selesai</span>
-  if (stage === 'MENUNGGU_KASIR') return <span className="text-xs text-blue-600 font-semibold">Menunggu Kasir</span>
-  if (stage === 'MENUNGGU_KONVERSI') return <span className="text-xs text-amber-600 font-semibold">Menunggu Konversi</span>
-  return <span className="text-xs text-slate-400">Belum Konfirmasi</span>
+  if (stage === 'SELESAI') return <span className="text-xs font-medium text-emerald-700 dark:text-emerald-300">Selesai</span>
+  if (stage === 'MENUNGGU_KASIR') return <span className="text-xs font-medium text-slate-700 dark:text-slate-300">Menunggu Kasir</span>
+  if (stage === 'MENUNGGU_KONVERSI') return <span className="text-xs font-medium text-amber-700 dark:text-amber-300">Menunggu Konversi</span>
+  return <span className="text-xs text-slate-500 dark:text-slate-400">Belum Konfirmasi</span>
 }

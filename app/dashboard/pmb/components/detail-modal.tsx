@@ -189,12 +189,12 @@ export function DetailModal({ id, pendaftar, onClose, onFlash }: {
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-2xl border-slate-200 bg-white shadow-xl dark:border-slate-800 dark:bg-slate-950 sm:p-6">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 flex-wrap text-base">
             Detail Pendaftar
             {bebasCBT && (
-              <Badge className="bg-purple-100 text-purple-800 border-purple-300 text-[10px] px-1.5 gap-0.5">
+              <Badge className="gap-0.5 rounded-md border border-emerald-200 bg-emerald-50 px-1.5 text-[10px] text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300">
                 <Award className="h-3 w-3" />BEBAS CBT
               </Badge>
             )}
@@ -211,7 +211,7 @@ export function DetailModal({ id, pendaftar, onClose, onFlash }: {
         ) : (
           <div className="space-y-4">
             {/* ── Quick action bar ── */}
-            <Card className="bg-muted/30">
+            <Card className="rounded-xl border-slate-200 bg-slate-50/80 shadow-none dark:border-slate-800 dark:bg-slate-900/50">
               <CardContent className="flex flex-wrap gap-2 p-3">
                 {(() => {
                   const sv = p.status_verifikasi
@@ -219,27 +219,27 @@ export function DetailModal({ id, pendaftar, onClose, onFlash }: {
                   return (<>
                     <Button size="sm" variant={sv === 1 ? 'default' : 'outline'} disabled={pend}
                       onClick={() => doVerif(sv === 1 ? null : true)}
-                      className={sv === 1 ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'text-emerald-700 border-emerald-400 hover:bg-emerald-50'}>
+                      className={sv === 1 ? 'bg-emerald-700 text-white hover:bg-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-700' : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900 dark:text-emerald-300 dark:hover:bg-emerald-950/50'}>
                       <CheckCircle2 className="h-3.5 w-3.5 mr-1" />{sv === 1 ? 'Batalkan Verif' : 'Verifikasi'}
                     </Button>
                     <Button size="sm" variant={sv === 0 ? 'default' : 'outline'} disabled={pend}
                       onClick={() => doVerif(sv === 0 ? null : false)}
-                      className={sv === 0 ? 'bg-red-600 hover:bg-red-700 text-white' : 'text-red-600 border-red-400 hover:bg-red-50'}>
+                      className={sv === 0 ? 'bg-rose-700 text-white hover:bg-rose-800' : 'border-rose-200 text-rose-700 hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/50'}>
                       <XCircle className="h-3.5 w-3.5 mr-1" />{sv === 0 ? 'Batalkan Tolak' : 'Tolak Berkas'}
                     </Button>
                     <Button size="sm" variant={sk === 'DITERIMA' ? 'default' : 'outline'} disabled={pend}
                       onClick={() => doLulus(sk === 'DITERIMA' ? 'PENDING' : 'DITERIMA')}
-                      className={sk === 'DITERIMA' ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'text-emerald-700 border-emerald-400 hover:bg-emerald-50'}>
+                      className={sk === 'DITERIMA' ? 'bg-emerald-700 text-white hover:bg-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-700' : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-900 dark:text-emerald-300 dark:hover:bg-emerald-950/50'}>
                       <CheckCircle2 className="h-3.5 w-3.5 mr-1" />{sk === 'DITERIMA' ? 'Batalkan Lulus' : 'Luluskan'}
                     </Button>
                     <Button size="sm" variant={sk === 'TIDAK DITERIMA' ? 'default' : 'outline'} disabled={pend}
                       onClick={() => doLulus(sk === 'TIDAK DITERIMA' ? 'PENDING' : 'TIDAK DITERIMA')}
-                      className={sk === 'TIDAK DITERIMA' ? 'bg-red-600 hover:bg-red-700 text-white' : 'text-red-600 border-red-400 hover:bg-red-50'}>
+                      className={sk === 'TIDAK DITERIMA' ? 'bg-rose-700 text-white hover:bg-rose-800' : 'border-rose-200 text-rose-700 hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/50'}>
                       {sk === 'TIDAK DITERIMA' ? 'Batalkan Tidak Lulus' : 'Tidak Lulus'}
                     </Button>
                     {p.jalur === 'PRESTASI' && (
                       <Button size="sm" variant="outline" disabled={pend} onClick={doAlihReguler}
-                        className="text-blue-700 border-blue-400 hover:bg-blue-50">
+                        className="border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800">
                         <RefreshCw className="h-3.5 w-3.5 mr-1" />Alih Reguler
                       </Button>
                     )}
@@ -250,7 +250,7 @@ export function DetailModal({ id, pendaftar, onClose, onFlash }: {
 
             {/* Flagged berkas alert */}
             {flaggedBerkas.length > 0 && (
-              <Alert variant="destructive" className="bg-red-50 text-red-700 border-red-200 py-2">
+              <Alert variant="destructive" className="rounded-lg border-rose-200 bg-rose-50 py-2 text-rose-800 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-200">
                 <AlertTitle className="text-xs font-semibold mb-1">Berkas bermasalah</AlertTitle>
                 <AlertDescription className="text-xs">
                   {flaggedBerkas.map((k) => BERKAS_DEF.find((b) => b.key === k)?.label || k).join(', ')}
@@ -259,11 +259,11 @@ export function DetailModal({ id, pendaftar, onClose, onFlash }: {
             )}
 
             <Tabs defaultValue="biodata">
-              <TabsList className="flex-wrap h-auto">
-                <TabsTrigger value="biodata">Biodata</TabsTrigger>
-                <TabsTrigger value="berkas">Berkas</TabsTrigger>
-                <TabsTrigger value="jadwal">Jadwal & Status</TabsTrigger>
-                {data.prestasi.length > 0 && <TabsTrigger value="prestasi">Prestasi</TabsTrigger>}
+              <TabsList className="h-auto flex-wrap justify-start gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-800 dark:bg-slate-900/60">
+                <TabsTrigger value="biodata" className="rounded-lg text-xs data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-emerald-300">Biodata</TabsTrigger>
+                <TabsTrigger value="berkas" className="rounded-lg text-xs data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-emerald-300">Berkas</TabsTrigger>
+                <TabsTrigger value="jadwal" className="rounded-lg text-xs data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-emerald-300">Jadwal & Status</TabsTrigger>
+                {data.prestasi.length > 0 && <TabsTrigger value="prestasi" className="rounded-lg text-xs data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-emerald-300">Prestasi</TabsTrigger>}
               </TabsList>
 
               {/* ── Biodata ── */}
@@ -274,7 +274,7 @@ export function DetailModal({ id, pendaftar, onClose, onFlash }: {
                       <Button size="sm" variant="ghost" onClick={() => setEditMode(false)} disabled={pend}>
                         <X className="h-4 w-4 mr-1" />Batal
                       </Button>
-                      <Button size="sm" onClick={saveEdit} disabled={pend} className="bg-emerald-600 hover:bg-emerald-700">
+                      <Button size="sm" onClick={saveEdit} disabled={pend} className="rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-700">
                         {pend ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
                         Simpan
                       </Button>
@@ -407,7 +407,7 @@ export function DetailModal({ id, pendaftar, onClose, onFlash }: {
 
                     return (
                       <Card key={key}
-                        className={`group relative overflow-hidden border shadow-sm transition-all hover:shadow-md flex flex-col ${isFlagged ? 'border-red-400 bg-red-50/30' : 'border-slate-200/80'}`}>
+                        className={`group relative overflow-hidden rounded-xl border shadow-sm transition-all hover:shadow-md flex flex-col ${isFlagged ? 'border-rose-300 bg-rose-50/60 dark:border-rose-900 dark:bg-rose-950/20' : 'border-slate-200 dark:border-slate-800'}`}>
                         <CardContent className="p-3 flex flex-col space-y-2 flex-1">
                           <div className="flex items-start justify-between">
                             <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -528,7 +528,7 @@ export function DetailModal({ id, pendaftar, onClose, onFlash }: {
 
                     {/* Nilai rapor */}
                     {(p.avg_nilai_rapor != null || p.nilai_rapor != null) && <div className="space-y-2 pt-2 border-t">
-                      <div className="flex items-center justify-between"><p className="text-xs font-semibold">Nilai Rapor</p><Badge className="bg-blue-100 text-blue-800 border-blue-200 text-sm font-bold px-3">Rata-rata {Number(p.avg_nilai_rapor ?? p.nilai_rapor).toFixed(2)}</Badge></div>
+                      <div className="flex items-center justify-between"><p className="text-xs font-semibold">Nilai Rapor</p><Badge className="rounded-md border border-slate-200 bg-slate-100 px-3 text-sm font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">Rata-rata {Number(p.avg_nilai_rapor ?? p.nilai_rapor).toFixed(2)}</Badge></div>
                       {p.avg_nilai_rapor != null && <div className="grid grid-cols-5 gap-1 text-center text-[10px]">{[1,2,3,4,5].map(semester => <div key={semester} className="rounded border p-1"><strong>S{semester}</strong><br/>{p[`nilai_rapor_s${semester}`]} / #{p[`peringkat_rapor_s${semester}`]}</div>)}</div>}
                       <p className="text-[10px] text-muted-foreground">Integritas: {p.integritas_rapor_at ? `disetujui ${p.integritas_rapor_at}` : 'data lama / belum disetujui'}</p>
                     </div>}
@@ -563,7 +563,7 @@ export function DetailModal({ id, pendaftar, onClose, onFlash }: {
                           <Input className="h-8 text-sm" placeholder="mis. Ruang 01" value={jadwalDraft.ruang_tes}
                             onChange={(e) => setJadwalDraft((d) => ({ ...d, ruang_tes: e.target.value }))} />
                         </div>
-                        <Button size="sm" onClick={saveJadwal} disabled={pend} className="bg-emerald-600 hover:bg-emerald-700 text-white w-full">
+                        <Button size="sm" onClick={saveJadwal} disabled={pend} className="w-full rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-700">
                           {pend ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Save className="h-3.5 w-3.5 mr-1" />}
                           Simpan Jadwal
                         </Button>
@@ -619,7 +619,7 @@ export function DetailModal({ id, pendaftar, onClose, onFlash }: {
       {/* ── Pratinjau berkas ── */}
       {previewUrl && (
         <Dialog open onOpenChange={() => setPreviewUrl(null)}>
-          <DialogContent className="max-w-3xl w-full max-h-[85vh] p-4 flex flex-col items-center">
+          <DialogContent className="flex max-h-[85vh] w-full max-w-3xl flex-col items-center rounded-2xl border-slate-200 p-4 dark:border-slate-800">
             <DialogHeader className="w-full flex flex-row items-center justify-between pb-2 border-b">
               <DialogTitle className="text-sm font-semibold truncate pr-4">
                 Pratinjau: {previewTitle}

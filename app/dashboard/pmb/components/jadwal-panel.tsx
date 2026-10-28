@@ -164,9 +164,9 @@ export function JadwalPanel({ jadwal, pendaftar, onFlash }: {
 
   return (
     <Tabs defaultValue="plotting">
-      <TabsList>
-        <TabsTrigger value="slot">Konfigurasi Slot</TabsTrigger>
-        <TabsTrigger value="plotting">
+      <TabsList className="h-10 gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-800 dark:bg-slate-900/60">
+        <TabsTrigger value="slot" className="rounded-lg text-xs data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-emerald-300">Konfigurasi Slot</TabsTrigger>
+        <TabsTrigger value="plotting" className="rounded-lg text-xs data-[state=active]:bg-white data-[state=active]:text-emerald-700 data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800 dark:data-[state=active]:text-emerald-300">
           Plotting Jadwal
           {editCount > 0 && <span className="ml-1.5 text-amber-600 font-bold">({editCount}✎)</span>}
         </TabsTrigger>
@@ -174,7 +174,7 @@ export function JadwalPanel({ jadwal, pendaftar, onFlash }: {
 
       {/* ════ TAB SLOT ════ */}
       <TabsContent value="slot" className="space-y-4 mt-4">
-        <Card>
+        <Card className="rounded-xl border-slate-200 shadow-sm dark:border-slate-800">
           <CardHeader>
             <CardTitle className="text-base">Tambah Slot Jadwal Tes</CardTitle>
             <CardDescription>Definisikan slot tanggal/sesi/ruang untuk auto-plotting dan manual plotting.</CardDescription>
@@ -205,10 +205,10 @@ export function JadwalPanel({ jadwal, pendaftar, onFlash }: {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between py-3">
+        <Card className="overflow-hidden rounded-xl border-slate-200 shadow-sm dark:border-slate-800">
+          <CardHeader className="flex flex-col items-start justify-between gap-3 border-b border-slate-100 py-4 dark:border-slate-800 sm:flex-row sm:items-center">
             <CardTitle className="text-base">Slot Terdaftar ({jadwal.length})</CardTitle>
-            <div className="flex gap-1"><Button variant="outline" size="sm" onClick={() => doAutoPlot('REGULER')} disabled={pending}><Zap className="h-4 w-4 mr-1 text-amber-500" />Auto Reguler</Button><Button variant="outline" size="sm" onClick={() => doAutoPlot('PRESTASI')} disabled={pending}><Zap className="h-4 w-4 mr-1 text-purple-500" />Auto Prestasi</Button></div>
+            <div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" className="rounded-lg" onClick={() => doAutoPlot('REGULER')} disabled={pending}><Zap className="h-4 w-4 mr-1 text-emerald-600" />Auto Reguler</Button><Button variant="outline" size="sm" className="rounded-lg" onClick={() => doAutoPlot('PRESTASI')} disabled={pending}><Zap className="h-4 w-4 mr-1 text-emerald-600" />Auto Prestasi</Button></div>
           </CardHeader>
           <CardContent className="p-0">
             {jadwal.length === 0 ? (
@@ -216,7 +216,7 @@ export function JadwalPanel({ jadwal, pendaftar, onFlash }: {
             ) : (
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-muted/40">
+                  <TableRow className="border-b border-slate-200 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-900/60">
                     <TableHead className="text-xs">Tanggal</TableHead>
                     <TableHead className="text-xs">Sesi</TableHead>
                     <TableHead className="text-xs">Ruang</TableHead>
@@ -240,7 +240,7 @@ export function JadwalPanel({ jadwal, pendaftar, onFlash }: {
                         <TableCell className="text-sm">{s.jalur || 'Semua'}</TableCell>
                         <TableCell className="text-sm text-center">{s.kapasitas}</TableCell>
                         <TableCell className="text-center">
-                          <span className={`text-sm font-semibold ${terisi > 0 ? 'text-blue-600' : 'text-slate-400'}`}>{terisi}</span>
+                          <span className={`text-sm font-medium ${terisi > 0 ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400'}`}>{terisi}</span>
                         </TableCell>
                         <TableCell className="text-center">
                           <span className={`text-sm font-semibold ${sisa > 0 ? 'text-emerald-600' : 'text-red-600'}`}>{sisa}</span>
@@ -263,8 +263,8 @@ export function JadwalPanel({ jadwal, pendaftar, onFlash }: {
 
       {/* ════ TAB PLOTTING ════ */}
       <TabsContent value="plotting" className="space-y-3 mt-4">
-        <div className="flex flex-wrap gap-2 items-center">
-          <div className="relative flex-1 min-w-[180px]">
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-950">
+          <div className="relative min-w-[180px] flex-1">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Cari nama / no daftar" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9" />
           </div>
@@ -290,11 +290,11 @@ export function JadwalPanel({ jadwal, pendaftar, onFlash }: {
               {allRuang.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button variant="outline" size="sm" onClick={exportPlot}><FileSpreadsheet className="h-4 w-4 mr-1" />Export</Button>
-          <Button variant="outline" size="sm" onClick={() => importRef.current?.click()}><Upload className="h-4 w-4 mr-1" />Import</Button>
+          <Button variant="outline" size="sm" className="rounded-lg" onClick={exportPlot}><FileSpreadsheet className="h-4 w-4 mr-1" />Export</Button>
+          <Button variant="outline" size="sm" className="rounded-lg" onClick={() => importRef.current?.click()}><Upload className="h-4 w-4 mr-1" />Import</Button>
           <input ref={importRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={importPlot} />
           {editCount > 0 && (
-            <Button size="sm" onClick={saveChanges} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700">
+            <Button size="sm" onClick={saveChanges} disabled={saving} className="rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 dark:bg-emerald-600 dark:hover:bg-emerald-700">
               {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
               Simpan ({editCount} perubahan)
             </Button>
@@ -306,11 +306,11 @@ export function JadwalPanel({ jadwal, pendaftar, onFlash }: {
           {' · '}{plottingRows.filter((p) => (edits[p.id]?.tanggal_tes ?? p.tanggal_tes)).length} sudah dijadwalkan
         </div>
 
-        <div className="border rounded-md overflow-hidden">
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-950">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
-                <TableRow className="bg-muted/50">
+                <TableRow className="border-b border-slate-200 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-900/60">
                   <TableHead className="text-xs py-2">No. Daftar</TableHead>
                   <TableHead className="text-xs py-2">Nama</TableHead>
                   <TableHead className="text-xs py-2">Tanggal Tes</TableHead>
@@ -322,7 +322,7 @@ export function JadwalPanel({ jadwal, pendaftar, onFlash }: {
                 {filteredPlot.map((p) => {
                   const changed = !!edits[p.id]
                   return (
-                    <TableRow key={p.id} className={changed ? 'bg-amber-50' : ''}>
+                    <TableRow key={p.id} className={changed ? 'bg-amber-50/70 dark:bg-amber-950/20' : 'transition-colors hover:bg-slate-50/80 dark:hover:bg-slate-900/50'}>
                       <TableCell className="py-2 font-mono text-xs text-muted-foreground">{p.no_pendaftaran}</TableCell>
                       <TableCell className="py-2 text-sm font-medium">{p.nama_lengkap}</TableCell>
                       <TableCell className="py-2">
