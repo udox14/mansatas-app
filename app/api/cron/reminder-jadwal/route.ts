@@ -4,6 +4,8 @@ import { constantTimeSecretEqual } from '@/lib/constant-time'
 import { internalErrorJson } from '@/lib/request-security'
 import { dispatchConfiguredReminders, dispatchDueParentAnnouncements, dispatchAttendanceDailyNotices } from '@/lib/notification-engine'
 import { autoReturnIzinKeluar } from '@/lib/izin-keluar-auto-return'
+import { getCloudflareContext } from '@opennextjs/cloudflare'
+import { cleanupExpiredModulePhotos } from '@/lib/module-photo-retention'
 
 /**
  * Dispatcher notifikasi otomatis — dipanggil setiap 5 menit oleh Cloudflare Cron Trigger.
@@ -22,6 +24,20 @@ export async function GET(req: NextRequest) {
 
   try {
     const db = await getDB()
+
+    let photoCleanupResult = { scanned: 0, deleted: 0, failed: 0, errors: [] as string[] }
+    try {
+      const { env } = await getCloudflareContext({ async: true })
+      photoCleanupResult = await cleanupExpiredModulePhotos(env.R2)
+      console.info(JSON.stringify({ event: 'module_photo_retention_completed', ...photoCleanupResult }))
+      for (const error of photoCleanupResult.errors) {
+        console.error(JSON.stringify({ event: 'module_photo_retention_error', error }))
+      }
+    } catch (error) {
+      photoCleanupResult.failed++
+      photoCleanupResult.errors.push(error instanceof Error ? error.message : String(error))
+      console.error(JSON.stringify({ event: 'module_photo_retention_failed', error: photoCleanupResult.errors.at(-1) }))
+    }
 
     // Run before attendance finalization; independent of notification settings.
     const izinReturnResult = await autoReturnIzinKeluar(db)
@@ -48,6 +64,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      modulePhotoCleanup: photoCleanupResult,
       izinAutoReturned: izinReturnResult.processed,
       announcementsProcessed: announcementResult.processed,
       automaticRemindersProcessed: automaticReminderResult.processed,

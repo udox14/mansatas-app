@@ -5,6 +5,7 @@
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { NextResponse } from 'next/server'
 import { authorizeMediaRequest } from '@/lib/media-security'
+import { isModulePhotoExpired } from '@/lib/module-photo-retention'
 import { logSecurityEvent } from '@/lib/security-log'
 
 export async function GET(
@@ -31,6 +32,12 @@ export async function GET(
 
     if (!object) {
       return new Response('Not Found', { status: 404 })
+    }
+
+    // Do not expose expired module evidence during the interval before the
+    // scheduled R2 cleanup runs. The uploaded timestamp is supplied by R2.
+    if (isModulePhotoExpired(key, object.uploaded)) {
+      return new Response('Not Found', { status: 404, headers: { 'Cache-Control': 'private, no-store' } })
     }
 
     const contentType = object.httpMetadata?.contentType || 'image/jpeg'
