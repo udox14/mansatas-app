@@ -5,14 +5,13 @@ describe('Komite review notification routing', () => {
   it('notifies both applicant and next reviewer after treasurer approval', () => {
     expect(komiteReviewNotificationPlans('bendahara', 'setujui')).toEqual([
       { eventKey: 'komite_treasurer_approved', recipient: 'applicant', suffix: 'approved' },
-      { eventKey: 'komite_chairman_review_requested', recipient: 'reviewer', suffix: 'waiting-chairman' },
+      { eventKey: 'komite_verifier_review_requested', recipient: 'reviewer', suffix: 'waiting-verifier' },
     ])
   })
 
-  it('notifies both applicant and principal after chairman approval', () => {
-    expect(komiteReviewNotificationPlans('ketua', 'setujui', true)).toEqual([
-      { eventKey: 'komite_chairman_approved', recipient: 'applicant', suffix: 'approved' },
-      { eventKey: 'komite_principal_review_requested', recipient: 'reviewer', suffix: 'waiting-principal' },
+  it('never adds a principal approval even if the retired flag is supplied', () => {
+    expect(komiteReviewNotificationPlans('ketua','setujui',true)).toEqual([
+      { eventKey:'komite_final_approved',recipient:'applicant',suffix:'final-approved' },
     ])
   })
 
@@ -22,17 +21,17 @@ describe('Komite review notification routing', () => {
     expect(komiteReviewNotificationPlans('ketua', 'tolak')[0]?.eventKey).toBe('komite_rejected')
   })
 
-  it('finalizes at chairman by default without notifying the principal', () => {
+  it('finalizes at verifier without notifying the principal', () => {
     expect(komiteNextReviewStatus('ketua', 'setujui')).toBe('disetujui')
     expect(komiteReviewNotificationPlans('ketua', 'setujui')).toEqual([
       { eventKey: 'komite_final_approved', recipient: 'applicant', suffix: 'final-approved' },
     ])
   })
 
-  it('supports the optional principal stage without changing revision and rejection', () => {
+  it('ignores the retired principal flag and retains revision and rejection', () => {
     for (const enabled of [false, true]) {
       expect(komiteNextReviewStatus('bendahara', 'setujui', enabled)).toBe('menunggu_ketua')
-      expect(komiteNextReviewStatus('ketua', 'setujui', enabled)).toBe(enabled ? 'menunggu_kepala' : 'disetujui')
+      expect(komiteNextReviewStatus('ketua', 'setujui', enabled)).toBe('disetujui')
       expect(komiteNextReviewStatus('kepala', 'setujui', enabled)).toBe('disetujui')
       for (const stage of ['bendahara', 'ketua', 'kepala'] as const) {
         expect(komiteNextReviewStatus(stage, 'minta_revisi', enabled)).toBe('perlu_revisi')

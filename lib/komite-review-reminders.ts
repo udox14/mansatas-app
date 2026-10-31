@@ -16,7 +16,7 @@ export type KomiteReminderRow = {
 }
 
 export type KomiteReminderValidation = {
-  kind: 'komite_review'
+  kind: 'komite_review' | 'komite_review_request'
   pengajuanId: string
   version: number
   status: string
@@ -50,15 +50,12 @@ export function komiteReminderSource(row: KomiteReminderRow, slot: string) {
 // to the proposal and recipient respectively.
 const REVIEWER_PREDICATE = `COALESCE(u.banned,0)=0
   AND (p.status='menunggu_bendahara' OR u.id<>p.pengaju_id)
-  AND (p.status<>'menunggu_ketua' OR p.ketua_delegate_id IS NULL OR u.id=p.ketua_delegate_id)
-  AND (u.role=CASE p.status
-      WHEN 'menunggu_bendahara' THEN 'bendahara_komite'
-      WHEN 'menunggu_ketua' THEN CASE WHEN p.ketua_delegate_id IS NULL THEN 'ketua_komite' ELSE 'anggota_komite' END
-      WHEN 'menunggu_kepala' THEN 'kepsek' END
-    OR EXISTS (SELECT 1 FROM user_roles ur WHERE ur.user_id=u.id AND ur.role=CASE p.status
-      WHEN 'menunggu_bendahara' THEN 'bendahara_komite'
-      WHEN 'menunggu_ketua' THEN CASE WHEN p.ketua_delegate_id IS NULL THEN 'ketua_komite' ELSE 'anggota_komite' END
-      WHEN 'menunggu_kepala' THEN 'kepsek' END))`
+  AND ((p.status='menunggu_bendahara' AND (u.role='bendahara_komite' OR EXISTS (
+    SELECT 1 FROM user_roles ur WHERE ur.user_id=u.id AND ur.role='bendahara_komite')))
+  OR (p.status='menunggu_ketua' AND u.id=(SELECT value FROM system_settings WHERE key='komite_verifier_user_id')
+    AND (u.role='anggota_komite' OR EXISTS (
+      SELECT 1 FROM user_roles ur WHERE ur.user_id=u.id AND ur.role='anggota_komite'))))`
+
 
 // A bounded scan excludes already claimed dispatches so later cron runs can reach
 // the rest of the backlog rather than repeatedly scanning the first 200 rows.
@@ -66,7 +63,7 @@ export async function pendingKomiteReminders(db: D1Database, slot: string, frequ
   const cutoff = new Date(now - frequencyMinutes * 60_000).toISOString()
   const rows = await db.prepare(`SELECT p.*, COALESCE(u.nama_lengkap,u.name,u.email) AS pengaju_name
     FROM komite_pengajuan p JOIN "user" u ON u.id=p.pengaju_id
-    WHERE p.status IN ('menunggu_bendahara','menunggu_ketua','menunggu_kepala')
+    WHERE p.status IN ('menunggu_bendahara','menunggu_ketua')
       AND datetime(p.updated_at) <= datetime(?)
       AND EXISTS (SELECT 1 FROM "user" u WHERE ${REVIEWER_PREDICATE})
       AND NOT EXISTS (SELECT 1 FROM notification_dispatches d

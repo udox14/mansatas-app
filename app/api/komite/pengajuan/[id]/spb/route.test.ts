@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import puppeteer from '@cloudflare/puppeteer'
 import { GET } from './route'
 
-const state = vi.hoisted(() => ({ finalStage: null as string | null, status: 'disetujui',
+const state = vi.hoisted(() => ({ finalStage: null as string | null, status: 'disetujui', flow: 1, chairman: 'Ketua Snapshot',
   approvedAt: '2026-10-06 02:00:00', useAssets: true, assets: vi.fn(),
   stages: ['bendahara', 'ketua', 'kepala'], render: vi.fn() }))
 vi.mock('@cloudflare/puppeteer', () => ({ default: { launch: vi.fn() } }))
@@ -17,15 +17,15 @@ vi.mock('@/lib/komite-pengajuan', async importOriginal => ({ ...await importOrig
 vi.mock('@/lib/pdf-cache', () => ({ renderPdfWithCache: state.render }))
 vi.mock('@/utils/db-server', () => ({ getDB: async () => ({ prepare(sql: string) {
   return { bind() { return this }, async first() { return { id: 'p1', pengaju_id: 'applicant', current_version: 1,
-    status: state.status, final_approval_stage: state.finalStage, nominal: 100000, nomor_spb: '001/SPB',
+    status: state.status, workflow_version: state.flow, chairman_name_snapshot: state.chairman, final_approval_stage: state.finalStage, nominal: 100000, nomor_spb: '001/SPB',
     approved_at: state.approvedAt } },
   async all() { return { results: sql.includes('komite_pengajuan_reviews') ? state.stages.map(stage => ({
-    stage, actor_name: stage, actor_role: stage, created_at: state.approvedAt, is_super_admin_bypass: 0,
+    stage, workflow_version: state.flow, actor_name: stage, actor_role: stage, created_at: state.approvedAt, is_super_admin_bypass: 0,
   })) : [{ urutan: 1, uraian: 'Kegiatan', penerima_penyedia: 'Penyedia', jumlah: 100000 }] } } }
 } }) }))
 
 beforeEach(() => {
-  state.finalStage = null; state.status = 'disetujui'; state.stages = ['bendahara', 'ketua', 'kepala']
+  state.flow=1; state.chairman='Ketua Snapshot'; state.finalStage = null; state.status = 'disetujui'; state.stages = ['bendahara', 'ketua', 'kepala']
   state.approvedAt = '2026-10-06 02:00:00'; state.useAssets = true
   state.assets.mockReset().mockImplementation(async () => new Response(letterheadPng))
   state.render.mockReset().mockResolvedValue(new Uint8Array([37, 80, 68, 70]))
@@ -37,6 +37,24 @@ const letterheadPng = readFileSync(new URL('../../../../../../public/kopkomite.p
 const request = () => GET(new Request('https://example.test/api/komite/pengajuan/p1/spb'), { params: Promise.resolve({ id: 'p1' }) })
 
 describe('Komite SPB approval requirements and signatories', () => {
+  it('prints new SPB signatories in verifier, chairman, treasurer order without a receipt page', async () => {
+    state.flow=2; state.finalStage='ketua'; state.stages=['bendahara','ketua']
+    expect((await request()).status).toBe(200)
+    const html=state.render.mock.calls[0][0].html as string
+    const approval=html.slice(html.indexOf('<div class="approval">'))
+    expect(approval.indexOf('Verifikator')).toBeLessThan(approval.indexOf('Ketua Snapshot'))
+    expect(approval.indexOf('Ketua Snapshot')).toBeLessThan(approval.indexOf('Lunas Bayar'))
+    expect(html).toContain('Mengetahui,')
+    expect(html).toContain('Menyetujui,')
+    expect(html).not.toContain('Bukti Tanda Terima/Realisasi')
+    expect(html).not.toContain('BELUM DIREALISASIKAN')
+    expect(html.match(/<section class="page">/g)).toHaveLength(1)
+    expect(html).not.toContain('break-after:page')
+  })
+  it('does not print new SPB without the chairman snapshot', async () => {
+    state.flow=2; state.chairman=''; state.finalStage='ketua'; state.stages=['bendahara','ketua']
+    expect((await request()).status).toBe(409)
+  })
   it('issues a two-party SPB after chairman approval without requiring a principal review', async () => {
     state.finalStage = 'ketua'; state.stages = ['bendahara', 'ketua']
     expect((await request()).status).toBe(200)
@@ -69,12 +87,12 @@ describe('Komite SPB approval requirements and signatories', () => {
 
 describe('Komite SPB letterhead', () => {
   it.each(['2026-01-06', '2026-07-06', '2026-09-30', '2026-10-06'])(
-    'embeds the actual PNG on both pages for approval date %s', async date => {
+    'embeds the actual PNG on the single SPB page for approval date %s', async date => {
       state.approvedAt = `${date} 02:00:00`
       expect((await request()).status).toBe(200)
       const html = state.render.mock.calls[0][0].html as string
       const images = [...html.matchAll(/<img class="kop" src="([^"]+)"/g)]
-      expect(images).toHaveLength(2)
+      expect(images).toHaveLength(1)
       for (const [, src] of images) {
         expect(src).toBe(`data:image/png;base64,${letterheadPng.toString('base64')}`)
       }

@@ -22,9 +22,6 @@ function tanggal(value?: string | null) {
     : value.length === 10 ? `${value}T00:00:00Z` : value
   return new Intl.DateTimeFormat('id-ID',{ day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Jakarta' }).format(new Date(normalized.endsWith('Z') ? normalized : `${normalized}Z`))
 }
-function todayIso() {
-  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Jakarta' }).format(new Date())
-}
 async function loadLetterhead(requestUrl: string, assets: CloudflareEnv['STATIC_ASSETS']) {
   const url = new URL('/kopkomite.png', requestUrl)
   // Gunakan binding aset agar renderer tidak bergantung pada akses HTTP publik.
@@ -58,7 +55,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   const [reviewRows, detailRows, delegatedChairman] = await Promise.all([
     db.prepare(`SELECT * FROM komite_pengajuan_reviews
-      WHERE pengajuan_id=? AND version_number=? AND action='setujui' ORDER BY created_at`).bind(id,row.current_version).all<any>(),
+      WHERE pengajuan_id=? AND version_number=? AND action='setujui' ORDER BY workflow_version,created_at`).bind(id,row.current_version).all<any>(),
     db.prepare(`SELECT * FROM komite_pengajuan_rincian WHERE pengajuan_id=? ORDER BY urutan`).bind(id).all<any>(),
     row.ketua_delegated_by
       ? db.prepare(`SELECT COALESCE(nama_lengkap,name,email) AS name FROM "user" WHERE id=?`).bind(row.ketua_delegated_by).first<any>()
@@ -66,7 +63,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   ])
   const latest = new Map<string,any>()
   for (const review of reviewRows.results || []) latest.set(review.stage,review)
-  const approvalStages = komiteSpbApprovalStages(row.final_approval_stage)
+  const newFlow = row.workflow_version === 2
+  const approvalStages = newFlow ? ['bendahara','ketua'] : komiteSpbApprovalStages(row.final_approval_stage)
+  if (newFlow && (!row.chairman_name_snapshot || latest.get('ketua')?.workflow_version !== 2)) return new Response('Data penandatangan SPB belum lengkap',{ status:409 })
   if (approvalStages.some(stage => !latest.get(stage))) return new Response('Data persetujuan SPB belum lengkap',{ status:409 })
 
   const rincian = (detailRows.results || []).length ? detailRows.results || [] : [{
@@ -86,7 +85,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
   const signer = (stage: string, label: string, title: string) => {
     const review = latest.get(stage)
-    const useChairmanIdentity = stage === 'ketua' && review.actor_role === 'anggota_komite' && delegatedChairman
+    const useChairmanIdentity = !newFlow && stage === 'ketua' && review.actor_role === 'anggota_komite' && delegatedChairman
     const signerName = useChairmanIdentity ? delegatedChairman.name : review.actor_name
     return `<div class="sign">
       <div class="sign-label">${esc(label)}</div>
@@ -96,12 +95,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       <small>${esc(tanggal(review.created_at))}${review.is_super_admin_bypass ? ' - Bypass Super Admin' : ''}</small>
     </div>`
   }
-  const receiptDate = row.realisasi_status === 'sudah' ? row.realisasi_tanggal : todayIso()
-  const receiptStatus = row.realisasi_status === 'sudah' ? 'REALISASI FINAL' : 'DRAFT - BELUM DIREALISASIKAN'
-  const receiptText = row.realisasi_status === 'sudah'
-    ? `Telah diterima dana ${esc(row.realisasi_metode || 'Tunai')} dari Bendahara Komite Sekolah sebesar <strong>${esc(rupiah(total))}</strong> (${esc(terbilang(total))} Rupiah) untuk keperluan pembayaran di atas pada tanggal ${esc(tanggal(row.realisasi_tanggal))}.`
-    : `Telah disiapkan blanko tanda terima dana dari Bendahara Komite Sekolah sebesar <strong>${esc(rupiah(total))}</strong> (${esc(terbilang(total))} Rupiah) untuk keperluan pembayaran di atas. Halaman ini menjadi bukti final setelah realisasi pencairan dicatat dan ditandatangani.`
-
   const detailHtml = rincian.map((item: any, index: number) => `<tr>
     <td class="center">${index + 1}</td>
     <td>${esc(item.uraian)}</td>
@@ -112,7 +105,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     @page{size:A4;margin:10mm 14mm 12mm}
     *{box-sizing:border-box}
     body{font-family:Arial,sans-serif;color:#111;font-size:10pt;line-height:1.38;margin:0}
-    .page{break-after:page;page-break-after:always;min-height:274mm;position:relative}
+    .page{position:relative}
     .page:last-child{break-after:auto;page-break-after:auto}
     .kop{width:100%;max-height:30mm;object-fit:contain;margin-bottom:2mm}
     .rule{border-top:2px solid #111;border-bottom:1px solid #111;height:4px;margin-bottom:5mm}
@@ -136,20 +129,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     .checklist-title{font-weight:700;margin-bottom:1mm}
     .checks{display:grid;grid-template-columns:1fr 1fr;gap:1mm 5mm;font-size:9.2pt}
     .date-line{text-align:right;margin:5mm 0 0}
-    .approval{display:grid;grid-template-columns:repeat(${approvalStages.length},1fr);gap:5mm;margin-top:6mm;page-break-inside:avoid}
+    .approval{display:grid;grid-template-columns:repeat(${newFlow ? 3 : approvalStages.length},1fr);gap:5mm;margin-top:6mm;page-break-inside:avoid}
     .sign{text-align:center;font-size:9pt}
     .sign-label{min-height:9mm}
     .sign-title{font-weight:700}
     .signature{height:18mm}
     .sign strong{display:block;border-top:1px solid #111;padding-top:1mm}
     .sign small{display:block;color:#555;font-size:7.5pt;margin-top:1mm}
-    .receipt-box{border:1px solid #111;padding:4mm;margin-top:4mm;min-height:36mm}
     .status{display:inline-block;border:1px solid #111;padding:1mm 2mm;font-size:8pt;font-weight:700;margin-bottom:3mm}
-    .receipt-grid{display:grid;grid-template-columns:1fr 1fr;gap:10mm;margin-top:18mm}
-    .receipt-sign{text-align:center}
-    .blank-sign{height:28mm}
-    .receipt-sign strong{display:block;border-top:1px solid #111;padding-top:1mm}
-    .footer{position:absolute;left:0;right:0;bottom:0;border-top:1px solid #aaa;padding-top:2mm;color:#666;font-size:7.5pt}
+    .footer{margin-top:8mm;break-inside:avoid;border-top:1px solid #aaa;padding-top:2mm;color:#666;font-size:7.5pt}
   </style></head><body>
   <section class="page">
     <img class="kop" src="${letterhead}" alt="Kop Komite"><div class="rule"></div>
@@ -179,42 +167,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     </div>
     <div class="date-line">Tasikmalaya, ${esc(tanggal(row.approved_at))}</div>
     <div class="approval">
-      ${signer('ketua','Diperintahkan/Disetujui Oleh,','Ketua Komite Sekolah')}
-      ${approvalStages.includes('kepala') ? signer('kepala','Mengetahui/Menyetujui,','Kepala Madrasah') : ''}
-      ${signer('bendahara','Diverifikasi/dibayarkan oleh,','Bendahara Komite')}
+      ${newFlow ? `${signer('ketua','Mengetahui,','Verifikator')}
+        <div class="sign"><div class="sign-label">Menyetujui,</div><div class="sign-title">Ketua Komite</div><div class="signature"></div><strong>${esc(row.chairman_name_snapshot)}</strong></div>
+        ${signer('bendahara','Lunas Bayar,','Bendahara Komite')}` : `
+        ${signer('ketua','Diperintahkan/Disetujui Oleh,','Ketua Komite Sekolah')}
+        ${approvalStages.includes('kepala') ? signer('kepala','Mengetahui/Menyetujui,','Kepala Madrasah') : ''}
+        ${signer('bendahara','Diverifikasi/dibayarkan oleh,','Bendahara Komite')}`}
+
     </div>
     <div class="footer">Dokumen elektronik MANSATAS App - ID Pengajuan: ${esc(row.id)} - Versi: ${esc(row.current_version)}</div>
-  </section>
-  <section class="page">
-    <img class="kop" src="${letterhead}" alt="Kop Komite"><div class="rule"></div>
-    <h2>Bukti Tanda Terima/Realisasi Pencairan</h2>
-    <span class="status">${esc(receiptStatus)}</span>
-    <div class="receipt-box">
-      <p>${receiptText}</p>
-      <table class="meta">
-        <tr><td>Nomor SPB</td><td>:</td><td>${esc(row.nomor_spb)}</td></tr>
-        <tr><td>Judul Kegiatan</td><td>:</td><td>${esc(row.judul)}</td></tr>
-        <tr><td>Penerima Dana/Penyedia</td><td>:</td><td>${esc(row.penerima_pembayaran || '-')}</td></tr>
-        <tr><td>Metode</td><td>:</td><td>${esc(row.realisasi_status === 'sudah' ? row.realisasi_metode || '-' : 'Tunai/Transfer')}</td></tr>
-        <tr><td>Tanggal</td><td>:</td><td>${esc(tanggal(receiptDate))}</td></tr>
-      </table>
-      ${row.realisasi_catatan ? `<p><strong>Catatan:</strong> ${esc(row.realisasi_catatan).replace(/\n/g,'<br>')}</p>` : ''}
-    </div>
-    <div class="receipt-grid">
-      <div class="receipt-sign">
-        <div>Diserahkan Oleh:</div>
-        <div>Bendahara Komite</div>
-        <div class="blank-sign"></div>
-        <strong>${esc(row.realisasi_petugas || latest.get('bendahara')?.actor_name || 'Bendahara Komite')}</strong>
-      </div>
-      <div class="receipt-sign">
-        <div>Penerima Dana/Penyedia:</div>
-        <div>Penerima Pembayaran</div>
-        <div class="blank-sign"></div>
-        <strong>${esc(row.penerima_pembayaran || '(................................)')}</strong>
-      </div>
-    </div>
-    <div class="footer">Halaman bukti tanda terima ini merupakan bagian dari SPB ${esc(row.nomor_spb)}.</div>
   </section>
   </body></html>`
   const pdf = await renderPdfWithCache({

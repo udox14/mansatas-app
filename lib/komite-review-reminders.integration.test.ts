@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { dispatchConfiguredReminders, getNotificationSettings, processNotificationQueueMessage,
+import { dispatchConfiguredReminders, getNotificationSettings, processNotificationQueueMessage, emitConfiguredNotification,
   type NotificationQueueMessage } from './notification-engine'
 import { KOMITE_REVIEW_REMINDER_EVENT } from './komite-review-reminders'
 
@@ -22,6 +22,8 @@ beforeEach(async () => {
   sqlite = new DatabaseSync(':memory:')
   sqlite.exec(`CREATE TABLE "user" (id TEXT PRIMARY KEY, role TEXT, banned INTEGER, name TEXT, nama_lengkap TEXT, email TEXT);
     CREATE TABLE user_roles (user_id TEXT, role TEXT);
+    CREATE TABLE system_settings (key TEXT PRIMARY KEY,value TEXT);
+    INSERT INTO system_settings VALUES ('komite_verifier_user_id','delegate');
     CREATE TABLE komite_pengajuan (id TEXT, judul TEXT, nominal INTEGER, pengaju_id TEXT, status TEXT,
       current_version INTEGER, updated_at TEXT, ketua_delegate_id TEXT);
     INSERT INTO "user" (id,role,banned,name) VALUES ('applicant','wakamad',0,'Pengaju'),
@@ -84,6 +86,26 @@ describe('Komite cron and queue delivery', () => {
     expect(await processNotificationQueueMessage(queuedMessage(), env())).toMatchObject({ retry: true, sent: 0 })
     expect(sqlite.prepare('SELECT status FROM notification_dispatches').get()?.status).toBe('failed')
     expect(await processNotificationQueueMessage(queuedMessage(), env())).toMatchObject({ retry: false, sent: 2 })
+  })
+
+  it('cancels a queued verifier reminder immediately after changing the configured verifier', async () => {
+    sqlite.exec("UPDATE komite_pengajuan SET status='menunggu_ketua'")
+    await dispatchConfiguredReminders(db)
+    expect(queuedMessage().target.ids).toEqual(['delegate'])
+    sqlite.exec("UPDATE system_settings SET value='principal'")
+    expect(await processNotificationQueueMessage(queuedMessage(),env())).toMatchObject({ skipped:true,sent:0 })
+  })
+  it('revalidates the initial verifier review request before queue delivery', async () => {
+    sqlite.exec("UPDATE komite_pengajuan SET status='menunggu_ketua'")
+    sqlite.exec("UPDATE notification_event_settings SET enabled=1 WHERE event_key='komite_verifier_review_requested'")
+    await emitConfiguredNotification({ db,eventKey:'komite_verifier_review_requested',sourceRef:'komite:p1:request',
+      context:{ userIds:['delegate'],judul_pengajuan:'Kegiatan' },targetOverride:{ kind:'staff_users' },
+      validation:{ kind:'komite_review_request',pengajuanId:'p1',version:1,status:'menunggu_ketua',
+        sourceUpdatedAt:'2026-10-03 00:00:00',delegateId:null,slot:'' } })
+    expect(queuedMessage().target.ids).toEqual(['delegate'])
+    sqlite.exec("UPDATE system_settings SET value='principal'")
+    expect(await processNotificationQueueMessage(queuedMessage(),env())).toMatchObject({ skipped:true,sent:0 })
+    expect(mocks.fcm).not.toHaveBeenCalled()
   })
 
   it('repeats next interval until reviewed and sends nothing outside the working window', async () => {

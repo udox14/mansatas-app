@@ -17,6 +17,8 @@ beforeEach(() => {
   sqlite = new DatabaseSync(':memory:')
   sqlite.exec(`CREATE TABLE "user" (id TEXT, role TEXT, banned INTEGER, name TEXT, nama_lengkap TEXT, email TEXT);
     CREATE TABLE user_roles (user_id TEXT, role TEXT);
+    CREATE TABLE system_settings (key TEXT PRIMARY KEY,value TEXT);
+    INSERT INTO system_settings VALUES ('komite_verifier_user_id','delegate');
     CREATE TABLE komite_pengajuan (id TEXT, judul TEXT, nominal INTEGER, pengaju_id TEXT, status TEXT,
       current_version INTEGER, updated_at TEXT, ketua_delegate_id TEXT);
     CREATE TABLE notification_dispatches (event_key TEXT, source_ref TEXT, queued_at TEXT);
@@ -50,10 +52,10 @@ describe('Komite review reminders', () => {
 
   it('routes each stage including secondary roles, blocked accounts, and delegates', async () => {
     expect(await komiteReminderRecipients(db, row)).toEqual(['multi', 'treasurer'])
-    expect(await komiteReminderRecipients(db, { ...row, status: 'menunggu_ketua' })).toEqual(['chair'])
-    expect(await komiteReminderRecipients(db, { ...row, status: 'menunggu_kepala' })).toEqual(['principal'])
+    expect(await komiteReminderRecipients(db, { ...row, status: 'menunggu_ketua' })).toEqual(['delegate'])
+    expect(await komiteReminderRecipients(db, { ...row, status: 'menunggu_kepala' })).toEqual([])
     expect(await komiteReminderRecipients(db, { ...row, status: 'menunggu_ketua', ketua_delegate_id: 'delegate' })).toEqual(['delegate'])
-    expect(await komiteReminderRecipients(db, { ...row, status: 'menunggu_ketua', pengaju_id: 'chair' })).toEqual([])
+    expect(await komiteReminderRecipients(db, { ...row, status: 'menunggu_ketua', pengaju_id: 'delegate' })).toEqual([])
     expect(await komiteReminderRecipients(db, { ...row, pengaju_id: 'treasurer' })).toContain('treasurer')
     for (const status of ['draft', 'perlu_revisi', 'ditolak', 'disetujui']) {
       expect(await komiteReminderRecipients(db, { ...row, status })).toEqual([])

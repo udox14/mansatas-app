@@ -1,9 +1,8 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -15,12 +14,12 @@ import { Textarea } from '@/components/ui/textarea'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
   ArrowLeft, CheckCircle2, ChevronDown, ChevronRight, CircleHelp, Download, FileText, Loader2,
-  Pencil, Plus, RotateCcw, Search, Send, Trash2, UserRoundCog, XCircle,
+  Pencil, Plus, RotateCcw, Search, Send, Trash2, XCircle,
 } from 'lucide-react'
 import {
-  delegateKetuaReviewAction, deleteKomiteAction, deleteKomiteDraftAction, reviewKomiteAction,
+  deleteKomiteAction, deleteKomiteDraftAction, reviewKomiteAction,
   setNamedKomiteSubmitterAction, submitKomiteAction,
-  setKomiteApprovalFlowAction,
+  setKomiteReviewerSettingAction, setKomiteActivityReportAction,
 } from './actions'
 
 type Item = any
@@ -35,7 +34,9 @@ type Props = {
   isSuper: boolean
   reviewCount: number
   nextNomorSpb?: string
-  requirePrincipalApproval: boolean
+  verifier: { id: string; name: string } | null
+  chairman: { id: string; name: string } | null
+  chairmen: { id: string; name: string }[]
 }
 
 const MAX_TOTAL = 6 * 1024 * 1024
@@ -50,7 +51,7 @@ const statusStyle: Record<string, string> = {
   disetujui: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300',
 }
 const statusLabel: Record<string, string> = {
-  draft: 'Draft', menunggu_bendahara: 'Menunggu Bendahara', menunggu_ketua: 'Menunggu Ketua',
+  draft: 'Draft', menunggu_bendahara: 'Menunggu Bendahara', menunggu_ketua: 'Menunggu Verifikator',
   menunggu_kepala: 'Menunggu Kepala', perlu_revisi: 'Perlu Revisi', ditolak: 'Ditolak', disetujui: 'Disetujui',
 }
 const stageLabel: Record<string, string> = { bendahara: 'Bendahara Komite', ketua: 'Ketua Komite', kepala: 'Kepala Madrasah' }
@@ -97,12 +98,14 @@ export function PengajuanKomiteClient(props: Props) {
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Item | null>(null)
   const [review, setReview] = useState<{ item: Item; action: string } | null>(null)
-  const [delegation, setDelegation] = useState<Item | null>(null)
   const [message, setMessage] = useState('')
   const [query, setQuery] = useState('')
+  const [reportFilter, setReportFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const canManageReports = props.isSuper || props.roles.includes('bendahara_komite')
 
   const own = props.items.filter(item => item.pengaju_id === props.currentUserId)
-  const queue = props.items.filter(item => isQueueFor(item, props.roles, props.isSuper, props.currentUserId))
+  const queue = props.items.filter(item => isQueueFor(item, props.roles, props.isSuper, props.currentUserId, props.verifier?.id))
   const history = props.items.filter(item => item.reviews.some((entry: any) => entry.actor_id === props.currentUserId))
   const approved = props.items.filter(item => item.status === 'disetujui')
   const detailItem = props.items.find(item => item.id === detailId)
@@ -115,9 +118,8 @@ export function PengajuanKomiteClient(props: Props) {
       }).slice(0, 8)
     : []
   const showOwnerActions = Boolean(detailItem && detailOriginTab === 'mine' && ['draft','perlu_revisi'].includes(detailItem.status))
-  const showReviewActions = Boolean(detailItem && detailOriginTab === 'review' && canReviewItem(detailItem, props.roles, props.isSuper, props.currentUserId))
-  const showDelegateAction = Boolean(detailItem && detailOriginTab === 'review' && detailItem.status === 'menunggu_ketua' && props.roles.includes('ketua_komite'))
-  const showSuperAdminDelete = Boolean(detailItem && props.isSuper)
+  const showReviewActions = Boolean(detailItem && detailOriginTab === 'review' && canReviewItem(detailItem, props.roles, props.isSuper, props.currentUserId, props.verifier?.id))
+  const showSuperAdminDelete = Boolean(detailItem && props.isSuper && detailItem.status === 'draft' && !detailItem.submitted_at)
 
   function openDetail(id: string) {
     setDetailOriginTab(activeTab)
@@ -147,14 +149,10 @@ export function PengajuanKomiteClient(props: Props) {
       {!detailItem && <div className="mb-4 flex flex-wrap items-start justify-between gap-3 border-b pb-4">
         <div>
           <p className="text-sm font-semibold">Alur persetujuan</p>
-          <p className="mt-1 text-sm text-muted-foreground">Bendahara → Ketua Komite{props.requirePrincipalApproval ? ' → Kepala Madrasah' : ''} → SPB</p>
-          <p className="mt-1 max-w-2xl text-xs text-muted-foreground">Berlaku saat persetujuan Ketua diproses. Pengajuan yang sudah menunggu Kepala Madrasah tetap mengikuti alur sebelumnya.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Bendahara → Verifikator → SPB</p>
+          <p className="mt-1 text-xs text-muted-foreground">Verifikator: {props.verifier?.name || 'Belum diatur. Hubungi Super Admin sebelum persetujuan akhir.'}</p>
+          {!props.chairman && <p className="mt-1 text-xs text-amber-700">Ketua Komite untuk SPB belum ditentukan. Hubungi Super Admin.</p>}
         </div>
-        {props.isSuper && <div className="flex items-center gap-2">
-          <Checkbox id="komite-principal-approval" checked={props.requirePrincipalApproval} disabled={pending}
-            onCheckedChange={checked => run(() => setKomiteApprovalFlowAction(checked === true))} />
-          <Label htmlFor="komite-principal-approval">Wajib persetujuan Kepala Madrasah</Label>
-        </div>}
       </div>}
       {message && (
         <div className={`rounded-lg border px-3 py-2 text-sm ${message.toLowerCase().includes('gagal') || message.toLowerCase().includes('tidak') || message.toLowerCase().includes('wajib') ? 'border-rose-200 bg-rose-50 text-rose-700 dark:bg-rose-950/40' : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40'}`}>
@@ -162,13 +160,12 @@ export function PengajuanKomiteClient(props: Props) {
         </div>
       )}
       {detailItem ? (
-        <DetailPage item={detailItem} mode={detailOriginTab} onBack={() => { setActiveTab(detailOriginTab); setDetailId('') }}
-          actions={(showOwnerActions || showReviewActions || showDelegateAction || showSuperAdminDelete) ? <>
+        <DetailPage item={detailItem} mode={detailOriginTab} onBack={() => { setActiveTab(detailOriginTab); setDetailId('') }} reportControls={detailItem.status === 'disetujui' ? <ReportStatus item={detailItem} canManage={canManageReports} pending={pending} onChange={received => run(() => setKomiteActivityReportAction(detailItem.id,received,detailItem.laporan_revision))} /> : null}
+          actions={(showOwnerActions || showReviewActions || showSuperAdminDelete) ? <>
             {showOwnerActions && <OwnerActions item={detailItem} pending={pending} hideDelete={props.isSuper} onEdit={() => { setMessage(''); setEditing(detailItem); setFormOpen(true) }} onRun={task => run(task, () => setDetailId(''))} />}
-            {showDelegateAction && <Button variant="outline" className="mb-2 w-full" disabled={pending || props.committeeMembers.length === 0} onClick={() => setDelegation(detailItem)}><UserRoundCog className="mr-2 h-4 w-4" />{detailItem.ketua_delegate_id ? 'Alihkan Delegasi Review' : 'Delegasikan Review'}</Button>}
             {showReviewActions && <ReviewActions item={detailItem} onReview={action => setReview({ item: detailItem, action })} />}
             {showSuperAdminDelete && <Button variant="destructive" className="mt-2 w-full sm:w-auto" disabled={pending} onClick={() => {
-              if (confirm(`Hapus pengajuan berstatus "${statusLabel[detailItem.status] || detailItem.status}" beserta seluruh versi dokumen dan riwayat review? Tindakan ini tidak dapat dibatalkan.`)) run(() => deleteKomiteAction(detailItem.id), () => setDetailId(''))
+              if (confirm(`Hapus draft yang belum dikirim ini beserta dokumennya?`)) run(() => deleteKomiteAction(detailItem.id), () => setDetailId(''))
             }}><Trash2 className="mr-2 h-4 w-4" />Hapus Pengajuan</Button>}
           </> : null} />
       ) : <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -178,6 +175,7 @@ export function PengajuanKomiteClient(props: Props) {
             {canSeeReviewerTabs && <TabsTrigger value="review">Perlu Direview <Count value={props.reviewCount} alert={props.reviewCount > 0} /></TabsTrigger>}
             {canSeeReviewerTabs && <TabsTrigger value="history">Riwayat Review <Count value={history.length} /></TabsTrigger>}
             {canSeeReviewerTabs && <TabsTrigger value="approved">Disetujui <Count value={approved.length} /></TabsTrigger>}
+            <TabsTrigger value="all">Semua Pengajuan <Count value={props.items.length} /></TabsTrigger>
             {props.isSuper && <TabsTrigger value="settings">Pengaturan Pengaju</TabsTrigger>}
           </TabsList>
         </div>
@@ -199,11 +197,25 @@ export function PengajuanKomiteClient(props: Props) {
           <DataList items={history} onOpen={openDetail} />
         </TabsContent>}
         {canSeeReviewerTabs && <TabsContent value="approved">
-          <SectionToolbar title="Dokumen yang telah disetujui" />
-          <DataList items={approved} onOpen={openDetail} />
+          <SectionToolbar title="Dokumen yang telah disetujui">
+            <Select value={reportFilter} onValueChange={setReportFilter}><SelectTrigger className="w-52" aria-label="Filter laporan kegiatan"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Semua laporan</SelectItem><SelectItem value="no">Belum diterima</SelectItem><SelectItem value="yes">Sudah diterima</SelectItem></SelectContent></Select>
+          </SectionToolbar>
+          <DataList items={approved.filter(item => reportFilter === 'all' || Boolean(item.laporan_received_at) === (reportFilter === 'yes'))} onOpen={openDetail}
+            renderReport={item => <ReportStatus item={item} canManage={canManageReports} pending={pending} onChange={received => run(() => setKomiteActivityReportAction(item.id,received,item.laporan_revision))} />} />
         </TabsContent>}
+        <TabsContent value="all">
+          <SectionToolbar title="Semua pengajuan yang dapat Anda lihat">
+            <Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger className="w-52" aria-label="Filter status pengajuan"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Semua status</SelectItem>{Object.entries(statusLabel).filter(([key]) => key !== 'menunggu_kepala').map(([key,label]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}</SelectContent></Select>
+          </SectionToolbar>
+          <DataList items={props.items.filter(item => statusFilter === 'all' || item.status === statusFilter)} onOpen={openDetail} />
+        </TabsContent>
         {props.isSuper && (
           <TabsContent value="settings">
+            <div className="mb-6 space-y-4 border-b pb-6">
+              <div><h3 className="text-sm font-semibold">Verifikator Pengajuan</h3><p className="mt-1 text-sm text-muted-foreground">Pilih satu anggota komite untuk persetujuan akhir. Pergantian berlaku untuk pengajuan yang belum diputuskan.</p></div>
+              <div className="max-w-md space-y-2"><Label htmlFor="komite-verifier">Verifikator aktif</Label><Select value={props.verifier?.id || ''} disabled={pending} onValueChange={id => run(() => setKomiteReviewerSettingAction('verifier',id))}><SelectTrigger id="komite-verifier"><SelectValue placeholder="Pilih anggota komite" /></SelectTrigger><SelectContent>{props.committeeMembers.map(member => <SelectItem key={member.id} value={member.id}>{member.name}</SelectItem>)}</SelectContent></Select>{!props.committeeMembers.length && <p className="text-xs text-amber-700">Belum ada akun anggota komite aktif.</p>}</div>
+              <div className="max-w-md space-y-2"><Label htmlFor="komite-spb-chairman">Ketua Komite pada SPB</Label><Select value={props.chairman?.id || ''} disabled={pending} onValueChange={id => run(() => setKomiteReviewerSettingAction('chairman',id))}><SelectTrigger id="komite-spb-chairman"><SelectValue placeholder="Pilih Ketua Komite" /></SelectTrigger><SelectContent>{props.chairmen.map(member => <SelectItem key={member.id} value={member.id}>{member.name}</SelectItem>)}</SelectContent></Select><p className="text-xs text-muted-foreground">Nama disimpan saat persetujuan akhir. Ketua tidak mereview pengajuan di aplikasi.</p></div>
+            </div>
             <SectionToolbar title="Pengaju tambahan yang sudah diizinkan" />
             <div className="relative mb-4">
               <div className="flex items-center gap-2 rounded-lg border bg-white px-3 dark:bg-slate-900">
@@ -226,13 +238,12 @@ export function PengajuanKomiteClient(props: Props) {
         )}
       </Tabs>}
 
-      <DraftDialog open={formOpen} item={editing} pending={pending} message={message} onClose={() => setFormOpen(false)} onSubmit={formData => run(async () => {
+      <DraftDialog key={`${editing?.id || 'new'}:${formOpen}`} open={formOpen} item={editing} pending={pending} message={message} onClose={() => setFormOpen(false)} onSubmit={formData => run(async () => {
         const response = await fetch('/api/komite/pengajuan/draft', { method: 'POST', body: formData, credentials: 'include' })
         const result = await response.json().catch(() => ({ error: 'Respons upload tidak valid.' }))
         return response.ok ? result : { error: result.error || 'Gagal mengunggah dokumen.' }
       }, () => setFormOpen(false))} />
-      <ReviewDialog value={review} requirePrincipalApproval={props.requirePrincipalApproval} nextNomorSpb={props.nextNomorSpb} pending={pending} onClose={() => setReview(null)} onSubmit={formData => run(() => reviewKomiteAction(formData), () => { setReview(null); setDetailId(''); setActiveTab(detailOriginTab) })} />
-      <DelegationDialog item={delegation} members={props.committeeMembers} pending={pending} onClose={() => setDelegation(null)} onSubmit={formData => run(() => delegateKetuaReviewAction(formData), () => setDelegation(null))} />
+      <ReviewDialog key={`${review?.item.id || 'none'}:${review?.action || 'none'}`} value={review} nextNomorSpb={props.nextNomorSpb} pending={pending} onClose={() => setReview(null)} onSubmit={formData => run(() => reviewKomiteAction(formData), () => { setReview(null); setDetailId(''); setActiveTab(detailOriginTab) })} />
     </>
   )
 }
@@ -243,23 +254,27 @@ function Count({ value, alert }: { value: number; alert?: boolean }) {
 function SectionToolbar({ title, children }: { title: string; children?: React.ReactNode }) {
   return <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-medium text-slate-600 dark:text-slate-300">{title}</p>{children}</div>
 }
-function isQueueFor(item: Item, roles: string[], isSuper: boolean, currentUserId: string) {
-  if (isSuper) return ['menunggu_bendahara','menunggu_ketua','menunggu_kepala'].includes(item.status)
-  return (item.status === 'menunggu_bendahara' && roles.includes('bendahara_komite')) ||
-    (item.status === 'menunggu_ketua' && (roles.includes('ketua_komite') || (roles.includes('anggota_komite') && item.ketua_delegate_id === currentUserId))) ||
-    (item.status === 'menunggu_kepala' && roles.includes('kepsek') && item.pengaju_id !== currentUserId)
+function isQueueFor(item: Item, roles: string[], isSuper: boolean, currentUserId: string, verifierId?: string) {
+  if (item.status === 'menunggu_bendahara') return isSuper || roles.includes('bendahara_komite')
+  return item.status === 'menunggu_ketua' && Boolean(verifierId) &&
+    (isSuper || (verifierId === currentUserId && item.pengaju_id !== currentUserId))
 }
-function canReviewItem(item: Item, roles: string[], isSuper: boolean, currentUserId: string) {
-  if (isSuper) return ['menunggu_bendahara','menunggu_ketua','menunggu_kepala'].includes(item.status)
-  if (item.status === 'menunggu_bendahara') return roles.includes('bendahara_komite')
-  if (item.status === 'menunggu_ketua') {
-    if (item.ketua_delegate_id) return roles.includes('anggota_komite') && item.ketua_delegate_id === currentUserId
-    return roles.includes('ketua_komite') && item.pengaju_id !== currentUserId
-  }
-  return item.status === 'menunggu_kepala' && roles.includes('kepsek') && item.pengaju_id !== currentUserId
+function canReviewItem(item: Item, roles: string[], isSuper: boolean, currentUserId: string, verifierId?: string) {
+  return isQueueFor(item,roles,isSuper,currentUserId,verifierId)
 }
 
-function DataList({ items, onOpen }: { items: Item[]; onOpen: (id: string) => void }) {
+function ReportStatus({ item, canManage, pending, onChange }: { item: Item; canManage: boolean; pending: boolean; onChange: (received: boolean) => void }) {
+  const received = Boolean(item.laporan_received_at)
+  return <div className="space-y-1" onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
+    <p className={`text-xs font-medium ${received ? 'text-emerald-700 dark:text-emerald-400' : 'text-muted-foreground'}`}>{received ? 'Sudah diterima' : 'Belum diterima'}</p>
+    {received && <p className="text-xs text-muted-foreground">{item.laporan_received_name || '-'} · {date(item.laporan_received_at)}</p>}
+    {canManage && <Button size="sm" variant="outline" disabled={pending} onClick={() => {
+      if (!received || confirm('Batalkan tanda laporan kegiatan sudah diterima?')) onChange(!received)
+    }}>{received ? 'Batalkan tanda' : 'Tandai diterima'}</Button>}
+  </div>
+}
+
+function DataList({ items, onOpen, renderReport }: { items: Item[]; onOpen: (id: string) => void; renderReport?: (item: Item) => React.ReactNode }) {
   if (!items.length) return <Empty />
   return <>
     <div className="hidden overflow-hidden rounded-xl border bg-white dark:bg-slate-900 md:block">
@@ -267,30 +282,32 @@ function DataList({ items, onOpen }: { items: Item[]; onOpen: (id: string) => vo
         <TableHeader><TableRow className="bg-slate-50/80 dark:bg-slate-800/60">
           <TableHead className="w-[34%] text-xs">Pengajuan</TableHead><TableHead className="text-xs">Pengaju</TableHead>
           <TableHead className="text-xs">Nominal</TableHead><TableHead className="text-xs">Status</TableHead>
-          <TableHead className="text-xs">Diperbarui</TableHead><TableHead className="w-12" />
+          {renderReport && <TableHead className="text-xs">Laporan kegiatan</TableHead>}<TableHead className="text-xs">Diperbarui</TableHead><TableHead className="w-12" />
         </TableRow></TableHeader>
         <TableBody>{items.map(item => <TableRow key={item.id} role="button" tabIndex={0} className="cursor-pointer transition-colors hover:bg-slate-50 focus-visible:bg-blue-50 focus-visible:outline-none dark:hover:bg-slate-800/60 dark:focus-visible:bg-blue-950/30" onClick={() => onOpen(item.id)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') onOpen(item.id) }}>
           <TableCell><p className="line-clamp-1 text-sm font-semibold">{item.judul}</p><p className="mt-0.5 line-clamp-1 text-xs text-slate-500">{item.kode_rkas_program || item.uraian}</p></TableCell>
           <TableCell className="max-w-[180px] truncate text-sm">{item.pengaju_name}</TableCell>
           <TableCell className="whitespace-nowrap text-sm font-semibold">{money(item.nominal)}</TableCell>
           <TableCell><Status status={item.status} /></TableCell>
+          {renderReport && <TableCell>{renderReport(item)}</TableCell>}
           <TableCell className="whitespace-nowrap text-xs text-slate-500">{date(item.updated_at)}</TableCell>
           <TableCell><ChevronRight className="h-4 w-4 text-slate-400" /></TableCell>
         </TableRow>)}</TableBody>
       </Table>
     </div>
     <div className="space-y-2 md:hidden">
-      {items.map(item => <button key={item.id} type="button" onClick={() => onOpen(item.id)} className="w-full rounded-xl border bg-white p-3 text-left transition active:scale-[0.99] dark:bg-slate-900">
+      {items.map(item => <div key={item.id} role="button" tabIndex={0} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpen(item.id) } }} onClick={() => onOpen(item.id)} className="w-full rounded-xl border bg-white p-3 text-left transition active:scale-[0.99] dark:bg-slate-900">
         <div className="flex min-w-0 items-start gap-2"><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{item.judul}</p><p className="mt-0.5 truncate text-xs text-slate-500">{item.pengaju_name}</p></div><Status status={item.status} /></div>
         <div className="mt-2 flex items-center justify-between gap-3 border-t pt-2"><span className="text-sm font-semibold">{money(item.nominal)}</span><span className="flex items-center gap-1 text-[11px] text-slate-500">v{item.current_version}<ChevronRight className="h-3.5 w-3.5" /></span></div>
-      </button>)}
+        {renderReport && <div className="mt-3 border-t pt-2"><p className="mb-1 text-xs text-muted-foreground">Laporan kegiatan</p>{renderReport(item)}</div>}
+      </div>)}
     </div>
   </>
 }
 function Empty() { return <div className="rounded-xl border border-dashed bg-white py-14 text-center dark:bg-slate-900"><FileText className="mx-auto mb-2 h-8 w-8 text-slate-300" /><p className="text-sm text-slate-500">Belum ada data pada bagian ini.</p></div> }
 function Status({ status }: { status: string }) { return <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusStyle[status] || ''}`}>{statusLabel[status] || status}</span> }
 
-function DetailPage({ item, mode, onBack, actions }: { item: Item; mode: string; onBack: () => void; actions?: React.ReactNode }) {
+function DetailPage({ item, mode, onBack, actions, reportControls }: { item: Item; mode: string; onBack: () => void; actions?: React.ReactNode; reportControls?: React.ReactNode }) {
   return <div className="animate-in fade-in slide-in-from-right-2 duration-200">
     <button type="button" onClick={onBack} className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-950 dark:text-slate-300 dark:hover:text-white"><ArrowLeft className="h-4 w-4" />Kembali ke daftar</button>
     <Card className="min-w-0 overflow-hidden"><CardHeader className="border-b p-4 sm:p-5">
@@ -306,12 +323,13 @@ function DetailPage({ item, mode, onBack, actions }: { item: Item; mode: string;
       <InfoBlock label="Tahun Anggaran" value={item.tahun_anggaran || '-'} />
       <InfoBlock label="Kode RKAS/Program" value={item.kode_rkas_program || '-'} />
     </div>
-    {item.ketua_delegate_id && <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200"><p className="text-xs font-semibold uppercase tracking-wide">Delegasi Review Ketua Komite</p><p className="mt-1 text-sm">Ditugaskan kepada <strong>{item.ketua_delegate_name || 'Anggota Komite'}</strong>. Persetujuan pada SPB tetap atas nama Ketua Komite.</p></div>}
+    {item.workflow_version !== 2 && item.ketua_delegate_id && <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200"><p className="text-xs font-semibold uppercase tracking-wide">Delegasi Review Ketua Komite</p><p className="mt-1 text-sm">Ditugaskan kepada <strong>{item.ketua_delegate_name || 'Anggota Komite'}</strong>. Persetujuan pada SPB tetap atas nama Ketua Komite.</p></div>}
     <div><p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Uraian</p><p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-700 dark:text-slate-200">{item.uraian}</p></div>
     <RincianTable rows={item.rincian || []} />
+    {reportControls && <div className="space-y-2 border-t pt-4"><p className="text-sm font-semibold">Laporan kegiatan</p>{reportControls}</div>}
     {item.status === 'disetujui' && <Button asChild className="w-full sm:w-auto"><a href={`/api/komite/pengajuan/${item.id}/spb`} target="_blank"><Download className="mr-2 h-4 w-4" />Unduh SPB</a></Button>}
     <div><p className="mb-3 text-sm font-semibold">Dokumen per versi</p><div className="space-y-3">{item.versions.map((version: any) => <div key={version.id} className="rounded-lg border p-3"><div className="mb-2 flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-medium">Versi {version.version_number}</p><span className="text-xs text-slate-500">{version.submitted_at ? `Dikirim ${date(version.submitted_at)}` : 'Belum dikirim'}</span></div><div className="space-y-1.5">{version.files.map((file: any) => <a key={file.id} href={`/api/komite/pengajuan/${item.id}/files/${file.id}`} target="_blank" className="flex min-w-0 items-center gap-2 rounded-md bg-slate-50 px-2.5 py-2 text-sm hover:bg-slate-100 dark:bg-slate-800"><FileText className="h-4 w-4 shrink-0 text-rose-500" /><span className="min-w-0 flex-1 truncate">{file.original_filename}</span><span className="shrink-0 text-xs text-slate-400">{size(file.size_bytes)}</span></a>)}</div></div>)}</div></div>
-    <div><p className="mb-3 text-sm font-semibold">Riwayat review</p>{item.reviews.length ? <div className="relative space-y-4 border-l-2 border-slate-200 pl-4 dark:border-slate-700">{item.reviews.slice().reverse().map((entry: any) => <div key={entry.id} className="relative"><span className={`absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full ${entry.action === 'setujui' ? 'bg-emerald-500' : entry.action === 'tolak' ? 'bg-rose-500' : 'bg-orange-500'}`} /><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-medium">{entry.actor_name}</p><Badge variant="outline">{stageLabel[entry.stage]}</Badge>{entry.stage === 'ketua' && entry.actor_role === 'anggota_komite' ? <Badge variant="secondary">Delegasi Ketua</Badge> : null}{entry.is_super_admin_bypass ? <Badge variant="secondary">Bypass Admin</Badge> : null}</div><p className="mt-0.5 text-xs text-slate-500">{actionLabel[entry.action]} - versi {entry.version_number} - {date(entry.created_at)}</p>{entry.catatan && <p className="mt-2 whitespace-pre-wrap break-words rounded-md bg-slate-50 p-2 text-sm leading-5 dark:bg-slate-800">{entry.catatan}</p>}</div>)}</div> : <p className="text-sm text-slate-500">Belum ada tindakan review.</p>}</div>
+    <div><p className="mb-3 text-sm font-semibold">Riwayat review</p>{item.reviews.length ? <div className="relative space-y-4 border-l-2 border-slate-200 pl-4 dark:border-slate-700">{item.reviews.slice().reverse().map((entry: any) => <div key={entry.id} className="relative"><span className={`absolute -left-[21px] top-1 h-2.5 w-2.5 rounded-full ${entry.action === 'setujui' ? 'bg-emerald-500' : entry.action === 'tolak' ? 'bg-rose-500' : 'bg-orange-500'}`} /><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-medium">{entry.actor_name}</p><Badge variant="outline">{entry.workflow_version === 2 && entry.stage === 'ketua' ? 'Verifikator' : stageLabel[entry.stage]}</Badge>{entry.workflow_version !== 2 && entry.stage === 'ketua' && entry.actor_role === 'anggota_komite' ? <Badge variant="secondary">Delegasi Ketua</Badge> : null}{entry.is_super_admin_bypass ? <Badge variant="secondary">Bypass Admin</Badge> : null}</div><p className="mt-0.5 text-xs text-slate-500">{actionLabel[entry.action]} - versi {entry.version_number} - {date(entry.created_at)}</p>{entry.catatan && <p className="mt-2 whitespace-pre-wrap break-words rounded-md bg-slate-50 p-2 text-sm leading-5 dark:bg-slate-800">{entry.catatan}</p>}</div>)}</div> : <p className="text-sm text-slate-500">Belum ada tindakan review.</p>}</div>
     {actions && <div className="sticky bottom-0 -mx-4 -mb-4 border-t bg-white/95 p-4 backdrop-blur dark:bg-slate-950/95">{actions}</div>}
   </CardContent></Card></div>
 }
@@ -345,7 +363,7 @@ function HelpGuide({ type, isTreasurer = false }: { type: 'submitter' | 'reviewe
     <div className="grid gap-2 border-t border-blue-200 p-3 dark:border-blue-900 md:grid-cols-3">
       {steps.map(([number, title, description]) => <div key={number} className="flex gap-2.5 rounded-md bg-white/80 p-2.5 dark:bg-slate-900/70"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white">{number}</span><div><p className="text-xs font-semibold text-slate-900 dark:text-white">{title}</p><p className="mt-0.5 text-xs leading-5 text-slate-600 dark:text-slate-300">{description}</p></div></div>)}
     </div>
-    {type === 'submitter' && <p className="border-t border-blue-200 px-3 py-2 text-xs leading-5 text-blue-900 dark:border-blue-900 dark:text-blue-200"><strong>Jika diminta revisi:</strong> buka pengajuan berstatus "Perlu Revisi", baca catatan reviewer, pilih "Upload Revisi", lalu kirim kembali.</p>}
+    {type === 'submitter' && <p className="border-t border-blue-200 px-3 py-2 text-xs leading-5 text-blue-900 dark:border-blue-900 dark:text-blue-200"><strong>Jika diminta revisi:</strong> buka pengajuan berstatus &quot;Perlu Revisi&quot;, baca catatan reviewer, pilih &quot;Upload Revisi&quot;, lalu kirim kembali.</p>}
     {type === 'reviewer' && <p className="border-t border-blue-200 px-3 py-2 text-xs leading-5 text-blue-900 dark:border-blue-900 dark:text-blue-200"><strong>Perhatian:</strong> Minta Revisi mengembalikan dokumen kepada pengaju. Tolak menutup pengajuan dan tidak dapat dilanjutkan.{isTreasurer ? ' Saat menyetujui, Bendahara wajib mengisi nomor SPB, penerima pembayaran, dan boleh merapikan rincian SPB.' : ''}</p>}
   </details>
 }
@@ -384,7 +402,7 @@ function OwnerActions({ item, pending, hideDelete = false, onEdit, onRun }: { it
   return <div className="flex flex-col gap-2 sm:flex-row">
     <Button variant="outline" className="sm:flex-1" onClick={onEdit}><Pencil className="mr-2 h-4 w-4" />{item.status === 'draft' ? 'Edit Draft' : 'Upload Revisi'}</Button>
     <Button className="sm:flex-1" disabled={pending || (item.status === 'perlu_revisi' && item.versions[0]?.submitted_at)} onClick={() => onRun(() => submitKomiteAction(item.id))}><Send className="mr-2 h-4 w-4" />Kirim ke Bendahara</Button>
-    {item.status === 'draft' && !hideDelete && <Button variant="destructive" disabled={pending} onClick={() => { if (confirm('Hapus draft ini beserta dokumennya?')) onRun(() => deleteKomiteDraftAction(item.id)) }}><Trash2 className="h-4 w-4" /></Button>}
+    {item.status === 'draft' && !item.submitted_at && !hideDelete && <Button variant="destructive" disabled={pending} onClick={() => { if (confirm('Hapus draft ini beserta dokumennya?')) onRun(() => deleteKomiteDraftAction(item.id)) }}><Trash2 className="h-4 w-4" /></Button>}
   </div>
 }
 function ReviewActions({ onReview }: { item: Item; onReview: (action: string) => void }) {
@@ -417,12 +435,6 @@ function DraftDialog({ open, item, pending, message, onClose, onSubmit }: { open
   const [total, setTotal] = useState(0)
   const [rows, setRows] = useState<RincianRow[]>(rowsFromItem(item))
   const needsFiles = !item || item.status === 'perlu_revisi'
-  useEffect(() => {
-    if (open) {
-      setRows(rowsFromItem(item))
-      setTotal(0)
-    }
-  }, [open, item])
   return <Dialog open={open} onOpenChange={value => !value && onClose()}><DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-3xl"><DialogHeader><DialogTitle>{!item ? 'Buat Pengajuan' : item.status === 'perlu_revisi' ? 'Upload Revisi' : 'Edit Draft'}</DialogTitle></DialogHeader><form onSubmit={event => {
     event.preventDefault()
     onSubmit(new FormData(event.currentTarget))
@@ -441,13 +453,10 @@ function DraftDialog({ open, item, pending, message, onClose, onSubmit }: { open
   </form></DialogContent></Dialog>
 }
 
-function ReviewDialog({ value, requirePrincipalApproval, nextNomorSpb, pending, onClose, onSubmit }: { value: { item: Item; action: string } | null; requirePrincipalApproval: boolean; nextNomorSpb?: string; pending: boolean; onClose: () => void; onSubmit: (data: FormData) => void }) {
+function ReviewDialog({ value, nextNomorSpb, pending, onClose, onSubmit }: { value: { item: Item; action: string } | null; nextNomorSpb?: string; pending: boolean; onClose: () => void; onSubmit: (data: FormData) => void }) {
   const isTreasurerApprove = value?.action === 'setujui' && value.item.status === 'menunggu_bendahara'
   const [rows, setRows] = useState<RincianRow[]>(rowsFromItem(value?.item))
   const [rejectConfirmation, setRejectConfirmation] = useState('')
-  useEffect(() => {
-    if (value) setRows(rowsFromItem(value.item))
-  }, [value])
   function closeDialog() {
     setRejectConfirmation('')
     onClose()
@@ -458,7 +467,7 @@ function ReviewDialog({ value, requirePrincipalApproval, nextNomorSpb, pending, 
       Pastikan keputusan sudah benar. Anda akan <strong>{actionLabel[value.action].toLowerCase()}</strong> pengajuan ini setelah menekan tombol konfirmasi.
     </div>
     {value?.action === 'setujui' && value.item.status === 'menunggu_ketua' && <p className="text-sm text-muted-foreground">
-      {requirePrincipalApproval ? 'Pengajuan akan diteruskan ke Kepala Madrasah. SPB terbit setelah persetujuan Kepala.' : 'Persetujuan Ketua ini merupakan persetujuan akhir. SPB akan langsung tersedia.'}
+      Persetujuan Verifikator ini merupakan persetujuan akhir. SPB akan langsung tersedia.
     </p>}
     {isTreasurerApprove && <>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -491,15 +500,5 @@ function ReviewDialog({ value, requirePrincipalApproval, nextNomorSpb, pending, 
     <div className="space-y-1.5"><Label htmlFor="catatan">Catatan {value.action === 'setujui' ? '(opsional)' : '(wajib)'}</Label><Textarea id="catatan" name="catatan" rows={4} required={value.action !== 'setujui'} placeholder={value.action === 'minta_revisi' ? 'Jelaskan bagian yang harus diperbaiki...' : value.action === 'tolak' ? 'Tuliskan alasan penolakan final...' : 'Catatan persetujuan...'} /></div>
     {value.action === 'tolak' && <div className="space-y-1.5"><Label htmlFor="reject_confirmation">Ketik <strong>TOLAK</strong> untuk mengonfirmasi</Label><Input id="reject_confirmation" name="reject_confirmation" value={rejectConfirmation} onChange={event => setRejectConfirmation(event.target.value)} autoComplete="off" placeholder="TOLAK" required /></div>}
     <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={closeDialog}>Batal</Button><Button type="submit" variant={value.action === 'tolak' ? 'destructive' : 'default'} disabled={pending || (isTreasurerApprove && detailTotal(rows) <= 0) || (value.action === 'tolak' && rejectConfirmation !== 'TOLAK')}>{pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Konfirmasi {value.action === 'setujui' ? 'Setujui' : value.action === 'minta_revisi' ? 'Revisi' : 'Tolak'}</Button></div>
-  </form>}</DialogContent></Dialog>
-}
-
-function DelegationDialog({ item, members, pending, onClose, onSubmit }: { item: Item | null; members: any[]; pending: boolean; onClose: () => void; onSubmit: (data: FormData) => void }) {
-  return <Dialog open={!!item} onOpenChange={open => !open && onClose()}><DialogContent className="sm:max-w-lg"><DialogHeader><DialogTitle>Delegasikan Review Ketua Komite</DialogTitle></DialogHeader>{item && <form action={onSubmit} className="space-y-4">
-    <input type="hidden" name="id" value={item.id} />
-    <div className="rounded-lg bg-slate-50 p-3 dark:bg-slate-800"><p className="text-sm font-semibold">{item.judul}</p><p className="mt-1 text-xs text-slate-500">Anggota terpilih akan mengambil keputusan pada tahap Ketua. Nama penandatangan di SPB tetap Ketua Komite.</p></div>
-    <div className="space-y-1.5"><Label>Pilih Anggota Komite</Label><Select name="member_id" defaultValue={item.ketua_delegate_id || undefined} required><SelectTrigger><SelectValue placeholder="Pilih nama anggota" /></SelectTrigger><SelectContent>{members.map(member => <SelectItem key={member.id} value={member.id}>{member.name}</SelectItem>)}</SelectContent></Select></div>
-    {!members.length && <p className="text-sm text-rose-600">Belum ada pengguna dengan role Anggota Komite.</p>}
-    <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={onClose}>Batal</Button><Button type="submit" disabled={pending || !members.length}>{pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Simpan Delegasi</Button></div>
   </form>}</DialogContent></Dialog>
 }

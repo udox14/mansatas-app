@@ -1,4 +1,26 @@
 import { getUserRoles } from '@/lib/features'
+import { ensureActivityLogTables } from '@/lib/activity-log'
+
+export const KOMITE_VERIFIER_KEY = 'komite_verifier_user_id'
+export const KOMITE_CHAIRMAN_KEY = 'komite_spb_chairman_user_id'
+
+// Storage keeps the legacy `ketua` key; version 2 means Verifikator.
+export async function komiteConfiguredUser(db: D1Database, key: string, role: string) {
+  return db.prepare(`SELECT u.id,COALESCE(u.nama_lengkap,u.name,u.email) AS name
+    FROM system_settings s JOIN "user" u ON u.id=s.value
+    WHERE s.key=? AND COALESCE(u.banned,0)=0 AND (u.role=? OR EXISTS (
+      SELECT 1 FROM user_roles ur WHERE ur.user_id=u.id AND ur.role=?))`)
+    .bind(key,role,role).first<{ id: string; name: string }>()
+}
+
+export async function komiteChairman(db: D1Database) {
+  const selected = await komiteConfiguredUser(db, KOMITE_CHAIRMAN_KEY, 'ketua_komite')
+  if (selected) return selected
+  const rows = await db.prepare(`SELECT u.id,COALESCE(u.nama_lengkap,u.name,u.email) AS name
+    FROM "user" u WHERE COALESCE(u.banned,0)=0 AND (u.role='ketua_komite' OR EXISTS (
+      SELECT 1 FROM user_roles ur WHERE ur.user_id=u.id AND ur.role='ketua_komite')) ORDER BY u.id`).all<{ id: string; name: string }>()
+  return rows.results?.length === 1 ? rows.results[0] : null
+}
 
 export const KOMITE_FEATURE_ID = 'komite-pengajuan'
 export const KOMITE_SUBMITTER_ROLES = ['super_admin', 'kepsek', 'wakamad', 'pembina_ekstrakurikuler', 'bendahara_komite'] as const
@@ -12,11 +34,11 @@ export type KomiteStatus = 'draft' | 'menunggu_bendahara' | 'menunggu_ketua' | '
 export type KomiteStage = keyof typeof KOMITE_STAGE_ROLE
 export type KomiteReviewAction = 'setujui' | 'minta_revisi' | 'tolak'
 
-export function komiteNextReviewStatus(stage: KomiteStage, action: KomiteReviewAction, requirePrincipalApproval = false): KomiteStatus {
+// The retired principal flag is accepted for source compatibility only.
+export function komiteNextReviewStatus(stage: KomiteStage, action: KomiteReviewAction, _requirePrincipalApproval = false): KomiteStatus {
   if (action === 'minta_revisi') return 'perlu_revisi'
   if (action === 'tolak') return 'ditolak'
   if (stage === 'bendahara') return 'menunggu_ketua'
-  if (stage === 'ketua' && requirePrincipalApproval) return 'menunggu_kepala'
   return 'disetujui'
 }
 
@@ -35,7 +57,7 @@ export type KomiteNotificationPlan = {
 export function komiteReviewNotificationPlans(
   stage: KomiteStage,
   action: KomiteReviewAction,
-  requirePrincipalApproval = false,
+  _requirePrincipalApproval = false,
 ): KomiteNotificationPlan[] {
   if (action === 'minta_revisi') {
     return [{ eventKey: 'komite_revision_requested', recipient: 'applicant', suffix: 'revision-requested' }]
@@ -46,13 +68,7 @@ export function komiteReviewNotificationPlans(
   if (stage === 'bendahara') {
     return [
       { eventKey: 'komite_treasurer_approved', recipient: 'applicant', suffix: 'approved' },
-      { eventKey: 'komite_chairman_review_requested', recipient: 'reviewer', suffix: 'waiting-chairman' },
-    ]
-  }
-  if (stage === 'ketua' && requirePrincipalApproval) {
-    return [
-      { eventKey: 'komite_chairman_approved', recipient: 'applicant', suffix: 'approved' },
-      { eventKey: 'komite_principal_review_requested', recipient: 'reviewer', suffix: 'waiting-principal' },
+      { eventKey: 'komite_verifier_review_requested', recipient: 'reviewer', suffix: 'waiting-verifier' },
     ]
   }
   return [{ eventKey: 'komite_final_approved', recipient: 'applicant', suffix: 'final-approved' }]
@@ -107,11 +123,19 @@ export async function ensureKomitePengajuanSchema(db: D1Database) {
     db.prepare('CREATE INDEX IF NOT EXISTS idx_komite_files_version ON komite_pengajuan_files(version_id)'),
     db.prepare('CREATE INDEX IF NOT EXISTS idx_komite_reviews_actor ON komite_pengajuan_reviews(actor_id, created_at)'),
     db.prepare('CREATE INDEX IF NOT EXISTS idx_komite_reviews_pengajuan ON komite_pengajuan_reviews(pengajuan_id, created_at)'),
-    db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS uq_komite_review_stage_version ON komite_pengajuan_reviews(pengajuan_id, version_number, stage)'),
     db.prepare('CREATE INDEX IF NOT EXISTS idx_komite_rincian_pengajuan ON komite_pengajuan_rincian(pengajuan_id, urutan)'),
   ])
 
   const alterStatements = [
+    `ALTER TABLE komite_pengajuan ADD COLUMN workflow_version INTEGER NOT NULL DEFAULT 1`,
+    `ALTER TABLE komite_pengajuan ADD COLUMN chairman_id_snapshot TEXT`,
+    `ALTER TABLE komite_pengajuan ADD COLUMN chairman_name_snapshot TEXT`,
+    `ALTER TABLE komite_pengajuan ADD COLUMN laporan_received_at TEXT`,
+    `ALTER TABLE komite_pengajuan ADD COLUMN laporan_received_by TEXT REFERENCES "user"(id) ON DELETE SET NULL`,
+    `ALTER TABLE komite_pengajuan ADD COLUMN laporan_received_name TEXT`,
+    `ALTER TABLE komite_pengajuan ADD COLUMN laporan_revision INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE komite_pengajuan_reviews ADD COLUMN workflow_version INTEGER NOT NULL DEFAULT 1`,
+
     `ALTER TABLE komite_pengajuan ADD COLUMN final_approval_stage TEXT CHECK (final_approval_stage IS NULL OR final_approval_stage IN ('ketua','kepala'))`,
     `ALTER TABLE komite_pengajuan ADD COLUMN tahun_anggaran TEXT`,
     `ALTER TABLE komite_pengajuan ADD COLUMN kode_rkas_program TEXT`,
@@ -131,6 +155,25 @@ export async function ensureKomitePengajuanSchema(db: D1Database) {
       if (!String(error?.message || '').toLowerCase().includes('duplicate column')) throw error
     }
   }
+
+  await db.batch([
+    db.prepare('DROP INDEX IF EXISTS uq_komite_review_stage_version'),
+    db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS uq_komite_review_stage_flow ON komite_pengajuan_reviews(pengajuan_id,version_number,stage,workflow_version)'),
+    db.prepare(`CREATE TABLE IF NOT EXISTS system_settings (key TEXT PRIMARY KEY,value TEXT NOT NULL,updated_at TEXT DEFAULT CURRENT_TIMESTAMP)`),
+  ])
+  await ensureActivityLogTables(db)
+  // Audit and transition share one atomic batch, guarded by the old version.
+  await db.batch([
+    db.prepare(`INSERT INTO activity_logs (id,module,action,summary,entity_type,entity_id,before_json,after_json)
+      SELECT lower(hex(randomblob(16))),'komite_pengajuan','migrate_verifier_flow',
+        'Mengalihkan pengajuan ke alur Bendahara - Verifikator','komite_pengajuan',id,
+        json_object('status',status,'workflow_version',workflow_version),
+        json_object('status',CASE WHEN status IN ('menunggu_ketua','menunggu_kepala') THEN 'menunggu_ketua' ELSE status END,'workflow_version',2)
+      FROM komite_pengajuan WHERE workflow_version=1 AND status NOT IN ('disetujui','ditolak')`),
+    db.prepare(`UPDATE komite_pengajuan SET workflow_version=2,
+      status=CASE WHEN status IN ('menunggu_ketua','menunggu_kepala') THEN 'menunggu_ketua' ELSE status END,
+      updated_at=datetime('now') WHERE workflow_version=1 AND status NOT IN ('disetujui','ditolak')`),
+  ])
 
   await db.batch([
     db.prepare(`UPDATE komite_pengajuan
@@ -183,15 +226,15 @@ export async function canReviewKomite(
   const stage = stageForStatus(row.status)
   if (!stage) return { allowed: false, stage: null as KomiteStage | null, bypass: false }
   const resolved = roles ?? await getUserRoles(db, userId)
+  if (stage === 'kepala') return { allowed: false, stage, bypass: false }
+  const verifier = stage === 'ketua' ? await komiteConfiguredUser(db, KOMITE_VERIFIER_KEY, 'anggota_komite') : null
+  if (stage === 'ketua' && !verifier) return { allowed: false, stage, bypass: false }
   if (resolved.includes('super_admin')) return { allowed: true, stage, bypass: true }
   if (stage === 'bendahara' && userId === row.pengaju_id && resolved.includes('bendahara_komite')) {
     return { allowed: true, stage, bypass: false }
   }
-  if (userId === row.pengaju_id) return { allowed: false, stage: null as KomiteStage | null, bypass: false }
-  if (stage === 'ketua' && row.ketua_delegate_id) {
-    return { allowed: row.ketua_delegate_id === userId && resolved.includes('anggota_komite'), stage, bypass: false }
-  }
-  return { allowed: resolved.includes(KOMITE_STAGE_ROLE[stage]), stage, bypass: false }
+  if (userId === row.pengaju_id) return { allowed: false, stage, bypass: false }
+  return { allowed: stage === 'ketua' ? verifier?.id === userId : resolved.includes('bendahara_komite'), stage, bypass: false }
 }
 
 export async function canViewKomitePengajuan(
@@ -201,11 +244,11 @@ export async function canViewKomitePengajuan(
   roles?: string[],
 ) {
   const resolved = roles ?? await getUserRoles(db, userId)
-  if (resolved.includes('super_admin') || row.pengaju_id === userId) return true
+  if (resolved.includes('super_admin') || resolved.includes('kepsek') || row.pengaju_id === userId) return true
   if (row.status === 'disetujui' && resolved.includes('anggota_komite')) return true
-  if (row.status === 'menunggu_ketua' && row.ketua_delegate_id === userId && resolved.includes('anggota_komite')) return true
+  if (row.status === 'menunggu_ketua' && (await komiteConfiguredUser(db, KOMITE_VERIFIER_KEY, 'anggota_komite'))?.id === userId) return true
   const stage = stageForStatus(row.status)
-  if (stage && resolved.includes(KOMITE_STAGE_ROLE[stage])) return true
+  if (stage === 'bendahara' && resolved.includes('bendahara_komite')) return true
   const acted = await db.prepare('SELECT 1 AS ok FROM komite_pengajuan_reviews WHERE pengajuan_id = ? AND actor_id = ? LIMIT 1')
     .bind(row.id, userId).first<{ ok: number }>()
   return Boolean(acted)
@@ -213,7 +256,7 @@ export async function canViewKomitePengajuan(
 
 export function komiteStatusLabel(status: string) {
   return ({
-    draft: 'Draft', menunggu_bendahara: 'Menunggu Bendahara', menunggu_ketua: 'Menunggu Ketua Komite',
+    draft: 'Draft', menunggu_bendahara: 'Menunggu Bendahara', menunggu_ketua: 'Menunggu Verifikator',
     menunggu_kepala: 'Menunggu Kepala Madrasah', perlu_revisi: 'Perlu Revisi', ditolak: 'Ditolak', disetujui: 'Disetujui',
   } as Record<string, string>)[status] || status
 }

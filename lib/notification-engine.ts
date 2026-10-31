@@ -227,7 +227,7 @@ async function ensureNotificationSchema(db: D1Database) {
   const existing = notificationSchemaPromiseByDb.get(key)
   if (existing) return existing
 
-  const promise = ensureSchemaOnce('notification-engine-v9-komite-configurable-approval', async () => {
+  const promise = ensureSchemaOnce('notification-engine-v10-komite-verifier', async () => {
     await db.batch([
       db.prepare(`
         CREATE TABLE IF NOT EXISTS notification_event_settings (
@@ -1045,6 +1045,10 @@ async function deliverNotification(
 }
 
 async function validatedQueueRecipientIds(db: D1Database, message: NotificationQueueMessage) {
+  if (message.validation?.kind === 'komite_review_request') {
+    if (message.eventKey !== 'komite_verifier_review_requested' || message.target.kind !== 'staff_users') return []
+    return validKomiteReminderRecipients(db,message.validation,message.target.ids)
+  }
   if (message.validation?.kind === 'komite_review') {
     const definition = getNotificationDefinition(KOMITE_REVIEW_REMINDER_EVENT)
     const setting = await getNotificationSetting(KOMITE_REVIEW_REMINDER_EVENT, db)
@@ -1422,6 +1426,10 @@ export async function processNotificationQueueMessage(
     const due = attendanceValidation.kind === 'attendance_session' ? state?.initial_due_at : state?.final_due_at
     if (due && Date.now() < Date.parse(due)) return { retry: true, sent: 0 }
   }
+  if (['komite_chairman_review_requested','komite_principal_review_requested','komite_review_delegated'].includes(message.eventKey)) {
+    await markDispatch(db,message.dispatchId,'sent','Dibatalkan: persetujuan Komite telah beralih ke Verifikator.')
+    return { retry: false, sent: 0, skipped: true }
+  }
   if (message.eventKey === 'permission_exit_created' || message.eventKey === 'permission_exit_returned') {
     await markDispatch(db, message.dispatchId, 'sent', 'Dibatalkan: notifikasi izin keluar kompleks dinonaktifkan.')
     return { retry: false, sent: 0, skipped: true }
@@ -1429,7 +1437,7 @@ export async function processNotificationQueueMessage(
 
   const validRecipientIds = await validatedQueueRecipientIds(db, message)
   if (validRecipientIds.length === 0) {
-    await markDispatch(db, message.dispatchId, 'sent', message.validation?.kind === 'komite_review'
+    await markDispatch(db, message.dispatchId, 'sent', (message.validation?.kind === 'komite_review' || message.validation?.kind === 'komite_review_request')
       ? 'Dibatalkan: tahap/penerima review atau jadwal reminder Komite sudah berubah.'
       : 'Dibatalkan: status kehadiran sudah berubah atau dikoreksi wali kelas.')
     if (attendanceValidation) {
@@ -1446,7 +1454,7 @@ export async function processNotificationQueueMessage(
     return { retry: false, sent: 0, skipped: true }
   }
 
-  if (attendanceValidation || homeroomValidation || message.validation?.kind === 'komite_review') {
+  if (attendanceValidation || homeroomValidation || message.validation?.kind === 'komite_review' || message.validation?.kind === 'komite_review_request') {
     const claimed = await db.prepare(`UPDATE notification_dispatches
       SET status = 'processing', attempts = attempts + 1, updated_at = datetime('now')
       WHERE id = ? AND (status IN ('queued','failed') OR (status = 'processing' AND updated_at <= datetime('now','-5 minutes')))
@@ -1478,7 +1486,7 @@ export async function processNotificationQueueMessage(
 
   if (delivered.retryable) {
     const error = delivered.errors.join('; ')
-    if (attendanceValidation || homeroomValidation || message.validation?.kind === 'komite_review') await markDispatch(db, message.dispatchId, 'failed', error.slice(0, 2000))
+    if (attendanceValidation || homeroomValidation || message.validation?.kind === 'komite_review' || message.validation?.kind === 'komite_review_request') await markDispatch(db, message.dispatchId, 'failed', error.slice(0, 2000))
     if (attempts >= 3) {
       await markDispatch(db, message.dispatchId, 'failed', error.slice(0, 2000))
       return { retry: true, terminal: true, sent: delivered.sent, error }
@@ -1597,7 +1605,7 @@ export async function dispatchConfiguredReminders(db: D1Database, runtimeEnv?: F
             const userIds = await komiteReminderRecipients(db, row)
             if (!userIds.length) continue
             const stage = stageForStatus(row.status)!
-            const tahap = { bendahara: 'Bendahara Komite', ketua: row.ketua_delegate_id ? 'delegasi Ketua Komite' : 'Ketua Komite', kepala: 'Kepala Madrasah' }[stage]
+            const tahap = { bendahara: 'Bendahara Komite', ketua: 'Verifikator', kepala: 'Kepala Madrasah' }[stage]
             const result = await emitConfiguredNotification({
               eventKey: KOMITE_REVIEW_REMINDER_EVENT,
               sourceRef: komiteReminderSource(row, slot),
