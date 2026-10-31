@@ -5,6 +5,7 @@ describe('media security policy', () => {
   it('only exposes the system prefix publicly', () => {
     expect(getMediaPolicy('system/logo-v2.png')?.policy.visibility).toBe('public')
     expect(getMediaPolicy('foto_siswa/student-1/photo.jpg')?.policy.visibility).toBe('private')
+    expect(getMediaPolicy('private/rapbm/2026/source.xlsx')?.policy.visibility).toBe('internal')
     expect(getMediaPolicy('pdf-cache/report.pdf')?.policy.visibility).toBe('internal')
   })
 

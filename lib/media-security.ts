@@ -31,6 +31,7 @@ const PREFIX_POLICIES: ReadonlyArray<{ prefix: string; policy: MediaPolicy }> = 
   { prefix: 'buku-tamu/', policy: { visibility: 'private', featureId: 'buku-tamu' } },
   { prefix: 'pmb/', policy: { visibility: 'private', featureId: 'pmb' } },
   { prefix: 'pdf-cache/', policy: { visibility: 'internal' } },
+  { prefix: 'private/rapbm/', policy: { visibility: 'internal' } },
   { prefix: 'private/komite-pengajuan/', policy: { visibility: 'internal' } },
 ]
 

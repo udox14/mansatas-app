@@ -478,6 +478,14 @@ export const MENU_ITEMS: MenuItem[] = [
     desc: 'Mengonfigurasi rekening tujuan transfer, kontak bendahara, dan QR code pembayaran komite'
   },
   {
+    id: 'keuangan-rapbm',
+    title: 'RAPBM',
+    href: '/dashboard/keuangan/rapbm',
+    icon: FileSpreadsheet,
+    roles: ['super_admin', 'bendahara_komite', 'ketua_komite', 'anggota_komite', 'kepsek'],
+    desc: 'Membaca rencana pendapatan dan belanja madrasah serta arsip versi RAPBM per tahun'
+  },
+  {
     id: 'komite-pengajuan',
     title: 'Pengajuan',
     href: '/dashboard/komite/pengajuan',
@@ -561,7 +569,7 @@ export const DEFAULT_SIDEBAR_GROUPS: SidebarGroupConfig[] = [
   { id: 'program-khusus', label: 'Program Khusus', items: ['tahfidz'] },
   { id: 'kesiswaan-bk', label: 'Kesiswaan & BK', items: ['kelas-binaan', 'keterangan-absensi', 'jadwal-piket', 'izin', 'kedisiplinan', 'sp', 'bk', 'psikotes', 'tka', 'penerimaan-pt'] },
   { id: 'administrasi-hr', label: 'Administrasi & HR', items: ['tpg-dokumen', 'documentation', 'surat', 'rapat', 'kelola-ppl', 'buku-tamu'] },
-  { id: 'keuangan', label: 'Komite', items: ['komite-pengajuan', 'keuangan-daftar-ulang', 'keuangan-transaksi', 'keuangan-dspt', 'keuangan-dspt-nonaktif', 'keuangan-export', 'keuangan-kas-keluar', 'keuangan-laporan', 'keuangan-pengaturan'] },
+  { id: 'keuangan', label: 'Komite', items: ['komite-pengajuan', 'keuangan-rapbm', 'keuangan-daftar-ulang', 'keuangan-transaksi', 'keuangan-dspt', 'keuangan-dspt-nonaktif', 'keuangan-export', 'keuangan-kas-keluar', 'keuangan-laporan', 'keuangan-pengaturan'] },
   { id: 'sistem', label: 'Sistem', items: ['settings', 'log-aktivitas', 'settings-notifications', 'settings-mobile-app', 'settings-fitur', 'pengumuman-ortu', 'kotak-saran-ortu'] },
 ]
 

@@ -277,6 +277,18 @@ export const APP_MODULES: ModuleItem[] = [
     outputs: ['Kuitansi SPP', 'Laporan kas masuk bulanan'],
   },
   {
+    id: 'keuangan-rapbm',
+    title: 'RAPBM',
+    href: '/dashboard/keuangan/rapbm',
+    domain: 'keuangan',
+    summary: 'Rencana pendapatan dan belanja APBN/Komite, dengan arsip tahunan dan riwayat versi.',
+    description: 'Pengurus komite dan Kepala Madrasah membaca RAPBM terbit serta arsipnya. Bendahara dan Super Admin mengimpor XLSX maksimal 6 MB menjadi draft, memeriksa rincian dan Catatan Angka, lalu menerbitkan secara atomik. Angka tersimpan Excel dipertahankan, sel kosong dibedakan dari nol, selisih penjumlahan diberi catatan dan harus diakui saat penerbitan. Versi terbit tidak dapat diubah atau dihapus; revisi dilakukan melalui impor versi baru tanpa menimpa tahun/versi sebelumnya. Sumber Excel disimpan privat dan unduhannya memeriksa hak akses termasuk status draft. Dokumen awal RAPBM 2026 dapat disiapkan oleh pengelola. Belum terhubung ke Pengajuan atau realisasi pembayaran.',
+    roles: ['super_admin', 'bendahara_komite', 'ketua_komite', 'anggota_komite', 'kepsek'],
+    keyFeatures: ['Pilihan tahun dan versi', 'Ringkasan pendapatan dan belanja', 'Kelompok belanja dengan rincian volume dan akun', 'Pencarian dan filter APBN/Komite', 'Catatan selisih angka tanpa koreksi otomatis', 'Impor dan penerbitan draft', 'Arsip versi immutable dan Excel sumber privat'],
+    inputs: ['Excel RAPBM sesuai format contoh', 'Pengakuan Catatan Angka sebelum penerbitan'],
+    outputs: ['RAPBM terbit', 'Arsip tahun dan versi', 'Excel sumber', 'Audit impor dan penerbitan'],
+  },
+  {
     id: 'komite-pengajuan',
     title: 'Pengajuan Komite',
     href: '/dashboard/komite/pengajuan',
