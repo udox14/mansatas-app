@@ -95,6 +95,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       <small>${esc(tanggal(review.created_at))}${review.is_super_admin_bypass ? ' - Bypass Super Admin' : ''}</small>
     </div>`
   }
+  const realized = row.realisasi_status === 'sudah'
+  const receiptText = realized
+    ? `Telah diterima dana ${esc(row.realisasi_metode || 'Tunai')} dari Bendahara Komite Sekolah sebesar <strong>${esc(rupiah(total))}</strong> (${esc(terbilang(total))} Rupiah) untuk keperluan pembayaran di atas pada tanggal ${esc(tanggal(row.realisasi_tanggal))}.`
+    : `Tanda terima dana dari Bendahara Komite Sekolah sebesar <strong>${esc(rupiah(total))}</strong> (${esc(terbilang(total))} Rupiah) untuk keperluan pembayaran sesuai SPB di bawah ini.`
   const detailHtml = rincian.map((item: any, index: number) => `<tr>
     <td class="center">${index + 1}</td>
     <td>${esc(item.uraian)}</td>
@@ -106,6 +110,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     *{box-sizing:border-box}
     body{font-family:Arial,sans-serif;color:#111;font-size:10pt;line-height:1.38;margin:0}
     .page{position:relative}
+    .page + .page{break-before:page;page-break-before:always}
     .page:last-child{break-after:auto;page-break-after:auto}
     .kop{width:100%;max-height:30mm;object-fit:contain;margin-bottom:2mm}
     .rule{border-top:2px solid #111;border-bottom:1px solid #111;height:4px;margin-bottom:5mm}
@@ -136,7 +141,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     .signature{height:18mm}
     .sign strong{display:block;border-top:1px solid #111;padding-top:1mm}
     .sign small{display:block;color:#555;font-size:7.5pt;margin-top:1mm}
-    .status{display:inline-block;border:1px solid #111;padding:1mm 2mm;font-size:8pt;font-weight:700;margin-bottom:3mm}
+    .receipt-box{border:1px solid #111;padding:4mm;margin-top:4mm}
+    .receipt-grid{display:grid;grid-template-columns:1fr 1fr;gap:10mm;margin-top:18mm;break-inside:avoid}
+    .receipt-sign{text-align:center}
+    .blank-sign{height:24mm}
+    .receipt-sign strong{display:block;border-top:1px solid #111;padding-top:1mm}
     .footer{margin-top:8mm;break-inside:avoid;border-top:1px solid #aaa;padding-top:2mm;color:#666;font-size:7.5pt}
   </style></head><body>
   <section class="page">
@@ -176,6 +185,32 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
     </div>
     <div class="footer">Dokumen elektronik MANSATAS App - ID Pengajuan: ${esc(row.id)} - Versi: ${esc(row.current_version)}</div>
+  </section>
+  <section class="page">
+    <img class="kop" src="${letterhead}" alt="Kop Komite"><div class="rule"></div>
+    <h2>Bukti Tanda Terima/Realisasi Pencairan</h2>
+    <div class="receipt-box">
+      <p>${receiptText}</p>
+      <table class="meta">
+        <tr><td>Nomor SPB</td><td>:</td><td>${esc(row.nomor_spb)}</td></tr>
+        <tr><td>Judul Kegiatan</td><td>:</td><td>${esc(row.judul)}</td></tr>
+        <tr><td>Penerima Dana/Penyedia</td><td>:</td><td>${esc(row.penerima_pembayaran || '-')}</td></tr>
+        <tr><td>Metode</td><td>:</td><td>${esc(realized ? row.realisasi_metode || '-' : 'Tunai / Transfer: ................................')}</td></tr>
+        <tr><td>Tanggal</td><td>:</td><td>${esc(realized ? tanggal(row.realisasi_tanggal) : '................................')}</td></tr>
+      </table>
+      ${row.realisasi_catatan ? `<p><strong>Catatan:</strong> ${esc(row.realisasi_catatan).replace(/\n/g,'<br>')}</p>` : ''}
+    </div>
+    <div class="receipt-grid">
+      <div class="receipt-sign">
+        <div>Diserahkan Oleh:</div><div>Bendahara Komite</div><div class="blank-sign"></div>
+        <strong>${esc(row.realisasi_petugas || latest.get('bendahara')?.actor_name || 'Bendahara Komite')}</strong>
+      </div>
+      <div class="receipt-sign">
+        <div>Penerima Dana/Penyedia:</div><div>Penerima Pembayaran</div><div class="blank-sign"></div>
+        <strong>${esc(row.penerima_pembayaran || '(................................)')}</strong>
+      </div>
+    </div>
+    <div class="footer">Halaman bukti tanda terima ini merupakan bagian dari SPB ${esc(row.nomor_spb)}.</div>
   </section>
   </body></html>`
   const pdf = await renderPdfWithCache({
