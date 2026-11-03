@@ -27,7 +27,8 @@ describe('parent QRIS media access', () => {
     }
   })
   it('revokes access immediately when QRIS is disabled or the student changes grade', async () => {
-    sqlite.exec("UPDATE system_settings SET value='0' WHERE key='keuangan_komite_10_qris_enabled'")
+    sqlite.prepare('UPDATE system_settings SET value = ? WHERE key = ?')
+      .run('0', 'keuangan_komite_10_qris_enabled')
     expect(await authorizeMediaRequest(request, 'keuangan_settings/komite-qris-10-new.png')).toBeNull()
     sqlite.exec('UPDATE kelas SET tingkat=11')
     expect(await authorizeMediaRequest(request, 'keuangan_settings/komite-qris-11.png')).not.toBeNull()
