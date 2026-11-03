@@ -189,6 +189,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const [paymentAmount, setPaymentAmount] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<'qris' | 'transfer'>('qris')
   const [selectedBankId, setSelectedBankId] = useState('')
+  const [copyAccountMessage, setCopyAccountMessage] = useState('')
   const [currentSubmissionId, setCurrentSubmissionId] = useState('')
   const [paymentSubmitting, setPaymentSubmitting] = useState(false)
   const [paymentMessage, setPaymentMessage] = useState('')
@@ -274,12 +275,8 @@ export function PortalOrtuClient({ data }: { data: any }) {
   )
   const komiteWaNumber = komitePaymentSettings?.whatsapp || '6282215860650'
   const activePaymentAccounts = (komitePaymentSettings?.accounts || []).filter((account: any) => account?.isActive !== false)
-  const primaryPaymentAccount = activePaymentAccounts[0]
-  const komiteAccount = primaryPaymentAccount
-    ? `${primaryPaymentAccount.bankLabel || 'Rekening'}: ${primaryPaymentAccount.accountNumber || '-'} a.n. ${primaryPaymentAccount.accountName || '-'}`
-    : `${komitePaymentSettings?.bankLabel || 'BJB Syariah'}: ${komitePaymentSettings?.rekening || '5160256984318'} a.n. ${komitePaymentSettings?.atasNama || 'Komite MAN 1 Tasikmalaya'}`
-  const qrisEnabled = komitePaymentSettings?.qrisEnabled !== false
-  const komiteQrisUrl = komitePaymentSettings?.qrisUrl || '/QRISkomite.jpeg'
+  const qrisEnabled = komitePaymentSettings?.qrisEnabled === true
+  const komiteQrisUrl = komitePaymentSettings?.qrisUrl || ''
   const hasQrisMethod = qrisEnabled && Boolean(komiteQrisUrl)
   const hasTransferMethod = activePaymentAccounts.length > 0
   const visibleNotifications = (notifications.results || []).filter((notification: any) => !locallyArchivedNotifications.has(notification.id))
@@ -289,6 +286,8 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const resetPaymentWizard = () => {
     setPaymentStep(1)
     setPaymentAmount('')
+    setSelectedBankId('')
+    setCopyAccountMessage('')
     setPaymentMethod(getDefaultPaymentMethod())
     setCurrentSubmissionId('')
     setPaymentSubmitting(false)
@@ -1761,7 +1760,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                       <div data-tour-id="payment-step-method" className="space-y-4">
                         <div>
                           <p className="text-sm font-semibold text-slate-800">Pilih metode pembayaran</p>
-                          <p className="mt-1 text-xs leading-5 text-slate-500">Metode yang nonaktif di pengaturan tidak akan muncul di sini.</p>
+                          <p className="mt-1 text-xs leading-5 text-slate-500">{komitePaymentSettings?.tingkat ? `Tujuan pembayaran untuk siswa kelas ${komitePaymentSettings.tingkat}.` : 'Tingkat kelas siswa belum tersedia. Silakan hubungi bendahara komite.'}</p>
                         </div>
                         {(hasQrisMethod || hasTransferMethod) ? (
                           <div className="grid grid-cols-2 gap-2">
@@ -1786,7 +1785,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                           </div>
                         ) : (
                           <div className="rounded-xl border border-rose-100 bg-rose-50 p-4 text-sm font-medium text-rose-700">
-                            Metode pembayaran portal sedang dinonaktifkan. Silakan hubungi komite.
+                            Metode pembayaran untuk tingkat siswa belum tersedia. Silakan hubungi bendahara komite.
                           </div>
                         )}
                         {paymentMethod === 'qris' && hasQrisMethod && (
@@ -1809,7 +1808,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
                             </Dialog>
                             <a
                               href={komiteQrisUrl}
-                              download="QRISkomite.jpeg"
+                              download={`QRIS-komite-kelas-${komitePaymentSettings?.tingkat}.${komiteQrisUrl.match(/\.(png|jpe?g|webp)$/i)?.[1] || 'png'}`}
                               className="inline-flex h-11 w-full items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 hover:border-teal-700 hover:text-teal-900"
                             >
                               <Download className="h-4 w-4" />
@@ -1835,24 +1834,35 @@ export function PortalOrtuClient({ data }: { data: any }) {
                           {paymentMethod === 'transfer' && hasTransferMethod && activePaymentAccounts.map((account: any) => {
                             const isSelected = (selectedBankId || activePaymentAccounts[0]?.id) === account.id
                             return (
-                              <button
-                                type="button"
-                                data-tour-id="payment-transfer"
-                                key={account.id || account.rekening}
-                                onClick={() => setSelectedBankId(account.id)}
-                                className={`w-full rounded-xl border p-4 text-left transition ${isSelected ? 'border-sky-500 ring-2 ring-sky-200 bg-sky-50' : 'border-slate-200'}`}
-                              >
-                                <div className="flex items-start gap-3">
-                                  <Landmark className={`mt-0.5 h-5 w-5 ${isSelected ? 'text-sky-600' : 'text-slate-400'}`} />
-                                  <div>
-                                    <p className="text-sm font-bold text-slate-800">{account.bankLabel}: {account.rekening}</p>
-                                    <p className="mt-1 text-xs text-slate-500">a.n. {account.atasNama}</p>
-                                    <p className="mt-1 text-xs text-slate-500">Nominal DSPT: Rp {rupiah(paymentAmountNumber)}</p>
+                              <div key={account.id} className="space-y-1">
+                                <button
+                                  type="button"
+                                  data-tour-id="payment-transfer"
+                                  onClick={() => setSelectedBankId(account.id)}
+                                  className={`w-full rounded-xl border p-4 text-left transition ${isSelected ? 'border-sky-500 ring-2 ring-sky-200 bg-sky-50' : 'border-slate-200'}`}
+                                >
+                                  <div className="flex items-start gap-3">
+                                    <Landmark className={`mt-0.5 h-5 w-5 ${isSelected ? 'text-sky-600' : 'text-slate-400'}`} />
+                                    <div>
+                                      <p className="text-sm font-bold text-slate-800">{account.bankLabel}: {account.rekening}</p>
+                                      <p className="mt-1 text-xs text-slate-500">a.n. {account.atasNama}</p>
+                                      <p className="mt-1 text-xs text-slate-500">Nominal DSPT: Rp {rupiah(paymentAmountNumber)}</p>
+                                    </div>
                                   </div>
-                                </div>
-                              </button>
+                                </button>
+                                <button type="button" className="min-h-9 px-2 text-xs font-semibold text-teal-700" onClick={async () => {
+                                  setSelectedBankId(account.id)
+                                  try {
+                                    await navigator.clipboard.writeText(account.rekening)
+                                    setCopyAccountMessage('Nomor rekening berhasil disalin.')
+                                  } catch {
+                                    setCopyAccountMessage('Nomor rekening belum dapat disalin. Silakan salin secara manual.')
+                                  }
+                                }}>Salin nomor rekening {account.bankLabel}</button>
+                              </div>
                             )
                           })}
+                          {paymentMethod === 'transfer' && copyAccountMessage && <p role="status" className="text-xs text-slate-600">{copyAccountMessage}</p>}
                         </div>
                         <div className="flex gap-2">
                           <button type="button" onClick={() => setPaymentStep(1)} className="h-11 flex-1 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-slate-700">

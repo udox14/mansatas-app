@@ -422,7 +422,7 @@ export const APP_MODULES: ModuleItem[] = [
     summary: 'Aplikasi web mandiri orang tua untuk memantau anak dan bertransaksi.',
     description: 'Dapat diakses orang tua dari HP tanpa akun email (login menggunakan NISN + Tanggal Lahir). Transparansi penuh untuk presensi, nilai, tagihan, dan komunikasi sekolah.',
     roles: ['parent', 'super_admin'],
-    keyFeatures: ['Catatan kehadiran per sesi, izin sesuai jam, dan koreksi harian wali ditampilkan terpisah', 'Rekap setelah pembelajaran selesai dengan prioritas Alfa, Sakit, Izin guru, Hadir', 'Panduan membaca izin resmi yang dihitung Hadir; alasan dan jam tetap tersedia', 'Kalender dan ringkasan menghitung hari yang sudah memiliki hasil harian; sesi belum diinput ditampilkan', 'Jadwal pelajaran hari ini', 'Cek tagihan & upload bukti bayar DSPT', 'Kuitansi pembayaran digital', 'Kotak saran ke sekolah'],
+    keyFeatures: ['Catatan kehadiran per sesi, izin sesuai jam, dan koreksi harian wali ditampilkan terpisah', 'Rekap setelah pembelajaran selesai dengan prioritas Alfa, Sakit, Izin guru, Hadir', 'Panduan membaca izin resmi yang dihitung Hadir; alasan dan jam tetap tersedia', 'Kalender dan ringkasan menghitung hari yang sudah memiliki hasil harian; sesi belum diinput ditampilkan', 'Jadwal pelajaran hari ini', 'Cek tagihan & upload bukti bayar DSPT', 'Rekening dan QRIS Komite mengikuti tingkat siswa saat ini (10, 11, 12); salin nomor rekening; metode yang belum diatur tidak tersedia', 'Kuitansi pembayaran digital', 'Kotak saran ke sekolah'],
     inputs: ['Login NISN + Tgl Lahir', 'Upload bukti transfer DSPT', 'Saran/masukan'],
     outputs: ['Kuitansi pembayaran anak', 'Catatan sesi, rekap sementara, dan rekap harian setelah pembelajaran selesai', 'Notifikasi rekap beserta alasan hasil dan jumlah sesi yang belum diinput'],
   },
@@ -525,7 +525,7 @@ export const CORE_WORKFLOWS: CoreWorkflow[] = [
         step: 2,
         actor: 'Orang Tua Santri',
         title: 'Pembayaran & Bukti',
-        action: 'Membayar transfer via rekening resmi komite, lalu mengunggah screenshot bukti transfer di Portal Orang Tua (atau setor tunai di kantor bendahara).',
+        action: 'Bendahara mengatur rekening dan QRIS per tingkat (10, 11, 12) di Pengaturan Komite. Orang tua membayar ke tujuan sesuai tingkat siswa saat ini, lalu mengunggah screenshot bukti transfer di Portal Orang Tua (atau setor tunai di kantor bendahara).',
         module: '/portal-ortu',
       },
       {

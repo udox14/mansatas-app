@@ -9,7 +9,7 @@ import { createAuth } from '@/utils/auth'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { uploadPaymentProof } from '@/utils/r2'
 import { ensureParentSuggestionTable, normalizeParentSuggestionCategory } from '@/lib/parent-suggestions'
-import { getKomitePaymentSettings } from '@/lib/komite-payment-settings'
+import { getKomitePaymentSettings, selectKomitePaymentSettings } from '@/lib/komite-payment-settings'
 import { getFinalAttendanceForStudent } from '@/lib/wali-kelas-attendance'
 import { getKalenderEventsForRange, kalenderDateStatusFromEvents, enumerateDateStrings } from '@/lib/kalender-pendidikan'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
@@ -270,8 +270,11 @@ export async function createParentDsptPaymentSubmission(payload: {
   await ensurePaymentSubmissionTable(db)
 
   const amount = Math.floor(Number(payload.amount || 0))
-  if (amount <= 0) return { error: 'Nominal pembayaran harus lebih dari 0.' }
-  const settings = await getKomitePaymentSettings()
+  if (!Number.isSafeInteger(amount) || amount <= 0) return { error: 'Nominal pembayaran harus lebih dari 0.' }
+  const student = await db.prepare('SELECT k.tingkat FROM siswa s LEFT JOIN kelas k ON k.id = s.kelas_id WHERE s.id = ?')
+    .bind(session.user.siswa_id).first<{ tingkat: number | null }>()
+  const settings = selectKomitePaymentSettings(await getKomitePaymentSettings(db), student?.tingkat)
+  if (!settings.tingkat) return { error: 'Tingkat kelas siswa belum tersedia. Silakan hubungi bendahara komite.' }
   const method = payload.method === 'qris' ? 'qris' : 'transfer'
   if (method === 'qris' && settings.qrisEnabled === false) return { error: 'Metode QRIS sedang tidak aktif.' }
   const activeAccounts = settings.accounts.filter((account) => account.isActive)

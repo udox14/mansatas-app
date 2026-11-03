@@ -265,11 +265,12 @@ export async function uploadCashflowProof(file: File, entryId: string) {
   }
 }
 
-export async function uploadKomiteQris(file: File) {
+export async function uploadKomiteQris(file: File, grade: 10 | 11 | 12) {
   const validationError = validateImageFile(file)
   if (validationError) return { url: null, error: validationError }
 
-  return uploadToR2(file, 'keuangan_settings', 'komite-qris.webp')
+  const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
+  return uploadToR2(file, 'keuangan_settings', `komite-qris-${grade}-${crypto.randomUUID()}.${ext}`)
 }
 
 export async function uploadFotoPresensi(file: File, userId: string, action: string, tanggal: string) {

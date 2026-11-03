@@ -5,7 +5,7 @@ import { Landmark, Loader2, Plus, QrCode, Save, Trash2, UploadCloud } from 'luci
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import type { KomitePaymentAccount, KomitePaymentSettings } from '@/lib/komite-payment-settings'
+import type { KomitePaymentAccount, KomitePaymentSettings, KomiteGrade, KomiteGradePaymentSettings } from '@/lib/komite-payment-settings'
 import { saveKomitePaymentSettings, uploadKomiteQrisAction } from './actions'
 
 function createAccount(): KomitePaymentAccount {
@@ -15,11 +15,37 @@ function createAccount(): KomitePaymentAccount {
   return { id, bankLabel: '', rekening: '', atasNama: '', isActive: true }
 }
 
-export function PengaturanKomiteClient({ initialSettings }: { initialSettings: KomitePaymentSettings }) {
+export function PengaturanKomiteClient({ initialSettings, canUpdate }: { initialSettings: KomitePaymentSettings; canUpdate: boolean }) {
+  const [grade, setGrade] = useState<KomiteGrade>(10)
+  const [whatsapp, setWhatsapp] = useState(initialSettings.whatsapp)
+  return (
+    <section className="space-y-4">
+      <div className="flex gap-2" aria-label="Tingkat pembayaran">
+        {([10, 11, 12] as const).map(value => (
+          <Button key={value} type="button" variant={grade === value ? 'default' : 'outline'} aria-pressed={grade === value} onClick={() => setGrade(value)}>Kelas {value}</Button>
+        ))}
+      </div>
+      <p className="text-xs text-slate-500">Atur rekening dan QRIS masing-masing tingkat. Nomor WhatsApp berlaku untuk seluruh tingkat. Metode yang belum diatur tidak ditampilkan di portal.</p>
+      {([10, 11, 12] as const).map(value => (
+        <div key={value} hidden={grade !== value}>
+          <fieldset disabled={!canUpdate}>
+            <GradePaymentForm grade={value} initialSettings={initialSettings.byGrade[value]} whatsapp={whatsapp} setWhatsapp={setWhatsapp} />
+          </fieldset>
+        </div>
+      ))}
+    </section>
+  )
+}
+
+function GradePaymentForm({ grade, initialSettings, whatsapp, setWhatsapp }: {
+  grade: KomiteGrade
+  initialSettings: KomiteGradePaymentSettings
+  whatsapp: string
+  setWhatsapp: (value: string) => void
+}) {
   const [accounts, setAccounts] = useState<KomitePaymentAccount[]>(
     initialSettings.accounts.length > 0 ? initialSettings.accounts : [createAccount()]
   )
-  const [whatsapp, setWhatsapp] = useState(initialSettings.whatsapp)
   const [qrisUrl, setQrisUrl] = useState(initialSettings.qrisUrl)
   const [qrisEnabled, setQrisEnabled] = useState(initialSettings.qrisEnabled)
   const [msg, setMsg] = useState('')
@@ -54,14 +80,15 @@ export function PengaturanKomiteClient({ initialSettings }: { initialSettings: K
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
       <form action={handleSave} className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+        <input type="hidden" name="tingkat" value={grade} />
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <div className="rounded-md bg-emerald-50 p-2 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
               <Landmark className="h-4 w-4" />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Rekening Pembayaran</h2>
-              <p className="text-xs text-slate-500">Rekening aktif akan tampil di wizard pembayaran DSPT Portal Orang Tua.</p>
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-50">Rekening Pembayaran Kelas {grade}</h2>
+              <p className="text-xs text-slate-500">Rekening aktif hanya tampil untuk siswa kelas {grade} di Portal Orang Tua.</p>
             </div>
           </div>
           <Button type="button" variant="outline" size="sm" className="h-9 gap-1.5" onClick={() => setAccounts((prev) => [...prev, createAccount()])}>
@@ -113,16 +140,16 @@ export function PengaturanKomiteClient({ initialSettings }: { initialSettings: K
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="whatsapp" className="text-xs">Nomor WhatsApp komite</Label>
-            <Input id="whatsapp" name="whatsapp" value={whatsapp} onChange={(event) => setWhatsapp(event.target.value)} className="h-9" placeholder="628..." />
+            <Label htmlFor={`whatsapp-${grade}`} className="text-xs">Nomor WhatsApp komite</Label>
+            <Input id={`whatsapp-${grade}`} name="whatsapp" value={whatsapp} onChange={(event) => setWhatsapp(event.target.value)} className="h-9" placeholder="628..." />
           </div>
           <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
             <Label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200">
-              <input type="checkbox" checked={qrisEnabled} onChange={(event) => setQrisEnabled(event.target.checked)} className="h-4 w-4 rounded border-slate-300" />
+              <input type="checkbox" checked={qrisEnabled} disabled={!qrisUrl || isPending} onChange={(event) => setQrisEnabled(event.target.checked)} className="h-4 w-4 rounded border-slate-300" />
               Tampilkan QRIS di Portal Orang Tua
             </Label>
             <input type="hidden" name="qrisEnabled" value={qrisEnabled ? '1' : '0'} />
-            <p className="mt-1 text-xs text-slate-500">Jika dimatikan, pilihan QRIS tidak muncul di portal.</p>
+            <p className="mt-1 text-xs text-slate-500">Upload gambar QRIS terlebih dahulu, lalu aktifkan dan simpan untuk menampilkannya di portal.</p>
           </div>
         </div>
 
@@ -152,10 +179,11 @@ export function PengaturanKomiteClient({ initialSettings }: { initialSettings: K
         </div>
 
         <div className={`rounded-lg border p-3 ${qrisEnabled ? 'border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950' : 'border-dashed border-slate-300 bg-slate-50 opacity-60 dark:border-slate-700 dark:bg-slate-950'}`}>
-          <img src={qrisUrl} alt="QR code komite" className="mx-auto max-h-72 w-full rounded-md bg-white object-contain" />
+          {qrisUrl ? <img src={qrisUrl} alt={`QRIS Komite kelas ${grade}`} className="mx-auto max-h-72 w-full rounded-md bg-white object-contain" /> : <p className="py-10 text-center text-sm text-slate-500">QRIS kelas {grade} belum diunggah.</p>}
         </div>
 
         <form action={handleQrisUpload} className="mt-4 space-y-3">
+          <input type="hidden" name="tingkat" value={grade} />
           <Input name="qris" type="file" accept="image/*" className="h-9 text-xs" />
           <Button type="submit" variant="outline" size="sm" className="h-9 w-full gap-1.5" disabled={isPending}>
             {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UploadCloud className="h-3.5 w-3.5" />}

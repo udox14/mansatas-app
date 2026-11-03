@@ -1,6 +1,6 @@
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { getSystemSettingBoolean } from './system-settings'
+import { getSystemSettingBoolean, getSystemSettings } from './system-settings'
 
 const state = vi.hoisted(() => ({ db: null as unknown as D1Database, cache: new Map<string, unknown>() }))
 vi.mock('@/utils/db-server', () => ({ getDB: async () => state.db }))
@@ -14,7 +14,7 @@ beforeEach(() => {
   state.db = { prepare(sql: string) {
     let args: string[] = []
     return { bind(...values: string[]) { args = values; return this },
-      async first() { return sqlite.prepare(sql).get(...args) || null }, async run() { sqlite.prepare(sql).run(...args) } }
+      async first() { return sqlite.prepare(sql).get(...args) || null }, async all() { return { results: sqlite.prepare(sql).all(...args) } }, async run() { sqlite.prepare(sql).run(...args) } }
   } } as unknown as D1Database
 })
 afterEach(() => sqlite.close())
@@ -32,4 +32,12 @@ describe('Fresh workflow boolean settings', () => {
     expect(await getSystemSettingBoolean('missing', false, state.db)).toBe(false)
     expect(await getSystemSettingBoolean('missing', true, state.db)).toBe(true)
   })
+})
+
+it('reads fresh payment settings without replacing cached display values', async () => {
+  const defaults = { keuangan_komite_10_accounts: '[]', missing: 'fallback' }
+  expect(await getSystemSettings(defaults)).toEqual(defaults)
+  sqlite.prepare('INSERT INTO system_settings(key,value) VALUES (?,?)').run('keuangan_komite_10_accounts', 'new-accounts')
+  expect(await getSystemSettings(defaults, state.db)).toEqual({ ...defaults, keuangan_komite_10_accounts: 'new-accounts' })
+  expect(await getSystemSettings(defaults)).toEqual(defaults)
 })

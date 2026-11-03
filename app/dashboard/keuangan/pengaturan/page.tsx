@@ -37,7 +37,7 @@ export default async function PengaturanKomitePage() {
         title="Pengaturan Komite"
         description="Kelola rekening, kontak, dan QR code pembayaran yang tampil di Portal Orang Tua."
       />
-      <PengaturanKomiteClient initialSettings={settings} />
+      <PengaturanKomiteClient initialSettings={settings} canUpdate={canUpdateCategories} />
       <DsptSettingsCard initial={dsptSettings} />
       <ReportSettingsCard initialSettings={reportSettings} latestBalance={openingBalances.results?.[0]} />
       <CashflowCategoryManager canUpdate={canUpdateCategories} initialCategories={(categories.results ?? []).map(row => ({

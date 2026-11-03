@@ -5,7 +5,7 @@ import { getDB } from '@/utils/db-server'
 import { PortalOrtuClient } from './components/portal-ortu-client'
 import { findSlotException, getKalenderDateStatus, getKbmExceptionsForDate } from '@/lib/kalender-pendidikan'
 import { ensureParentSuggestionTable } from '@/lib/parent-suggestions'
-import { getKomitePaymentSettings } from '@/lib/komite-payment-settings'
+import { getKomitePaymentSettings, selectKomitePaymentSettings } from '@/lib/komite-payment-settings'
 import { getDocumentationArticles } from '@/lib/documentation'
 import { getFinalAttendanceForStudent } from '@/lib/wali-kelas-attendance'
 import { getParentAttendanceByAcademicYear } from './actions'
@@ -809,7 +809,7 @@ export default async function PortalOrtuPage({ searchParams }: { searchParams: P
     dsptNeedsInput,
     paymentSubmissions,
     parentSuggestions,
-    komitePaymentSettings,
+    komitePaymentSettings: selectKomitePaymentSettings(komitePaymentSettings, profil.tingkat),
     sppNominal,
     sppBayar,
     sppSisa,

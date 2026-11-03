@@ -1,5 +1,7 @@
 import { getSystemSettings } from '@/lib/system-settings'
 
+export const KOMITE_GRADES = [10, 11, 12] as const
+export type KomiteGrade = typeof KOMITE_GRADES[number]
 export type KomitePaymentAccount = {
   id: string
   bankLabel: string
@@ -7,67 +9,72 @@ export type KomitePaymentAccount = {
   atasNama: string
   isActive: boolean
 }
-
-export type KomitePaymentSettings = {
+export type KomiteGradePaymentSettings = {
   accounts: KomitePaymentAccount[]
-  whatsapp: string
   qrisUrl: string
   qrisEnabled: boolean
 }
-
-function safeJsonParse<T>(raw: string): T | null {
-  try {
-    return JSON.parse(raw) as T
-  } catch {
-    return null
+export type KomitePaymentSettings = {
+  byGrade: Record<KomiteGrade, KomiteGradePaymentSettings>
+  whatsapp: string
+}
+export function parseKomiteGrade(value: unknown): KomiteGrade | null {
+  return value === 10 || value === '10' ? 10 : value === 11 || value === '11' ? 11 : value === 12 || value === '12' ? 12 : null
+}
+export function komiteGradeKeys(grade: KomiteGrade) {
+  return {
+    accounts: `keuangan_komite_${grade}_accounts`,
+    qrisUrl: `keuangan_komite_${grade}_qris_url`,
+    qrisEnabled: `keuangan_komite_${grade}_qris_enabled`,
   }
 }
-
 export function normalizeKomiteAccounts(raw: string): KomitePaymentAccount[] {
-  const parsed = raw ? safeJsonParse<KomitePaymentAccount[]>(raw) : null
+  let parsed: unknown
+  try { parsed = JSON.parse(raw) } catch { return [] }
   if (!Array.isArray(parsed)) return []
-
-  return parsed
-    .map((item, index) => ({
-      id: String(item.id || `rekening-${index + 1}`),
+  const seen = new Set<string>()
+  return parsed.flatMap((item) => {
+    if (!item || typeof item !== 'object') return []
+    const account = {
+      id: String(item.id || '').trim(),
       bankLabel: String(item.bankLabel || '').trim(),
       rekening: String(item.rekening || '').trim(),
       atasNama: String(item.atasNama || '').trim(),
       isActive: item.isActive !== false,
-    }))
-    .filter((item) => item.bankLabel && item.rekening && item.atasNama)
-}
-
-export async function getKomitePaymentSettings(): Promise<KomitePaymentSettings> {
-  const settings = await getSystemSettings({
-    keuangan_komite_accounts: '',
-    keuangan_komite_bank_label: 'BJB Syariah',
-    keuangan_komite_rekening: '5160256984318',
-    keuangan_komite_atas_nama: 'Komite MAN 1 Tasikmalaya',
-    keuangan_komite_whatsapp: '6282215860650',
-    keuangan_komite_qris_url: '/QRISkomite.jpeg',
-    keuangan_komite_qris_enabled: '1',
+    }
+    if (!account.id || !account.bankLabel || !account.rekening || !account.atasNama || seen.has(account.id)) return []
+    seen.add(account.id)
+    return [account]
   })
-  const accountsRaw = settings.keuangan_komite_accounts
-  const bankLabel = settings.keuangan_komite_bank_label
-  const rekening = settings.keuangan_komite_rekening
-  const atasNama = settings.keuangan_komite_atas_nama
-
-  const accounts = normalizeKomiteAccounts(accountsRaw)
-  if (accounts.length === 0 && bankLabel && rekening && atasNama) {
-    accounts.push({
-      id: 'rekening-1',
-      bankLabel,
-      rekening,
-      atasNama,
-      isActive: true,
-    })
-  }
-
+}
+export function selectKomitePaymentSettings(settings: KomitePaymentSettings, tingkat: unknown) {
+  const grade = parseKomiteGrade(tingkat)
+  const selected = grade ? settings.byGrade[grade] : null
   return {
-    accounts,
-    whatsapp: settings.keuangan_komite_whatsapp,
-    qrisUrl: settings.keuangan_komite_qris_url,
-    qrisEnabled: settings.keuangan_komite_qris_enabled !== '0' && settings.keuangan_komite_qris_enabled.toLowerCase() !== 'false',
+    tingkat: grade,
+    whatsapp: settings.whatsapp,
+    accounts: selected?.accounts.filter(account => account.isActive) ?? [],
+    qrisUrl: selected?.qrisUrl ?? '',
+    qrisEnabled: Boolean(selected?.qrisEnabled && selected.qrisUrl),
   }
+}
+export async function getKomitePaymentSettings(db?: D1Database): Promise<KomitePaymentSettings> {
+  const defaults: Record<string, string> = { keuangan_komite_whatsapp: '6282215860650' }
+  for (const grade of KOMITE_GRADES) {
+    const keys = komiteGradeKeys(grade)
+    defaults[keys.accounts] = ''
+    defaults[keys.qrisUrl] = ''
+    defaults[keys.qrisEnabled] = '0'
+  }
+  const stored = await getSystemSettings(defaults, db)
+  const byGrade = {} as KomitePaymentSettings['byGrade']
+  for (const grade of KOMITE_GRADES) {
+    const keys = komiteGradeKeys(grade)
+    byGrade[grade] = {
+      accounts: normalizeKomiteAccounts(stored[keys.accounts]),
+      qrisUrl: stored[keys.qrisUrl],
+      qrisEnabled: stored[keys.qrisEnabled] === '1',
+    }
+  }
+  return { byGrade, whatsapp: stored.keuangan_komite_whatsapp }
 }

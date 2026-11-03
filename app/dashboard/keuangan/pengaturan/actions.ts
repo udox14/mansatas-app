@@ -5,7 +5,7 @@ import { checkFeatureAccess, checkFeatureCrudAccess } from '@/lib/features'
 import type { CashDirection } from '@/lib/cashflow'
 import { setSystemSetting, setSystemSettings } from '@/lib/system-settings'
 import { KOMITE_REPORT_SETTING_KEYS, type OpeningBalanceMode, type ProofNumberMode } from '@/lib/komite-report-settings'
-import type { KomitePaymentAccount } from '@/lib/komite-payment-settings'
+import { getKomitePaymentSettings, komiteGradeKeys, parseKomiteGrade, type KomitePaymentAccount } from '@/lib/komite-payment-settings'
 import { getSession } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
 import { uploadKomiteQris } from '@/utils/r2'
@@ -24,7 +24,12 @@ async function requirePengaturanKomite() {
 }
 
 export async function saveKomitePaymentSettings(formData: FormData) {
-  await requirePengaturanKomite()
+  const { db, userId } = await requirePengaturanKomite()
+  if (!(await checkFeatureCrudAccess(db, userId, 'keuangan-pengaturan', 'update'))) return { error: 'Anda tidak memiliki izin mengubah pengaturan pembayaran.', success: null }
+  const grade = parseKomiteGrade(formData.get('tingkat'))
+  if (!grade) return { error: 'Tingkat kelas tidak valid.', success: null }
+  const keys = komiteGradeKeys(grade)
+  const before = await getKomitePaymentSettings(db)
   const ids = formData.getAll('accountId').map((value) => String(value || '').trim())
   const bankLabels = formData.getAll('bankLabel').map((value) => String(value || '').trim())
   const rekenings = formData.getAll('rekening').map((value) => String(value || '').trim())
@@ -44,30 +49,29 @@ export async function saveKomitePaymentSettings(formData: FormData) {
       return { error: 'Setiap rekening harus memiliki nama bank, nomor rekening, dan atas nama.', success: null }
     }
     accounts.push({
-      id: ids[index] || `rekening-${Date.now()}-${index}`,
+      id: ids[index],
       bankLabel,
       rekening,
       atasNama,
-      isActive: activeIds.has(ids[index] || `rekening-${Date.now()}-${index}`),
+      isActive: activeIds.has(ids[index]),
     })
   }
 
-  if (accounts.length === 0) {
-    return { error: 'Minimal tambahkan satu rekening pembayaran.', success: null }
+  if (accounts.some(account => !account.id) || new Set(accounts.map(account => account.id)).size !== accounts.length) {
+    return { error: 'ID rekening wajib diisi dan tidak boleh duplikat.', success: null }
   }
-  if (!qrisEnabled && accounts.every((account) => !account.isActive)) {
-    return { error: 'Aktifkan minimal satu metode pembayaran: QRIS atau salah satu rekening.', success: null }
+  if (qrisEnabled && !before.byGrade[grade].qrisUrl) {
+    return { error: 'Upload gambar QRIS untuk tingkat ini sebelum mengaktifkan QRIS.', success: null }
   }
-
-  const primaryAccount = accounts.find((account) => account.isActive) || accounts[0]
   await setSystemSettings({
-    keuangan_komite_accounts: JSON.stringify(accounts),
-    keuangan_komite_bank_label: primaryAccount.bankLabel,
-    keuangan_komite_rekening: primaryAccount.rekening,
-    keuangan_komite_atas_nama: primaryAccount.atasNama,
+    [keys.accounts]: JSON.stringify(accounts),
+    [keys.qrisEnabled]: qrisEnabled ? '1' : '0',
     keuangan_komite_whatsapp: whatsapp,
-    keuangan_komite_qris_enabled: qrisEnabled ? '1' : '0',
   })
+  await logActivity({ db, module: 'keuangan-pengaturan', action: 'update_payment_settings',
+    summary: `Memperbarui rekening dan metode pembayaran kelas ${grade}`,
+    before: { ...before.byGrade[grade], whatsapp: before.whatsapp },
+    after: { accounts, qrisEnabled, whatsapp }, metadata: { tingkat: grade } })
 
   revalidatePath('/dashboard/keuangan/pengaturan')
   revalidatePath('/portal-ortu')
@@ -99,14 +103,22 @@ export async function saveDsptSettings(input: { mode: string; defaultAmount: num
 }
 
 export async function uploadKomiteQrisAction(formData: FormData) {
-  await requirePengaturanKomite()
+  const { db, userId } = await requirePengaturanKomite()
+  if (!(await checkFeatureCrudAccess(db, userId, 'keuangan-pengaturan', 'update'))) return { error: 'Anda tidak memiliki izin mengubah pengaturan pembayaran.', success: null }
+  const grade = parseKomiteGrade(formData.get('tingkat'))
+  if (!grade) return { error: 'Tingkat kelas tidak valid.', success: null }
+  const keys = komiteGradeKeys(grade)
+  const before = await getKomitePaymentSettings(db)
   const file = formData.get('qris') as File | null
   if (!file || file.size <= 0) return { error: 'File QR code wajib dipilih.', success: null }
 
-  const uploaded = await uploadKomiteQris(file)
+  const uploaded = await uploadKomiteQris(file, grade)
   if (uploaded.error || !uploaded.url) return { error: uploaded.error || 'Gagal upload QR code.', success: null }
 
-  await setSystemSetting('keuangan_komite_qris_url', uploaded.url)
+  await setSystemSetting(keys.qrisUrl, uploaded.url)
+  await logActivity({ db, module: 'keuangan-pengaturan', action: 'update_payment_qris',
+    summary: `Memperbarui QRIS kelas ${grade}`, before: { qrisUrl: before.byGrade[grade].qrisUrl },
+    after: { qrisUrl: uploaded.url }, metadata: { tingkat: grade } })
   revalidatePath('/dashboard/keuangan/pengaturan')
   revalidatePath('/portal-ortu')
   return { error: null, success: 'QR code komite berhasil diperbarui.', url: uploaded.url }

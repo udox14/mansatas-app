@@ -120,6 +120,17 @@ export async function verifyMediaGrant(
 
 async function parentOwnsRelatedMedia(db: D1Database, actor: Extract<AuthenticatedActor, { kind: 'parent' }>, key: string) {
   const proxyUrl = `/api/media/${key}`
+  if (key.startsWith('keuangan_settings/')) {
+    // Only the active QRIS currently configured for this student's grade is accessible.
+    return Boolean(await db.prepare(`
+      SELECT 1 ok FROM siswa s
+      JOIN kelas k ON k.id = s.kelas_id
+      JOIN system_settings q ON q.key = 'keuangan_komite_' || k.tingkat || '_qris_url'
+      JOIN system_settings e ON e.key = 'keuangan_komite_' || k.tingkat || '_qris_enabled'
+      WHERE s.id = ? AND k.tingkat IN (10, 11, 12) AND q.value = ? AND e.value = '1'
+      LIMIT 1
+    `).bind(actor.siswaId, proxyUrl).first())
+  }
   if (key.startsWith('payment_proofs/')) {
     const submissionId = key.split('/')[1]
     return Boolean(await db.prepare('SELECT 1 ok FROM fin_payment_submissions WHERE id = ? AND siswa_id = ? LIMIT 1')

@@ -83,10 +83,22 @@ export async function getSystemSetting(key: string, fallback = ''): Promise<stri
 
 export async function getSystemSettings<const T extends string>(
   fallbacks: Record<T, string>,
+  requestDb?: D1Database,
 ): Promise<Record<T, string>> {
   const entries = Object.entries(fallbacks) as Array<[T, string]>
   const values = {} as Record<T, string>
   const missing: Array<[T, string]> = []
+
+  // Payment validation must see settings changed in other worker instances immediately.
+  if (requestDb && entries.length > 0) {
+    await ensureSchemaOnce('system-settings', () => ensureSystemSettingsTable(requestDb))
+    const rows = await requestDb.prepare(
+      `SELECT key, value FROM system_settings WHERE key IN (${entries.map(() => '?').join(',')})`,
+    ).bind(...entries.map(([key]) => key)).all<{ key: T; value: string }>()
+    const stored = new Map((rows.results ?? []).map(row => [row.key, row.value]))
+    for (const [key, fallback] of entries) values[key] = stored.get(key) ?? fallback
+    return values
+  }
 
   for (const [key, fallback] of entries) {
     const cached = getMemCache<string>(`sys-setting:${key}`)
