@@ -241,7 +241,7 @@ function parseJamPelajaran(raw: string | null | undefined): Map<number, Map<numb
 export default async function PortalOrtuPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const requestedTab = (await searchParams).tab
   const session = await getAppSession()
-  if (!session) redirect('/portal-ortu/login')
+  if (!session) redirect(requestedTab === 'keuangan' ? '/portal-ortu/login?next=keuangan' : '/portal-ortu/login')
   if (session.kind === 'staff') redirect('/dashboard')
 
   const siswaId = session.user.siswa_id
@@ -783,7 +783,8 @@ export default async function PortalOrtuPage({ searchParams }: { searchParams: P
   const jadwalObject = Object.fromEntries(Array.from(jadwalByDay.entries()))
 
   const data = {
-    initialPortalTab: requestedTab === 'kedisiplinan' && disciplineSettings.enabled ? 'kedisiplinan' : 'beranda',
+    initialPortalTab: requestedTab === 'keuangan' ? 'keuangan'
+      : requestedTab === 'kedisiplinan' && disciplineSettings.enabled ? 'kedisiplinan' : 'beranda',
     profil,
     kelasLabel,
     waliKelasRow,

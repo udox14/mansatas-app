@@ -1,5 +1,6 @@
 import { buildPushPayload } from '@block65/webcrypto-web-push';
 import { getDB } from '@/utils/db-server'
+import { validPushEndpoint } from '@/lib/web-push-endpoint'
 
 export type WebPushRuntimeEnv = {
   NEXT_PUBLIC_VAPID_PUBLIC_KEY?: string
@@ -13,6 +14,21 @@ export type WebPushRuntimeOptions = {
 }
 
 type PushTarget = { userId?: string; userIds?: string[]; role?: string; all?: boolean };
+type PushMessage = { title: string; body: string; url?: string; icon?: string }
+type PushDestination = { endpoint: string; p256dh: string; auth: string }
+
+function vapidCredentials(env?: WebPushRuntimeEnv) {
+  const publicKey = env?.NEXT_PUBLIC_VAPID_PUBLIC_KEY || process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+  const privateKey = env?.VAPID_PRIVATE_KEY || process.env.VAPID_PRIVATE_KEY
+  const subject = env?.VAPID_SUBJECT || process.env.VAPID_SUBJECT || 'mailto:admin@localhost'
+  return publicKey && privateKey ? { publicKey, privateKey, subject } : null
+}
+
+async function pushRequest(row: PushDestination, payload: string, vapid: NonNullable<ReturnType<typeof vapidCredentials>>) {
+  return buildPushPayload({ data: payload }, {
+    endpoint: row.endpoint, expirationTime: null, keys: { p256dh: row.p256dh, auth: row.auth },
+  }, vapid)
+}
 
 async function mapWithConcurrency<T, R>(items: T[], concurrency: number, mapper: (item: T) => Promise<R>) {
   const output: R[] = []
@@ -27,11 +43,44 @@ async function mapWithConcurrency<T, R>(items: T[], concurrency: number, mapper:
   return output
 }
 
+export async function sendParentWebPushBatch(
+  notification: PushMessage,
+  destinations: (PushDestination & { id: string; siswa_id: string })[],
+  db: D1Database,
+  env: WebPushRuntimeEnv,
+) {
+  if (destinations.length > 10) throw new Error('Batch Web Push terlalu besar.')
+  const vapid = vapidCredentials(env)
+  const payload = JSON.stringify(notification)
+  return mapWithConcurrency(destinations, 4, async row => {
+    if (!vapid || !validPushEndpoint(row.endpoint)) return { state: 'failed' as const, id: row.id }
+    let request: Awaited<ReturnType<typeof pushRequest>>
+    try {
+      request = await pushRequest(row, payload, vapid)
+    } catch {
+      return { state: 'failed' as const, id: row.id }
+    }
+    try {
+      const response = await fetch(row.endpoint, { ...request, body: Uint8Array.from(request.body), redirect: 'error', signal: AbortSignal.timeout(5000) })
+      await response.body?.cancel().catch(() => undefined)
+      if (response.ok) return { state: 'accepted' as const, id: row.id }
+      if (response.status === 404 || response.status === 410) {
+        await db.prepare('DELETE FROM parent_web_push_subscriptions WHERE id = ? AND siswa_id = ? AND endpoint = ?')
+          .bind(row.id, row.siswa_id, row.endpoint).run()
+      }
+      const retryable = response.status === 429 || response.status >= 500
+      return { state: retryable ? 'retry' as const : 'failed' as const, id: row.id }
+    } catch {
+      return { state: 'retry' as const, id: row.id }
+    }
+  })
+}
+
 /**
  * Mengirim push notification ke user menggunakan Web Crypto (Cloudflare Workers Compatible)
  */
 export async function sendPushNotification(
-  notification: { title: string, body: string, url?: string, icon?: string },
+  notification: PushMessage,
   target: PushTarget,
   options: WebPushRuntimeOptions = {},
 ) {
@@ -73,11 +122,8 @@ export async function sendPushNotification(
       return { success: true, sent: 0, message: "No active subscriptions found for target" };
     }
 
-    const publicVapidKey = options.env?.NEXT_PUBLIC_VAPID_PUBLIC_KEY || process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-    const privateVapidKey = options.env?.VAPID_PRIVATE_KEY || process.env.VAPID_PRIVATE_KEY;
-    const subject = options.env?.VAPID_SUBJECT || process.env.VAPID_SUBJECT || 'mailto:admin@localhost';
-
-    if (!publicVapidKey || !privateVapidKey) {
+    const vapid = vapidCredentials(options.env);
+    if (!vapid) {
       console.error("[PushService] VAPID keys missing in environment");
       return { success: false, message: "VAPID keys not configured" };
     }
@@ -87,26 +133,7 @@ export async function sendPushNotification(
     // Batasi concurrency karena pembuatan VAPID payload memakai Web Crypto.
     const report = await mapWithConcurrency(results, 10, async (row: any) => {
       try {
-        const subscription = {
-          endpoint: row.endpoint,
-          expirationTime: null,
-          keys: {
-            p256dh: row.p256dh,
-            auth: row.auth
-          }
-        };
-
-        const vapid = {
-          subject,
-          publicKey: publicVapidKey,
-          privateKey: privateVapidKey,
-        };
-
-        const pushPayload = await buildPushPayload(
-          { data: payload },
-          subscription,
-          vapid
-        );
+        const pushPayload = await pushRequest(row, payload, vapid);
 
         const response = await fetch(row.endpoint, pushPayload as any);
 

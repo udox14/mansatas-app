@@ -61,6 +61,7 @@ export type NotificationQueueMessage = {
   }
   parentType: string
   level: string
+  dsptWork?: { cursor: string; end?: string; step: number }
   validation?: KomiteReminderValidation | {
     kind: 'attendance_work'
     tanggal: string
@@ -2003,13 +2004,21 @@ export async function prepareAttendanceNotificationWork(db: D1Database, input: {
 /** Bounded enqueue recovery, using a lease so submit and cron cannot fan out twice. */
 export async function flushAttendanceNotificationOutbox(db: D1Database) {
   await ensureNotificationSchema(db)
-  const queue = await getQueue()
+  return flushNotificationOutbox(db)
+}
+
+export async function flushNotificationOutbox(db: D1Database, sourceRef?: string, binding?: QueueBinding) {
+  const queue = binding ?? await getQueue()
   if (!queue) return { queued: 0 }
-  const now = new Date().toISOString()
+  const nowMs = Date.now()
+  const now = new Date(nowMs).toISOString()
   const rows = await db.prepare(`SELECT id, payload_json, available_at FROM notification_dispatches
     WHERE enqueued_at IS NULL AND payload_json IS NOT NULL AND status IN ('queued','failed')
       AND available_at <= ? AND (enqueue_claim_until IS NULL OR enqueue_claim_until <= ?)
-    ORDER BY available_at, id LIMIT 50`).bind(new Date(Date.now() + 3600_000).toISOString(), now).all<{ id: string; payload_json: string; available_at: string }>()
+      ${sourceRef ? 'AND source_ref = ?' : ''}
+    ORDER BY available_at, id LIMIT ${sourceRef ? 1 : 50}`)
+    .bind(new Date(nowMs + 3600_000).toISOString(), now, ...(sourceRef ? [sourceRef] : []))
+    .all<{ id: string; payload_json: string; available_at: string }>()
   let queued = 0
   for (const row of rows.results || []) {
     const claim = await db.prepare(`UPDATE notification_dispatches SET enqueue_claim_until = ?
@@ -2020,7 +2029,9 @@ export async function flushAttendanceNotificationOutbox(db: D1Database) {
       const message = JSON.parse(row.payload_json) as NotificationQueueMessage
       const delaySeconds = Math.max(0, Math.ceil((Date.parse(row.available_at) - Date.now()) / 1000))
       await queue.send(message, { contentType: 'json', ...(delaySeconds > 0 ? { delaySeconds } : {}) })
-      await db.prepare(`UPDATE notification_dispatches SET status = 'queued', enqueued_at = datetime('now'), enqueue_claim_until = NULL WHERE id = ?`)
+      await db.prepare(`UPDATE notification_dispatches
+        SET status = CASE WHEN status = 'failed' AND attempts = 0 THEN 'queued' ELSE status END,
+          enqueued_at = COALESCE(enqueued_at, datetime('now')), enqueue_claim_until = NULL WHERE id = ?`)
         .bind(row.id).run()
       queued++
     } catch (error) {

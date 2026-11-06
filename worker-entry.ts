@@ -1,6 +1,7 @@
 import { default as nextHandler } from "./.open-next/worker.js";
 import { processNotificationQueueMessage, type NotificationQueueMessage } from "@/lib/notification-engine";
 import type { FcmRuntimeEnv } from "@/lib/fcm";
+import { processDsptReminderWork } from "@/lib/dspt-reminder-queue";
 
 interface ScheduledEvent {
   cron: string;
@@ -68,11 +69,13 @@ const entrypoint = {
   async queue(batch: NotificationQueueBatch, env: NotificationWorkerEnv) {
     for (const message of batch.messages) {
       try {
-        const result = await processNotificationQueueMessage(
-          message.body,
-          env as FcmRuntimeEnv & { DB: D1Database },
-          message.attempts || 0,
-        )
+        const result = message.body.dsptWork
+          ? await processDsptReminderWork(message.body, env, message.attempts || 0)
+          : await processNotificationQueueMessage(
+            message.body,
+            env as FcmRuntimeEnv & { DB: D1Database },
+            message.attempts || 0,
+          )
         if (result.retry) {
           message.retry({ delaySeconds: 60 })
         } else {
@@ -82,7 +85,8 @@ const entrypoint = {
         console.error(JSON.stringify({
           event: 'notification_queue_message_failed',
           attempts: message.attempts || 0,
-          error: error instanceof Error ? { name: error.name, message: error.message } : String(error),
+          error: message.body?.dsptWork ? 'Pekerjaan DSPT gagal.'
+            : error instanceof Error ? { name: error.name, message: error.message } : String(error),
         }))
         message.retry({ delaySeconds: 60 })
       }

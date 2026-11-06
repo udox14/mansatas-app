@@ -12,10 +12,12 @@ export default function ParentLoginClient({
   helpEnabled = true,
   helpWhatsapp = '6282218943383',
   helpInfo = '',
+  redirectTo = '/portal-ortu',
 }: {
   helpEnabled?: boolean
   helpWhatsapp?: string
   helpInfo?: string
+  redirectTo?: string
 }) {
   const [nisn, setNisn] = useState('')
   const [password, setPassword] = useState('')
@@ -57,7 +59,7 @@ export default function ParentLoginClient({
       }
       if (rememberMe) window.localStorage.setItem(REMEMBERED_PARENT_USERNAME, nisn.trim())
       else window.localStorage.removeItem(REMEMBERED_PARENT_USERNAME)
-      window.location.href = '/portal-ortu'
+      window.location.href = redirectTo
     } catch {
       setError('Terjadi kesalahan jaringan. Silakan coba lagi.')
       setPending(false)

@@ -66,11 +66,13 @@ export function usePushNotifications() {
               userVisibleOnly: true,
               applicationServerKey: expectedKey,
             });
-            await saveSubscription(currentSubscription);
           }
         }
       }
 
+      if (currentSubscription && Notification.permission === 'granted') {
+        await saveSubscription(currentSubscription);
+      }
       setSubscription(currentSubscription);
       setPermission(Notification.permission);
     } catch (error) {

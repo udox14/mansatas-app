@@ -125,7 +125,7 @@ function PwaInstallPrompt() {
   );
 }
 
-function PushNotificationPrompt() {
+function PushNotificationPrompt({ audience }: { audience: 'staff' | 'parent' }) {
   const { isSupported, permission, subscription, loading, subscribe } = usePushNotifications();
   const [isVisible, setIsVisible] = useState(false);
 
@@ -155,7 +155,9 @@ function PushNotificationPrompt() {
       title={permission === 'denied' ? 'Notifikasi diblokir' : 'Aktifkan notifikasi'}
       description={permission === 'denied'
         ? 'Izin notifikasi diblokir di browser. Buka pengaturan situs untuk mengaktifkannya kembali.'
-        : 'Terima info penugasan, rapat, dan pengumuman madrasah langsung di perangkat ini.'}
+        : audience === 'parent'
+          ? 'Terima pemberitahuan Portal Orang Tua, termasuk informasi DSPT, langsung di perangkat ini.'
+          : 'Terima info penugasan, rapat, dan pengumuman madrasah langsung di perangkat ini.'}
       tone={permission === 'denied' ? 'warning' : 'default'}
       onDismiss={close}
       action={permission === 'denied' ? (
@@ -177,11 +179,11 @@ function PushNotificationPrompt() {
   );
 }
 
-export function PushNotificationBanner() {
+export function PushNotificationBanner({ audience = 'staff' }: { audience?: 'staff' | 'parent' }) {
   return (
     <div className="fixed bottom-4 left-4 right-4 z-[100] flex flex-col gap-3 sm:bottom-6 sm:left-auto sm:right-6 sm:w-[23rem]">
       <PwaInstallPrompt />
-      <PushNotificationPrompt />
+      <PushNotificationPrompt audience={audience} />
     </div>
   );
 }

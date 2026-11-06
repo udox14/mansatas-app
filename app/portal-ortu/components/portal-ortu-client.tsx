@@ -62,6 +62,7 @@ import { PARENT_SUGGESTION_CATEGORIES } from '@/lib/parent-suggestions'
 import { PushNotificationBanner } from '@/components/shared/PushNotificationBanner'
 import { MarkdownViewer } from '@/components/documentation/markdown-viewer'
 import { currentTimeWIB, formatDateTimeWIB, formatDateWIB } from '@/lib/time'
+import { DSPT_REMINDER_EVENT } from '@/lib/dspt-reminder-config'
 
 function rupiah(v: number) {
   return new Intl.NumberFormat('id-ID').format(v || 0)
@@ -1175,6 +1176,12 @@ export function PortalOrtuClient({ data }: { data: any }) {
                         {!isRead && <span className="rounded-full bg-[#FFF1EF] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#C2522D]">Baru</span>}
                       </div>
                       <p className="mt-0.5 text-xs leading-5 text-[#6B6B63]">{notification.message}</p>
+                      {notification.type === DSPT_REMINDER_EVENT && <button type="button"
+                        className="mt-1 min-h-8 text-xs font-bold text-teal-800 underline"
+                        onClick={() => {
+                          if (!isRead) void readNotification(notification.id).catch(() => undefined)
+                          changeTab('keuangan')
+                        }}>Buka Pembayaran DSPT</button>}
                       <div className="mt-2 flex items-center justify-between gap-3">
                         <p className="text-[10px] text-[#A7A299]">{formatDateTimeWIB(notification.created_at)} WIB</p>
                         {!isRead && <button type="button" onClick={() => readNotification(notification.id)} className="min-h-8 rounded-lg bg-[#F2F0EC] px-2.5 text-[10px] font-bold text-[#1A1A18] hover:bg-[#E8E5E0]">Tandai dibaca</button>}
@@ -2317,7 +2324,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
 
   return (
     <div className="portal-root relative min-h-[100dvh] overflow-x-hidden bg-[#FAF9F7] text-[#1A1A18] [color-scheme:light]">
-      <PushNotificationBanner />
+      <PushNotificationBanner audience="parent" />
       <style dangerouslySetInnerHTML={{
         __html: `
         .portal-root,
@@ -2446,6 +2453,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
             Panduan Halaman
           </button>
           <form action="/api/auth/sign-out" method="post">
+            <input type="hidden" name="push_endpoint" />
             <button className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-[#A63D32] transition-colors hover:bg-[#FFF1EF]">
               <LogOut className="h-4 w-4" />
               Keluar
@@ -2482,6 +2490,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
               <CircleHelp className="h-5 w-5" />
             </button>
             <form action="/api/auth/sign-out" method="post">
+              <input type="hidden" name="push_endpoint" />
               <button className="grid h-11 w-11 place-items-center rounded-lg text-[#A63D32] transition-colors hover:bg-[#FFF1EF]">
                 <LogOut className="h-5 w-5" />
               </button>

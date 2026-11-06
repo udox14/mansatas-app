@@ -26,6 +26,7 @@ export type FcmRuntimeEnv = {
 export type FcmRuntimeOptions = {
   db?: D1Database
   env?: FcmRuntimeEnv
+  parentBatchTokens?: string[]
 }
 
 export type FcmNotif = {
@@ -47,6 +48,8 @@ export type FcmTarget = {
   siswaIds?: string[]
   allParents?: boolean
 }
+
+type FcmDeliveryReport = { success: boolean; token: string; status?: number; error?: string }
 
 let accessTokenInFlight: Promise<string> | null = null
 
@@ -104,6 +107,7 @@ async function mintAccessToken(clientEmail: string, privateKeyPem: string): Prom
 
   const res = await fetch(TOKEN_AUD, {
     method: 'POST',
+    signal: AbortSignal.timeout(5000),
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
       grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
@@ -218,7 +222,9 @@ export async function sendFcmNotification(
     }
 
     const db = options.db || await getDB()
-    const tokens = await resolveTokens(target, db)
+    const parentBatch = options.parentBatchTokens
+    if (parentBatch && parentBatch.length > 10) throw new Error('Batch FCM terlalu besar.')
+    const tokens = parentBatch ?? await resolveTokens(target, db)
     if (tokens.length === 0) {
       return { success: true, sent: 0, message: 'No FCM tokens for target' }
     }
@@ -279,6 +285,7 @@ export async function sendFcmNotification(
       try {
         const res = await fetch(endpoint, {
           method: 'POST',
+          ...(parentBatch ? { signal: AbortSignal.timeout(5000), redirect: 'error' as const } : {}),
           headers: {
             Authorization: `Bearer ${accessToken}`,
             'Content-Type': 'application/json',
@@ -288,22 +295,26 @@ export async function sendFcmNotification(
         if (res.ok) return { success: true, token }
         const errText = await res.text()
         // UNREGISTERED / NOT_FOUND → token mati, hapus
-        if ([401, 403, 404, 410].includes(res.status) || errText.includes('UNREGISTERED') || errText.includes('registration-token-not-registered')) {
-          await db.prepare('DELETE FROM fcm_tokens WHERE token = ?').bind(token).run()
+        const expired = res.status === 410 || errText.includes('UNREGISTERED') || errText.includes('registration-token-not-registered')
+        if (parentBatch ? expired : expired || [401, 403, 404].includes(res.status)) {
+          await db.prepare(parentBatch
+            ? "DELETE FROM fcm_tokens WHERE token = ? AND owner_type = 'parent'"
+            : 'DELETE FROM fcm_tokens WHERE token = ?').bind(token).run()
         }
-        console.error(`[FCM] gagal kirim (${res.status}): ${errText}`)
+        if (!parentBatch) console.error(`[FCM] gagal kirim (${res.status}): ${errText}`)
         return { success: false, token, status: res.status, error: errText }
       } catch (err: any) {
-        console.error('[FCM] error kirim:', err.message)
+        if (!parentBatch) console.error('[FCM] error kirim:', err.message)
         return { success: false, token, error: err.message }
       }
     }
 
-    const report: any[] = []
+    const report: FcmDeliveryReport[] = []
+    const concurrency = parentBatch ? 4 : 20
     for (let i = 0; i < tokens.length; i += 100) {
       const chunk = tokens.slice(i, i + 100)
-      for (let start = 0; start < chunk.length; start += 20) {
-        const r = await Promise.all(chunk.slice(start, start + 20).map(send))
+      for (let start = 0; start < chunk.length; start += concurrency) {
+        const r = await Promise.all(chunk.slice(start, start + concurrency).map(send))
         report.push(...r)
       }
     }
@@ -315,7 +326,7 @@ export async function sendFcmNotification(
       ...(sent === 0 && report.length > 0 ? { error: 'Semua token FCM gagal menerima notifikasi.' } : {}),
     }
   } catch (error) {
-    console.error('[FCM] Gagal mengirim FCM:', error)
+    if (!options.parentBatchTokens) console.error('[FCM] Gagal mengirim FCM:', error)
     return { success: false, error }
   }
 }

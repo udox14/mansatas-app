@@ -96,6 +96,21 @@ export async function POST(request: Request) {
   // POST /api/auth/sign-out
   if (pathname.endsWith('/sign-out')) {
     const auth = await getAuth()
+    if (request.headers.get('content-type')?.includes('application/x-www-form-urlencoded')) {
+      const endpoint = (await request.formData().catch(() => null))?.get('push_endpoint')
+      if (typeof endpoint === 'string' && endpoint && endpoint.length <= 2048) {
+        try {
+          const parent = await auth.api.getParentSession({ headers: request.headers })
+          if (parent?.user) {
+            const db = await getAuthDb()
+            await db.prepare('DELETE FROM parent_web_push_subscriptions WHERE endpoint = ? AND siswa_id = ?')
+              .bind(endpoint, parent.user.siswa_id).run()
+          }
+        } catch {
+          console.warn('Gagal melepas langganan Web Push saat keluar dari Portal Orang Tua.')
+        }
+      }
+    }
     await auth.api.signOut({ headers: request.headers })
     const isJsonRequest = request.headers.get('content-type')?.includes('application/json')
     const res = isJsonRequest

@@ -99,6 +99,21 @@ export async function unregisterNativePushToken() {
   window.localStorage.removeItem(PENDING_FCM_TOKEN_KEY)
 }
 
+async function prepareWebPushLogout(form: HTMLFormElement) {
+  const field = form.querySelector<HTMLInputElement>('input[name="push_endpoint"]')
+  if (!field || !('serviceWorker' in navigator)) return
+  let timeout: number | undefined
+  try {
+    const subscription = await Promise.race([
+      navigator.serviceWorker.getRegistration().then(registration => registration?.pushManager?.getSubscription()),
+      new Promise<null>(resolve => { timeout = window.setTimeout(() => resolve(null), 1200) }),
+    ])
+    if (subscription) field.value = subscription.endpoint
+  } finally {
+    window.clearTimeout(timeout)
+  }
+}
+
 const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.mansatas.app'
 const NATIVE_VERIFIED_KEY = 'mansatas_native_verified'
 
@@ -502,14 +517,14 @@ export function MobileRuntime({
     }
   }, [isAuthenticatedArea])
 
-  // Form logout portal orang tua harus mencabut token perangkat sebelum sesi ditutup.
+  // Form logout portal menghapus token native dan menyerahkan endpoint browser ke server.
   useEffect(() => {
     const handleSubmit = async (event: SubmitEvent) => {
       const form = event.target as HTMLFormElement | null
       if (!form || !form.action.includes('/api/auth/sign-out') || form.dataset.pushCleaned === 'true') return
       event.preventDefault()
       form.dataset.pushCleaned = 'true'
-      await unregisterNativePushToken()
+      await Promise.allSettled([unregisterNativePushToken(), prepareWebPushLogout(form)])
       form.submit()
     }
     document.addEventListener('submit', handleSubmit, true)
