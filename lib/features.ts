@@ -4,6 +4,7 @@
 import { MENU_ITEMS } from '@/config/menu'
 import { isPlayReviewerRole, PLAY_REVIEWER_ROLE } from '@/lib/play-reviewer'
 import { logSecurityEvent } from '@/lib/security-log'
+import { isAttendanceReviewPosition } from '@/lib/attendance-correction'
 
 export type CrudAction = 'create' | 'read' | 'update' | 'delete'
 
@@ -95,12 +96,17 @@ export async function getUserAllowedFeatures(db: D1Database, userId: string): Pr
   const allowed = new Set(roleFeatures)
 
   // Sarana Prasarana is a structural assignment, not a separate role.
-  if (roles.includes('wakamad') && !roles.some(r => ['super_admin', 'admin_tu', 'kepsek'].includes(r))) {
+  if (roles.includes('wakamad')) {
     const structural = await db.prepare('SELECT jabatan_struktural_id FROM "user" WHERE id=?').bind(userId).first<{ jabatan_struktural_id: string | null }>()
-    if (structural?.jabatan_struktural_id !== 'jbt_waka_sarpras') allowed.delete('monitoring-pramubakti')
-    if (structural?.jabatan_struktural_id !== 'jbt_waka_kurikulum') {
-      allowed.delete('audit-akses-agenda')
-      allowed.delete('monitoring-agenda')
+    if (isAttendanceReviewPosition(structural?.jabatan_struktural_id)) {
+      allowed.add('keterangan-absensi')
+    }
+    if (!roles.some(r => ['super_admin', 'admin_tu', 'kepsek'].includes(r))) {
+      if (structural?.jabatan_struktural_id !== 'jbt_waka_sarpras') allowed.delete('monitoring-pramubakti')
+      if (structural?.jabatan_struktural_id !== 'jbt_waka_kurikulum') {
+        allowed.delete('audit-akses-agenda')
+        allowed.delete('monitoring-agenda')
+      }
     }
   }
 

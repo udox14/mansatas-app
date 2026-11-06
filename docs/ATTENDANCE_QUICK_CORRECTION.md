@@ -6,12 +6,19 @@
   absensi. Wali kelas menerima FCM/web push dengan jeda bawaan 0 menit. Antrean
   tetap dapat membuat penerimaan lebih lambat.
 - Tautan membuka `/dashboard/kelas-binaan/koreksi` untuk satu siswa, tanggal,
-  dan penugasan. Pilih status dan simpan; alasan opsional. Koreksi disimpan
-  terpisah dari catatan guru, dengan pemeriksaan akses dan konflik perubahan.
-- Laporan awal orang tua membaca ulang sumber dan koreksi saat dikirim.
-  Koreksi Sakit/Izin mengubah isi laporan, Hadir membatalkan kandidat. Kandidat
-  batal tidak memakai kesempatan satu laporan awal per hari. Sesi valid lain
-  dapat menjadi pemicu baru dengan waktunya sendiri.
+  dan penugasan. Koreksi biasa dapat disimpan langsung dengan alasan opsional.
+  Untuk mengubah Alfa mapel yang masih berlaku menjadi Hadir, Sakit, atau Izin,
+  wali kelas mengirim ajuan dengan alasan wajib. Alur ini juga tersedia di
+  Kelas Binaan dan Riwayat & Koreksi Absensi.
+- Tab **Persetujuan Koreksi** tersedia untuk Wakamad Kesiswaan, Wakamad
+  Kurikulum, Kepala Madrasah, dan Super Admin. Hanya Super Admin yang dapat
+  menyetujui ajuan sendiri. Pemeriksa melihat status harian, usulan, blok Alfa,
+  izin resmi, dan alasan. Penolakan wajib beralasan. Perubahan blok Alfa
+  memerlukan peninjauan ulang melalui ajuan baru.
+- Laporan awal Alfa mengikuti sesi mapel. Persetujuan berlaku pada rekap harian
+  selama blok Alfa sesuai dengan yang ditinjau. Kandidat yang batal karena
+  perubahan sumber atau izin tidak memakai kesempatan satu laporan awal per
+  hari. Sesi valid lain dapat menjadi pemicu baru.
 - Rekap harian tetap menunggu akhir KBM. Penutup hanya mengikuti laporan awal
   yang berhasil dikirim; perubahan status sesudahnya menghasilkan pembaruan.
 
@@ -26,9 +33,9 @@ tetap tersimpan. Rekap penutup tidak mendapat jeda tambahan setelah akhir KBM.
 
 ## Arsitektur dan penerapan
 
-1. Terapkan migration `0116_attendance_quick_correction_outbox.sql` **sebelum**
-   kode release ini. Migration menambah kolom ledger/state dan trigger perizinan;
-   tidak mengubah sumber absensi maupun timestamp aktivasi dari migration 0114.
+1. Terapkan migrasi `0116_attendance_quick_correction_outbox.sql` dan
+   `0125_attendance_correction_approval.sql` sebelum kode yang bergantung padanya.
+   Keduanya mempertahankan data sumber dan waktu aktivasi dari migrasi 0114.
 2. Reuse binding Queue, consumer, dan cron lima menit existing. Tidak perlu
    dependency atau Worker baru. Submit tidak menghubungi provider push.
 3. Ledger menyimpan payload pekerjaan dan pengiriman tertunda. Enqueue memakai

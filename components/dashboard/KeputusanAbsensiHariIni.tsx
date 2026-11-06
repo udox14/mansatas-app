@@ -1,6 +1,8 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { AttendanceCorrectionRequest } from './AttendanceCorrectionRequest'
+import { isProposedAttendanceStatus, type AttendanceAlfaBlock } from '@/lib/attendance-correction'
 import { useAttendanceAutosave } from '@/hooks/use-attendance-autosave'
 import { attendanceDraftKey, clearAttendanceDraft, validAttendanceDraftStatus } from '@/lib/attendance-local-draft'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -47,6 +49,7 @@ export type KeputusanAbsensiRow = {
   guru_status: FinalStatus
   guru_status_reason: string
   wali_status: WaliStatus | null
+  alfa_blocks?: AttendanceAlfaBlock[]
   status_akhir: FinalStatus
   sumber_status: SourceStatus
   status_reason: string
@@ -187,6 +190,9 @@ function KehadiranHarianEditor({ userId, kelasId, tanggal, today, minDate, rows,
 
   const changedItems = items.filter(item => item.draft_status !== item.wali_status || item.draft_keterangan !== (item.keterangan_wali_kelas || ''))
   const save = async () => {
+      if (changedItems.some(item => item.alfa_blocks?.length && isProposedAttendanceStatus(item.draft_status))) {
+        throw new Error('Ajukan koreksi untuk siswa yang masih memiliki Alfa atau kembalikan draftnya ke status otomatis.')
+      }
       const res = await simpanKeputusanAbsensiWaliBatch(
         kelasId,
         tanggal,
@@ -198,6 +204,11 @@ function KehadiranHarianEditor({ userId, kelasId, tanggal, today, minDate, rows,
       )
 
       if (res.error) {
+        if (res.approvalRequired) {
+          const blocked = res.approvalRequired
+          setItems(previous => previous.map(item => blocked[item.siswa_id] ? { ...item, alfa_blocks: blocked[item.siswa_id] } : item))
+          setEditing(Object.keys(blocked)[0])
+        }
         throw new Error(res.error)
       }
 
@@ -399,7 +410,7 @@ function KehadiranHarianEditor({ userId, kelasId, tanggal, today, minDate, rows,
                           return (
                             <button
                               key={option.status}
-                              disabled={isPending}
+                              disabled={isPending || (Boolean(row.alfa_blocks?.length) && isProposedAttendanceStatus(option.status))}
                               aria-pressed={active}
                               type="button"
                               onClick={() => setStatus(row.siswa_id, active ? null : option.status)}
@@ -429,7 +440,7 @@ function KehadiranHarianEditor({ userId, kelasId, tanggal, today, minDate, rows,
                       <div>
                         <input
                           aria-label={`Catatan koreksi untuk ${row.nama_lengkap}`}
-                          disabled={!row.draft_status || isPending}
+                          disabled={!row.draft_status || isPending || (Boolean(row.alfa_blocks?.length) && isProposedAttendanceStatus(row.draft_status))}
                           type="text"
                           value={row.draft_keterangan}
                           onChange={event => setKeterangan(row.siswa_id, event.target.value)}
@@ -437,6 +448,15 @@ function KehadiranHarianEditor({ userId, kelasId, tanggal, today, minDate, rows,
                           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 placeholder:text-slate-400 shadow-sm focus:border-purple-400 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
                         />
                       </div>
+                      <AttendanceCorrectionRequest key={`${row.siswa_id}:${tanggal}`} siswaId={row.siswa_id} tanggal={tanggal}
+                        blocks={row.alfa_blocks ?? []} draftStatus={draftChanged ? row.draft_status : null}
+                        draftNote={draftChanged ? row.draft_keterangan : ''}
+                        onRequested={() => {
+                          setItems(previous => previous.map(item => item.siswa_id === row.siswa_id ? {
+                            ...item, draft_status: item.wali_status, draft_keterangan: item.keterangan_wali_kelas || '',
+                          } : item))
+                          router.refresh()
+                        }} />
                     </div>
                   )}
 

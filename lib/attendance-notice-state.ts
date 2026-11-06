@@ -60,7 +60,7 @@ export function utcSourceTimestamp(value: string) {
 
 /** Official permission masks a teacher's session record, even when both say SAKIT. */
 export function teacherNoticeStillValid(day: FinalAttendanceDetail | undefined, assignment: string, status: string) {
-  if (!day || (day.wali_status && day.wali_status !== status)) return false
+  if (!day || (status !== 'ALFA' && !day.approved_correction && day.wali_status && day.wali_status !== status)) return false
   const block = day.block_statuses.find(item => item.penugasan_id === assignment)
   if (!block?.submitted || block.status !== status) return false
   return !day.detail_guru.some(item => item.sumber === 'perizinan_siswa' &&
@@ -76,13 +76,13 @@ export async function readAttendanceNoticeState(db: D1Database, siswaId: string,
     .bind(siswaId, tanggal).first<AttendanceNoticeState>()
 }
 
-/** Wali correction is a daily override, usable before the final daily recap. */
+/** A daily approval does not change the source session report. */
 export function effectiveInitialAttendanceStatus(day: FinalAttendanceDetail | undefined, assignment: string, teacherStatus: string) {
   if (!day) return null
   // Official school full-day present priority always wins.
   if (day.sumber_status === 'perizinan_sekolah') return null
   const uncorrected = { ...day, wali_status: null }
   if (!teacherNoticeStillValid(uncorrected, assignment, teacherStatus)) return null
-  const status = day.wali_status || teacherStatus
+  const status = teacherStatus === 'ALFA' || day.approved_correction ? teacherStatus : day.wali_status || teacherStatus
   return ['ALFA', 'SAKIT', 'IZIN'].includes(status) ? status : null
 }

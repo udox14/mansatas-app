@@ -6,6 +6,8 @@ import { attendanceDraftKey, clearAttendanceDraft, validAttendanceDraftStatus } 
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { attendanceStatusLabel } from '@/lib/attendance-status'
+import { isProposedAttendanceStatus } from '@/lib/attendance-correction'
+import { AttendanceCorrectionRequest } from '@/components/dashboard/AttendanceCorrectionRequest'
 import { simpanKoreksiAbsensiCepat, type QuickAttendanceContext } from '../attendance-actions'
 
 const statuses = ['HADIR', 'SAKIT', 'IZIN', 'ALFA'] as const
@@ -16,10 +18,16 @@ export function QuickAttendanceCorrection({ data }: { data: QuickAttendanceConte
   const [feedback, setFeedback] = useState('')
   const [saved, setSaved] = useState({ status: data.waliStatus, note: data.waliNote })
   const [revision, setRevision] = useState(data.revision)
+  const [alfaBlocks, setAlfaBlocks] = useState(data.alfaBlocks ?? [])
+  const parentDeadline = data.parentDueAt ? new Date(data.parentDueAt).toLocaleTimeString('id-ID', {
+    timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit',
+  }) : null
   const localKey = attendanceDraftKey(data.userId, `cepat:${data.siswaId}:${data.tanggal}:${data.penugasanId}`)
   const changed = status !== saved.status || note !== saved.note
   const save = async () => {
+      if (alfaBlocks.length && isProposedAttendanceStatus(status)) throw new Error('Koreksi Alfa perlu diajukan.')
       const result = await simpanKoreksiAbsensiCepat({ siswaId: data.siswaId, tanggal: data.tanggal, penugasanId: data.penugasanId, status, keterangan: note, revision })
+      if (result.approvalRequired?.[data.siswaId]) setAlfaBlocks(result.approvalRequired[data.siswaId])
       if (result.error) throw new Error(result.error)
       setSaved({ status, note })
       setFeedback('Koreksi tersimpan. Laporan orang tua akan diperiksa memakai data terbaru.')
@@ -38,12 +46,20 @@ export function QuickAttendanceCorrection({ data }: { data: QuickAttendanceConte
   return <div className="space-y-5 rounded-xl border bg-surface p-4 sm:p-6">
     <div><h2 className="text-lg font-semibold">{data.nama}</h2><p className="text-sm text-muted-foreground">Kelas {data.kelas} · {data.tanggal}</p></div>
     <div className="space-y-1 rounded-lg bg-muted/40 p-3 text-sm"><p className="font-medium">{data.mapel} · Jam {data.jam}</p><p>Catatan guru: <strong>{attendanceStatusLabel(data.statusGuru)}</strong></p>{data.catatanGuru && <p>{data.catatanGuru}</p>}</div>
-    <p className="text-sm text-muted-foreground">{data.parentSent ? 'Laporan awal sudah terkirim ke orang tua. Koreksi akan diperhitungkan dalam rekap harian.' : data.parentDueAt ? `Laporan orang tua menunggu pemeriksaan sampai pukul ${new Date(data.parentDueAt).toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit' })} WIB. Jika hasilnya Hadir, laporan dibatalkan.` : 'Belum ada laporan orang tua yang menunggu pengiriman.'}</p>
+    <p className="text-sm text-muted-foreground">{data.parentSent
+      ? 'Laporan awal sudah terkirim ke orang tua. Koreksi yang berlaku akan diperhitungkan dalam rekap harian.'
+      : parentDeadline ? alfaBlocks.length
+        ? `Laporan awal mengikuti catatan sesi dan dijadwalkan pukul ${parentDeadline} WIB.`
+        : `Laporan orang tua menunggu pemeriksaan sampai pukul ${parentDeadline} WIB.`
+      : 'Belum ada laporan orang tua yang menunggu pengiriman.'}</p>
     <fieldset disabled={pending} className="space-y-3"><legend className="mb-2 text-sm font-semibold">Koreksi harian</legend>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{statuses.map(value => <button key={value} type="button" aria-pressed={status === value} onClick={() => setStatus(value)} className={`min-h-11 rounded-lg border px-3 py-2 text-sm font-semibold ${status === value ? 'border-purple-600 bg-purple-50 text-purple-800 ring-1 ring-purple-600' : 'hover:bg-muted'}`}>{attendanceStatusLabel(value)}</button>)}</div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{statuses.map(value => <button key={value} type="button" aria-pressed={status === value} disabled={alfaBlocks.length > 0 && isProposedAttendanceStatus(value)} onClick={() => setStatus(value)} className={`min-h-11 rounded-lg border px-3 py-2 text-sm font-semibold disabled:opacity-50 ${status === value ? 'border-purple-600 bg-purple-50 text-purple-800 ring-1 ring-purple-600' : 'hover:bg-muted'}`}>{attendanceStatusLabel(value)}</button>)}</div>
       {(status || data.waliStatus) && <button type="button" onClick={() => { setStatus(null); setNote('') }} className="text-sm text-purple-700 hover:underline">Kembalikan ke status otomatis</button>}
-      <div className="space-y-1"><label htmlFor="quick-correction-note" className="text-sm font-medium">Alasan koreksi <span className="font-normal text-muted-foreground">(opsional)</span></label><textarea id="quick-correction-note" disabled={!status} value={note} onChange={e => setNote(e.target.value)} maxLength={2000} rows={2} className="w-full rounded-lg border bg-background p-2 text-sm" /></div>
+      <div className="space-y-1"><label htmlFor="quick-correction-note" className="text-sm font-medium">Alasan koreksi <span className="font-normal text-muted-foreground">(opsional)</span></label><textarea id="quick-correction-note" disabled={!status || (alfaBlocks.length > 0 && isProposedAttendanceStatus(status))} value={note} onChange={e => setNote(e.target.value)} maxLength={2000} rows={2} className="w-full rounded-lg border bg-background p-2 text-sm" /></div>
     </fieldset>
+    <AttendanceCorrectionRequest siswaId={data.siswaId} tanggal={data.tanggal} blocks={alfaBlocks}
+      draftStatus={changed ? status : null} draftNote={changed ? note : ''}
+      onRequested={() => { setStatus(saved.status); setNote(saved.note); discard(); router.refresh() }} />
     <p className="text-sm text-muted-foreground">{data.isFinal ? `Rekap saat ini: ${attendanceStatusLabel(data.dailyStatus)}.` : 'Koreksi dapat disimpan sekarang. Rekap harian tersedia setelah KBM selesai.'} {data.pendingBlocks > 0 && `${data.pendingBlocks} blok pelajaran belum diinput.`} Catatan asli guru tetap tersimpan.</p>
     <p role="status" className="text-sm text-muted-foreground">{pending ? 'Menyimpan koreksi…' : error ? 'Koreksi belum tersimpan.' : changed ? 'Menunggu 2 detik tanpa perubahan baru untuk menyimpan…' : feedback || 'Perubahan status dan alasan disimpan otomatis setelah 2 detik.'}</p>
     {restored && <p className="text-xs text-muted-foreground">Koreksi yang belum terkirim dipulihkan dari perangkat.</p>}

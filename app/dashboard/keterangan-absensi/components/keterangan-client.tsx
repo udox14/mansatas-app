@@ -2,6 +2,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import { AttendanceCorrectionRequest } from '@/components/dashboard/AttendanceCorrectionRequest'
 import { Button } from '@/components/ui/button'
 import {
   CheckCircle2, Thermometer, ShieldAlert, X, Save, Loader2,
@@ -50,6 +51,7 @@ export function KeteranganClient({ kelasList, initialKelasId }: Props) {
   const [selectedKelasId, setSelectedKelasId] = useState<string>(initialKelasId || kelasList[0]?.kelas_id || '')
   const [tanggal, setTanggal] = useState(today)
   const [siswaList, setSiswaList] = useState<SiswaKeterangan[]>([])
+  const [savedRows, setSavedRows] = useState<SiswaKeterangan[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [hasLoaded, setHasLoaded] = useState(false)
@@ -57,6 +59,7 @@ export function KeteranganClient({ kelasList, initialKelasId }: Props) {
   const [pesan, setPesan] = useState<{ tipe: 'sukses' | 'error'; teks: string } | null>(null)
   const [calendarInfo, setCalendarInfo] = useState('')
   const [expandedNote, setExpandedNote] = useState<string | null>(null)
+  const [requestStudent, setRequestStudent] = useState<string | null>(null)
 
   const selectedKelas = kelasList.find(k => k.kelas_id === selectedKelasId)
 
@@ -68,6 +71,8 @@ export function KeteranganClient({ kelasList, initialKelasId }: Props) {
     if (res.error) setPesan({ tipe: 'error', teks: res.error })
     else {
       setSiswaList(res.siswa)
+      setSavedRows(res.siswa)
+      setRequestStudent(null)
       setCalendarInfo(res.calendarStatus && !res.calendarStatus.isEffective ? `Tanggal ini tidak efektif pembelajaran: ${res.calendarStatus.reason || 'keterangan tidak wajib diisi.'}` : '')
     }
     setIsLoading(false)
@@ -102,17 +107,34 @@ export function KeteranganClient({ kelasList, initialKelasId }: Props) {
     if (!selectedKelasId) return
     setIsSaving(true)
     setPesan(null)
-    const res = await simpanKeteranganBatch(
-      selectedKelasId, tanggal,
-      siswaList.map(s => ({ siswa_id: s.siswa_id, status: s.status, keterangan: s.keterangan }))
-    )
-    if (res.error) setPesan({ tipe: 'error', teks: res.error })
-    else {
-      setPesan({ tipe: 'sukses', teks: res.success || 'Tersimpan!' })
-      setHasChanges(false)
-      await loadData(selectedKelasId, tanggal)
+    try {
+      const savedById = new Map(savedRows.map(row => [row.siswa_id, row]))
+      const changes = siswaList.filter(row => {
+        const saved = savedById.get(row.siswa_id)
+        return row.status !== saved?.status || row.keterangan !== saved?.keterangan
+      })
+      if (!changes.length) {
+        setHasChanges(false)
+        return
+      }
+      const res = await simpanKeteranganBatch(selectedKelasId, tanggal,
+        changes.map(s => ({ siswa_id: s.siswa_id, status: s.status, keterangan: s.status ? s.keterangan : '' })))
+      if (res.error) {
+        setPesan({ tipe: 'error', teks: res.error })
+        if (res.approvalRequired) {
+          const blocked = res.approvalRequired
+          setSiswaList(previous => previous.map(row => blocked[row.siswa_id] ? { ...row, alfa_blocks: blocked[row.siswa_id] } : row))
+          setRequestStudent(Object.keys(blocked)[0])
+        }
+      } else {
+        await loadData(selectedKelasId, tanggal)
+        setPesan({ tipe: 'sukses', teks: res.success || 'Tersimpan!' })
+      }
+    } catch {
+      setPesan({ tipe: 'error', teks: 'Koreksi belum tersimpan. Coba lagi.' })
+    } finally {
+      setIsSaving(false)
     }
-    setIsSaving(false)
   }
 
   const jumlahDitandai = siswaList.filter(s => s.status !== null).length
@@ -206,6 +228,10 @@ export function KeteranganClient({ kelasList, initialKelasId }: Props) {
             {sortedSiswaList.map((s, idx) => {
               const noteOpen = expandedNote === s.siswa_id
               const ui = s.status ? STATUS_UI[s.status] : null
+              const requiresApproval = Boolean(s.alfa_blocks?.length)
+              const showRequest = requestStudent === s.siswa_id
+              const saved = savedRows.find(row => row.siswa_id === s.siswa_id)
+              const draftChanged = s.status !== saved?.status || s.keterangan !== saved?.keterangan
 
               return (
                 <div
@@ -233,6 +259,7 @@ export function KeteranganClient({ kelasList, initialKelasId }: Props) {
                     {/* Tombol status */}
                     <div className="ml-7 flex flex-wrap items-center gap-1 sm:ml-0 sm:shrink-0">
                       <button
+                        disabled={requiresApproval}
                         onClick={() => setStatus(s.siswa_id, s.status === 'HADIR' ? null : 'HADIR')}
                         className={`flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] font-semibold transition-colors ${s.status === 'HADIR' ? 'bg-emerald-100 border-emerald-300 text-emerald-700' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:border-emerald-300 hover:text-emerald-600'}`}
                       >
@@ -240,6 +267,7 @@ export function KeteranganClient({ kelasList, initialKelasId }: Props) {
                         Hadir
                       </button>
                       <button
+                        disabled={requiresApproval}
                         onClick={() => setStatus(s.siswa_id, s.status === 'SAKIT' ? null : 'SAKIT')}
                         className={`flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] font-semibold transition-colors ${s.status === 'SAKIT' ? 'bg-amber-100 border-amber-300 text-amber-700' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:border-amber-300 hover:text-amber-600'}`}
                       >
@@ -247,6 +275,7 @@ export function KeteranganClient({ kelasList, initialKelasId }: Props) {
                         Sakit
                       </button>
                       <button
+                        disabled={requiresApproval}
                         onClick={() => setStatus(s.siswa_id, s.status === 'IZIN' ? null : 'IZIN')}
                         className={`flex items-center gap-1 px-2 py-1 rounded-md border text-[11px] font-semibold transition-colors ${s.status === 'IZIN' ? 'bg-blue-100 border-blue-300 text-blue-700' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400 hover:border-blue-300 hover:text-blue-600'}`}
                       >
@@ -271,7 +300,7 @@ export function KeteranganClient({ kelasList, initialKelasId }: Props) {
                     </div>
 
                     {/* Tombol catatan */}
-                    {s.status && (
+                    {s.status && (!requiresApproval || s.status === 'ALFA') && (
                       <button
                         onClick={() => setExpandedNote(noteOpen ? null : s.siswa_id)}
                         className={`p-1.5 rounded-md shrink-0 ${s.keterangan ? 'text-amber-500' : 'text-slate-300'} hover:bg-white/60`}
@@ -281,8 +310,21 @@ export function KeteranganClient({ kelasList, initialKelasId }: Props) {
                     )}
                   </div>
 
+                  <div className="space-y-2 px-3 pb-2">
+                    <button type="button" aria-expanded={showRequest}
+                      className="min-h-9 rounded-md border px-2 text-xs font-medium"
+                      onClick={() => setRequestStudent(showRequest ? null : s.siswa_id)}>
+                      {requiresApproval ? 'Pengajuan koreksi Alfa' : 'Riwayat ajuan'}
+                    </button>
+                    {showRequest && <AttendanceCorrectionRequest key={`${s.siswa_id}:${tanggal}`} siswaId={s.siswa_id} tanggal={tanggal} showEmpty
+                      blocks={s.alfa_blocks ?? []} draftStatus={draftChanged ? s.status : null} draftNote={draftChanged ? s.keterangan : ''}
+                      onRequested={() => setSiswaList(previous => previous.map(row => row.siswa_id === s.siswa_id ? {
+                        ...row, status: saved?.status ?? null, keterangan: saved?.keterangan ?? '',
+                      } : row))} />}
+                  </div>
+
                   {/* Input keterangan */}
-                  {s.status && noteOpen && (
+                  {s.status && noteOpen && (!requiresApproval || s.status === 'ALFA') && (
                     <div className="px-3 py-2 border-t border-white/60">
                       <input
                         type="text"

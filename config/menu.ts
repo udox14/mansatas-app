@@ -177,7 +177,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/keterangan-absensi',
     icon: ClipboardSignature,
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'wali_kelas'],
-    desc: 'Melihat riwayat dan menetapkan koreksi status akhir harian tanpa mengubah absensi asli guru'
+    desc: 'Melihat riwayat absensi, mengoreksi status harian, dan meninjau ajuan koreksi Alfa sesuai kewenangan'
   },
   {
     id: 'agenda',

@@ -2,10 +2,14 @@
 import { getCurrentUser } from '@/utils/auth/server'
 import { redirect } from 'next/navigation'
 import { getDB } from '@/utils/db-server'
-import { checkFeatureAccess } from '@/lib/features'
+import { checkFeatureAccess, checkFeatureCrudAccess, getUserRoles } from '@/lib/features'
 import { PageHeader } from '@/components/layout/page-header'
 import { KeteranganClient } from './components/keterangan-client'
 import { getKelasBinaan } from './actions'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { canReviewAttendanceCorrection } from '@/lib/attendance-correction'
+import { listAttendanceCorrectionQueue } from './correction-actions'
+import { AttendanceCorrectionReview } from './components/correction-review'
 
 export const metadata = { title: 'Riwayat & Koreksi Absensi - MANSATAS App' }
 export const dynamic = 'force-dynamic'
@@ -18,7 +22,20 @@ export default async function KeteranganAbsensiPage() {
   const allowed = await checkFeatureAccess(db, user.id, 'keterangan-absensi')
   if (!allowed) redirect('/dashboard')
 
-  const { kelas, error } = await getKelasBinaan()
+  const [canReadDaily, roles, profile] = await Promise.all([
+    checkFeatureCrudAccess(db, user.id, 'keterangan-absensi', 'read'), getUserRoles(db, user.id),
+    db.prepare('SELECT jabatan_struktural_id FROM "user" WHERE id = ?').bind(user.id)
+      .first<{ jabatan_struktural_id: string | null }>(),
+  ])
+  const queue = canReviewAttendanceCorrection(roles, profile?.jabatan_struktural_id)
+    ? await listAttendanceCorrectionQueue() : null
+  if (!canReadDaily && !queue) redirect('/dashboard')
+  const { kelas, error } = canReadDaily ? await getKelasBinaan() : { kelas: [], error: null }
+  const correctionForm = error ? (
+    <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
+  ) : kelas.length === 0 ? (
+    <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">Anda belum ditugaskan sebagai wali kelas.</p>
+  ) : <KeteranganClient kelasList={kelas} initialKelasId={kelas[0]?.kelas_id ?? null} />
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-24">
@@ -27,19 +44,14 @@ export default async function KeteranganAbsensiPage() {
         description="Tetapkan koreksi status akhir harian siswa tanpa mengubah detail absensi yang diinput guru."
       />
 
-      {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      ) : kelas.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 p-10 text-center">
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Anda belum ditugaskan sebagai wali kelas.
-          </p>
-        </div>
-      ) : (
-        <KeteranganClient kelasList={kelas} initialKelasId={kelas[0]?.kelas_id ?? null} />
-      )}
+      {queue ? <Tabs defaultValue="persetujuan">
+        <TabsList className="h-auto flex-wrap justify-start">
+          <TabsTrigger value="persetujuan">Persetujuan Koreksi</TabsTrigger>
+          {canReadDaily && <TabsTrigger value="koreksi">Koreksi Harian</TabsTrigger>}
+        </TabsList>
+        <TabsContent value="persetujuan"><AttendanceCorrectionReview initial={queue} /></TabsContent>
+        {canReadDaily && <TabsContent value="koreksi">{correctionForm}</TabsContent>}
+      </Tabs> : correctionForm}
     </div>
   )
 }

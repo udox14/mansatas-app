@@ -426,7 +426,7 @@ function AbsensiInputPanel({ initialData, ownerId }: Props) {
                     {s.keterangan_wali_kelas && (
                       <span className="inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-medium">
                         <ClipboardCheck className="h-2.5 w-2.5" />
-                        Keputusan wali: {s.keterangan_wali_kelas}
+                        Catatan wali kelas: {s.keterangan_wali_kelas}
                       </span>
                     )}
                     {s.ada_izin && (

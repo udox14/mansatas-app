@@ -686,9 +686,6 @@ export async function loadSiswaDelegasi(
       if (ab) {
         status = ab.status as any
         catatan = ab.catatan
-      } else if (wali) {
-        status = wali.status as any
-        catatan = `Keterangan dari wali kelas${wali.keterangan ? ': ' + wali.keterangan : ''}`
       } else if (adaIzin) {
         status = 'IZIN'
       } else {

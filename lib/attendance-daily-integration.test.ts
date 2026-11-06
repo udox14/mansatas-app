@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs'
 const runtime = vi.hoisted(() => ({ db: null as unknown as D1Database, queue: vi.fn(), fcm: vi.fn(), effective: true, excepted: [] as number[], userId: 'wali', roles: [] as string[] }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('@/utils/auth/server', () => ({ getCurrentUser: async () => runtime.userId ? { id: runtime.userId } : null }))
-vi.mock('@/lib/features', () => ({ getUserRoles: async () => runtime.roles }))
+vi.mock('@/lib/features', () => ({ getUserRoles: async () => runtime.roles, checkFeatureAccess: async () => true }))
 vi.mock('@/lib/activity-log', () => ({ logActivity: vi.fn(), ensureActivityLogTables: vi.fn() }))
 vi.mock('server-only', () => ({}))
 vi.mock('@/utils/db-server', () => ({ getDB: async () => runtime.db }))
@@ -30,7 +30,9 @@ import { invalidateAttendanceCache } from './attendance-cache'
 import { attendanceDateEligible, initialAttendanceContext } from './attendance-notice-state'
 import { notifyParentsAttendanceConfigured, notifyParentsDailyAttendanceFinal, dispatchAttendanceDailyNotices, processNotificationQueueMessage, prepareAttendanceNotificationWork, flushAttendanceNotificationOutbox, saveNotificationSetting, getNotificationSetting, type NotificationQueueMessage } from './notification-engine'
 import { getNotificationDefinition } from './notification-catalog'
-import { getKoreksiAbsensiCepat, simpanKoreksiAbsensiCepat } from '@/app/dashboard/kelas-binaan/attendance-actions'
+import { getKoreksiAbsensiCepat, simpanKeputusanAbsensiWaliBatch, simpanKoreksiAbsensiCepat } from '@/app/dashboard/kelas-binaan/attendance-actions'
+import { decideAttendanceCorrection, getAttendanceCorrectionReview, listAttendanceCorrectionQueue, requestAttendanceCorrection } from '@/app/dashboard/keterangan-absensi/correction-actions'
+import { attendanceAlfaKey } from './attendance-correction'
 
 let sqlite: DatabaseSync
 const date = '2026-10-02'
@@ -64,15 +66,16 @@ beforeEach(() => {
   sqlite = new DatabaseSync(':memory:')
   sqlite.exec(`
     PRAGMA foreign_keys = ON;
-    CREATE TABLE "user" (id TEXT PRIMARY KEY, nama_lengkap TEXT, banned INTEGER DEFAULT 0);
+    CREATE TABLE "user" (id TEXT PRIMARY KEY, nama_lengkap TEXT, name TEXT, jabatan_struktural_id TEXT, banned INTEGER DEFAULT 0);
+    CREATE TABLE role_features (role TEXT, feature_id TEXT, UNIQUE(role, feature_id));
     CREATE TABLE kelas (id TEXT PRIMARY KEY, tingkat INTEGER, nomor_kelas TEXT, kelompok TEXT, wali_kelas_id TEXT, kbm_nonaktif_mulai TEXT);
     CREATE TABLE siswa (id TEXT PRIMARY KEY, kelas_id TEXT, status TEXT, nama_lengkap TEXT, nisn TEXT, nis_lokal TEXT, jenis_kelamin TEXT, foto_url TEXT);
-    CREATE TABLE tahun_ajaran (id TEXT PRIMARY KEY, jam_pelajaran TEXT, is_active INTEGER);
+    CREATE TABLE tahun_ajaran (id TEXT PRIMARY KEY, jam_pelajaran TEXT, is_active INTEGER, nama TEXT DEFAULT '2026/2027', semester INTEGER DEFAULT 1);
     CREATE TABLE mata_pelajaran (id TEXT PRIMARY KEY, nama_mapel TEXT);
     CREATE TABLE penugasan_mengajar (id TEXT PRIMARY KEY, kelas_id TEXT, mapel_id TEXT, guru_id TEXT);
     CREATE TABLE jadwal_mengajar (hari INTEGER, jam_ke INTEGER, penugasan_id TEXT, tahun_ajaran_id TEXT);
     CREATE TABLE absensi_siswa (siswa_id TEXT, penugasan_id TEXT, tanggal TEXT, status TEXT, catatan TEXT, jam_ke_mulai INTEGER, jam_ke_selesai INTEGER, diinput_oleh TEXT, updated_at TEXT, UNIQUE(siswa_id,penugasan_id,tanggal));
-    CREATE TABLE keterangan_absensi_wali_kelas (siswa_id TEXT,tanggal TEXT,status TEXT,keterangan TEXT);
+    CREATE TABLE keterangan_absensi_wali_kelas (id TEXT,siswa_id TEXT,tanggal TEXT,status TEXT,keterangan TEXT,dibuat_oleh TEXT,updated_at TEXT,UNIQUE(siswa_id,tanggal));
     CREATE TABLE alasan_izin_kelas (alasan TEXT, hitung_sebagai_hadir INTEGER);
     CREATE TABLE izin_tidak_masuk_kelas (siswa_id TEXT,tanggal TEXT,alasan TEXT,keterangan TEXT,jam_pelajaran TEXT,diinput_oleh TEXT,created_at TEXT);
     CREATE TABLE izin_keluar_komplek (siswa_id TEXT,keterangan TEXT,waktu_keluar TEXT,waktu_kembali TEXT,diinput_oleh TEXT);
@@ -83,9 +86,10 @@ beforeEach(() => {
     INSERT INTO mata_pelajaran VALUES ('m','Matematika'),('b','Bahasa');
     INSERT INTO penugasan_mengajar VALUES ('math','class','m','teacher'),('language','class','b','teacher');
     INSERT INTO jadwal_mengajar VALUES (5,1,'math','year'),(5,2,'math','year'),(5,5,'language','year'),(5,6,'language','year');
-    INSERT INTO tahun_ajaran VALUES ('year','[{"hari":[5],"slots":[{"id":1,"mulai":"07:00","selesai":"07:30"},{"id":2,"mulai":"07:30","selesai":"08:00"},{"id":5,"mulai":"11:00","selesai":"11:30"},{"id":6,"mulai":"11:30","selesai":"12:00"}]}]',1);
+    INSERT INTO tahun_ajaran (id,jam_pelajaran,is_active) VALUES ('year','[{"hari":[5],"slots":[{"id":1,"mulai":"07:00","selesai":"07:30"},{"id":2,"mulai":"07:30","selesai":"08:00"},{"id":5,"mulai":"11:00","selesai":"11:30"},{"id":6,"mulai":"11:30","selesai":"12:00"}]}]',1);
   `)
   sqlite.exec(readFileSync(new URL('../migrations/0114_attendance_parent_notice_state.sql', import.meta.url), 'utf8'))
+  sqlite.exec(readFileSync(new URL('../migrations/0125_attendance_correction_approval.sql', import.meta.url), 'utf8'))
   sqlite.exec("UPDATE attendance_notice_policy SET activated_at='2026-10-02T00:00:00Z'")
   function prepared(query: string, values: SQLInputValue[] = []) {
     const sql = query.replace(/'now'/g, `'${new Date().toISOString()}'`)
@@ -133,11 +137,8 @@ describe('full report daily attendance', () => {
   it('prints daily totals and a daily presence denominator in the complete report', async () => {
     await report() // Initialize the existing teacher-session schema.
     sqlite.exec(`
-      ALTER TABLE "user" ADD COLUMN name TEXT;
       ALTER TABLE "user" ADD COLUMN nip TEXT;
       ALTER TABLE "user" ADD COLUMN signature_url TEXT;
-      ALTER TABLE tahun_ajaran ADD COLUMN nama TEXT DEFAULT '2026/2027';
-      ALTER TABLE tahun_ajaran ADD COLUMN semester INTEGER DEFAULT 1;
       INSERT INTO absensi_sesi_guru (penugasan_id,tanggal,diinput_oleh) VALUES ('math','2026-10-09','teacher');
     `)
     const fullReport = await loadFullStudentReport(runtime.db, 's')
@@ -150,18 +151,18 @@ describe('full report daily attendance', () => {
     expect(attendance?.metrics).toContainEqual({ label: 'Tingkat Kehadiran', value: '14,29%' })
   })
   it('applies wali corrections and never infers presence from missing input', async () => {
-    sqlite.prepare("INSERT INTO keterangan_absensi_wali_kelas VALUES ('s',?,'SAKIT',NULL)").run(date)
+    sqlite.prepare("INSERT INTO keterangan_absensi_wali_kelas (siswa_id,tanggal,status,keterangan) VALUES ('s',?,'SAKIT',NULL)").run(date)
     expect(await report()).toEqual({ hadir: 0, sakit: 1, izin: 0, alfa: 5, finalCount: 6 })
   })
   it('uses school permission priority over alfa and wali corrections', async () => {
     sqlite.exec(`INSERT INTO alasan_izin_kelas VALUES ('Tugas sekolah',1)`)
     sqlite.prepare("INSERT INTO izin_tidak_masuk_kelas VALUES ('s',?,'Tugas sekolah',NULL,NULL,'teacher',NULL)").run(date)
-    sqlite.prepare("INSERT INTO keterangan_absensi_wali_kelas VALUES ('s',?,'SAKIT',NULL)").run(date)
+    sqlite.prepare("INSERT INTO keterangan_absensi_wali_kelas (siswa_id,tanggal,status,keterangan) VALUES ('s',?,'SAKIT',NULL)").run(date)
     expect(await report()).toEqual({ hadir: 1, sakit: 0, izin: 0, alfa: 5, finalCount: 6 })
   })
   it('preserves history for an inactive student who has moved class', async () => {
     sqlite.exec("UPDATE siswa SET kelas_id='new-class',status='lulus' WHERE id='s'")
-    sqlite.prepare("INSERT INTO keterangan_absensi_wali_kelas VALUES ('s',?,'IZIN',NULL)").run(date)
+    sqlite.prepare("INSERT INTO keterangan_absensi_wali_kelas (siswa_id,tanggal,status,keterangan) VALUES ('s',?,'IZIN',NULL)").run(date)
     expect(await report()).toEqual({ hadir: 0, sakit: 0, izin: 1, alfa: 5, finalCount: 6 })
     // The live roster remains limited to active students in the current class.
     expect((await getFinalAttendanceForClass(runtime.db, 'class', date, date))?.siswa).toEqual([])
@@ -218,20 +219,15 @@ describe('configurable delays and durable attendance work', () => {
     expect((await consume(messages().find(m => m.eventKey === 'attendance_parent_alert')!)).sent).toBeGreaterThan(0)
     setTime('2026-10-02T04:03:00Z'); expect((await consume(staff)).sent).toBeGreaterThan(0)
   })
-  it.each(['SAKIT','IZIN','HADIR'])('re-reads a wali %s correction without restarting the parent delay', async status => {
+  it.each(['SAKIT','IZIN','HADIR'])('keeps the Alfa session report with a wali %s correction', async status => {
     raw('ALFA'); await notifyParentsAttendanceConfigured(runtime.db, { penugasanId: 'math', tanggal: date })
     const message = messages()[0]
-    sqlite.prepare('INSERT INTO keterangan_absensi_wali_kelas VALUES (?,?,?,NULL)').run('s',date,status)
+    sqlite.prepare('INSERT INTO keterangan_absensi_wali_kelas (siswa_id,tanggal,status,keterangan) VALUES (?,?,?,NULL)').run('s',date,status)
     setTime('2026-10-02T04:05:00Z')
     const result = await consume(message)
-    if (status === 'HADIR') {
-      expect(result).toMatchObject({ skipped: true, sent: 0 }); expect(runtime.fcm).not.toHaveBeenCalled()
-      expect(sqlite.prepare('SELECT initial_sent_at FROM attendance_parent_notice_state').get()?.initial_sent_at).toBeNull()
-    } else {
-      expect(result.sent).toBeGreaterThan(0)
-      expect(runtime.fcm).toHaveBeenCalledWith(expect.objectContaining({ body: expect.stringContaining(status.toLowerCase()) }), expect.anything(), expect.anything())
-      expect(runtime.fcm.mock.calls[0][0].body).toContain('wali kelas')
-    }
+    expect(result.sent).toBeGreaterThan(0)
+    expect(runtime.fcm).toHaveBeenCalledWith(expect.objectContaining({ body: expect.stringContaining('belum hadir pada sesi ini') }), expect.anything(), expect.anything())
+    expect(runtime.fcm.mock.calls[0][0].body).toContain('catatan sesi pembelajaran')
   })
   it('retains an initial candidate through note-only teacher updates', async () => {
     raw('ALFA'); await notifyParentsAttendanceConfigured(runtime.db, { penugasanId: 'math', tanggal: date })
@@ -293,10 +289,7 @@ describe('configurable delays and durable attendance work', () => {
 
 describe('quick correction access and optimistic concurrency', () => {
   beforeEach(() => {
-    sqlite.exec(`UPDATE kelas SET wali_kelas_id='wali';
-      DROP TABLE keterangan_absensi_wali_kelas;
-      CREATE TABLE keterangan_absensi_wali_kelas (id TEXT,siswa_id TEXT,tanggal TEXT,status TEXT,keterangan TEXT,dibuat_oleh TEXT,updated_at TEXT,UNIQUE(siswa_id,tanggal));
-      ALTER TABLE parent_notifications ADD COLUMN archived_at TEXT;`)
+    sqlite.exec("UPDATE kelas SET wali_kelas_id='wali'")
     raw('ALFA')
   })
   it.each(['other',''])('rejects an unauthorized user %s', async userId => {
@@ -311,20 +304,148 @@ describe('quick correction access and optimistic concurrency', () => {
     expect(await simpanKoreksiAbsensiCepat({ siswaId:'s',tanggal:date,penugasanId:'math',status:'HADIR',keterangan:'',revision:data!.revision })).toHaveProperty('error')
     expect(sqlite.prepare('SELECT count(*) n FROM keterangan_absensi_wali_kelas').get()?.n).toBe(0)
   })
-  it('saves a separate wali correction and durable work while preserving the original teacher row', async () => {
+  it('requires an explicit request for Alfa and permits ordinary corrections with durable work', async () => {
     const { data } = await getKoreksiAbsensiCepat('s',date,'math')
     expect(data).toMatchObject({ statusGuru:'ALFA',isFinal:false, pendingBlocks:1 })
-    expect(await simpanKoreksiAbsensiCepat({ siswaId:'s',tanggal:date,penugasanId:'math',status:'SAKIT',keterangan:'Dikonfirmasi',revision:data!.revision })).toHaveProperty('success')
-    expect(sqlite.prepare('SELECT status FROM absensi_siswa').get()?.status).toBe('ALFA')
-    expect(sqlite.prepare('SELECT status,keterangan FROM keterangan_absensi_wali_kelas').get()).toMatchObject({status:'SAKIT',keterangan:'Dikonfirmasi'})
+    expect(await simpanKoreksiAbsensiCepat({ siswaId:'s',tanggal:date,penugasanId:'math',status:'SAKIT',keterangan:'Dikonfirmasi',revision:data!.revision })).toHaveProperty('approvalRequired.s')
+    expect(sqlite.prepare('SELECT count(*) n FROM keterangan_absensi_wali_kelas').get()?.n).toBe(0)
+    raw('SAKIT')
+    const ordinary = (await getKoreksiAbsensiCepat('s',date,'math')).data!
+    expect(await simpanKoreksiAbsensiCepat({ siswaId:'s',tanggal:date,penugasanId:'math',status:'HADIR',keterangan:'Dikonfirmasi',revision:ordinary.revision })).toHaveProperty('success')
+    expect(sqlite.prepare('SELECT status FROM absensi_siswa').get()?.status).toBe('SAKIT')
+    expect(sqlite.prepare('SELECT status,keterangan FROM keterangan_absensi_wali_kelas').get()).toMatchObject({status:'HADIR',keterangan:'Dikonfirmasi'})
     expect(messages().filter(m => m.validation?.kind === 'attendance_work')).toHaveLength(1)
+  })
+})
+
+describe('attendance correction approvals', () => {
+  beforeEach(() => {
+    sqlite.exec(`UPDATE kelas SET wali_kelas_id = 'wali';
+      INSERT INTO "user" (id,nama_lengkap,jabatan_struktural_id) VALUES
+        ('wali','Wali',NULL),('reviewer','Pemeriksa','jbt_waka_kesiswaan');
+      INSERT INTO siswa (id,kelas_id,status,nama_lengkap) VALUES ('s2','class','aktif','Budi');
+    `)
+    raw('ALFA')
+    setTime('2026-10-02T05:00:01Z')
+  })
+  async function submit(status: 'SAKIT' | 'HADIR' = 'SAKIT') {
+    const day = await snapshot()
+    return requestAttendanceCorrection({ siswaId: 's', tanggal: date, status, reason: 'Dikonfirmasi orang tua',
+      alfaKey: attendanceAlfaKey(day?.alfa_blocks ?? []) })
+  }
+  function reviewer(roles: string[] = ['wakamad'], id = 'reviewer') { runtime.userId = id; runtime.roles = roles }
+  function requestId() { return String(sqlite.prepare('SELECT id FROM attendance_correction_requests ORDER BY rowid DESC').get()?.id) }
+
+  it('blocks a mixed batch without committing other rows and keeps the draft target identifiable', async () => {
+    const result = await simpanKeputusanAbsensiWaliBatch('class', date, [
+      { siswa_id: 's2', status: 'HADIR', keterangan: '' }, { siswa_id: 's', status: 'HADIR', keterangan: 'Hadir' },
+    ])
+    expect(result.approvalRequired?.s[0].mapel).toBe('Matematika')
+    expect(sqlite.prepare('SELECT count(*) AS total FROM keterangan_absensi_wali_kelas').get()?.total).toBe(0)
+  })
+  it('rolls back a mixed batch when Alfa is written after the server reads the source', async () => {
+    raw('SAKIT')
+    const batch = runtime.db.batch
+    runtime.db.batch = (async (statements: D1PreparedStatement[]) => {
+      if (statements.length > 2 && sqlite.prepare("SELECT name FROM sqlite_master WHERE name='notification_dispatches'").get()) {
+        raw('ALFA')
+        runtime.db.batch = batch
+      }
+      return batch(statements)
+    }) as typeof runtime.db.batch
+    const result = await simpanKeputusanAbsensiWaliBatch('class', date, [
+      { siswa_id: 's2', status: 'HADIR', keterangan: '' }, { siswa_id: 's', status: 'HADIR', keterangan: '' },
+    ])
+    expect(result.approvalRequired?.s).toHaveLength(1)
+    expect(sqlite.prepare('SELECT count(*) AS total FROM keterangan_absensi_wali_kelas').get()?.total).toBe(0)
+  })
+  it('rejects applicants outside the class and prevents duplicate pending requests', async () => {
+    reviewer(['kepsek'])
+    expect(await submit()).toHaveProperty('error')
+    runtime.userId = 'wali'; runtime.roles = ['wali_kelas']
+    expect(await submit()).toHaveProperty('success')
+    expect(await submit('HADIR')).toHaveProperty('error')
+    expect(await snapshot()).toMatchObject({ status_akhir: 'ALFA' })
+  })
+  it('approves once, queues the recheck atomically, and gives a new Alfa precedence', async () => {
+    expect(await submit()).toHaveProperty('success')
+    reviewer()
+    expect(await listAttendanceCorrectionQueue()).toMatchObject({ pending: 1 })
+    expect(await getAttendanceCorrectionReview(requestId())).toMatchObject({
+      data: { current: 'ALFA', proposed: 'SAKIT', blocks: [{ mapel: 'Matematika' }], requester: 'Wali' },
+    })
+    const decisions = await Promise.all([
+      decideAttendanceCorrection(requestId(), 'APPROVED', 'Diperiksa'),
+      decideAttendanceCorrection(requestId(), 'APPROVED', 'Diperiksa'),
+    ])
+    expect(decisions.filter(result => result.success)).toHaveLength(1)
+    expect(await snapshot()).toMatchObject({ status_akhir: 'SAKIT', approved_correction: true })
+    expect(sqlite.prepare("SELECT COUNT(*) AS total FROM notification_dispatches WHERE event_key='attendance_source_changed'").get()?.total).toBe(1)
+    expect(sqlite.prepare('SELECT status FROM absensi_siswa').get()?.status).toBe('ALFA')
+    raw('ALFA', 'language')
+    expect(await snapshot()).toMatchObject({ status_akhir: 'ALFA', approved_correction: false })
+  })
+  it('publishes an approved daily update after the original Alfa report and recap', async () => {
+    setTime('2026-10-02T04:00:00Z')
+    expect((await initial()).sent).toBeGreaterThan(0)
+    setTime('2026-10-02T05:00:00Z')
+    await dispatchAttendanceDailyNotices(runtime.db)
+    expect(messages().at(-1)).toMatchObject({ eventKey: 'attendance_daily_final' })
+    expect((await consume()).sent).toBeGreaterThan(0)
+    expect(await submit('HADIR')).toHaveProperty('success')
+    reviewer()
+    expect(await decideAttendanceCorrection(requestId(), 'APPROVED', '')).toHaveProperty('success')
+    expect(messages().at(-1)).toMatchObject({ eventKey: 'attendance_source_changed' })
+    await consume()
+    expect(messages().at(-1)).toMatchObject({ eventKey: 'attendance_daily_update', body: expect.stringContaining('Hadir') })
+    setTime('2026-10-02T05:05:01Z')
+    expect((await consume()).sent).toBeGreaterThan(0)
+    expect(await snapshot()).toMatchObject({ status_akhir: 'HADIR' })
+  })
+  it('limits review to authorized positions and self-approval to Super Admin', async () => {
+    await submit()
+    reviewer(['wakamad'], 'wali')
+    expect(await listAttendanceCorrectionQueue()).toHaveProperty('error')
+    sqlite.exec("UPDATE \"user\" SET jabatan_struktural_id='jbt_waka_kurikulum' WHERE id='wali'")
+    expect(await listAttendanceCorrectionQueue()).toMatchObject({ pending: 1 })
+    expect(await decideAttendanceCorrection(requestId(), 'APPROVED', '')).toHaveProperty('error')
+    reviewer(['kepsek'], 'wali')
+    expect(await listAttendanceCorrectionQueue()).toMatchObject({ pending: 1 })
+    expect(await decideAttendanceCorrection(requestId(), 'APPROVED', '')).toHaveProperty('error')
+    reviewer(['admin_tu'])
+    expect(await listAttendanceCorrectionQueue()).toHaveProperty('error')
+    reviewer(['super_admin'], 'wali')
+    expect(await decideAttendanceCorrection(requestId(), 'APPROVED', '')).toHaveProperty('success')
+  })
+  it('keeps Alfa after a rejection and requires a new request for changed evidence', async () => {
+    await submit()
+    reviewer(['kepsek'])
+    expect(await decideAttendanceCorrection(requestId(), 'REJECTED', ' ')).toHaveProperty('error')
+    expect(await decideAttendanceCorrection(requestId(), 'REJECTED', 'Perlu klarifikasi guru')).toHaveProperty('success')
+    expect(await snapshot()).toMatchObject({ status_akhir: 'ALFA' })
+    reviewer(['wali_kelas'], 'wali')
+    await submit()
+    raw('ALFA', 'language')
+    reviewer()
+    expect(await getAttendanceCorrectionReview(requestId())).toMatchObject({ data: { stale: true } })
+    expect(await decideAttendanceCorrection(requestId(), 'APPROVED', '')).toHaveProperty('success')
+    expect(sqlite.prepare('SELECT status FROM attendance_correction_requests ORDER BY rowid DESC').get()?.status).toBe('STALE')
+    expect(await snapshot()).toMatchObject({ status_akhir: 'ALFA' })
+  })
+  it.each(['ALFA', 'SAKIT', 'IZIN'])('ignores legacy Hadir when its source says %s, while retaining the record', async status => {
+    raw(status)
+    sqlite.prepare("INSERT INTO keterangan_absensi_wali_kelas (siswa_id,tanggal,status,keterangan) VALUES ('s',?,'HADIR','Catatan lama')").run(date)
+    expect(await snapshot()).toMatchObject({ status_akhir: status, wali_status: null })
+    expect(sqlite.prepare('SELECT status,keterangan FROM keterangan_absensi_wali_kelas').get())
+      .toMatchObject({ status: 'HADIR', keterangan: 'Catatan lama' })
+    expect(messages()).toHaveLength(0)
   })
 })
 
 describe('daily attendance from real source rows', () => {
   it('presents wali correction separately without changing teacher session or official permission records', async () => {
     raw('ALFA'); raw('HADIR','language')
-    sqlite.prepare('INSERT INTO keterangan_absensi_wali_kelas VALUES (?,?,?,NULL)').run('s',date,'SAKIT')
+    sqlite.prepare('INSERT INTO keterangan_absensi_wali_kelas (siswa_id,tanggal,status,keterangan) VALUES (?,?,?,NULL)').run('s',date,'SAKIT')
     setTime('2026-10-02T05:00:00Z')
     const {parentDailyReason} = await import('./parent-attendance-presentation')
     const day = (await snapshot())!
@@ -340,10 +461,10 @@ describe('daily attendance from real source rows', () => {
   })
   it('never finalizes early even with a wali decision and all sessions submitted', async () => {
     raw('ALFA'); raw('HADIR','language')
-    sqlite.prepare('INSERT INTO keterangan_absensi_wali_kelas VALUES (?,?,?,NULL)').run('s',date,'HADIR')
+    sqlite.prepare('INSERT INTO keterangan_absensi_wali_kelas (siswa_id,tanggal,status,keterangan) VALUES (?,?,?,NULL)').run('s',date,'HADIR')
     expect(await snapshot()).toMatchObject({ status_akhir: 'BELUM_ADA_DATA', is_daily_final: false })
     setTime('2026-10-02T05:00:00Z')
-    expect(await snapshot()).toMatchObject({ status_akhir: 'HADIR', sumber_status: 'koreksi_wali_kelas' })
+    expect(await snapshot()).toMatchObject({ status_akhir: 'ALFA', sumber_status: 'guru' })
   })
   it.each([['Kegiatan','HADIR'],['SAKIT (DI UKS)','SAKIT']])('full-day permission %s becomes %s and retains session detail', async (reason, expected) => {
     raw('ALFA')
@@ -363,7 +484,7 @@ describe('daily attendance from real source rows', () => {
     raw('ALFA')
     sqlite.exec("INSERT INTO alasan_izin_kelas VALUES ('Lomba',1)")
     sqlite.prepare('INSERT INTO izin_tidak_masuk_kelas VALUES (?,?,?,NULL,NULL,?,?)').run('s',date,'Lomba','teacher','2026-10-02T04:00:00Z')
-    sqlite.prepare('INSERT INTO keterangan_absensi_wali_kelas VALUES (?,?,?,NULL)').run('s',date,'ALFA')
+    sqlite.prepare('INSERT INTO keterangan_absensi_wali_kelas (siswa_id,tanggal,status,keterangan) VALUES (?,?,?,NULL)').run('s',date,'ALFA')
     setTime('2026-10-02T05:00:00Z')
     expect(await snapshot()).toMatchObject({ status_akhir: 'HADIR', sumber_status: 'perizinan_sekolah' })
   })
@@ -431,11 +552,10 @@ describe('delayed attendance delivery and daily revisions', () => {
     expect(await consume(messages()[1])).toMatchObject({ retry: true })
     setTime('2026-10-02T04:06:00Z'); expect((await consume(messages()[1])).sent).toBeGreaterThan(0)
   })
-  it.each(['permission','wali'])('suppresses a queued report after %s correction', async correction => {
+  it('suppresses a queued report after official permission covers the session', async () => {
     raw('ALFA')
     await notifyParentsAttendanceConfigured(runtime.db, { penugasanId: 'math', tanggal: date })
-    if (correction === 'permission') sqlite.prepare('INSERT INTO izin_tidak_masuk_kelas VALUES (?,?,?,NULL,?,?,?)').run('s',date,'Kegiatan','[1]','teacher','2026-10-02T04:00:00Z')
-    else sqlite.prepare('INSERT INTO keterangan_absensi_wali_kelas VALUES (?,?,?,NULL)').run('s',date,'HADIR')
+    sqlite.prepare('INSERT INTO izin_tidak_masuk_kelas VALUES (?,?,?,NULL,?,?,?)').run('s',date,'Kegiatan','[1]','teacher','2026-10-02T04:00:00Z')
     setTime('2026-10-02T04:05:01Z'); expect(await consume()).toMatchObject({ skipped: true })
     expect(runtime.fcm).not.toHaveBeenCalled()
   })
@@ -640,11 +760,10 @@ describe('homeroom attendance session notifications', () => {
     expect(staffMessages()[1].body).toContain('Bahasa')
   })
 
-  it.each(['teacher','permission','wali','homeroom'])('cancels a stale staff report after %s changes', async correction => {
+  it.each(['teacher','permission','homeroom'])('cancels a stale staff report after %s changes', async correction => {
     assignWali(); raw('ALFA'); await enqueue(); const staff = staffMessages()[0]
     if (correction === 'teacher') raw('HADIR')
     if (correction === 'permission') sqlite.prepare('INSERT INTO izin_tidak_masuk_kelas VALUES (?,?,?,NULL,?,?,?)').run('s',date,'Kegiatan','[1]','teacher','2026-10-02T04:00:00Z')
-    if (correction === 'wali') sqlite.prepare('INSERT INTO keterangan_absensi_wali_kelas VALUES (?,?,?,NULL)').run('s',date,'HADIR')
     if (correction === 'homeroom') sqlite.exec('UPDATE kelas SET wali_kelas_id=NULL')
     setTime('2026-10-02T04:05:00Z')
     expect(await consume(staff)).toMatchObject({ skipped: true, sent: 0 })

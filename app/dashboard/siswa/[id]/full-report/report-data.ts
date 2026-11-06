@@ -167,6 +167,12 @@ export async function canAccessFullStudentReport(
 }
 
 export async function loadFullReportAttendance(
+  ...args: Parameters<typeof loadFullReportAttendanceWithCorrections>
+) {
+  return (await loadFullReportAttendanceWithCorrections(...args)).totals
+}
+
+async function loadFullReportAttendanceWithCorrections(
   db: D1Database,
   studentId: string,
   currentClassId: string | null,
@@ -184,6 +190,7 @@ export async function loadFullReportAttendance(
   `, [studentId])
   const selectedIds = period ? period.semesterIds || [period.id] : null
   const totals = { hadir: 0, sakit: 0, izin: 0, alfa: 0, finalCount: 0 }
+  const correctionCounts = new Map<string, number>()
   // Keep semesters separate: historical days must use their own class and schedule.
   for (const semester of semesters) {
     if (selectedIds && !selectedIds.includes(semester.id)) continue
@@ -197,14 +204,20 @@ export async function loadFullReportAttendance(
       historicalStudentId: studentId,
       fresh: true,
     })
-    const summary = summarizeKelasBinaanAttendance(classData?.statusByStudent.get(studentId) || [])
+    const days = classData?.statusByStudent.get(studentId) || []
+    const summary = summarizeKelasBinaanAttendance(days)
+    for (const day of days) {
+      if (day.is_daily_final && ['wali_kelas', 'koreksi_wali_kelas'].includes(day.sumber_status)) {
+        correctionCounts.set(day.status_akhir, (correctionCounts.get(day.status_akhir) ?? 0) + 1)
+      }
+    }
     totals.hadir += summary.hadir
     totals.sakit += summary.sakit
     totals.izin += summary.izin
     totals.alfa += summary.alfa
     totals.finalCount += summary.finalCount
   }
-  return totals
+  return { totals, corrections: Array.from(correctionCounts, ([status, jumlah]) => ({ status, jumlah })) }
 }
 
 export async function loadFullStudentReport(
@@ -270,7 +283,7 @@ export async function loadFullStudentReport(
   const [
     classHistory, admission, admissionAchievements, academicRecord, dailyGrades, programTests,
     tkaRows, psychology, plotting, futurePlans, universityResults,
-    dailyAttendance, monthlyAttendance, attendanceCorrections, classPermits, exitPermits,
+    { totals: dailyAttendance, corrections: attendanceCorrections }, monthlyAttendance, classPermits, exitPermits,
     violations, warningLetters, warningFollowups, warningDecision, sanctionConfigs,
     bkRows, notesRows, tahfidzProgress, tahfidzLogs, tahfidzScores,
     extracurricularRows, extracurricularAttendance,
@@ -330,14 +343,12 @@ export async function loadFullStudentReport(
       FROM penerimaan_pt p LEFT JOIN tahun_ajaran ta ON ta.id = p.tahun_ajaran_id
       WHERE p.siswa_id = ?${taFilter('p.tahun_ajaran_id').sql}
       ORDER BY ta.nama, p.pilihan_ke`, [studentId, ...taBinds]),
-    loadFullReportAttendance(db, studentId, student.kelas_id || null, semesterPeriods, period),
+    loadFullReportAttendanceWithCorrections(db, studentId, student.kelas_id || null, semesterPeriods, period),
     safeAll<any>(db, `SELECT r.bulan, SUM(r.sakit) AS sakit, SUM(r.izin) AS izin, SUM(r.alpa) AS alpa,
       ta.nama, ta.semester FROM rekap_kehadiran_bulanan r
       LEFT JOIN tahun_ajaran ta ON ta.id = r.tahun_ajaran_id
       WHERE r.siswa_id = ?${taFilter('r.tahun_ajaran_id').sql}
       GROUP BY r.tahun_ajaran_id, r.bulan ORDER BY ta.nama, ta.semester, r.bulan`, [studentId, ...taBinds]),
-    (() => { const f = dateFilter('tanggal'); return safeAll<any>(db, `SELECT UPPER(status) AS status, COUNT(*) AS jumlah
-      FROM keterangan_absensi_wali_kelas WHERE siswa_id = ?${f.sql} GROUP BY UPPER(status)`, [studentId, ...f.binds]) })(),
     (() => { const f = dateFilter('tanggal'); return safeAll<any>(db, `SELECT alasan, COUNT(*) AS jumlah
       FROM izin_tidak_masuk_kelas WHERE siswa_id = ?${f.sql} GROUP BY alasan ORDER BY jumlah DESC`, [studentId, ...f.binds]) })(),
     (() => { const f = dateFilter('waktu_keluar'); return safeAll<any>(db, `SELECT status, COUNT(*) AS jumlah

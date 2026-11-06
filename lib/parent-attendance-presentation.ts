@@ -8,7 +8,7 @@ export const PARENT_ATTENDANCE_HELP = {
   example: 'Contoh: anak hadir pada beberapa pelajaran, tetapi tercatat Alfa pada satu pelajaran. Hasil hariannya tetap Alfa. Ini bukan berarti anak tidak hadir sepanjang hari.',
   permissionTitle: 'Bagaimana dengan izin resmi?',
   permission: 'Izin resmi yang tercatat di sekolah dihitung Hadir dalam rekap harian.',
-  correction: 'Alasan izin dan jam pelajarannya tetap bisa dilihat. Jika ada catatan yang keliru, wali kelas dapat mengoreksinya.',
+  correction: 'Alasan izin dan jam pelajarannya tetap bisa dilihat. Wali kelas dapat mengajukan koreksi hasil harian Alfa untuk ditinjau oleh madrasah.',
 }
 
 export const PARENT_DAILY_LABELS: Record<string, string> = {
@@ -33,6 +33,7 @@ export function parentDailyReason(day: FinalAttendanceDetail) {
     if (day.submitted_blok === 0) return 'Sekolah belum mencatat kehadiran anak pada tanggal ini.'
     return 'Catatan setiap sesi sudah dapat dilihat. Status harian belum ditetapkan.'
   }
+  if (day.approved_correction) return 'Hasil harian mengikuti koreksi yang disetujui madrasah.'
   if (day.sumber_status === 'koreksi_wali_kelas' || day.sumber_status === 'wali_kelas') return 'Hasil harian mengikuti koreksi wali kelas.'
   if (day.sumber_status === 'perizinan_sekolah') return 'Izin kegiatan sekolah dihitung Hadir dalam rekap harian.'
   if (day.sumber_status === 'perizinan_siswa') return day.status_akhir === 'SAKIT' ? 'Hasil harian mengikuti catatan sakit dari sekolah.' : 'Izin resmi dihitung Hadir dalam rekap harian.'

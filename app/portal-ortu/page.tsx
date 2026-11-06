@@ -426,21 +426,12 @@ export default async function PortalOrtuPage({ searchParams }: { searchParams: P
         AND NOT (
           pn.type = 'absensi'
           AND COALESCE(pn.source_ref, '') LIKE '%:ALFA'
-          AND (
-            EXISTS (
-              SELECT 1
-              FROM keterangan_absensi_wali_kelas kawk
-              WHERE kawk.siswa_id = pn.siswa_id
-                AND pn.source_ref LIKE '%:' || kawk.tanggal || ':ALFA'
-                AND kawk.status <> 'ALFA'
-            )
-            OR NOT EXISTS (
+          AND NOT EXISTS (
               SELECT 1
               FROM absensi_siswa ab
               WHERE ab.siswa_id = pn.siswa_id
                 AND ab.status = 'ALFA'
                 AND pn.source_ref = ab.penugasan_id || ':' || ab.tanggal || ':ALFA'
-            )
           )
         )
       ORDER BY pn.created_at DESC

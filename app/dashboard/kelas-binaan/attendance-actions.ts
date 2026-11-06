@@ -5,11 +5,12 @@ import { getUserRoles } from '@/lib/features'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
 import { todayWIB } from '@/lib/time'
-import { getFinalAttendanceForClass } from '@/lib/wali-kelas-attendance'
 import { readAttendanceNoticeState, attendanceNoticeActivation } from '@/lib/attendance-notice-state'
 import { invalidateAttendanceCache } from '@/lib/attendance-cache'
 import { ensureActivityLogTables, logActivity } from '@/lib/activity-log'
 import { prepareAttendanceNotificationWork, flushAttendanceNotificationOutbox } from '@/lib/notification-engine'
+import { attendanceAlfaKey, isProposedAttendanceStatus, type AttendanceAlfaBlock } from '@/lib/attendance-correction'
+import { correctionAttendanceSnapshot, prepareCorrectionSourceFence, readCorrectionSources } from '@/lib/attendance-correction-source'
 
 type WaliStatus = 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA'
 
@@ -17,6 +18,12 @@ type KeputusanAbsensiInput = {
   siswa_id: string
   status: WaliStatus | null
   keterangan: string
+}
+
+export type AttendanceSaveResult = {
+  error?: string
+  success?: string
+  approvalRequired?: Record<string, AttendanceAlfaBlock[]>
 }
 
 function isAdminRole(roles: string[]) {
@@ -55,11 +62,15 @@ async function saveWaliBatch(
   tanggal: string,
   data: KeputusanAbsensiInput[],
   expected?: { penugasanId: string; teacherStatus: string; teacherUpdatedAt: string; waliStatus: string; waliNote: string }
-): Promise<{ error?: string; success?: string }> {
+): Promise<AttendanceSaveResult> {
   const user = await getCurrentUser()
   if (!user) return { error: 'Unauthorized' }
 
-  if (!Array.isArray(data) || data.length > 50 || new Set(data.map(d => d.siswa_id)).size !== data.length || data.some(d => ![null, 'HADIR', 'SAKIT', 'IZIN', 'ALFA'].includes(d.status) || typeof d.keterangan !== 'string' || d.keterangan.length > 2000)) return { error: 'Data koreksi tidak valid.' }
+  if (!Array.isArray(data) || data.length > 50 || data.some(d => !d || typeof d.siswa_id !== 'string' || !d.siswa_id ||
+      ![null, 'HADIR', 'SAKIT', 'IZIN', 'ALFA'].includes(d.status) || typeof d.keterangan !== 'string' ||
+      d.keterangan.length > 2000) || new Set(data.map(d => d.siswa_id)).size !== data.length) {
+    return { error: 'Data koreksi tidak valid.' }
+  }
   if (!kelasId || !tanggal) return { error: 'Kelas dan tanggal wajib dipilih.' }
   if (!isValidDateOnly(tanggal)) return { error: 'Format tanggal tidak valid.' }
   if (tanggal > todayWIB()) return { error: 'Keputusan absensi hanya dapat diisi sampai hari ini.' }
@@ -89,9 +100,25 @@ async function saveWaliBatch(
   }
 
   const existingMap = new Map((existingRes.results || []).map(item => [item.siswa_id, item]))
+  const prospectiveIds = data.filter(item => isProposedAttendanceStatus(item.status)).map(item => item.siswa_id)
+  const readSnapshot = () => prospectiveIds.length ? correctionAttendanceSnapshot(db, kelasId, tanggal, prospectiveIds) : null
+  const sources = prospectiveIds.length ? await readCorrectionSources(db, prospectiveIds, tanggal) : []
+  const snapshot = await readSnapshot()
+  const findBlocked = (current: typeof snapshot) => Object.fromEntries(prospectiveIds.flatMap(id => {
+    const blocks = current?.statusByStudent.get(id)?.[0]?.alfa_blocks ?? []
+    return blocks.length ? [[id, blocks]] : []
+  }))
+  const blockedResult = (approvalRequired: ReturnType<typeof findBlocked>): AttendanceSaveResult => {
+    const names = siswaRes.results?.filter(row => approvalRequired[row.id]).map(row => row.nama_lengkap).join(', ')
+    return { error: `Koreksi Alfa perlu diajukan untuk ${names}. Draft belum disimpan.`, approvalRequired }
+  }
+  const approvalRequired = findBlocked(snapshot)
+  if (Object.keys(approvalRequired).length) return blockedResult(approvalRequired)
   const changedData = data.filter(item => {
     const before = existingMap.get(item.siswa_id)
-    return (before?.status || null) !== item.status || (before?.keterangan || '') !== (item.keterangan.trim() || '')
+    const day = snapshot?.statusByStudent.get(item.siswa_id)?.[0]
+    return (before?.status || null) !== item.status || (before?.keterangan || '') !== item.keterangan.trim() ||
+      (isProposedAttendanceStatus(item.status) && Boolean(day && !day.wali_status))
   })
   if (changedData.length === 0) return { success: 'Tidak ada perubahan keputusan absensi.' }
 
@@ -117,33 +144,23 @@ async function saveWaliBatch(
     for (const item of toUpsert) {
       stmts.push(
         db.prepare(`
-          INSERT INTO keterangan_absensi_wali_kelas (id, siswa_id, tanggal, status, keterangan, dibuat_oleh)
-          SELECT ?, ?, ?, ?, ?, ? WHERE 1 = 1 ${guard}
+          INSERT INTO keterangan_absensi_wali_kelas (id, siswa_id, tanggal, status, keterangan, dibuat_oleh, policy_version)
+          SELECT ?, ?, ?, ?, ?, ?, 1 WHERE 1 = 1 ${guard}
           ON CONFLICT(siswa_id, tanggal) DO UPDATE SET
             status = excluded.status,
             keterangan = excluded.keterangan,
             dibuat_oleh = excluded.dibuat_oleh,
+            policy_version = 1,
+            approval_id = NULL,
             updated_at = datetime('now')
-        `).bind(crypto.randomUUID(), item.siswa_id, tanggal, item.status, item.keterangan || null, user.id, ...guardBindings(item.siswa_id))
-      )
-
-      // Notifikasi sesi ALFA adalah informasi awal dari guru. Begitu wali kelas
-      // menetapkan status final selain ALFA, jangan lagi tampilkan informasi lama
-      // tersebut sebagai kondisi yang masih berlaku di portal orang tua.
-      if (!expected) stmts.push(
-        db.prepare(`
-          UPDATE parent_notifications
-          SET archived_at = CASE WHEN ? = 'ALFA' THEN NULL ELSE datetime('now') END
-          WHERE siswa_id = ?
-            AND type = 'absensi'
-            AND source_ref LIKE '%:' || ? || ':ALFA'
-        `).bind(item.status, item.siswa_id, tanggal)
+        `).bind(crypto.randomUUID(), item.siswa_id, tanggal, item.status, item.keterangan.trim() || null, user.id, ...guardBindings(item.siswa_id))
       )
     }
 
     const work = await prepareAttendanceNotificationWork(db, { kelasId, tanggal, siswaIds: changedData.map(d => d.siswa_id) })
-    const written = await db.batch([...stmts, ...work])
-    if (expected && !written[0]?.meta?.changes) return { error: 'Catatan sudah berubah. Muat ulang sebelum melakukan koreksi.' }
+    const fence = sources.length ? [prepareCorrectionSourceFence(db, tanggal, sources)] : []
+    const written = await db.batch([...fence, ...stmts, ...work])
+    if (expected && !written[fence.length]?.meta?.changes) return { error: 'Catatan sudah berubah. Muat ulang sebelum melakukan koreksi.' }
     invalidateAttendanceCache()
 
     const siswaNameMap = new Map((siswaRes.results || []).map(item => [item.id, item.nama_lengkap]))
@@ -185,6 +202,11 @@ async function saveWaliBatch(
     if (saved > 0) return { success: `${saved} keputusan absensi disimpan.` }
     return { success: 'Keputusan absensi diperbarui.' }
   } catch (e: any) {
+    if (sources.length && e instanceof Error && e.message.includes('malformed JSON')) {
+      const blocked = findBlocked(await readSnapshot())
+      return Object.keys(blocked).length ? blockedResult(blocked) :
+        { error: 'Catatan absensi berubah. Muat ulang sebelum menyimpan. Draft belum disimpan.' }
+    }
     return { error: e.message }
   }
 }
@@ -198,6 +220,8 @@ export type QuickAttendanceContext = {
   siswaId: string; kelasId: string; nama: string; kelas: string; tanggal: string; penugasanId: string;
   mapel: string; jam: string; catatanGuru: string; statusGuru: string; teacherUpdatedAt: string;
   waliStatus: WaliStatus | null; waliNote: string; revision: string;
+  rawWaliStatus?: WaliStatus | null; rawWaliNote?: string;
+  alfaBlocks?: AttendanceAlfaBlock[];
   pendingBlocks: number; isFinal: boolean; dailyStatus: string; parentDueAt: string | null; parentSent: boolean;
 }
 
@@ -210,7 +234,7 @@ export async function getKoreksiAbsensiCepat(siswaId: string, tanggal: string, p
     WHERE s.id = ? AND s.status = 'aktif' AND pm.id = ?`).bind(siswaId, penugasanId).first<{ kelas_id: string }>()
   if (!student || !await canAccessKelas(db, user.id, student.kelas_id, await getUserRoles(db, user.id))) return { error: 'Siswa tidak tersedia atau Anda tidak berhak mengoreksi kelas ini.' }
   const [snapshot, raw, wali] = await Promise.all([
-    getFinalAttendanceForClass(db, student.kelas_id, tanggal, tanggal, { siswaId, fresh: true }),
+    correctionAttendanceSnapshot(db, student.kelas_id, tanggal, [siswaId]),
     db.prepare(`SELECT mp.nama_mapel, ab.status, ab.updated_at, ab.catatan, ab.jam_ke_mulai, ab.jam_ke_selesai
       FROM penugasan_mengajar pm JOIN mata_pelajaran mp ON mp.id = pm.mapel_id
       LEFT JOIN absensi_siswa ab ON ab.penugasan_id = pm.id AND ab.siswa_id = ? AND ab.tanggal = ?
@@ -225,12 +249,16 @@ export async function getKoreksiAbsensiCepat(siswaId: string, tanggal: string, p
   const state = await readAttendanceNoticeState(db, siswaId, tanggal)
   const statusGuru = raw.status || 'HADIR'
   const teacherUpdatedAt = raw.updated_at || ''
-  const waliStatus = wali?.status || null
-  const waliNote = wali?.keterangan || ''
-  const revision = JSON.stringify([statusGuru, teacherUpdatedAt, waliStatus, waliNote, block.status, day.sumber_status])
+  const waliStatus = day.wali_status
+  const waliNote = day.keterangan_wali_kelas || ''
+  const rawWaliStatus = wali?.status ?? null
+  const rawWaliNote = wali?.keterangan || ''
+  const revision = JSON.stringify([statusGuru, teacherUpdatedAt, rawWaliStatus, rawWaliNote, block.status,
+    day.sumber_status, attendanceAlfaKey(day.alfa_blocks ?? [])])
   return { data: { userId: user.id, siswaId, kelasId: student.kelas_id, nama: day.nama_lengkap, kelas: snapshot!.kelas.label,
     tanggal, penugasanId, mapel: raw.nama_mapel, jam: `${block.jam_ke_mulai}–${block.jam_ke_selesai}`,
-    catatanGuru: raw.catatan || '', statusGuru, teacherUpdatedAt, waliStatus, waliNote, revision,
+    catatanGuru: raw.catatan || '', statusGuru, teacherUpdatedAt, waliStatus, waliNote, rawWaliStatus, rawWaliNote,
+    alfaBlocks: day.alfa_blocks, revision,
     pendingBlocks: day.pending_blok, isFinal: day.is_daily_final, dailyStatus: day.status_akhir,
     parentDueAt: state?.initial_ref ? state.initial_due_at : null, parentSent: !!state?.initial_sent_at } }
 }
@@ -239,10 +267,13 @@ export async function simpanKoreksiAbsensiCepat(input: { siswaId: string; tangga
   const result = await getKoreksiAbsensiCepat(input.siswaId, input.tanggal, input.penugasanId)
   if (!result.data) return { error: result.error || 'Data tidak tersedia.' }
   const current = result.data
-  if (current.revision !== input.revision) return { error: 'Catatan sudah berubah. Muat ulang sebelum melakukan koreksi.' }
+  if (current.revision !== input.revision) return {
+    error: 'Catatan sudah berubah. Muat ulang sebelum melakukan koreksi.',
+    approvalRequired: current.alfaBlocks?.length ? { [input.siswaId]: current.alfaBlocks } : undefined,
+  }
   return saveWaliBatch(current.kelasId, input.tanggal, [{ siswa_id: input.siswaId, status: input.status, keterangan: input.keterangan }], {
     penugasanId: input.penugasanId, teacherStatus: current.statusGuru, teacherUpdatedAt: current.teacherUpdatedAt,
-    waliStatus: current.waliStatus || '', waliNote: current.waliNote,
+    waliStatus: current.rawWaliStatus || '', waliNote: current.rawWaliNote || '',
   })
 }
 

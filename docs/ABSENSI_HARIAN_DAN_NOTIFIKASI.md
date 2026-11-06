@@ -3,10 +3,15 @@
 Rekap sebelum akhir KBM bersifat sementara. Sesudah jam aktif terakhir kelas
 berakhir (WIB), gunakan catatan yang tersedia dengan prioritas Alfa, Sakit, Izin,
 Hadir. Blok tanpa data bukan Hadir/Alfa. Perizinan resmi biasa dihitung Hadir;
-alasan sakit tetap Sakit. Koreksi wali dan prioritas izin sekolah sehari penuh
-dipertahankan. Detail sesi dan jumlah input tertunda tetap tersedia.
+alasan sakit tetap Sakit. Izin sekolah sehari penuh tetap diprioritaskan. Koreksi
+Alfa yang masih berlaku ke Hadir, Sakit, atau Izin memerlukan persetujuan.
+Detail sesi dan jumlah input tertunda tetap tersedia. Formulir absensi guru
+dan pelaksana delegasi memakai status per sesi dan perizinan sebagai sumber.
 
-Aturan berlaku untuk histori tanpa mengubah catatan absensi sumber. Pengaturan
+Untuk histori, koreksi wali lama menjadi Hadir diabaikan saat hasil otomatis
+adalah Alfa, Sakit, atau Izin. Koreksi lama lain tetap berlaku. Hitung ulang
+terjadi saat dibaca, dengan catatan sumber dan koreksi lama tetap tersimpan.
+Pengaturan
 lama `attendance_skip_incomplete_for_daily_status` tidak digunakan lagi.
 
 ## Penerapan
@@ -20,6 +25,9 @@ lama `attendance_skip_incomplete_for_daily_status` tidak digunakan lagi.
    sementara; tanggal lampau dianggap telah berakhir.
 4. Periksa template notifikasi di pengaturan. Template bawaan lama diperbarui
    hanya jika judul dan isi masih identik; template custom tetap dipertahankan.
+5. Untuk persetujuan koreksi Alfa, terapkan `0125_attendance_correction_approval.sql`
+   sebelum merilis kode yang membaca kolom baru. Rilis keduanya dalam satu
+   jendela, karena kode lama menulis koreksi tanpa penanda versi baru.
 
 Runtime mempunyai fallback pembentukan schema/aktivasi saat pertama diakses,
 tetapi migration sebelum release diperlukan untuk mencatat batas deployment
@@ -28,8 +36,9 @@ secara tepat. Jangan mengganti waktu aktivasi saat redeploy.
 ## Pengiriman
 
 - Laporan awal: satu per siswa/tanggal, Alfa/Sakit/Izin dari guru, minimum lima
-  menit dari catatan sesi pemicu. Periksa ulang sesi, perizinan, dan keputusan
-  wali sebelum kirim. Kandidat batal tidak menghabiskan kesempatan laporan awal.
+  menit dari catatan sesi pemicu. Periksa ulang sesi dan perizinan sebelum kirim.
+  Laporan awal Alfa mengikuti status sesi meski rekap hariannya dikoreksi.
+  Kandidat batal tidak menghabiskan kesempatan laporan awal.
 - Rekap: cron sesudah KBM, hanya untuk siswa dengan laporan awal berhasil dikirim.
 - Pembaruan: perubahan status akhir setelah rekap terkirim, minimum lima menit;
   perubahan catatan/kelengkapan saja tidak mengirim ulang. Revisi monoton membuat

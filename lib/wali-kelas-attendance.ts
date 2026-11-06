@@ -6,6 +6,7 @@ import {
 } from '@/lib/kalender-pendidikan'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
 import { getMemCache, setMemCache } from '@/utils/mem-cache'
+import { effectiveWaliCorrection, type AttendanceAlfaBlock } from '@/lib/attendance-correction'
 import {
   deriveDailyTeacherStatus,
   dailyAttendanceClock,
@@ -33,6 +34,8 @@ export type FinalAttendanceDetail = {
   guru_status: FinalAttendanceStatus
   guru_status_reason: string
   wali_status: 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA' | null
+  alfa_blocks?: AttendanceAlfaBlock[]
+  approved_correction?: boolean
   status_akhir: FinalAttendanceStatus
   sumber_status: FinalAttendanceSource
   status_reason: string
@@ -77,6 +80,7 @@ type ClassRow = {
 
 export type FinalAttendanceClassData = {
   kelas: ClassRow & { label: string }
+  tahunAjaranId?: string
   dates: string[]
   siswa: StudentRow[]
   statusByStudent: Map<string, FinalAttendanceDetail[]>
@@ -210,7 +214,7 @@ export async function getFinalAttendanceForClass(
   if (selectedIds?.length === 0) return null
   const studentSql = (column: string) => selectedIds ? ` AND ${column} IN (${selectedIds.map(() => '?').join(',')})` : ''
   const now = new Date()
-  const cacheKey = `final-att:v4:${Math.floor(now.getTime() / 60_000)}:${kelasId}:${startDate}:${endDate}:${options?.tahunAjaranId ?? ''}:${selectedIds?.join(',') ?? ''}:${historicalStudentId ? 'history' : 'live'}`
+  const cacheKey = `final-att:v5:${Math.floor(now.getTime() / 60_000)}:${kelasId}:${startDate}:${endDate}:${options?.tahunAjaranId ?? ''}:${selectedIds?.join(',') ?? ''}:${historicalStudentId ? 'history' : 'live'}`
   const cached = getMemCache<FinalAttendanceClassData>(cacheKey)
   if (cached && !options?.fresh) return cached
 
@@ -280,7 +284,7 @@ export async function getFinalAttendanceForClass(
         assignment_guru_nama: string | null
       }> }),
     db.prepare(`
-      SELECT ab.tanggal, ab.siswa_id, ab.penugasan_id, ab.status, ab.catatan, ab.jam_ke_mulai, ab.jam_ke_selesai,
+      SELECT ab.tanggal, ab.siswa_id, ab.penugasan_id, ab.status, ab.catatan, ab.jam_ke_mulai, ab.jam_ke_selesai, ab.updated_at,
         mp.nama_mapel, input_user.nama_lengkap as guru_nama
       FROM penugasan_mengajar pm
       CROSS JOIN absensi_siswa ab ON ab.penugasan_id = pm.id
@@ -290,11 +294,18 @@ export async function getFinalAttendanceForClass(
       ORDER BY ab.tanggal, ab.siswa_id, ab.jam_ke_mulai
     `).bind(kelasId, startDate, endDate, ...(selectedIds || [])).all<any>(),
     db.prepare(`
-      SELECT kawk.tanggal, kawk.siswa_id, kawk.status, kawk.keterangan
+      SELECT kawk.tanggal, kawk.siswa_id, kawk.status, kawk.keterangan,
+        kawk.policy_version, kawk.approval_id, approval.alfa_key AS approved_alfa_key
       FROM siswa s
       CROSS JOIN keterangan_absensi_wali_kelas kawk ON kawk.siswa_id = s.id
+      LEFT JOIN attendance_correction_requests approval ON approval.id = kawk.approval_id
+        AND approval.status = 'APPROVED' AND approval.kelas_id = ? AND approval.tahun_ajaran_id = ?
+        AND approval.siswa_id = kawk.siswa_id AND approval.tanggal = kawk.tanggal AND approval.requested_status = kawk.status
       WHERE ${currentClassSql} AND kawk.tanggal BETWEEN ? AND ? ${studentSql('kawk.siswa_id')}
-    `).bind(...currentClassBinds, startDate, endDate, ...(selectedIds || [])).all<any>(),
+    `).bind(kelasId, ta?.id ?? null, ...currentClassBinds, startDate, endDate, ...(selectedIds || [])).all<{
+      tanggal: string; siswa_id: string; status: SubmittedBlockStatus; keterangan: string | null
+      policy_version: number; approval_id: string | null; approved_alfa_key: string | null
+    }>(),
     db.prepare(`
       SELECT itk.tanggal, itk.siswa_id, itk.alasan, itk.keterangan, itk.jam_pelajaran,
         COALESCE(aik.hitung_sebagai_hadir, 0) as hitung_sebagai_hadir,
@@ -412,6 +423,7 @@ export async function getFinalAttendanceForClass(
     jam_ke_mulai: number
     jam_ke_selesai: number
     catatan: string
+    updated_at: string | null
   }>>()
   for (const row of absensiRes.results || []) {
     const key = `${row.siswa_id}__${row.tanggal}`
@@ -424,6 +436,7 @@ export async function getFinalAttendanceForClass(
       jam_ke_mulai: row.jam_ke_mulai,
       jam_ke_selesai: row.jam_ke_selesai,
       catatan: row.catatan || '',
+      updated_at: row.updated_at ?? null,
     })
   }
 
@@ -434,11 +447,17 @@ export async function getFinalAttendanceForClass(
     })
   }
 
-  const waliMap = new Map<string, { status: 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA'; keterangan: string | null }>()
+  const waliMap = new Map<string, {
+    status: SubmittedBlockStatus; keterangan: string | null; policyVersion: number
+    approvalId: string | null; approvedAlfaKey: string | null
+  }>()
   for (const row of waliRes.results || []) {
     waliMap.set(`${row.siswa_id}__${row.tanggal}`, {
       status: row.status,
       keterangan: row.keterangan || null,
+      policyVersion: row.policy_version,
+      approvalId: row.approval_id,
+      approvedAlfaKey: row.approved_alfa_key,
     })
   }
 
@@ -462,6 +481,7 @@ export async function getFinalAttendanceForClass(
       const totalBlok = dayBlocks.totalBlok
       const baseGuruRecords = guruMap.get(`${siswa.id}__${tanggal}`) || []
       const waliRecord = waliMap.get(`${siswa.id}__${tanggal}`)
+      const alfaBlocks: AttendanceAlfaBlock[] = []
       const izinKelasRows = izinKelasMap.get(`${siswa.id}__${tanggal}`) || []
       const izinKeluarRows = izinKeluarMap.get(siswa.id) || []
       const activeBlocks = dayBlocks.blocks
@@ -538,6 +558,14 @@ export async function getFinalAttendanceForClass(
           ? permissionStatus
           : teacherStatus
 
+        if (status === 'ALFA' && rawRecord) {
+          alfaBlocks.push({
+            assignment: block.penugasan_id, from: block.jam_ke_mulai, to: block.jam_ke_selesai,
+            mapel: rawRecord.nama_mapel || block.nama_mapel, teacher: teacherDetail?.guru_nama ?? null,
+            note: rawRecord.catatan, updatedAt: rawRecord.updated_at,
+          })
+        }
+
         return {
           penugasan_id: block.penugasan_id,
           status,
@@ -590,19 +618,25 @@ export async function getFinalAttendanceForClass(
           return jamIzin.length === 0 || jamIzin.includes(jamKe)
         })
       )
-      const resolvedFinal = !clock.ended ? resolveFinalAttendanceStatus({ teacherStatus: guruStatus }) : resolveFinalAttendanceStatus({
-        teacherStatus: guruStatus,
-        waliStatus: waliRecord?.status ?? null,
+      const baseline = resolveFinalAttendanceStatus({
+        teacherStatus: clock.ended ? guruStatus : deriveDailyTeacherStatus({ totalBlocks: totalBlok, submittedStatuses }).status,
         fullDaySchoolPermission: izinSekolahSehariPenuh,
         fullDayStudentPermissionStatus,
+      }).status
+      const effectiveWali = effectiveWaliCorrection(waliRecord, baseline, izinSekolahSehariPenuh ? [] : alfaBlocks)
+      const resolvedFinal = !clock.ended ? resolveFinalAttendanceStatus({ teacherStatus: guruStatus }) : resolveFinalAttendanceStatus({
+        teacherStatus: guruStatus, waliStatus: effectiveWali?.status,
+        fullDaySchoolPermission: izinSekolahSehariPenuh, fullDayStudentPermissionStatus,
       })
       let statusReason = guruState.reason
       if (!clock.ended) {
         statusReason = guruState.reason
       } else if (izinSekolahSehariPenuh) {
         statusReason = 'Izin kepentingan sekolah mencakup seluruh blok KBM dan dihitung hadir.'
-      } else if (waliRecord?.status) {
-        statusReason = `Status ditetapkan wali kelas menjadi ${waliRecord.status}.`
+      } else if (effectiveWali) {
+        statusReason = effectiveWali.approvalId
+          ? `Koreksi harian menjadi ${effectiveWali.status} disetujui.`
+          : `Status ditetapkan wali kelas menjadi ${effectiveWali.status}.`
       } else if (fullDayStudentPermissionStatus === 'SAKIT') {
         statusReason = 'Perizinan Siswa mencakup seluruh blok KBM dengan alasan sakit.'
       } else if (fullDayStudentPermissionStatus === 'IZIN') {
@@ -631,12 +665,14 @@ export async function getFinalAttendanceForClass(
         pending_blok: Math.max(0, totalBlok - submittedBlok),
         guru_status: guruStatus,
         guru_status_reason: guruState.reason,
-        wali_status: waliRecord?.status ?? null,
+        wali_status: effectiveWali?.status ?? null,
+        alfa_blocks: izinSekolahSehariPenuh ? [] : alfaBlocks,
+        approved_correction: Boolean(effectiveWali?.approvalId),
         status_akhir: resolvedFinal.status,
         sumber_status: resolvedFinal.source,
         status_reason: statusReason,
-        requires_wali_decision: !izinSekolahSehariPenuh && !fullDayStudentPermissionStatus && !waliRecord && guruState.requiresWaliDecision,
-        keterangan_wali_kelas: waliRecord?.keterangan ?? null,
+        requires_wali_decision: !izinSekolahSehariPenuh && !fullDayStudentPermissionStatus && !effectiveWali && guruState.requiresWaliDecision,
+        keterangan_wali_kelas: effectiveWali?.keterangan ?? null,
         block_statuses: blockStatuses,
         detail_guru: guruRecords,
       })
@@ -645,6 +681,7 @@ export async function getFinalAttendanceForClass(
   }
 
   const result: FinalAttendanceClassData = {
+    tahunAjaranId: ta?.id,
     kelas: {
       ...kelas,
       label: formatNamaKelas(kelas.tingkat, kelas.nomor_kelas, kelas.kelompok),

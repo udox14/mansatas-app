@@ -12,7 +12,9 @@ import { getCurrentUser } from '@/utils/auth/server'
 import { getUserRoles } from '@/lib/features'
 import { formatNamaKelas } from '@/lib/utils'
 import { getKalenderDateStatus } from '@/lib/kalender-pendidikan'
+import { attendanceSemesterForDate } from '@/lib/attendance-correction-source'
 import { getFinalAttendanceForClass } from '@/lib/wali-kelas-attendance'
+import type { AttendanceAlfaBlock } from '@/lib/attendance-correction'
 import {
   simpanKeputusanAbsensiWali,
   simpanKeputusanAbsensiWaliBatch,
@@ -33,6 +35,7 @@ export type SiswaKeterangan = {
   submitted_blok: number
   pending_blok: number
   total_blok: number
+  alfa_blocks?: AttendanceAlfaBlock[]
   detail_guru: Array<{
     status: string
     nama_mapel: string
@@ -109,12 +112,13 @@ export async function loadSiswaKeterangan(kelasId: string, tanggal: string): Pro
     if (!kelas) return { error: 'Anda tidak memiliki akses ke kelas ini', siswa: [] }
   }
 
-  const [snapshot, keteranganRes] = await Promise.all([
-    getFinalAttendanceForClass(db, kelasId, tanggal, tanggal),
+  const [semester, keteranganRes] = await Promise.all([
+    attendanceSemesterForDate(db, tanggal),
     db.prepare(
       `SELECT id, siswa_id FROM keterangan_absensi_wali_kelas WHERE tanggal = ? AND siswa_id IN (SELECT id FROM siswa WHERE kelas_id = ? AND status = 'aktif')`
     ).bind(tanggal, kelasId).all<any>(),
   ])
+  const snapshot = await getFinalAttendanceForClass(db, kelasId, tanggal, tanggal, { tahunAjaranId: semester, fresh: true })
 
   const ketIdMap = new Map<string, string>()
   for (const k of keteranganRes.results || []) ketIdMap.set(k.siswa_id, k.id)
@@ -143,6 +147,7 @@ export async function loadSiswaKeterangan(kelasId: string, tanggal: string): Pro
         submitted_blok: detail?.submitted_blok || 0,
         pending_blok: detail?.pending_blok || 0,
         total_blok: detail?.total_blok || 0,
+        alfa_blocks: detail?.alfa_blocks,
         detail_guru: detail?.detail_guru || [],
       }
     }),
@@ -155,7 +160,7 @@ export async function simpanKeterangan(
   tanggal: string,
   status: 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA' | null,
   keterangan: string
-): Promise<{ error?: string; success?: string }> {
+) {
   await requireActionAccess('keterangan-absensi', 'update')
   return simpanKeputusanAbsensiWali(siswaId, tanggal, status, keterangan)
 }
@@ -165,7 +170,7 @@ export async function simpanKeteranganBatch(
   kelasId: string,
   tanggal: string,
   data: Array<{ siswa_id: string; status: 'HADIR' | 'SAKIT' | 'IZIN' | 'ALFA' | null; keterangan: string }>
-): Promise<{ error?: string; success?: string }> {
+) {
   await requireActionAccess('keterangan-absensi', 'update')
   return simpanKeputusanAbsensiWaliBatch(kelasId, tanggal, data)
 }

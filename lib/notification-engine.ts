@@ -1105,7 +1105,7 @@ async function validatedQueueRecipientIds(db: D1Database, message: NotificationQ
       const context = { nama_siswa: day!.nama_lengkap, kelas: data!.kelas.label, tanggal: v.tanggal,
         status_kehadiran: attendanceStatusLabel(effective), keterangan_status: initialAttendanceContext(effective),
         mapel: session?.nama_mapel || '', rentang_jam: session ? `${session.jam_ke_mulai}–${session.jam_ke_selesai}` : '',
-        sumber_keterangan: day!.wali_status ? 'Status ini berdasarkan pemeriksaan wali kelas atas catatan sesi pembelajaran.' : 'Ini merupakan catatan sesi pembelajaran.' }
+        sumber_keterangan: effective !== v.status ? 'Status ini berdasarkan pemeriksaan wali kelas atas catatan sesi pembelajaran.' : 'Ini merupakan catatan sesi pembelajaran.' }
       message.title = renderNotificationTemplate(setting.title_template, context, definition.placeholders)
       message.body = renderNotificationTemplate(setting.body_template, context, definition.placeholders)
       return [v.siswaId]
@@ -1969,7 +1969,7 @@ function defaultReminderFallback(): NotificationReminderConfig {
 
 /** Return statements to commit with attendance mutations; no provider I/O on submit. */
 export async function prepareAttendanceNotificationWork(db: D1Database, input: {
-  tanggal: string; kelasId?: string; penugasanId?: string; siswaIds: string[]; notifyIds?: string[]
+  tanggal: string; kelasId?: string; penugasanId?: string; siswaIds: string[]; notifyIds?: string[]; correctionDecisionId?: string
 }): Promise<D1PreparedStatement[]> {
   const activation = await attendanceNoticeActivation(db)
   if (!attendanceDateEligible(input.tanggal, activation) || input.siswaIds.length === 0) return []
@@ -1994,11 +1994,15 @@ export async function prepareAttendanceNotificationWork(db: D1Database, input: {
     validation: { kind: 'attendance_work', tanggal: input.tanggal, kelasId, penugasanId: input.penugasanId,
       siswaIds, notifyIds: [...new Set(input.notifyIds || [])] },
   }
+  const correctionGuard = input.correctionDecisionId
+    ? " AND EXISTS (SELECT 1 FROM attendance_correction_requests WHERE decision_id = ? AND status = 'APPROVED')"
+    : ''
+  const guardBindings = input.correctionDecisionId ? [input.correctionDecisionId] : []
   return [db.prepare(`INSERT INTO notification_dispatches (id,dedup_key,event_key,source_ref,target_scope,status,payload_json,available_at)
-    VALUES (?,?,?,?,?,'queued',?,?)`).bind(id, message.sourceRef, message.eventKey, message.sourceRef, `attendance-work:${kelasId}:${input.tanggal}`,
-      JSON.stringify(message), new Date().toISOString()),
+    SELECT ?,?,?,?,?,'queued',?,? WHERE 1 = 1 ${correctionGuard}`).bind(id, message.sourceRef, message.eventKey, message.sourceRef, `attendance-work:${kelasId}:${input.tanggal}`,
+      JSON.stringify(message), new Date().toISOString(), ...guardBindings),
     db.prepare(`UPDATE attendance_parent_notice_state SET needs_recheck = needs_recheck + 1, next_check_at = NULL
-      WHERE tanggal = ? AND siswa_id IN (${siswaIds.map(() => '?').join(',')})`).bind(input.tanggal, ...siswaIds)]
+      WHERE tanggal = ? AND siswa_id IN (${siswaIds.map(() => '?').join(',')}) ${correctionGuard}`).bind(input.tanggal, ...siswaIds, ...guardBindings)]
 }
 
 /** Bounded enqueue recovery, using a lease so submit and cron cannot fan out twice. */

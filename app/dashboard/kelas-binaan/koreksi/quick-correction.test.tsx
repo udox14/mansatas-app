@@ -15,7 +15,7 @@ describe('quick attendance correction presentation', () => {
     for (const text of ['Alya','Matematika','Belum terlihat','Hadir','Sakit','Izin','Alfa','11.05 WIB','3 blok pelajaran belum diinput','disimpan otomatis setelah 2 detik','Alasan koreksi']) expect(html).toContain(text)
     expect(html).not.toContain('Simpan Koreksi')
     expect(html).toContain('Koreksi dapat disimpan sekarang')
-    expect(html).toContain('Jika hasilnya Hadir, laporan dibatalkan')
+    expect(html).toContain('Laporan orang tua menunggu pemeriksaan sampai pukul')
   })
   it('shows the saved correction selected while retaining the teacher record and explaining an already sent report', () => {
     const html = renderToStaticMarkup(<QuickAttendanceCorrection data={{...base,waliStatus:'SAKIT',waliNote:'Konfirmasi',parentSent:true}} />)
