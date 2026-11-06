@@ -21,6 +21,7 @@ import {
   setNamedKomiteSubmitterAction, submitKomiteAction,
   setKomiteReviewerSettingAction, setKomiteActivityReportAction,
 } from './actions'
+import { ApprovalSheetButton } from './approval-sheet-button'
 
 type Item = any
 type RincianRow = { uraian: string; penerima_penyedia: string; jumlah: string }
@@ -182,7 +183,10 @@ export function PengajuanKomiteClient(props: Props) {
 
         <TabsContent value="mine">
           <SectionToolbar title="Pengajuan milik Anda">
-            {props.canCreate && <Button size="sm" onClick={() => { setMessage(''); setEditing(null); setFormOpen(true) }}><Plus className="mr-1.5 h-4 w-4" />Buat Pengajuan</Button>}
+            {props.canCreate && <div className="flex flex-wrap gap-2">
+              <ApprovalSheetButton key={props.currentUserId} userId={props.currentUserId} />
+              <Button size="sm" onClick={() => { setMessage(''); setEditing(null); setFormOpen(true) }}><Plus className="mr-1.5 h-4 w-4" />Buat Pengajuan</Button>
+            </div>}
           </SectionToolbar>
           <HelpGuide type="submitter" />
           <DataList items={own} onOpen={openDetail} />
