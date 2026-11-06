@@ -1,7 +1,12 @@
 import { ensureSchemaOnce } from './schema-guard'
-import { KELAS_BINAAN_NOTIFICATION_EVENTS } from './notification-catalog'
+import { ATTENDANCE_CORRECTION_REQUEST_EVENT, KELAS_BINAAN_NOTIFICATION_EVENTS } from './notification-catalog'
 
-const kelasBinaanScope = `event_key IN (${KELAS_BINAAN_NOTIFICATION_EVENTS.map(() => '?').join(',')})`
+export const ATTENDANCE_CORRECTION_INBOX = '/dashboard/kelas-binaan/notifikasi?scope=koreksi'
+
+function inboxEvents(corrections = false) {
+  const events = corrections ? [ATTENDANCE_CORRECTION_REQUEST_EVENT] : KELAS_BINAAN_NOTIFICATION_EVENTS
+  return { events, predicate: `event_key IN (${events.map(() => '?').join(',')})` }
+}
 
 export type StaffInboxItem = {
   id: string; event_key: string; title: string; message: string; url: string;
@@ -41,33 +46,35 @@ export async function writeStaffNotifications(db: D1Database, userIds: string[],
   }
 }
 
-export async function getStaffInbox(db: D1Database, userId: string, options: { before?: string; unread?: boolean } = {}) {
+export async function getStaffInbox(db: D1Database, userId: string, options: { before?: string; unread?: boolean; corrections?: boolean } = {}) {
   await ensureStaffNotificationInbox(db)
+  const { events, predicate } = inboxEvents(options.corrections)
   const cursor = options.before?.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})~([a-f0-9]{32})$/)
-  const conditions = ['user_id = ?', kelasBinaanScope, ...(options.unread ? ['read_at IS NULL'] : []),
+  const conditions = ['user_id = ?', predicate, ...(options.unread ? ['read_at IS NULL'] : []),
     ...(cursor ? ['(created_at, id) < (?, ?)'] : [])]
-  const bindings = [userId, ...KELAS_BINAAN_NOTIFICATION_EVENTS, ...(cursor ? [cursor[1], cursor[2]] : [])]
+  const bindings = [userId, ...events, ...(cursor ? [cursor[1], cursor[2]] : [])]
   const [rows, count] = await Promise.all([
     db.prepare(`SELECT id,event_key,title,message,url,level,created_at,read_at FROM staff_notifications
       WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC,id DESC LIMIT 21`).bind(...bindings).all<StaffInboxItem>(),
-    db.prepare(`SELECT COUNT(*) AS total FROM staff_notifications WHERE user_id = ? AND ${kelasBinaanScope} AND read_at IS NULL`)
-      .bind(userId,...KELAS_BINAAN_NOTIFICATION_EVENTS).first<{total:number}>(),
+    getUnreadStaffNotificationCount(db, userId, options.corrections),
   ])
   const items = (rows.results || []).slice(0,20)
   const last = items.at(-1)
-  return { items, unreadCount: count?.total || 0,
+  return { items, unreadCount: count,
     nextCursor: (rows.results || []).length > 20 && last ? `${last.created_at}~${last.id}` : null }
 }
 
-export async function readStaffNotification(db: D1Database, userId: string, id: string) {
+export async function readStaffNotification(db: D1Database, userId: string, id: string, corrections = false) {
   await ensureStaffNotificationInbox(db)
+  const { events, predicate } = inboxEvents(corrections)
   return db.prepare(`UPDATE staff_notifications SET read_at = COALESCE(read_at,datetime('now'))
-    WHERE id = ? AND user_id = ? AND ${kelasBinaanScope} RETURNING url`).bind(id,userId,...KELAS_BINAAN_NOTIFICATION_EVENTS).first<{url:string}>()
+    WHERE id = ? AND user_id = ? AND ${predicate} RETURNING url`).bind(id,userId,...events).first<{url:string}>()
 }
 
-export async function getUnreadStaffNotificationCount(db: D1Database, userId: string) {
+export async function getUnreadStaffNotificationCount(db: D1Database, userId: string, corrections = false) {
   await ensureStaffNotificationInbox(db)
-  const row = await db.prepare(`SELECT COUNT(*) AS total FROM staff_notifications WHERE user_id = ? AND ${kelasBinaanScope} AND read_at IS NULL`)
-    .bind(userId,...KELAS_BINAAN_NOTIFICATION_EVENTS).first<{total:number}>()
+  const { events, predicate } = inboxEvents(corrections)
+  const row = await db.prepare(`SELECT COUNT(*) AS total FROM staff_notifications WHERE user_id = ? AND ${predicate} AND read_at IS NULL`)
+    .bind(userId,...events).first<{total:number}>()
   return row?.total || 0
 }

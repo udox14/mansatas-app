@@ -3,16 +3,16 @@
 import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
-import { checkFeatureAccess, getUserRoles } from '@/lib/features'
+import { getAttendanceCorrectionReviewer } from '@/lib/attendance-correction-reviewer'
 import { formatNamaKelas } from '@/lib/utils'
 import { todayWIB } from '@/lib/time'
 import { invalidateAttendanceCache } from '@/lib/attendance-cache'
 import {
-  attendanceAlfaKey, canDecideAttendanceCorrection, canReviewAttendanceCorrection, isProposedAttendanceStatus,
+  attendanceAlfaKey, canDecideAttendanceCorrection, isProposedAttendanceStatus,
   type AttendanceAlfaBlock, type AttendanceCorrectionStatus, type ProposedAttendanceStatus,
 } from '@/lib/attendance-correction'
 import { correctionAttendanceSnapshot, correctionSourceSql, readCorrectionSource } from '@/lib/attendance-correction-source'
-import { flushAttendanceNotificationOutbox, prepareAttendanceNotificationWork } from '@/lib/notification-engine'
+import { flushAttendanceNotificationOutbox, flushNotificationOutbox, prepareAttendanceCorrectionReviewNotice, prepareAttendanceNotificationWork } from '@/lib/notification-engine'
 import type { FinalAttendanceDetail } from '@/lib/wali-kelas-attendance'
 
 type RequestRow = {
@@ -49,14 +49,8 @@ async function requireCorrectionReviewerAccess() {
   const user = await getCurrentUser()
   if (!user) return null
   const db = await getDB()
-  const [roles, profile, feature] = await Promise.all([
-    getUserRoles(db, user.id),
-    db.prepare('SELECT jabatan_struktural_id, COALESCE(nama_lengkap, name, id) AS display_name FROM "user" WHERE id = ?')
-      .bind(user.id).first<{ jabatan_struktural_id: string | null; display_name: string }>(),
-    checkFeatureAccess(db, user.id, 'keterangan-absensi'),
-  ])
-  return profile && feature && canReviewAttendanceCorrection(roles, profile.jabatan_struktural_id)
-    ? { db, user, roles, reviewerName: profile.display_name } : null
+  const reviewer = await getAttendanceCorrectionReviewer(db, user.id)
+  return reviewer ? { db, user, ...reviewer } : null
 }
 
 async function requireCorrectionStudentAccess(siswaId: string) {
@@ -102,6 +96,8 @@ export async function requestAttendanceCorrection(input: {
     return { error: 'Data absensi berubah. Muat ulang sebelum mengajukan koreksi.' }
   }
   const evidence: Evidence = { blocks, permissions: day.detail_guru.filter(detail => detail.sumber === 'perizinan_siswa') }
+  const requestId = crypto.randomUUID()
+  const notice = await prepareAttendanceCorrectionReviewNotice(db, requestId, user.id)
   const statements = [
     db.prepare(`UPDATE attendance_correction_requests AS target SET status = 'STALE',
       reviewed_at = datetime('now'), review_note = 'Data Alfa berubah sejak ajuan dikirim.'
@@ -117,13 +113,18 @@ export async function requestAttendanceCorrection(input: {
         SELECT 1 FROM siswa s JOIN kelas k ON k.id = s.kelas_id
         WHERE s.id = target.siswa_id AND s.status = 'aktif' AND k.id = ? AND k.wali_kelas_id = ?
       ) ON CONFLICT DO NOTHING`).bind(
-      crypto.randomUUID(), kelasId, snapshot.tahunAjaranId, day.is_daily_final ? day.status_akhir : 'ALFA',
+      requestId, kelasId, snapshot.tahunAjaranId, day.is_daily_final ? day.status_akhir : 'ALFA',
       input.status, input.reason.trim(), key, JSON.stringify(evidence),
       input.siswaId, input.tanggal, user.id, source, kelasId, user.id,
     ),
+    ...notice.statements,
   ]
   const written = await db.batch(statements)
   if (!written[1]?.meta.changes) return { error: 'Ajuan sudah menunggu persetujuan atau data absensi berubah. Muat ulang untuk memeriksa.' }
+  if (notice.statements.length) {
+    try { await flushNotificationOutbox(db, notice.sourceRef) }
+    catch (error) { console.error('Gagal meneruskan notifikasi ajuan koreksi:', error) }
+  }
   revalidatePath('/dashboard/keterangan-absensi')
   return { success: 'Ajuan dikirim dan menunggu persetujuan.' }
 }

@@ -212,7 +212,7 @@ export const APP_MODULES: ModuleItem[] = [
     roles: ['wali_kelas', 'admin_tu', 'wakamad', 'kepsek', 'super_admin'],
     keyFeatures: ['Antrean ajuan dan riwayat keputusan', 'Verifikasi ulang blok Alfa saat keputusan dan saat rekap dibaca', 'Hitung ulang histori hanya untuk koreksi lama dari Alfa, Sakit, atau Izin menjadi Hadir'],
     inputs: ['Status usulan, alasan wali, catatan mapel, izin resmi, dan keputusan pemeriksa'],
-    outputs: ['Status harian efektif, jejak keputusan, dan pembaruan rekap orang tua melalui antrean'],
+    outputs: ['Push dan kotak masuk pemeriksa untuk ajuan baru, dengan tautan ke rincian', 'Status harian efektif, jejak keputusan, dan pembaruan rekap orang tua melalui antrean'],
   },
   {
     id: 'bk',

@@ -46,6 +46,8 @@ const staffChannels: NotificationChannel[] = ['fcm', 'webpush']
 const homeroomChannels: NotificationChannel[] = ['fcm', 'webpush', 'in_app']
 const parentChannels: NotificationChannel[] = ['fcm', 'in_app']
 
+export const ATTENDANCE_CORRECTION_REQUEST_EVENT = 'attendance_correction_review_requested'
+
 // Explicit module scope, including the existing raw clarification reply event.
 export const KELAS_BINAAN_NOTIFICATION_EVENTS = [
   'attendance_homeroom_alert', 'homeroom_discipline_violation', 'homeroom_discipline_sanction',
@@ -314,6 +316,21 @@ export const NOTIFICATION_EVENT_DEFINITIONS: NotificationEventDefinition[] = [
     defaultTarget: { kind: 'staff_users' },
     defaultLevel: 'info',
     placeholders: ['nama_siswa', 'kelas', 'kelasId', 'siswaId', 'penugasanId', 'status_kehadiran', 'tanggal', 'mapel', 'rentang_jam', 'keterangan_status', 'sumber_keterangan'],
+    reminder: noReminder,
+  },
+  {
+    key: ATTENDANCE_CORRECTION_REQUEST_EVENT,
+    label: 'Ajuan koreksi Alfa untuk pemeriksa',
+    description: 'Memberi tahu pemeriksa yang berwenang saat wali kelas mengirim ajuan koreksi Alfa.',
+    group: 'akademik',
+    defaultEnabled: true,
+    defaultTitle: 'Ajuan koreksi absensi menunggu persetujuan',
+    defaultBody: 'Buka rincian ajuan untuk meninjau koreksi absensi.',
+    defaultUrl: '/dashboard/keterangan-absensi',
+    defaultChannels: ['fcm', 'webpush', 'in_app'],
+    defaultTarget: { kind: 'staff_users' },
+    defaultLevel: 'info',
+    placeholders: [],
     reminder: noReminder,
   },
   {

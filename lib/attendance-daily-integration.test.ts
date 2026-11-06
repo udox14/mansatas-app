@@ -2,10 +2,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 import { readFileSync } from 'node:fs'
 
-const runtime = vi.hoisted(() => ({ db: null as unknown as D1Database, queue: vi.fn(), fcm: vi.fn(), effective: true, excepted: [] as number[], userId: 'wali', roles: [] as string[] }))
+const runtime = vi.hoisted(() => ({ db: null as unknown as D1Database, queue: vi.fn(), fcm: vi.fn(), effective: true, excepted: [] as number[], userId: 'wali', roles: [] as string[], realFeatures: false }))
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 vi.mock('@/utils/auth/server', () => ({ getCurrentUser: async () => runtime.userId ? { id: runtime.userId } : null }))
-vi.mock('@/lib/features', () => ({ getUserRoles: async () => runtime.roles, checkFeatureAccess: async () => true }))
+vi.mock('@/lib/features', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/lib/features')>()
+  return {
+    getUserRoles: async (...args: Parameters<typeof actual.getUserRoles>) => runtime.realFeatures ? actual.getUserRoles(...args) : runtime.roles,
+    checkFeatureAccess: async (...args: Parameters<typeof actual.checkFeatureAccess>) => runtime.realFeatures ? actual.checkFeatureAccess(...args) : true,
+  }
+})
 vi.mock('@/lib/activity-log', () => ({ logActivity: vi.fn(), ensureActivityLogTables: vi.fn() }))
 vi.mock('server-only', () => ({}))
 vi.mock('@/utils/db-server', () => ({ getDB: async () => runtime.db }))
@@ -29,7 +35,8 @@ import { academicPeriodDates, loadFullReportAttendance, loadFullStudentReport } 
 import { invalidateAttendanceCache } from './attendance-cache'
 import { attendanceDateEligible, initialAttendanceContext } from './attendance-notice-state'
 import { notifyParentsAttendanceConfigured, notifyParentsDailyAttendanceFinal, dispatchAttendanceDailyNotices, processNotificationQueueMessage, prepareAttendanceNotificationWork, flushAttendanceNotificationOutbox, saveNotificationSetting, getNotificationSetting, type NotificationQueueMessage } from './notification-engine'
-import { getNotificationDefinition } from './notification-catalog'
+import { ATTENDANCE_CORRECTION_REQUEST_EVENT, getNotificationDefinition } from './notification-catalog'
+import { getStaffInbox, readStaffNotification } from './staff-notification-inbox'
 import { getKoreksiAbsensiCepat, simpanKeputusanAbsensiWaliBatch, simpanKoreksiAbsensiCepat } from '@/app/dashboard/kelas-binaan/attendance-actions'
 import { decideAttendanceCorrection, getAttendanceCorrectionReview, listAttendanceCorrectionQueue, requestAttendanceCorrection } from '@/app/dashboard/keterangan-absensi/correction-actions'
 import { attendanceAlfaKey } from './attendance-correction'
@@ -62,12 +69,14 @@ beforeEach(() => {
   runtime.queue.mockResolvedValue(undefined)
   runtime.fcm.mockResolvedValue({ success: true, sent: 1 })
   runtime.effective = true; runtime.excepted = []
-  runtime.userId = 'wali'; runtime.roles = []
+  runtime.userId = 'wali'; runtime.roles = []; runtime.realFeatures = false
   sqlite = new DatabaseSync(':memory:')
   sqlite.exec(`
     PRAGMA foreign_keys = ON;
-    CREATE TABLE "user" (id TEXT PRIMARY KEY, nama_lengkap TEXT, name TEXT, jabatan_struktural_id TEXT, banned INTEGER DEFAULT 0);
+    CREATE TABLE "user" (id TEXT PRIMARY KEY, nama_lengkap TEXT, name TEXT, jabatan_struktural_id TEXT, banned INTEGER DEFAULT 0, role TEXT);
+    CREATE TABLE user_roles (user_id TEXT, role TEXT, UNIQUE(user_id, role));
     CREATE TABLE role_features (role TEXT, feature_id TEXT, UNIQUE(role, feature_id));
+    CREATE TABLE user_feature_overrides (user_id TEXT, feature_id TEXT, action TEXT);
     CREATE TABLE kelas (id TEXT PRIMARY KEY, tingkat INTEGER, nomor_kelas TEXT, kelompok TEXT, wali_kelas_id TEXT, kbm_nonaktif_mulai TEXT);
     CREATE TABLE siswa (id TEXT PRIMARY KEY, kelas_id TEXT, status TEXT, nama_lengkap TEXT, nisn TEXT, nis_lokal TEXT, jenis_kelamin TEXT, foto_url TEXT);
     CREATE TABLE tahun_ajaran (id TEXT PRIMARY KEY, jam_pelajaran TEXT, is_active INTEGER, nama TEXT DEFAULT '2026/2027', semester INTEGER DEFAULT 1);
@@ -335,6 +344,86 @@ describe('attendance correction approvals', () => {
   }
   function reviewer(roles: string[] = ['wakamad'], id = 'reviewer') { runtime.userId = id; runtime.roles = roles }
   function requestId() { return String(sqlite.prepare('SELECT id FROM attendance_correction_requests ORDER BY rowid DESC').get()?.id) }
+
+  function reviewNotice() { return messages().find(message => message.eventKey === ATTENDANCE_CORRECTION_REQUEST_EVENT) }
+
+  function configureReviewers() {
+    runtime.realFeatures = true
+    sqlite.exec(`UPDATE "user" SET role = 'wakamad' WHERE id IN ('wali', 'reviewer');
+      UPDATE "user" SET jabatan_struktural_id = 'jbt_waka_kesiswaan' WHERE id = 'wali';
+      INSERT INTO "user" (id, role, jabatan_struktural_id, banned) VALUES
+        ('curriculum','wakamad','jbt_waka_kurikulum',0), ('principal','kepsek',NULL,0),
+        ('admin','guru',NULL,0), ('facilities','wakamad','jbt_waka_sarpras',0),
+        ('banned','kepsek',NULL,1), ('store','play_reviewer',NULL,0);
+      INSERT INTO user_roles VALUES ('admin','super_admin'), ('admin','kepsek'), ('store','play_reviewer'), ('store','kepsek');
+    `)
+  }
+
+  it('targets eligible reviewers once and keeps a readable inbox copy without push devices', async () => {
+    configureReviewers()
+    expect(await submit()).toHaveProperty('success')
+    expect(await submit()).toHaveProperty('error')
+    const message = reviewNotice()!
+    expect(message.target.ids).toEqual(['admin', 'curriculum', 'principal', 'reviewer'])
+    expect(messages().filter(item => item.eventKey === ATTENDANCE_CORRECTION_REQUEST_EVENT)).toHaveLength(1)
+    expect(message.title).toBe('Ajuan koreksi absensi menunggu persetujuan')
+    expect(message.body).not.toMatch(/Alya|Dikonfirmasi orang tua/)
+    expect(message.channels).toEqual(['fcm', 'webpush', 'in_app'])
+    runtime.fcm.mockResolvedValue({ success: true, sent: 0 })
+    await Promise.all([consume(message), consume(message)])
+    const inbox = await getStaffInbox(runtime.db, 'reviewer', { corrections: true })
+    expect(inbox.items).toHaveLength(1)
+    expect(inbox.unreadCount).toBe(1)
+    expect((await getStaffInbox(runtime.db, 'reviewer')).items).toHaveLength(0)
+    const opened = await readStaffNotification(runtime.db, 'reviewer', inbox.items[0].id, true)
+    expect(opened?.url).toBe(`/dashboard/keterangan-absensi?ajuan=${requestId()}`)
+    expect((await getStaffInbox(runtime.db, 'reviewer', { corrections: true })).unreadCount).toBe(0)
+    const id = new URL(opened!.url, 'https://test.invalid').searchParams.get('ajuan')!
+    runtime.userId = 'facilities'
+    expect(await getAttendanceCorrectionReview(id)).toHaveProperty('error')
+    runtime.userId = 'reviewer'
+    expect(await getAttendanceCorrectionReview(id)).toMatchObject({ data: { status: 'PENDING' } })
+    await decideAttendanceCorrection(id, 'REJECTED', 'Konfirmasi guru diperlukan')
+    expect(await getAttendanceCorrectionReview(id)).toMatchObject({ data: { status: 'REJECTED', reviewNote: 'Konfirmasi guru diperlukan' } })
+  })
+
+  it('rechecks access and recovers an enqueue failure for the same dispatch', async () => {
+    configureReviewers()
+    sqlite.exec("UPDATE \"user\" SET role='super_admin' WHERE id='wali'")
+    runtime.queue.mockRejectedValueOnce(new Error('Queue temporarily unavailable'))
+    expect(await submit()).toHaveProperty('success')
+    const message = reviewNotice()!
+    expect(message.target.ids).toContain('wali')
+    sqlite.exec("INSERT INTO user_feature_overrides VALUES ('reviewer','keterangan-absensi','revoke')")
+    setTime('2026-10-02T05:01:03Z')
+    expect(await flushAttendanceNotificationOutbox(runtime.db)).toMatchObject({ queued: 1 })
+    expect(messages().at(-1)?.dispatchId).toBe(message.dispatchId)
+    await consume(message)
+    expect((await getStaffInbox(runtime.db, 'reviewer', { corrections: true })).unreadCount).toBe(0)
+    expect((await getStaffInbox(runtime.db, 'curriculum', { corrections: true })).unreadCount).toBe(1)
+  })
+
+  it('skips queued notifications for requests that have already been decided', async () => {
+    configureReviewers()
+    await submit()
+    const message = reviewNotice()!
+    runtime.userId = 'principal'
+    await decideAttendanceCorrection(requestId(), 'REJECTED', 'Sudah ditinjau')
+    expect(await consume(message)).toMatchObject({ skipped: true })
+    expect(runtime.fcm).not.toHaveBeenCalled()
+    expect((await getStaffInbox(runtime.db, 'reviewer', { corrections: true })).unreadCount).toBe(0)
+  })
+
+  it('rolls back the request if its notification cannot be recorded', async () => {
+    configureReviewers()
+    await getNotificationSetting(ATTENDANCE_CORRECTION_REQUEST_EVENT, runtime.db)
+    sqlite.exec(`CREATE TRIGGER fail_correction_notice BEFORE INSERT ON notification_dispatches
+      WHEN NEW.event_key = '${ATTENDANCE_CORRECTION_REQUEST_EVENT}'
+      BEGIN SELECT RAISE(ABORT, 'Outbox unavailable'); END`)
+    await expect(submit()).rejects.toThrow('Outbox unavailable')
+    expect(sqlite.prepare('SELECT COUNT(*) AS total FROM attendance_correction_requests').get()?.total).toBe(0)
+    expect(reviewNotice()).toBeUndefined()
+  })
 
   it('blocks a mixed batch without committing other rows and keeps the draft target identifiable', async () => {
     const result = await simpanKeputusanAbsensiWaliBatch('class', date, [

@@ -15,6 +15,11 @@
   menyetujui ajuan sendiri. Pemeriksa melihat status harian, usulan, blok Alfa,
   izin resmi, dan alasan. Penolakan wajib beralasan. Perubahan blok Alfa
   memerlukan peninjauan ulang melalui ajuan baru.
+- Saat ajuan baru tersimpan, pemeriksa yang berwenang menerima push aplikasi
+  atau web pada perangkat aktif dan pemberitahuan di **Notifikasi ajuan**.
+  **Tinjau ajuan** membuka rincian dan keputusan terbaru. Isi pemberitahuan
+  hanya menyebut adanya ajuan. Event aktif secara default di Notifikasi Otomatis.
+  Antrean memeriksa ulang hak akses penerima dan status ajuan sebelum dikirim.
 - Laporan awal Alfa mengikuti sesi mapel. Persetujuan berlaku pada rekap harian
   selama blok Alfa sesuai dengan yang ditinjau. Kandidat yang batal karena
   perubahan sumber atau izin tidak memakai kesempatan satu laporan awal per

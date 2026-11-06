@@ -4,6 +4,7 @@ import { currentTimeWIB, nowWIB, todayWIB } from '@/lib/time'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
 import {
   defaultNotificationSettings,
+  ATTENDANCE_CORRECTION_REQUEST_EVENT,
   KELAS_BINAAN_NOTIFICATION_EVENTS,
   getNotificationDefinition,
   NOTIFICATION_EVENT_DEFINITIONS,
@@ -27,6 +28,7 @@ import { formatNamaKelas, formatRupiah } from '@/lib/utils'
 import { KOMITE_REVIEW_REMINDER_EVENT, komiteReminderSlot, komiteReminderSource, pendingKomiteReminders,
   komiteReminderRecipients, validKomiteReminderRecipients, type KomiteReminderValidation } from '@/lib/komite-review-reminders'
 import { stageForStatus } from '@/lib/komite-pengajuan'
+import { attendanceCorrectionNotificationRecipients } from '@/lib/attendance-correction-reviewer'
 
 export const NOTIFICATION_DIRECT_RECIPIENT_LIMIT = 25
 
@@ -63,6 +65,9 @@ export type NotificationQueueMessage = {
   level: string
   dsptWork?: { cursor: string; end?: string; step: number }
   validation?: KomiteReminderValidation | {
+    kind: 'attendance_correction_review'
+    requestId: string
+  } | {
     kind: 'attendance_work'
     tanggal: string
     kelasId: string
@@ -1046,6 +1051,19 @@ async function deliverNotification(
 }
 
 async function validatedQueueRecipientIds(db: D1Database, message: NotificationQueueMessage) {
+  if (message.eventKey === ATTENDANCE_CORRECTION_REQUEST_EVENT || message.validation?.kind === 'attendance_correction_review') {
+    const validation = message.validation
+    if (message.eventKey !== ATTENDANCE_CORRECTION_REQUEST_EVENT || validation?.kind !== 'attendance_correction_review' ||
+      message.target.kind !== 'staff_users') return []
+    const [request, setting] = await Promise.all([
+      db.prepare("SELECT requested_by FROM attendance_correction_requests WHERE id = ? AND status = 'PENDING'")
+        .bind(validation.requestId).first<{ requested_by: string }>(),
+      getNotificationSetting(message.eventKey, db),
+    ])
+    return request && Number(setting?.enabled) === 1
+      ? attendanceCorrectionNotificationRecipients(db, request.requested_by, message.target.ids)
+      : []
+  }
   if (message.validation?.kind === 'komite_review_request') {
     if (message.eventKey !== 'komite_verifier_review_requested' || message.target.kind !== 'staff_users') return []
     return validKomiteReminderRecipients(db,message.validation,message.target.ids)
@@ -1417,6 +1435,9 @@ export async function processNotificationQueueMessage(
   const attendanceValidation = message.validation?.kind === 'attendance_session' || message.validation?.kind === 'attendance_daily'
     ? message.validation : null
   const homeroomValidation = message.validation?.kind === 'attendance_homeroom_session' ? message.validation : null
+  const correctionReview = message.validation?.kind === 'attendance_correction_review'
+  const guardedDelivery = attendanceValidation || homeroomValidation || correctionReview ||
+    message.validation?.kind === 'komite_review' || message.validation?.kind === 'komite_review_request'
   if (homeroomValidation) {
     const due = homeroomValidation.dueAt ? Date.parse(homeroomValidation.dueAt) : Date.parse(utcSourceTimestamp(homeroomValidation.sourceUpdatedAt)) + 300_000
     if (Date.now() < due) return { retry: true, sent: 0 }
@@ -1438,7 +1459,9 @@ export async function processNotificationQueueMessage(
 
   const validRecipientIds = await validatedQueueRecipientIds(db, message)
   if (validRecipientIds.length === 0) {
-    await markDispatch(db, message.dispatchId, 'sent', (message.validation?.kind === 'komite_review' || message.validation?.kind === 'komite_review_request')
+    await markDispatch(db, message.dispatchId, 'sent', correctionReview
+      ? 'Dibatalkan: ajuan sudah diproses atau penerima tidak lagi berwenang.'
+      : (message.validation?.kind === 'komite_review' || message.validation?.kind === 'komite_review_request')
       ? 'Dibatalkan: tahap/penerima review atau jadwal reminder Komite sudah berubah.'
       : 'Dibatalkan: status kehadiran sudah berubah atau dikoreksi wali kelas.')
     if (attendanceValidation) {
@@ -1455,7 +1478,7 @@ export async function processNotificationQueueMessage(
     return { retry: false, sent: 0, skipped: true }
   }
 
-  if (attendanceValidation || homeroomValidation || message.validation?.kind === 'komite_review' || message.validation?.kind === 'komite_review_request') {
+  if (guardedDelivery) {
     const claimed = await db.prepare(`UPDATE notification_dispatches
       SET status = 'processing', attempts = attempts + 1, updated_at = datetime('now')
       WHERE id = ? AND (status IN ('queued','failed') OR (status = 'processing' AND updated_at <= datetime('now','-5 minutes')))
@@ -1487,7 +1510,7 @@ export async function processNotificationQueueMessage(
 
   if (delivered.retryable) {
     const error = delivered.errors.join('; ')
-    if (attendanceValidation || homeroomValidation || message.validation?.kind === 'komite_review' || message.validation?.kind === 'komite_review_request') await markDispatch(db, message.dispatchId, 'failed', error.slice(0, 2000))
+    if (guardedDelivery) await markDispatch(db, message.dispatchId, 'failed', error.slice(0, 2000))
     if (attempts >= 3) {
       await markDispatch(db, message.dispatchId, 'failed', error.slice(0, 2000))
       return { retry: true, terminal: true, sent: delivered.sent, error }
@@ -1967,6 +1990,35 @@ function defaultReminderFallback(): NotificationReminderConfig {
 }
 
 
+export async function prepareAttendanceCorrectionReviewNotice(db: D1Database, requestId: string, requesterId: string) {
+  const eventKey = ATTENDANCE_CORRECTION_REQUEST_EVENT
+  const definition = getNotificationDefinition(eventKey)!
+  const sourceRef = `${eventKey}:${requestId}`
+  const setting = await getNotificationSetting(eventKey, db)
+  if (!setting || Number(setting.enabled) !== 1) return { sourceRef, statements: [] }
+
+  const recipients = await attendanceCorrectionNotificationRecipients(db, requesterId)
+  const channels = normalizeChannels(setting.channels_json, definition.defaultChannels)
+  const statements = chunk(recipients, NOTIFICATION_DIRECT_RECIPIENT_LIMIT).map(ids => {
+    const dispatchId = crypto.randomUUID()
+    const scope = targetScope('staff', ids)
+    const message: NotificationQueueMessage = {
+      dispatchId, eventKey, sourceRef, channels,
+      title: setting.title_template, body: setting.body_template,
+      url: `${definition.defaultUrl}?ajuan=${encodeURIComponent(requestId)}`,
+      target: { kind: 'staff_users', ids }, parentType: '', level: setting.level || definition.defaultLevel,
+      validation: { kind: 'attendance_correction_review', requestId },
+    }
+    return db.prepare(`INSERT INTO notification_dispatches
+      (id, dedup_key, event_key, source_ref, target_scope, status, payload_json, available_at)
+      SELECT ?,?,?,?,?,'queued',?,? WHERE EXISTS (
+        SELECT 1 FROM attendance_correction_requests WHERE id = ? AND status = 'PENDING'
+      )`).bind(dispatchId, `${sourceRef}:${scope}`, eventKey, sourceRef, scope,
+      JSON.stringify(message), new Date().toISOString(), requestId)
+  })
+  return { sourceRef, statements }
+}
+
 /** Return statements to commit with attendance mutations; no provider I/O on submit. */
 export async function prepareAttendanceNotificationWork(db: D1Database, input: {
   tanggal: string; kelasId?: string; penugasanId?: string; siswaIds: string[]; notifyIds?: string[]; correctionDecisionId?: string
@@ -2020,7 +2072,7 @@ export async function flushNotificationOutbox(db: D1Database, sourceRef?: string
     WHERE enqueued_at IS NULL AND payload_json IS NOT NULL AND status IN ('queued','failed')
       AND available_at <= ? AND (enqueue_claim_until IS NULL OR enqueue_claim_until <= ?)
       ${sourceRef ? 'AND source_ref = ?' : ''}
-    ORDER BY available_at, id LIMIT ${sourceRef ? 1 : 50}`)
+    ORDER BY available_at, id LIMIT 50`)
     .bind(new Date(nowMs + 3600_000).toISOString(), now, ...(sourceRef ? [sourceRef] : []))
     .all<{ id: string; payload_json: string; available_at: string }>()
   let queued = 0

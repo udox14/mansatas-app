@@ -18,7 +18,7 @@ import {
   sendAutomaticNotificationTest,
 } from '../actions'
 import { ATTENDANCE_DELAY_DEFAULTS, attendanceDelayMinutes, MAX_ATTENDANCE_DELAY_MINUTES } from '@/lib/attendance-notification-delay'
-import type { NotificationChannel, NotificationEventDefinition, NotificationReminderConfig, NotificationTargetConfig } from '@/lib/notification-catalog'
+import { ATTENDANCE_CORRECTION_REQUEST_EVENT, type NotificationChannel, type NotificationEventDefinition, type NotificationReminderConfig, type NotificationTargetConfig } from '@/lib/notification-catalog'
 
 type SettingRow = {
   event_key: string
@@ -188,6 +188,7 @@ export function AutomaticNotificationSettings({ definitions, settings }: Props) 
   const [pending, startTransition] = useTransition()
 
   const selectedDefinition = definitions.find((definition) => definition.key === selectedKey) || null
+  const isCorrectionReview = selectedDefinition?.key === ATTENDANCE_CORRECTION_REQUEST_EVENT
   const selectedDraft = selectedDefinition ? drafts[selectedDefinition.key] : null
 
   const filteredDefinitions = useMemo(() => {
@@ -461,7 +462,7 @@ export function AutomaticNotificationSettings({ definitions, settings }: Props) 
                         className="resize-y"
                       />
                     </div>
-                    <div className="space-y-2">
+                    {isCorrectionReview ? <p className="text-sm text-muted-foreground">Tautan membuka rincian ajuan yang terkait.</p> : <div className="space-y-2">
                       <Label htmlFor="notification-url">URL tujuan</Label>
                       <Input
                         id="notification-url"
@@ -469,7 +470,7 @@ export function AutomaticNotificationSettings({ definitions, settings }: Props) 
                         onChange={(event) => updateDraft(selectedDefinition.key, { urlTemplate: event.target.value })}
                         placeholder="/portal-ortu"
                       />
-                    </div>
+                    </div>}
                   </div>
 
                   <div className="space-y-2">
@@ -502,7 +503,10 @@ export function AutomaticNotificationSettings({ definitions, settings }: Props) 
                     </div>
                   </div>
 
-                  {selectedDefinition.key === 'komite_review_pending_reminder' ? <div className="space-y-2">
+                  {isCorrectionReview ? <div className="space-y-2">
+                    <Label>Penerima</Label>
+                    <p className="text-sm text-muted-foreground">Otomatis ke pemeriksa yang berwenang menyetujui ajuan.</p>
+                  </div> : selectedDefinition.key === 'komite_review_pending_reminder' ? <div className="space-y-2">
                     <Label>Penerima</Label>
                     <p className="text-sm text-muted-foreground">Otomatis ke reviewer tahap aktif: Bendahara, Ketua atau penerima delegasinya, lalu Kepala Madrasah. Berhenti setelah tahap diproses.</p>
                   </div> : <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_180px]">

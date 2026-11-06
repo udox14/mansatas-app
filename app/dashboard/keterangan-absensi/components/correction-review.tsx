@@ -21,15 +21,17 @@ function timeLabel(date: string) {
   }).format(new Date(date.replace(' ', 'T') + 'Z'))} WIB`
 }
 
-export function AttendanceCorrectionReview({ initial }: { initial: Queue }) {
+export function AttendanceCorrectionReview({ initial, initialReview, initialError }: {
+  initial: Queue; initialReview?: Review; initialError?: string
+}) {
   const [queue, setQueue] = useState(initial)
   const [history, setHistory] = useState(false)
-  const [review, setReview] = useState<Review | null>(null)
+  const [review, setReview] = useState<Review | null>(initialReview ?? null)
   const [note, setNote] = useState('')
   const [rejecting, setRejecting] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
-  const [error, setError] = useState(initial.error || '')
+  const [error, setError] = useState(initialError || initial.error || '')
 
   async function run(action: () => Promise<void>) {
     setBusy(true)
