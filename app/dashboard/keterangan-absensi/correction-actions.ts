@@ -12,7 +12,7 @@ import {
   type AttendanceAlfaBlock, type AttendanceCorrectionStatus, type ProposedAttendanceStatus,
 } from '@/lib/attendance-correction'
 import { correctionAttendanceSnapshot, correctionSourceSql, readCorrectionSource } from '@/lib/attendance-correction-source'
-import { flushAttendanceNotificationOutbox, flushNotificationOutbox, prepareAttendanceCorrectionReviewNotice, prepareAttendanceNotificationWork } from '@/lib/notification-engine'
+import { flushAttendanceNotificationOutbox, flushNotificationOutbox, prepareAttendanceCorrectionResultNotice, prepareAttendanceCorrectionReviewNotice, prepareAttendanceNotificationWork } from '@/lib/notification-engine'
 import type { FinalAttendanceDetail } from '@/lib/wali-kelas-attendance'
 
 type RequestRow = {
@@ -72,9 +72,22 @@ function validDate(value: string) {
 export async function getStudentAttendanceCorrections(siswaId: string, tanggal: string) {
   const access = await requireCorrectionStudentAccess(siswaId)
   if (!access || !validDate(tanggal)) return { error: 'Akses ajuan tidak tersedia.' }
-  const rows = await access.db.prepare(`${requestQuery} WHERE r.siswa_id = ? AND r.tanggal = ? AND r.kelas_id = ?
-    ORDER BY r.requested_at DESC, r.rowid DESC LIMIT 20`).bind(siswaId, tanggal, access.kelasId).all<RequestRow>()
-  return { rows: (rows.results || []).map(presentRequest) }
+  const rows = await access.db.prepare(`SELECT id, requested_status AS proposed, reason, status, evidence_json
+    FROM attendance_correction_requests WHERE siswa_id = ? AND tanggal = ? AND kelas_id = ?
+    ORDER BY requested_at DESC, rowid DESC LIMIT 20`).bind(siswaId, tanggal, access.kelasId)
+    .all<{ id: string; proposed: ProposedAttendanceStatus; reason: string; status: AttendanceCorrectionStatus; evidence_json: string }>()
+  return { rows: (rows.results || []).map(({ evidence_json, ...row }) => ({ ...row, blocks: (JSON.parse(evidence_json) as Evidence).blocks })) }
+}
+
+export async function getOwnAttendanceCorrectionResult(id: string) {
+  const user = await getCurrentUser()
+  if (!user || typeof id !== 'string' || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(id)) return null
+  const db = await getDB()
+  return db.prepare(`SELECT r.tanggal, r.requested_status AS proposed, r.status
+    FROM attendance_correction_requests r
+    JOIN "user" u ON u.id = r.requested_by AND COALESCE(u.banned, 0) = 0
+    WHERE r.id = ? AND r.requested_by = ? AND r.status IN ('APPROVED', 'REJECTED')`).bind(id, user.id)
+    .first<{ tanggal: string; proposed: ProposedAttendanceStatus; status: 'APPROVED' | 'REJECTED' }>()
 }
 
 export async function requestAttendanceCorrection(input: {
@@ -168,6 +181,8 @@ export async function getAttendanceCorrectionReview(id: string) {
   return {
     data: {
       ...presentRequest(row),
+      reviewer: row.requested_by === access.user.id ? null : row.pemeriksa_nama,
+      reviewNote: row.requested_by === access.user.id ? null : row.review_note,
       current: day?.status_akhir ?? 'BELUM_ADA_DATA',
       isFinal: Boolean(day?.is_daily_final),
       stale,
@@ -214,6 +229,10 @@ export async function decideAttendanceCorrection(id: string, decision: 'APPROVED
       kelasId: row.kelas_id, tanggal: row.tanggal, siswaIds: [row.siswa_id], correctionDecisionId: decisionId,
     }))
   }
+  const resultNotice = status === 'APPROVED' || status === 'REJECTED'
+    ? await prepareAttendanceCorrectionResultNotice(db, { requestId: id, requesterId: row.requested_by, decisionId, status })
+    : null
+  if (resultNotice) statements.push(resultNotice.statement)
   const written = await db.batch(statements)
   if (!written[0]?.meta.changes) return { error: 'Ajuan atau catatan absensi baru saja berubah. Muat ulang sebelum memutuskan.' }
   if (status === 'APPROVED') {
@@ -223,6 +242,10 @@ export async function decideAttendanceCorrection(id: string, decision: 'APPROVED
     revalidatePath('/portal-ortu')
     try { await flushAttendanceNotificationOutbox(db) }
     catch (error) { console.error('Gagal meneruskan notifikasi koreksi Alfa:', error) }
+  }
+  if (resultNotice && status === 'REJECTED') {
+    try { await flushNotificationOutbox(db, resultNotice.sourceRef) }
+    catch (error) { console.error('Gagal meneruskan notifikasi hasil koreksi Alfa:', error) }
   }
   revalidatePath('/dashboard/keterangan-absensi')
   return { success: status === 'STALE' ? 'Data absensi berubah. Wali kelas perlu mengajukan ulang.' :

@@ -5,6 +5,7 @@ import { ensureSchemaOnce } from '@/lib/schema-guard'
 import {
   defaultNotificationSettings,
   ATTENDANCE_CORRECTION_REQUEST_EVENT,
+  ATTENDANCE_CORRECTION_RESULT_EVENT,
   KELAS_BINAAN_NOTIFICATION_EVENTS,
   getNotificationDefinition,
   NOTIFICATION_EVENT_DEFINITIONS,
@@ -67,6 +68,9 @@ export type NotificationQueueMessage = {
   validation?: KomiteReminderValidation | {
     kind: 'attendance_correction_review'
     requestId: string
+  } | {
+    kind: 'attendance_correction_result'
+    decisionId: string
   } | {
     kind: 'attendance_work'
     tanggal: string
@@ -1051,6 +1055,20 @@ async function deliverNotification(
 }
 
 async function validatedQueueRecipientIds(db: D1Database, message: NotificationQueueMessage) {
+  if (message.eventKey === ATTENDANCE_CORRECTION_RESULT_EVENT || message.validation?.kind === 'attendance_correction_result') {
+    const validation = message.validation
+    if (message.eventKey !== ATTENDANCE_CORRECTION_RESULT_EVENT || validation?.kind !== 'attendance_correction_result' ||
+      message.target.kind !== 'staff_users') return []
+    const [request, setting] = await Promise.all([
+      db.prepare(`SELECT r.requested_by FROM attendance_correction_requests r
+        JOIN "user" u ON u.id = r.requested_by AND COALESCE(u.banned, 0) = 0
+        WHERE r.decision_id = ? AND r.status IN ('APPROVED', 'REJECTED')`)
+        .bind(validation.decisionId).first<{ requested_by: string }>(),
+      getNotificationSetting(message.eventKey, db),
+    ])
+    return request && Number(setting?.enabled) === 1 && message.target.ids.includes(request.requested_by)
+      ? [request.requested_by] : []
+  }
   if (message.eventKey === ATTENDANCE_CORRECTION_REQUEST_EVENT || message.validation?.kind === 'attendance_correction_review') {
     const validation = message.validation
     if (message.eventKey !== ATTENDANCE_CORRECTION_REQUEST_EVENT || validation?.kind !== 'attendance_correction_review' ||
@@ -1436,7 +1454,8 @@ export async function processNotificationQueueMessage(
     ? message.validation : null
   const homeroomValidation = message.validation?.kind === 'attendance_homeroom_session' ? message.validation : null
   const correctionReview = message.validation?.kind === 'attendance_correction_review'
-  const guardedDelivery = attendanceValidation || homeroomValidation || correctionReview ||
+  const correctionResult = message.validation?.kind === 'attendance_correction_result'
+  const guardedDelivery = attendanceValidation || homeroomValidation || correctionReview || correctionResult ||
     message.validation?.kind === 'komite_review' || message.validation?.kind === 'komite_review_request'
   if (homeroomValidation) {
     const due = homeroomValidation.dueAt ? Date.parse(homeroomValidation.dueAt) : Date.parse(utcSourceTimestamp(homeroomValidation.sourceUpdatedAt)) + 300_000
@@ -1459,7 +1478,9 @@ export async function processNotificationQueueMessage(
 
   const validRecipientIds = await validatedQueueRecipientIds(db, message)
   if (validRecipientIds.length === 0) {
-    await markDispatch(db, message.dispatchId, 'sent', correctionReview
+    await markDispatch(db, message.dispatchId, 'sent', correctionResult
+      ? 'Dibatalkan: hasil ajuan atau penerima tidak tersedia.'
+      : correctionReview
       ? 'Dibatalkan: ajuan sudah diproses atau penerima tidak lagi berwenang.'
       : (message.validation?.kind === 'komite_review' || message.validation?.kind === 'komite_review_request')
       ? 'Dibatalkan: tahap/penerima review atau jadwal reminder Komite sudah berubah.'
@@ -2017,6 +2038,36 @@ export async function prepareAttendanceCorrectionReviewNotice(db: D1Database, re
       JSON.stringify(message), new Date().toISOString(), requestId)
   })
   return { sourceRef, statements }
+}
+
+export async function prepareAttendanceCorrectionResultNotice(db: D1Database, input: {
+  requestId: string; requesterId: string; decisionId: string; status: 'APPROVED' | 'REJECTED'
+}) {
+  const eventKey = ATTENDANCE_CORRECTION_RESULT_EVENT
+  const definition = getNotificationDefinition(eventKey)!
+  const sourceRef = `${eventKey}:${input.requestId}`
+  const setting = await getNotificationSetting(eventKey, db)
+  if (!setting || Number(setting.enabled) !== 1) return null
+
+  const ids = [input.requesterId]
+  const scope = targetScope('staff', ids)
+  const context = { hasil: input.status === 'APPROVED' ? 'disetujui' : 'ditolak' }
+  const message: NotificationQueueMessage = {
+    dispatchId: crypto.randomUUID(), eventKey, sourceRef,
+    title: renderNotificationTemplate(setting.title_template, context, definition.placeholders),
+    body: renderNotificationTemplate(setting.body_template, context, definition.placeholders),
+    url: `${definition.defaultUrl}?ajuan=${encodeURIComponent(input.requestId)}`,
+    channels: normalizeChannels(setting.channels_json, definition.defaultChannels),
+    target: { kind: 'staff_users', ids }, parentType: '', level: setting.level || definition.defaultLevel,
+    validation: { kind: 'attendance_correction_result', decisionId: input.decisionId },
+  }
+  const statement = db.prepare(`INSERT INTO notification_dispatches
+    (id, dedup_key, event_key, source_ref, target_scope, status, payload_json, available_at)
+    SELECT ?,?,?,?,?,'queued',?,? WHERE EXISTS (
+      SELECT 1 FROM attendance_correction_requests WHERE id = ? AND decision_id = ? AND status = ?
+    )`).bind(message.dispatchId, `${sourceRef}:${scope}`, eventKey, sourceRef, scope,
+    JSON.stringify(message), new Date().toISOString(), input.requestId, input.decisionId, input.status)
+  return { sourceRef, statement }
 }
 
 /** Return statements to commit with attendance mutations; no provider I/O on submit. */

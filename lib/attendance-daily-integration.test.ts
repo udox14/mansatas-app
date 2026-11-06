@@ -35,10 +35,10 @@ import { academicPeriodDates, loadFullReportAttendance, loadFullStudentReport } 
 import { invalidateAttendanceCache } from './attendance-cache'
 import { attendanceDateEligible, initialAttendanceContext } from './attendance-notice-state'
 import { notifyParentsAttendanceConfigured, notifyParentsDailyAttendanceFinal, dispatchAttendanceDailyNotices, processNotificationQueueMessage, prepareAttendanceNotificationWork, flushAttendanceNotificationOutbox, saveNotificationSetting, getNotificationSetting, type NotificationQueueMessage } from './notification-engine'
-import { ATTENDANCE_CORRECTION_REQUEST_EVENT, getNotificationDefinition } from './notification-catalog'
+import { ATTENDANCE_CORRECTION_REQUEST_EVENT, ATTENDANCE_CORRECTION_RESULT_EVENT, getNotificationDefinition } from './notification-catalog'
 import { getStaffInbox, readStaffNotification } from './staff-notification-inbox'
 import { getKoreksiAbsensiCepat, simpanKeputusanAbsensiWaliBatch, simpanKoreksiAbsensiCepat } from '@/app/dashboard/kelas-binaan/attendance-actions'
-import { decideAttendanceCorrection, getAttendanceCorrectionReview, listAttendanceCorrectionQueue, requestAttendanceCorrection } from '@/app/dashboard/keterangan-absensi/correction-actions'
+import { decideAttendanceCorrection, getAttendanceCorrectionReview, getOwnAttendanceCorrectionResult, getStudentAttendanceCorrections, listAttendanceCorrectionQueue, requestAttendanceCorrection } from '@/app/dashboard/keterangan-absensi/correction-actions'
 import { attendanceAlfaKey } from './attendance-correction'
 
 let sqlite: DatabaseSync
@@ -425,6 +425,36 @@ describe('attendance correction approvals', () => {
     expect(reviewNotice()).toBeUndefined()
   })
 
+  it.each([['APPROVED', 'disetujui'], ['REJECTED', 'ditolak']] as const)(
+    'sends %s privately to the original applicant and retains the internal audit',
+    async (status, label) => {
+      await submit()
+      const id = requestId()
+      reviewer()
+      expect(await decideAttendanceCorrection(id, status, 'Catatan atas nama Pemeriksa')).toHaveProperty('success')
+      expect(await getOwnAttendanceCorrectionResult(id)).toBeNull()
+      expect(await getAttendanceCorrectionReview(id)).toMatchObject({
+        data: { reviewer: 'Pemeriksa', reviewNote: 'Catatan atas nama Pemeriksa' },
+      })
+      const result = messages().find(message => message.eventKey === ATTENDANCE_CORRECTION_RESULT_EVENT)!
+      expect(result.target.ids).toEqual(['wali'])
+      expect(result.title).toContain(label)
+      expect(JSON.stringify(result)).not.toMatch(/Pemeriksa|reviewer|Catatan atas nama/)
+      await consume(result)
+      await consume(result)
+      const inbox = await getStaffInbox(runtime.db, 'wali')
+      expect(inbox.items).toHaveLength(1)
+      expect(inbox.items[0].url).toBe(`/dashboard/kelas-binaan/hasil-koreksi?ajuan=${id}`)
+      reviewer(['kepsek'], 'wali')
+      expect(await getOwnAttendanceCorrectionResult(id)).toEqual({ tanggal: date, proposed: 'SAKIT', status })
+      const ownHistory = await getStudentAttendanceCorrections('s', date)
+      expect(ownHistory.rows?.[0]).toMatchObject({ status })
+      expect(ownHistory.rows?.[0]).not.toHaveProperty('reviewer')
+      expect(ownHistory.rows?.[0]).not.toHaveProperty('reviewNote')
+      expect(await getAttendanceCorrectionReview(id)).toMatchObject({ data: { reviewer: null, reviewNote: null } })
+    },
+  )
+
   it('blocks a mixed batch without committing other rows and keeps the draft target identifiable', async () => {
     const result = await simpanKeputusanAbsensiWaliBatch('class', date, [
       { siswa_id: 's2', status: 'HADIR', keterangan: '' }, { siswa_id: 's', status: 'HADIR', keterangan: 'Hadir' },
@@ -468,6 +498,7 @@ describe('attendance correction approvals', () => {
       decideAttendanceCorrection(requestId(), 'APPROVED', 'Diperiksa'),
     ])
     expect(decisions.filter(result => result.success)).toHaveLength(1)
+    expect(messages().filter(message => message.eventKey === ATTENDANCE_CORRECTION_RESULT_EVENT)).toHaveLength(1)
     expect(await snapshot()).toMatchObject({ status_akhir: 'SAKIT', approved_correction: true })
     expect(sqlite.prepare("SELECT COUNT(*) AS total FROM notification_dispatches WHERE event_key='attendance_source_changed'").get()?.total).toBe(1)
     expect(sqlite.prepare('SELECT status FROM absensi_siswa').get()?.status).toBe('ALFA')
@@ -484,8 +515,9 @@ describe('attendance correction approvals', () => {
     expect(await submit('HADIR')).toHaveProperty('success')
     reviewer()
     expect(await decideAttendanceCorrection(requestId(), 'APPROVED', '')).toHaveProperty('success')
-    expect(messages().at(-1)).toMatchObject({ eventKey: 'attendance_source_changed' })
-    await consume()
+    const work = messages().find(message => message.eventKey === 'attendance_source_changed')
+    expect(work).toBeDefined()
+    await consume(work!)
     expect(messages().at(-1)).toMatchObject({ eventKey: 'attendance_daily_update', body: expect.stringContaining('Hadir') })
     setTime('2026-10-02T05:05:01Z')
     expect((await consume()).sent).toBeGreaterThan(0)

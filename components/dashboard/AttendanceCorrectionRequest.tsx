@@ -118,7 +118,6 @@ export function AttendanceCorrectionRequest({ siswaId, tanggal, blocks, draftSta
             row.status === 'PENDING' && attendanceAlfaKey(row.blocks) !== currentKey ? 'STALE' : row.status
           ]}</p>
           <p className="whitespace-pre-wrap break-words text-muted-foreground">{row.reason}</p>
-          {row.reviewNote && <p className="whitespace-pre-wrap break-words">{row.reviewNote}</p>}
         </li>)}
       </ul>}
     </>}

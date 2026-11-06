@@ -7,6 +7,7 @@ import { PageHeader } from '@/components/layout/page-header'
 import { getStaffInbox } from '@/lib/staff-notification-inbox'
 import { getAttendanceCorrectionReviewer } from '@/lib/attendance-correction-reviewer'
 import { openStaffNotification } from './actions'
+import { ATTENDANCE_CORRECTION_RESULT_EVENT } from '@/lib/notification-catalog'
 
 export const metadata = { title: 'Notifikasi Kelas Binaan - MANSATAS App' }
 export const dynamic = 'force-dynamic'
@@ -31,7 +32,7 @@ export default async function WaliInboxPage({ searchParams }: { searchParams: Pr
   }
   return <div className="w-full space-y-4 pb-12">
     <PageHeader title={corrections ? 'Notifikasi Ajuan Koreksi' : 'Notifikasi Masuk'}
-      description={corrections ? 'Pemberitahuan ajuan koreksi Alfa yang masuk untuk diperiksa.' : 'Notifikasi siswa binaan: kehadiran, pelanggaran, sanksi, surat peringatan, dan klarifikasi kedisiplinan.'}>
+      description={corrections ? 'Pemberitahuan ajuan koreksi Alfa yang masuk untuk diperiksa.' : 'Pemberitahuan kehadiran, hasil koreksi Alfa, dan kedisiplinan siswa binaan.'}>
       <Link href={corrections ? '/dashboard/keterangan-absensi' : '/dashboard/kelas-binaan'} className="rounded-lg border px-3 py-2 text-xs font-semibold">{corrections ? 'Kembali ke Persetujuan Koreksi' : 'Kembali ke Kelas Binaan'}</Link>
     </PageHeader>
     <div className="flex flex-wrap items-center gap-2">
@@ -51,7 +52,9 @@ export default async function WaliInboxPage({ searchParams }: { searchParams: Pr
           <form action={openStaffNotification}>
             <input type="hidden" name="id" value={item.id} />
             {corrections && <input type="hidden" name="scope" value="koreksi" />}
-            <button className="min-h-10 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900" type="submit">{corrections ? 'Tinjau ajuan' : item.event_key === 'attendance_homeroom_alert' ? 'Buka & koreksi absensi' : 'Buka notifikasi'}</button>
+            <button className="min-h-10 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900" type="submit">
+              {corrections ? 'Tinjau ajuan' : item.event_key === ATTENDANCE_CORRECTION_RESULT_EVENT ? 'Lihat hasil ajuan' : item.event_key === 'attendance_homeroom_alert' ? 'Buka & koreksi absensi' : 'Buka notifikasi'}
+            </button>
           </form>
         </div>
       </article>)}

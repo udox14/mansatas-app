@@ -144,7 +144,7 @@ export default async function DetailSiswaPage({
       SELECT kawk.id, kawk.tanggal, kawk.status, kawk.keterangan,
         u.nama_lengkap as input_nama
       FROM keterangan_absensi_wali_kelas kawk
-      LEFT JOIN "user" u ON kawk.dibuat_oleh = u.id
+      LEFT JOIN "user" u ON kawk.dibuat_oleh = u.id AND kawk.approval_id IS NULL
       WHERE kawk.siswa_id = ? ORDER BY kawk.tanggal DESC
     `).bind(id).all<any>(),
 

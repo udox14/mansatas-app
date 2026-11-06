@@ -1,6 +1,5 @@
 // Lokasi: app/dashboard/keterangan-absensi/page.tsx
 import { getCurrentUser } from '@/utils/auth/server'
-import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getDB } from '@/utils/db-server'
 import { checkFeatureAccess, checkFeatureCrudAccess } from '@/lib/features'
@@ -9,7 +8,6 @@ import { KeteranganClient } from './components/keterangan-client'
 import { getKelasBinaan } from './actions'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { getAttendanceCorrectionReviewer } from '@/lib/attendance-correction-reviewer'
-import { ATTENDANCE_CORRECTION_INBOX, getUnreadStaffNotificationCount } from '@/lib/staff-notification-inbox'
 import { getAttendanceCorrectionReview, listAttendanceCorrectionQueue } from './correction-actions'
 import { AttendanceCorrectionReview } from './components/correction-review'
 
@@ -29,13 +27,12 @@ export default async function KeteranganAbsensiPage({ searchParams }: { searchPa
     getAttendanceCorrectionReviewer(db, user.id),
     searchParams,
   ])
-  const [queue, unread, selected] = reviewer ? await Promise.all([
+  const [queue, selected] = reviewer ? await Promise.all([
     listAttendanceCorrectionQueue(),
-    getUnreadStaffNotificationCount(db, user.id, true),
     typeof ajuan === 'string' && /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(ajuan)
       ? getAttendanceCorrectionReview(ajuan)
       : ajuan ? { error: 'Ajuan tidak ditemukan.', data: undefined } : null,
-  ]) : [null, 0, null] as const
+  ]) : [null, null] as const
   if (!canReadDaily && !queue) redirect('/dashboard')
   const { kelas, error } = canReadDaily ? await getKelasBinaan() : { kelas: [], error: null }
   const correctionForm = error ? (
@@ -43,27 +40,25 @@ export default async function KeteranganAbsensiPage({ searchParams }: { searchPa
   ) : kelas.length === 0 ? (
     <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">Anda belum ditugaskan sebagai wali kelas.</p>
   ) : <KeteranganClient kelasList={kelas} initialKelasId={kelas[0]?.kelas_id ?? null} />
+  const approvalQueue = queue
+    ? <AttendanceCorrectionReview key={ajuan || 'daftar'} initial={queue} initialReview={selected?.data} initialError={selected?.error} />
+    : null
 
   return (
-    <div className="space-y-4 animate-in fade-in duration-500 pb-24">
+    <div className="space-y-3 animate-in fade-in duration-500 pb-24">
       <PageHeader
         title="Riwayat & Koreksi Absensi"
-        description="Tetapkan koreksi status akhir harian siswa tanpa mengubah detail absensi yang diinput guru."
+        description="Tinjau ajuan koreksi Alfa dan kelola koreksi kehadiran harian."
       />
 
-      {queue ? <Tabs defaultValue="persetujuan">
+      {approvalQueue && canReadDaily ? <Tabs defaultValue="persetujuan">
         <TabsList className="h-auto flex-wrap justify-start">
           <TabsTrigger value="persetujuan">Persetujuan Koreksi</TabsTrigger>
-          {canReadDaily && <TabsTrigger value="koreksi">Koreksi Harian</TabsTrigger>}
+          <TabsTrigger value="koreksi">Koreksi Harian</TabsTrigger>
         </TabsList>
-        <TabsContent value="persetujuan" className="space-y-4">
-          <Link href={ATTENDANCE_CORRECTION_INBOX} className="inline-flex min-h-10 items-center rounded-md border px-3 text-sm font-medium">
-            Notifikasi ajuan ({unread} belum dibaca)
-          </Link>
-          <AttendanceCorrectionReview key={ajuan || 'daftar'} initial={queue} initialReview={selected?.data} initialError={selected?.error} />
-        </TabsContent>
-        {canReadDaily && <TabsContent value="koreksi">{correctionForm}</TabsContent>}
-      </Tabs> : correctionForm}
+        <TabsContent value="persetujuan">{approvalQueue}</TabsContent>
+        <TabsContent value="koreksi">{correctionForm}</TabsContent>
+      </Tabs> : approvalQueue ?? correctionForm}
     </div>
   )
 }

@@ -16,10 +16,14 @@
   izin resmi, dan alasan. Penolakan wajib beralasan. Perubahan blok Alfa
   memerlukan peninjauan ulang melalui ajuan baru.
 - Saat ajuan baru tersimpan, pemeriksa yang berwenang menerima push aplikasi
-  atau web pada perangkat aktif dan pemberitahuan di **Notifikasi ajuan**.
+  atau web pada perangkat aktif dan pemberitahuan di kotak masuk staf.
+  Tab Persetujuan Koreksi menampilkan daftar **Menunggu** dan **Riwayat**.
   **Tinjau ajuan** membuka rincian dan keputusan terbaru. Isi pemberitahuan
   hanya menyebut adanya ajuan. Event aktif secara default di Notifikasi Otomatis.
   Antrean memeriksa ulang hak akses penerima dan status ajuan sebelum dikirim.
+- Hasil persetujuan atau penolakan dikirim lewat push dan kotak masuk Kelas
+  Binaan kepada pengaju. Halaman hasil hanya bisa dibuka oleh pengaju.
+  Identitas dan catatan bebas pemeriksa tersimpan untuk peninjauan internal.
 - Laporan awal Alfa mengikuti sesi mapel. Persetujuan berlaku pada rekap harian
   selama blok Alfa sesuai dengan yang ditinjau. Kandidat yang batal karena
   perubahan sumber atau izin tidak memakai kesempatan satu laporan awal per
