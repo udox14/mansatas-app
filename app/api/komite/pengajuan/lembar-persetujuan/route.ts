@@ -59,7 +59,8 @@ export async function POST(request: Request) {
       body { margin: 0; color: #111; font: 12pt/1.38 Arial, sans-serif; }
       main { padding-top: 12mm; }
       h1 { margin: 0; text-align: center; font-size: 14pt; }
-      .approval { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10mm; margin-top: 22mm; break-inside: avoid; }
+      .title-divider { margin-top: 4mm; height: 2mm; border-top: .5pt solid #111; border-bottom: 1.5pt solid #111; }
+      .approval { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10mm; margin-top: 16mm; break-inside: avoid; }
       .sign { text-align: center; overflow-wrap: anywhere; }
       .sign-label { min-height: 11mm; }
       .signature { height: 25mm; }
@@ -71,12 +72,13 @@ export async function POST(request: Request) {
       .note-line { line-height: 9mm; letter-spacing: .9pt; white-space: nowrap; overflow: hidden; }
     </style></head><body><main>
       <h1>LEMBAR PERSETUJUAN<br>PENGGUNAAN ANGGARAN KOMITE<br>MAN 1 TASIKMALAYA</h1>
+      <div class="title-divider" aria-hidden="true"></div>
       <div class="approval">
         ${signature('Ajuan telah diverifikasi', 'Bendahara BOS', treasurer)}
         ${signature('Ajuan telah disetujui', 'Kepala Madrasah', { name: principal.name, nip: principal.nip })}
       </div>
       <section class="notes">
-        <h2>Catatan</h2>
+        <h2>CATATAN BENDAHARA</h2>
         ${`<div class="note-line" aria-hidden="true">${'.'.repeat(120)}</div>`.repeat(5)}
       </section>
     </main></body></html>`

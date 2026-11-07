@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { BOS_SIGNER_NAME_MAX, BOS_SIGNER_NIP_MAX, DEFAULT_BOS_SIGNER, parseBosSigner } from '@/lib/komite-approval-sheet'
+import { BOS_SIGNER_NAME_MAX, BOS_SIGNER_NIP_MAX, BOS_SIGNER_STORAGE_VERSION, DEFAULT_BOS_SIGNER, parseBosSigner, readSavedBosSigner } from '@/lib/komite-approval-sheet'
 
 export function ApprovalSheetButton({ userId }: { userId: string }) {
   const storageKey = `komite-approval-sheet:bos-signer:${userId}`
@@ -23,7 +23,7 @@ export function ApprovalSheetButton({ userId }: { userId: string }) {
       setStorageWarning('')
       try {
         const saved = JSON.parse(localStorage.getItem(storageKey) || 'null')
-        setSigner(parseBosSigner(saved) ?? DEFAULT_BOS_SIGNER)
+        setSigner(readSavedBosSigner(saved))
       } catch {
         setSigner(DEFAULT_BOS_SIGNER)
       }
@@ -64,7 +64,7 @@ export function ApprovalSheetButton({ userId }: { userId: string }) {
     setPending(true)
 
     try {
-      localStorage.setItem(storageKey, JSON.stringify(values))
+      localStorage.setItem(storageKey, JSON.stringify({ ...values, version: BOS_SIGNER_STORAGE_VERSION }))
     } catch {
       setStorageWarning('Pengaturan cetak tidak dapat disimpan di browser ini.')
     }
