@@ -11,7 +11,7 @@ vi.mock('next/cache', () => ({revalidatePath:vi.fn()}))
 vi.mock('next/navigation', () => ({redirect:(url:string)=>{throw new Error(`redirect:${url}`)}}))
 import { getStaffInbox, getUnreadStaffNotificationCount, readStaffNotification, staffNotificationHref, writeStaffNotifications } from './staff-notification-inbox'
 import { openStaffNotification } from '@/app/dashboard/kelas-binaan/notifikasi/actions'
-import { KELAS_BINAAN_NOTIFICATION_EVENTS } from './notification-catalog'
+import { ATTENDANCE_CORRECTION_RESULT_EVENT, KELAS_BINAAN_NOTIFICATION_EVENTS, LEGACY_KELAS_BINAAN_NOTIFICATION_EVENTS } from './notification-catalog'
 
 let sqlite: DatabaseSync
 beforeEach(() => {
@@ -71,11 +71,12 @@ describe('durable staff notification inbox',()=>{
     }
     const migration=readFileSync(new URL('../migrations/0119_kelas_binaan_notification_channels.sql',import.meta.url),'utf8')
     sqlite.exec(migration);sqlite.exec(migration)
-    for(const event of KELAS_BINAAN_NOTIFICATION_EVENTS) {
+    for(const event of LEGACY_KELAS_BINAAN_NOTIFICATION_EVENTS) {
       expect(sqlite.prepare('SELECT title_template,body_template,channels_json FROM notification_event_settings WHERE event_key=?').get(event))
         .toMatchObject({title_template:'Judul custom',body_template:'Isi custom',channels_json:'["fcm","in_app"]'})
     }
     expect(sqlite.prepare('SELECT channels_json FROM notification_event_settings WHERE event_key=?').get('kbm_teaching_reminder')?.channels_json).toBe('["fcm"]')
+    expect(sqlite.prepare('SELECT channels_json FROM notification_event_settings WHERE event_key=?').get(ATTENDANCE_CORRECTION_RESULT_EVENT)?.channels_json).toBe('["fcm"]')
   })
   it('deduplicates retries and keeps read state and original message intact',async()=>{
     await Promise.all([write(),write(),write()])

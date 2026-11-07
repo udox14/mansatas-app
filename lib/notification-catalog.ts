@@ -49,10 +49,14 @@ const parentChannels: NotificationChannel[] = ['fcm', 'in_app']
 export const ATTENDANCE_CORRECTION_REQUEST_EVENT = 'attendance_correction_review_requested'
 export const ATTENDANCE_CORRECTION_RESULT_EVENT = 'attendance_correction_decided'
 
-// Explicit module scope, including the existing raw clarification reply event.
-export const KELAS_BINAAN_NOTIFICATION_EVENTS = [
+// These events predate inbox delivery and are upgraded by migration 0119.
+export const LEGACY_KELAS_BINAAN_NOTIFICATION_EVENTS = [
   'attendance_homeroom_alert', 'homeroom_discipline_violation', 'homeroom_discipline_sanction',
   'homeroom_warning_letter', 'discipline_parent_clarification_submitted', 'homeroom_discipline_clarification',
+] as const
+
+export const KELAS_BINAAN_NOTIFICATION_EVENTS = [
+  ...LEGACY_KELAS_BINAAN_NOTIFICATION_EVENTS,
   ATTENDANCE_CORRECTION_RESULT_EVENT,
 ] as const
 

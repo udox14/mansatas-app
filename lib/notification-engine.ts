@@ -6,7 +6,7 @@ import {
   defaultNotificationSettings,
   ATTENDANCE_CORRECTION_REQUEST_EVENT,
   ATTENDANCE_CORRECTION_RESULT_EVENT,
-  KELAS_BINAAN_NOTIFICATION_EVENTS,
+  LEGACY_KELAS_BINAAN_NOTIFICATION_EVENTS,
   getNotificationDefinition,
   NOTIFICATION_EVENT_DEFINITIONS,
   type NotificationChannel,
@@ -302,9 +302,9 @@ async function ensureNotificationSchema(db: D1Database) {
     const waliDefinition = getNotificationDefinition('attendance_homeroom_alert')!
     await ensureStaffNotificationInbox(db)
     await db.prepare(`UPDATE notification_event_settings SET channels_json = json_insert(channels_json, '$[#]', 'in_app')
-      WHERE event_key IN (${KELAS_BINAAN_NOTIFICATION_EVENTS.map(() => '?').join(',')}) AND json_valid(channels_json)
+      WHERE event_key IN (${LEGACY_KELAS_BINAAN_NOTIFICATION_EVENTS.map(() => '?').join(',')}) AND json_valid(channels_json)
       AND NOT EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(channels_json) THEN channels_json ELSE '[]' END) WHERE value = 'in_app')`)
-      .bind(...KELAS_BINAAN_NOTIFICATION_EVENTS).run()
+      .bind(...LEGACY_KELAS_BINAAN_NOTIFICATION_EVENTS).run()
     await db.prepare(`UPDATE notification_event_settings SET url_template = ? WHERE event_key = 'attendance_homeroom_alert' AND url_template = ?`)
       .bind(waliDefinition.defaultUrl, '/dashboard/kelas-binaan?view=keputusan&kelas={kelasId}&tanggal={tanggal}').run()
     const parentDefinition = getNotificationDefinition('attendance_parent_alert')!
