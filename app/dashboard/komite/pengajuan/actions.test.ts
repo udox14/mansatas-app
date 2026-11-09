@@ -60,7 +60,11 @@ beforeEach(() => {
     CREATE TABLE user_feature_overrides (user_id TEXT,feature_id TEXT,action TEXT);`)
   state.db = { prepare(sql: string) {
     let args: (string | number | null)[] = []
-    return { bind(...values: typeof args) { args = values; return this },
+    return { bind(...values: typeof args) {
+        if (values.length > 100) throw new Error('D1_ERROR: too many SQL variables')
+        args = values
+        return this
+      },
       async all() { return { results: sqlite.prepare(sql).all(...args) } },
       async first() {
         if (state.race && sql.includes('signature_url')) sqlite.exec('UPDATE komite_pengajuan SET current_version=2')
@@ -194,6 +198,29 @@ describe('Komite approval workflow server actions', () => {
     expect(data.items[0].status).toBe('ditolak')
     expect(data.canCreate).toBe(true)
     expect(data.reviewCount).toBe(0)
+  })
+  it('loads the treasurer queue and its related records above the D1 parameter limit', async () => {
+    state.roles = ['bendahara_komite']
+    state.userId = 'treasurer'
+    sqlite.exec(`
+      WITH RECURSIVE ids(n) AS (SELECT 1 UNION ALL SELECT n+1 FROM ids WHERE n<101)
+      INSERT INTO komite_pengajuan (id,judul,nominal,pengaju_id,status)
+        SELECT 'queue-' || n,'Kegiatan',100000,'applicant','menunggu_bendahara' FROM ids;
+      INSERT INTO komite_pengajuan_versions VALUES ('v101','queue-101',1),('private','p1',1);
+      INSERT INTO komite_pengajuan_files VALUES ('f101','v101','pdf-key','proposal.pdf',123,NULL);
+      INSERT INTO komite_pengajuan_reviews (id,pengajuan_id,actor_id) VALUES ('r101','queue-101','chair');
+      INSERT INTO komite_pengajuan_rincian VALUES ('d101','queue-101',1,'Kebutuhan','Penyedia',100000);
+    `)
+
+    const data = await getKomiteDashboardData()
+
+    expect(data.items).toHaveLength(101)
+    expect(data.reviewCount).toBe(101)
+    expect(data.items.find(item => item.id === 'queue-101')).toMatchObject({
+      versions: [{ id: 'v101', files: [{ id: 'f101' }] }],
+      reviews: [{ id: 'r101' }],
+      rincian: [{ id: 'd101' }],
+    })
   })
   it('limits reports to approved proposals and permitted staff', async () => {
     expect(await setKomiteActivityReportAction('p1',true,0)).toHaveProperty('error')

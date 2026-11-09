@@ -211,14 +211,18 @@ export async function getKomiteDashboardData() {
   let reviews: any[] = []
   let details: any[] = []
   if (ids.length) {
-    const placeholders = ids.map(() => '?').join(',')
+    // D1 limits each query to 100 bound parameters, even for long proposal histories.
+    const visibleIdsJson = JSON.stringify(ids)
     const [versionRows, fileRows, reviewRows, detailRows] = await Promise.all([
-      db.prepare(`SELECT * FROM komite_pengajuan_versions WHERE pengajuan_id IN (${placeholders}) ORDER BY version_number DESC`).bind(...ids).all<any>(),
+      db.prepare(`SELECT * FROM komite_pengajuan_versions
+        WHERE pengajuan_id IN (SELECT value FROM json_each(?)) ORDER BY version_number DESC`).bind(visibleIdsJson).all<any>(),
       db.prepare(`SELECT f.id,f.version_id,f.original_filename,f.size_bytes,f.created_at,v.pengajuan_id,v.version_number
         FROM komite_pengajuan_files f JOIN komite_pengajuan_versions v ON v.id=f.version_id
-        WHERE v.pengajuan_id IN (${placeholders}) ORDER BY v.version_number DESC,f.created_at`).bind(...ids).all<any>(),
-      db.prepare(`SELECT * FROM komite_pengajuan_reviews WHERE pengajuan_id IN (${placeholders}) ORDER BY created_at DESC`).bind(...ids).all<any>(),
-      db.prepare(`SELECT * FROM komite_pengajuan_rincian WHERE pengajuan_id IN (${placeholders}) ORDER BY pengajuan_id,urutan`).bind(...ids).all<any>(),
+        WHERE v.pengajuan_id IN (SELECT value FROM json_each(?)) ORDER BY v.version_number DESC,f.created_at`).bind(visibleIdsJson).all<any>(),
+      db.prepare(`SELECT * FROM komite_pengajuan_reviews
+        WHERE pengajuan_id IN (SELECT value FROM json_each(?)) ORDER BY created_at DESC`).bind(visibleIdsJson).all<any>(),
+      db.prepare(`SELECT * FROM komite_pengajuan_rincian
+        WHERE pengajuan_id IN (SELECT value FROM json_each(?)) ORDER BY pengajuan_id,urutan`).bind(visibleIdsJson).all<any>(),
     ])
     versions = versionRows.results || []
     files = fileRows.results || []
