@@ -7,9 +7,9 @@ import { checkFeatureAccess, getUserRoles } from '@/lib/features'
 import {
   DEFAULT_RPPM_PRINT_SETTINGS,
   RPPM_TEMPLATE_TYPES,
-  getRppmTemplate,
   normalizePrintSettings,
   normalizeRppmContent,
+  validateRppmOutput,
   type RppmContent,
   type RppmPrintSettings,
   type RppmSpec,
@@ -204,27 +204,37 @@ export async function saveRppmDocument(payload: SavePayload): Promise<{ error: s
     await requireRppmAccess(db, user.id)
 
     const templateType = assertTemplateType(payload.template_type)
-    getRppmTemplate(templateType)
+    const existing = payload.id
+      ? await db.prepare('SELECT * FROM rppm_documents WHERE id = ? AND user_id = ?')
+        .bind(payload.id, user.id)
+        .first<RppmDocumentRow>()
+      : null
+    if (payload.id && !existing) return { error: 'Draft RPPM tidak ditemukan.' }
 
-    const content = normalizeRppmContent(payload.content)
+    const isPackage = existing ? rowToDocument(existing).content.format === 'paket-v1' : true
+    const content = normalizeRppmContent({
+      ...payload.content,
+      format: isPackage ? 'paket-v1' : undefined,
+    })
     const printSettings = normalizePrintSettings(payload.print_settings || DEFAULT_RPPM_PRINT_SETTINGS)
     const status = payload.status === 'FINAL' ? 'FINAL' : 'DRAFT'
+    if (isPackage && status === 'FINAL') {
+      const errors = validateRppmOutput(templateType, content)
+      if (errors.length) return { error: errors[0].message }
+    }
     const title = content.spesifikasi.topik_pembelajaran || 'RPPM Tanpa Judul'
     const mapel = content.spesifikasi.mata_pelajaran || ''
     const mapelOptions = await getAllowedRppmMapelOptions(db, user.id)
     if (!mapelOptions.length) return { error: 'Anda belum memiliki mapel mengajar di tahun ajaran aktif. Hubungi admin akademik.' }
-    if (!isMapelAllowed(mapel, mapelOptions)) return { error: 'Mata pelajaran tidak sesuai dengan penugasan mengajar Anda.' }
+    if (!(isPackage && status === 'DRAFT' && !mapel) && !isMapelAllowed(mapel, mapelOptions)) {
+      return { error: 'Mata pelajaran tidak sesuai dengan penugasan mengajar Anda.' }
+    }
     const kelasSemester = content.spesifikasi.kelas_semester || ''
     const alokasiWaktu = content.spesifikasi.alokasi_waktu || ''
 
     let row: RppmDocumentRow | null
 
     if (payload.id) {
-      const existing = await db.prepare('SELECT id FROM rppm_documents WHERE id = ? AND user_id = ?')
-        .bind(payload.id, user.id)
-        .first<{ id: string }>()
-      if (!existing) return { error: 'Draft RPPM tidak ditemukan.' }
-
       row = await db.prepare(`
         UPDATE rppm_documents
         SET template_type = ?, title = ?, mapel = ?, kelas_semester = ?, alokasi_waktu = ?,

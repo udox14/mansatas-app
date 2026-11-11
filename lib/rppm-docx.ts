@@ -6,6 +6,12 @@ import {
   type RppmTemplateType,
 } from '@/lib/rppm'
 import type { RppmSigner } from '@/app/dashboard/rppm-generator/actions'
+import {
+  RPPM_MAIN_TABLE_WIDTHS,
+  RPPM_SIGNATURE_WIDTHS,
+  rppmAttachmentPages,
+  rppmKerangkaDetails,
+} from './rppm-attachment-layout'
 
 const EMPTY = '........................................'
 
@@ -24,8 +30,8 @@ export function buildRppmDocxBlob(
   const entries: ZipEntry[] = [
     { name: '[Content_Types].xml', content: encodeXml(contentTypesXml()) },
     { name: '_rels/.rels', content: encodeXml(rootRelsXml()) },
-    { name: 'word/_rels/document.xml.rels', content: encodeXml(documentRelsXml()) },
-    { name: 'word/styles.xml', content: encodeXml(stylesXml()) },
+    { name: 'word/_rels/document.xml.rels', content: encodeXml(documentRelsXml(content.format === 'paket-v1')) },
+    { name: 'word/styles.xml', content: encodeXml(stylesXml(content.format === 'paket-v1')) },
     { name: 'word/document.xml', content: encodeXml(documentXml(templateType, content, settings, user, kepsek)) },
   ]
 
@@ -58,57 +64,80 @@ function documentXml(
     bottom: mmToTwip(settings.margins.bottom),
     left: mmToTwip(settings.margins.left),
   }
+  const isPackage = content.format === 'paket-v1'
+  const availableWidth = page.width - margins.left - margins.right
+  const widths = isPackage ? columnWidths(availableWidth, RPPM_MAIN_TABLE_WIDTHS) : [510, 2700, 6540]
+  const section = (letter: string, title: string) => sectionRow(letter, title, widths, isPackage)
+  const field = (no: string, label: string, value: string, keep = false) => {
+    const inner = isPackage
+      ? (value.trim() || EMPTY).split('\n').map(line => packageParagraph(line, {
+        after: 45,
+        indent: /^\d+[.)]\s/.test(line),
+        keep,
+      })).join('')
+      : multilineParagraphs(value)
+    return fieldRowInner(no, label, inner, widths, isPackage, keep)
+  }
+  const kerangka = content.desain_pembelajaran.kerangka_pembelajaran
+  const borderSize = isPackage ? 4 : 8
+  const borderColor = isPackage ? '737373' : '000000'
+  const border = (side: string) => `<w:${side} w:val="single" w:sz="${borderSize}" w:space="0" w:color="${borderColor}"/>`
 
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
-    ${paragraph('RENCANA PELAKSANAAN PEMBELAJARAN MENDALAM', { align: 'center', bold: true, size: 26 })}
-    ${paragraph('BERBASIS CINTA', { align: 'center', bold: true, size: 26, after: 220 })}
+    ${isPackage
+      ? packageParagraph('Rencana Pelaksanaan Pembelajaran Mendalam Berbasis Cinta', { style: 'Title', center: true, keep: true, after: 260 })
+      : paragraph('RENCANA PELAKSANAAN PEMBELAJARAN MENDALAM', { align: 'center', bold: true, size: 26 })
+        + paragraph('BERBASIS CINTA', { align: 'center', bold: true, size: 26, after: 220 })}
     <w:tbl>
       <w:tblPr>
-        <w:tblW w:w="0" w:type="auto"/>
-        <w:tblLayout w:type="fixed"/>
+        ${isPackage ? `<w:tblW w:w="${availableWidth}" w:type="dxa"/>` : '<w:tblW w:w="0" w:type="auto"/><w:tblLayout w:type="fixed"/>'}
         <w:tblBorders>
-          <w:top w:val="single" w:sz="8" w:space="0" w:color="000000"/>
-          <w:left w:val="single" w:sz="8" w:space="0" w:color="000000"/>
-          <w:bottom w:val="single" w:sz="8" w:space="0" w:color="000000"/>
-          <w:right w:val="single" w:sz="8" w:space="0" w:color="000000"/>
-          <w:insideH w:val="single" w:sz="8" w:space="0" w:color="000000"/>
-          <w:insideV w:val="single" w:sz="8" w:space="0" w:color="000000"/>
+          ${['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map(border).join('')}
         </w:tblBorders>
+        ${isPackage ? '<w:tblLayout w:type="fixed"/>' : ''}
       </w:tblPr>
-      <w:tblGrid><w:gridCol w:w="510"/><w:gridCol w:w="2700"/><w:gridCol w:w="6540"/></w:tblGrid>
-      ${sectionRow('A', 'Spesifikasi')}
-      ${specRow('1', 'Satuan Pendidikan', content.spesifikasi.satuan_pendidikan)}
-      ${specRow('2', 'Mata Pelajaran', content.spesifikasi.mata_pelajaran)}
-      ${specRow('3', 'Kelas / Semester', content.spesifikasi.kelas_semester)}
-      ${specRow('4', 'Topik Pembelajaran', content.spesifikasi.topik_pembelajaran)}
-      ${specRow('5', 'Alokasi Waktu', content.spesifikasi.alokasi_waktu)}
-      ${gapRow()}
-      ${sectionRow('B', 'Identifikasi')}
-      ${fieldRow('1', 'Asesmen pada Awal Pembelajaran (opsional)', content.identifikasi.asesmen_awal)}
-      ${fieldRow('2', 'Dimensi Profil Lulusan', listText(content.identifikasi.dimensi_profil_lulusan))}
-      ${fieldRow('3', 'Topik Panca Cinta', listText(content.identifikasi.topik_panca_cinta))}
-      ${fieldRow('4', 'Materi Integrasi KBC', content.identifikasi.materi_integrasi_kbc)}
-      ${sectionRow('C', 'Desain Pembelajaran')}
-      ${fieldRow('1', 'Tujuan Pembelajaran', content.desain_pembelajaran.tujuan_pembelajaran)}
+      ${tableGrid(widths)}
+      ${section('A', 'Spesifikasi')}
+      ${field('1', 'Satuan Pendidikan', content.spesifikasi.satuan_pendidikan)}
+      ${field('2', 'Mata Pelajaran', content.spesifikasi.mata_pelajaran)}
+      ${field('3', 'Kelas / Semester', content.spesifikasi.kelas_semester)}
+      ${field('4', 'Topik Pembelajaran', content.spesifikasi.topik_pembelajaran)}
+      ${field('5', 'Alokasi Waktu', content.spesifikasi.alokasi_waktu)}
+      ${isPackage ? '' : gapRow()}
+      ${section('B', 'Identifikasi')}
+      ${field('1', 'Asesmen pada Awal Pembelajaran (opsional)', content.identifikasi.asesmen_awal)}
+      ${field('2', 'Dimensi Profil Lulusan', listText(content.identifikasi.dimensi_profil_lulusan))}
+      ${field('3', 'Topik Panca Cinta', listText(content.identifikasi.topik_panca_cinta))}
+      ${field('4', 'Materi Integrasi KBC', content.identifikasi.materi_integrasi_kbc)}
+      ${section('C', 'Desain Pembelajaran')}
+      ${field('1', 'Tujuan Pembelajaran', content.desain_pembelajaran.tujuan_pembelajaran)}
       ${fieldRowInner(
         '2',
         'Kerangka Pembelajaran',
-        paragraph(`Praktik Pedagogis Model Pembelajaran: ${template.modelLabel}`, { bold: true }) + smartParagraphs(content.desain_pembelajaran.kerangka_pembelajaran),
+        isPackage
+          ? packageParagraph(`Praktik Pedagogis Model Pembelajaran: ${template.modelLabel}`, { bold: true, after: 65 })
+            + bodyParagraphs(rppmKerangkaDetails(kerangka), { after: 45 })
+          : paragraph(`Praktik Pedagogis Model Pembelajaran: ${template.modelLabel}`, { bold: true }) + smartParagraphs(kerangka),
+        widths,
+        isPackage,
       )}
-      ${sectionRow('D', `Pengalaman Belajar (Menggunakan Model ${template.modelLabel})`)}
-      ${fieldRow('1', 'Kegiatan Awal (berkesadaran, bermakna, dan/atau menggembirakan)', listText(content.pengalaman_belajar.kegiatan_awal))}
-      ${fieldRow('2', 'Kegiatan Inti (berkesadaran, bermakna, dan/atau menggembirakan)', '')}
-      ${fieldRow('', 'Memahami', listText(content.pengalaman_belajar.kegiatan_inti.memahami))}
-      ${fieldRow('', 'Mengaplikasi', listText(content.pengalaman_belajar.kegiatan_inti.mengaplikasi))}
-      ${fieldRow('', 'Merefleksi', listText(content.pengalaman_belajar.kegiatan_inti.merefleksi))}
-      ${fieldRow('3', 'Kegiatan Penutup (berkesadaran, bermakna, dan/atau menggembirakan)', listText(content.pengalaman_belajar.kegiatan_penutup))}
-      ${sectionRow('E', 'Asesmen Pembelajaran')}
-      ${fieldRow('1', 'Asesmen Proses', content.asesmen_pembelajaran.asesmen_proses)}
-      ${fieldRow('2', 'Asesmen Akhir', content.asesmen_pembelajaran.asesmen_akhir)}
+      ${section('D', `Pengalaman Belajar (Menggunakan Model ${template.modelLabel})`)}
+      ${field('1', 'Kegiatan Awal (berkesadaran, bermakna, dan/atau menggembirakan)', listText(content.pengalaman_belajar.kegiatan_awal))}
+      ${isPackage
+        ? sectionRow('2', 'Kegiatan Inti (berkesadaran, bermakna, dan/atau menggembirakan)', widths, true, 'F5F5F4')
+        : field('2', 'Kegiatan Inti (berkesadaran, bermakna, dan/atau menggembirakan)', '')}
+      ${field('', 'Memahami', listText(content.pengalaman_belajar.kegiatan_inti.memahami))}
+      ${field('', 'Mengaplikasi', listText(content.pengalaman_belajar.kegiatan_inti.mengaplikasi))}
+      ${field('', 'Merefleksi', listText(content.pengalaman_belajar.kegiatan_inti.merefleksi))}
+      ${field('3', 'Kegiatan Penutup (berkesadaran, bermakna, dan/atau menggembirakan)', listText(content.pengalaman_belajar.kegiatan_penutup))}
+      ${section('E', 'Asesmen Pembelajaran')}
+      ${field('1', 'Asesmen Proses', content.asesmen_pembelajaran.asesmen_proses)}
+      ${field('2', 'Asesmen Akhir', content.asesmen_pembelajaran.asesmen_akhir, isPackage)}
     </w:tbl>
-    ${signatureTable(content, user, kepsek)}
+    ${signatureTable(content, user, kepsek, isPackage ? columnWidths(availableWidth, RPPM_SIGNATURE_WIDTHS) : undefined)}
+    ${isPackage && content.lampiran ? attachmentXml(content.lampiran, content.spesifikasi, availableWidth) : ''}
     <w:sectPr>
       <w:pgSz w:w="${page.width}" w:h="${page.height}"/>
       <w:pgMar w:top="${margins.top}" w:right="${margins.right}" w:bottom="${margins.bottom}" w:left="${margins.left}" w:header="708" w:footer="708" w:gutter="0"/>
@@ -117,38 +146,36 @@ function documentXml(
 </w:document>`
 }
 
-function sectionRow(letter: string, title: string) {
-  return `<w:tr>${cell(paragraph(letter, { bold: true, align: 'center' }), 510, undefined, 'E7E5E4')}${cell(paragraph(title, { bold: true }), 9240, 2, 'E7E5E4')}</w:tr>`
+function sectionRow(letter: string, title: string, [number, label, value]: number[], isPackage: boolean, fill = 'E7E5E4') {
+  const marker = isPackage ? packageParagraph(letter, { bold: true, center: true, keep: true }) : paragraph(letter, { bold: true, align: 'center' })
+  const heading = isPackage ? packageParagraph(title, { bold: true, keep: true }) : paragraph(title, { bold: true })
+  return `<w:tr>${isPackage ? '<w:trPr><w:cantSplit/></w:trPr>' : ''}${cell(marker, number, undefined, fill, undefined, isPackage)}${cell(heading, label + value, 2, fill, undefined, isPackage)}</w:tr>`
 }
 
-function fieldRow(no: string, label: string, value: string) {
-  return `<w:tr>${cell(paragraph(no, { align: 'center' }), 510)}${cell(paragraph(label, { bold: Boolean(no) }), 2700)}${cell(multilineParagraphs(value), 6540)}</w:tr>`
-}
-
-function specRow(no: string, label: string, value: string) {
-  return `<w:tr>${cell(paragraph(no, { align: 'center' }), 510)}${cell(paragraph(label, { bold: true }), 2700)}${cell(multilineParagraphs(value), 6540)}</w:tr>`
-}
-
-function fieldRowInner(no: string, label: string, inner: string) {
-  return `<w:tr>${cell(paragraph(no, { align: 'center' }), 510)}${cell(paragraph(label, { bold: Boolean(no) }), 2700)}${cell(inner, 6540)}</w:tr>`
+function fieldRowInner(no: string, label: string, inner: string, [number, labelWidth, value]: number[], isPackage: boolean, keep = false) {
+  const marker = isPackage ? packageParagraph(no, { center: true, keep }) : paragraph(no, { align: 'center' })
+  const name = isPackage ? packageParagraph(label, { bold: Boolean(no), keep }) : paragraph(label, { bold: Boolean(no) })
+  return `<w:tr>${isPackage ? '<w:trPr><w:cantSplit/></w:trPr>' : ''}${cell(marker, number, undefined, undefined, undefined, isPackage)}${cell(name, labelWidth, undefined, undefined, undefined, isPackage)}${cell(inner, value, undefined, undefined, undefined, isPackage)}</w:tr>`
 }
 
 function gapRow() {
   return `<w:tr>${cell(paragraph(''), 9750, 3, undefined, { top: 'nil', left: 'nil', bottom: 'nil', right: 'nil' })}</w:tr>`
 }
 
-function cell(inner: string, width: number, gridSpan?: number, fill?: string, borders?: Partial<Record<'top' | 'left' | 'bottom' | 'right', 'single' | 'nil'>>) {
+function cell(inner: string, width: number, gridSpan?: number, fill?: string, borders?: Partial<Record<'top' | 'left' | 'bottom' | 'right', 'single' | 'nil'>>, isPackage = false) {
   const border = (side: 'top' | 'left' | 'bottom' | 'right') => {
     const val = borders?.[side] || 'single'
-    return `<w:${side} w:val="${val}"${val === 'single' ? ' w:sz="10" w:space="0" w:color="000000"' : ''}/>`
+    return `<w:${side} w:val="${val}"${val === 'single' ? (isPackage ? ' w:sz="4" w:space="0" w:color="737373"' : ' w:sz="10" w:space="0" w:color="000000"') : ''}/>`
   }
+  const shading = fill ? `<w:shd w:val="clear" w:color="auto" w:fill="${fill}"/>` : ''
 
   return `<w:tc>
     <w:tcPr>
       <w:tcW w:w="${width}" w:type="dxa"/>
       ${gridSpan ? `<w:gridSpan w:val="${gridSpan}"/>` : ''}
-      ${fill ? `<w:shd w:val="clear" w:color="auto" w:fill="${fill}"/>` : ''}
+      ${isPackage ? '' : shading}
       <w:tcBorders>${border('top')}${border('left')}${border('bottom')}${border('right')}</w:tcBorders>
+      ${isPackage ? shading : ''}
       <w:tcMar><w:top w:w="90" w:type="dxa"/><w:left w:w="90" w:type="dxa"/><w:bottom w:w="90" w:type="dxa"/><w:right w:w="90" w:type="dxa"/></w:tcMar>
       <w:vAlign w:val="top"/>
     </w:tcPr>
@@ -156,24 +183,114 @@ function cell(inner: string, width: number, gridSpan?: number, fill?: string, bo
   </w:tc>`
 }
 
-function signatureTable(content: RppmContent, user: RppmSigner, kepsek: RppmSigner | null) {
+function signatureTable(content: RppmContent, user: RppmSigner, kepsek: RppmSigner | null, packageWidths?: number[]) {
   const noBorders = { top: 'nil', left: 'nil', bottom: 'nil', right: 'nil' } as const
-  return `<w:p><w:pPr><w:spacing w:before="360" w:after="0"/></w:pPr></w:p>
+  const widths = packageWidths ?? [4300, 1900, 3700]
+  const [principalWidth, spacerWidth, teacherWidth] = widths
+  const width = widths.reduce((total, column) => total + column, 0)
+  return `<w:p><w:pPr>${packageWidths ? '<w:keepNext/>' : ''}<w:spacing w:before="360" w:after="0"/></w:pPr></w:p>
   <w:tbl>
     <w:tblPr>
-      <w:tblW w:w="0" w:type="auto"/>
-      <w:tblLayout w:type="fixed"/>
+      ${packageWidths ? `<w:tblW w:w="${width}" w:type="dxa"/>` : '<w:tblW w:w="0" w:type="auto"/><w:tblLayout w:type="fixed"/>'}
       <w:tblBorders>
         <w:top w:val="nil"/><w:left w:val="nil"/><w:bottom w:val="nil"/><w:right w:val="nil"/><w:insideH w:val="nil"/><w:insideV w:val="nil"/>
       </w:tblBorders>
+      ${packageWidths ? '<w:tblLayout w:type="fixed"/>' : ''}
     </w:tblPr>
-    <w:tblGrid><w:gridCol w:w="4300"/><w:gridCol w:w="1900"/><w:gridCol w:w="3700"/></w:tblGrid>
+    ${tableGrid(widths)}
     <w:tr>
-      ${signatureCell('Mengetahui,', 'Kepala MAN 1 Tasikmalaya', kepsek?.nama_lengkap || 'Kepala Madrasah Belum Diatur', kepsek?.nip || '', 4300)}
-      ${cell(paragraph(''), 1900, undefined, undefined, noBorders)}
-      ${signatureCell(content.spesifikasi.tanggal_ttd ? `Tasikmalaya, ${formatTanggalRppm(content.spesifikasi.tanggal_ttd)}` : 'Tasikmalaya, ................................', user.jabatan_cetak || user.role || 'Guru', user.nama_lengkap || 'Nama Guru Belum Diatur', user.nip || '', 3700)}
+      ${packageWidths ? '<w:trPr><w:cantSplit/></w:trPr>' : ''}
+      ${signatureCell('Mengetahui,', 'Kepala MAN 1 Tasikmalaya', kepsek?.nama_lengkap || 'Kepala Madrasah Belum Diatur', kepsek?.nip || '', principalWidth)}
+      ${cell(paragraph(''), spacerWidth, undefined, undefined, noBorders)}
+      ${signatureCell(content.spesifikasi.tanggal_ttd ? `Tasikmalaya, ${formatTanggalRppm(content.spesifikasi.tanggal_ttd)}` : 'Tasikmalaya, ................................', user.jabatan_cetak || user.role || 'Guru', user.nama_lengkap || 'Nama Guru Belum Diatur', user.nip || '', teacherWidth)}
     </w:tr>
   </w:tbl>`
+}
+
+function columnWidths(total: number, percentages: number[]) {
+  const widths = percentages.map(percent => Math.floor(total * percent / 100))
+  widths[widths.length - 1] += total - widths.reduce((sum, width) => sum + width, 0)
+  return widths
+}
+
+function tableGrid(widths: number[]) {
+  return `<w:tblGrid>${widths.map(width => `<w:gridCol w:w="${width}"/>`).join('')}</w:tblGrid>`
+}
+
+type PackageParagraphOptions = {
+  style?: 'Title' | 'Heading1' | 'Heading2'
+  bold?: boolean
+  center?: boolean
+  keep?: boolean
+  newPage?: boolean
+  before?: number
+  after?: number
+  indent?: boolean
+}
+
+function packageParagraph(value: string, options: PackageParagraphOptions = {}) {
+  return `<w:p><w:pPr>
+    ${options.style ? `<w:pStyle w:val="${options.style}"/>` : ''}
+    ${options.keep ? '<w:keepNext/>' : ''}
+    ${options.newPage ? '<w:pageBreakBefore/>' : ''}
+    <w:spacing w:before="${options.before ?? 0}" w:after="${options.after ?? 0}" w:line="270" w:lineRule="auto"/>
+    ${options.indent ? '<w:ind w:left="300" w:hanging="260"/>' : ''}
+    ${options.center ? '<w:jc w:val="center"/>' : ''}
+  </w:pPr><w:r>${options.bold ? '<w:rPr><w:b/></w:rPr>' : ''}<w:t xml:space="preserve">${escapeXml(value)}</w:t></w:r></w:p>`
+}
+
+function bodyParagraphs(value: string, options: PackageParagraphOptions) {
+  return value.split(/\r?\n/).map(line => packageParagraph(line, options)).join('')
+}
+
+function attachmentTable(headers: string[], rows: string[][][], width: number, percents?: number[], minRowMm?: number) {
+  const widths = columnWidths(width, percents ?? headers.map(() => 100 / headers.length))
+  const header = headers.map((title, index) => cell(bodyParagraphs(title, { bold: true, keep: true }), widths[index], undefined, 'E7E5E4', undefined, true))
+  return `<w:tbl>
+    <w:tblPr><w:tblW w:w="${width}" w:type="dxa"/><w:tblLayout w:type="fixed"/></w:tblPr>
+    ${tableGrid(widths)}
+    <w:tr><w:trPr><w:cantSplit/><w:tblHeader/></w:trPr>${header.join('')}</w:tr>
+    ${rows.map(row => {
+      const height = minRowMm ? `<w:trHeight w:val="${mmToTwip(minRowMm)}" w:hRule="atLeast"/>` : ''
+      return `<w:tr><w:trPr><w:cantSplit/>${height}</w:trPr>${row.map((lines, index) => cell(
+        lines.map(line => bodyParagraphs(line, { after: 50 })).join(''),
+        widths[index], undefined, undefined, undefined, true,
+      )).join('')}</w:tr>`
+    }).join('')}
+  </w:tbl>`
+}
+
+function attachmentXml(attachments: NonNullable<RppmContent['lampiran']>, spec: RppmContent['spesifikasi'], width: number) {
+  const pages = rppmAttachmentPages(attachments, spec).map(page => [
+    packageParagraph(page.label, { bold: true, newPage: true, keep: true, after: 75 }),
+    packageParagraph(page.title, { style: 'Heading1', keep: true, after: 120 }),
+    packageParagraph(page.meta, { keep: true, after: 225 }),
+    ...page.elements.map(element => {
+      switch (element.kind) {
+        case 'text':
+          return bodyParagraphs(element.text, element.style === 'heading'
+            ? { style: 'Heading2', keep: true, before: 170, after: 75 }
+            : { bold: element.style === 'task', keep: element.style === 'task', before: element.style === 'task' ? 130 : 0, after: 100 })
+        case 'list':
+          return element.items.map((item, index) => bodyParagraphs(
+            `${element.ordered ? `${index + 1}.` : '•'} ${item}`, { indent: true, after: 65 },
+          )).join('')
+        case 'table':
+          return attachmentTable(element.headers, element.rows, width, element.widths, element.minRowMm)
+        case 'answer': {
+          const line = 'w:val="single" w:sz="4" w:space="1" w:color="737373"'
+          const borders = element.ruled
+            ? `<w:pBdr><w:bottom ${line}/><w:between ${line}/></w:pBdr>`
+            : `<w:pBdr><w:top ${line}/><w:left ${line}/><w:bottom ${line}/><w:right ${line}/></w:pBdr>`
+          return Array.from({ length: element.lines }, () =>
+            `<w:p><w:pPr>${borders}<w:spacing w:line="410" w:lineRule="exact"/></w:pPr></w:p>`,
+          ).join('')
+        }
+      }
+    }),
+  ].join('')).join('')
+  // Word needs a paragraph after the final table. A one-point mark avoids a blank page.
+  return pages + '<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="20" w:lineRule="exact"/><w:rPr><w:sz w:val="2"/></w:rPr></w:pPr></w:p>'
 }
 
 function signatureCell(title: string, position: string, name: string, nip: string, width: number) {
@@ -249,18 +366,31 @@ function rootRelsXml() {
 </Relationships>`
 }
 
-function documentRelsXml() {
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+function documentRelsXml(isPackage: boolean) {
+  if (!isPackage) return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>`
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`
 }
 
-function stylesXml() {
+function stylesXml(isPackage: boolean) {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:style w:type="paragraph" w:default="1" w:styleId="Normal">
     <w:name w:val="Normal"/>
     <w:rPr><w:rFonts w:ascii="Times New Roman" w:hAnsi="Times New Roman"/><w:sz w:val="22"/></w:rPr>
   </w:style>
+  ${isPackage ? [
+    ['Title', 'Title', 30],
+    ['Heading1', 'heading 1', 28, 0],
+    ['Heading2', 'heading 2', 23, 1],
+  ].map(([id, label, size, level]) =>
+    `<w:style w:type="paragraph" w:styleId="${id}"><w:name w:val="${label}"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/>
+    ${level === undefined ? '' : `<w:pPr><w:outlineLvl w:val="${level}"/></w:pPr>`}
+    <w:rPr><w:b/><w:sz w:val="${size}"/></w:rPr></w:style>`,
+  ).join('') : ''}
 </w:styles>`
 }
 
@@ -369,6 +499,8 @@ function encodeXml(value: string) {
 
 function escapeXml(value: string) {
   return value
+    // JSON strings may contain escaped control characters that XML 1.0 rejects.
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')

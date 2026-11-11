@@ -1,3 +1,11 @@
+import {
+  RPPM_ATTACHMENT_EXAMPLE,
+  RPPM_ATTACHMENT_INSTRUCTIONS,
+  rppmAttachmentsSchema,
+  validateRppmAttachments,
+  type RppmAttachments,
+} from './rppm-attachments'
+
 export const RPPM_TEMPLATE_TYPES = [
   'cooperative-learning',
   'discovery-learning',
@@ -43,6 +51,9 @@ export type RppmContent = {
     asesmen_proses: string
     asesmen_akhir: string
   }
+  format?: 'paket-v1'
+  acuan_import?: string
+  lampiran?: RppmAttachments
 }
 
 export type RppmPrintSettings = {
@@ -254,6 +265,10 @@ export function emptyRppmContent(spec?: Partial<RppmSpec>): RppmContent {
   }
 }
 
+export function emptyRppmPackage(spec?: Partial<RppmSpec>): RppmContent {
+  return { ...emptyRppmContent(spec), format: 'paket-v1' }
+}
+
 export function normalizeRppmContent(value: unknown, fallbackSpec?: Partial<RppmSpec>): RppmContent {
   const base = emptyRppmContent(fallbackSpec)
   if (!isRecord(value)) return base
@@ -264,8 +279,14 @@ export function normalizeRppmContent(value: unknown, fallbackSpec?: Partial<Rppm
   const pengalaman = isRecord(value.pengalaman_belajar) ? value.pengalaman_belajar : {}
   const inti = isRecord(pengalaman.kegiatan_inti) ? pengalaman.kegiatan_inti : {}
   const asesmen = isRecord(value.asesmen_pembelajaran) ? value.asesmen_pembelajaran : {}
+  const attachments = value.format === 'paket-v1' ? rppmAttachmentsSchema.safeParse(value.lampiran) : undefined
 
   return {
+    ...(value.format === 'paket-v1' ? {
+      format: 'paket-v1' as const,
+      acuan_import: typeof value.acuan_import === 'string' ? value.acuan_import : undefined,
+      lampiran: attachments?.data,
+    } : {}),
     spesifikasi: {
       ...base.spesifikasi,
       ...cleanSpec(spesifikasi),
@@ -296,13 +317,88 @@ export function normalizeRppmContent(value: unknown, fallbackSpec?: Partial<Rppm
   }
 }
 
-export function parseRppmJson(raw: string, fallbackSpec?: Partial<RppmSpec>): { content: RppmContent | null; error: string | null } {
-  try {
-    const parsed = JSON.parse(stripJsonFence(raw))
-    return { content: normalizeRppmContent(parsed, fallbackSpec), error: null }
-  } catch {
-    return { content: null, error: 'Teks yang dipaste tidak berisi JSON yang valid.' }
+function rppmImportReference(templateType: RppmTemplateType, spec: RppmSpec) {
+  const fields = cleanSpec(spec)
+  delete fields.tanggal_ttd
+  return JSON.stringify([templateType, fields])
+}
+
+export function hasCurrentRppmImport(templateType: RppmTemplateType, content: RppmContent) {
+  return content.acuan_import === rppmImportReference(templateType, content.spesifikasi)
+}
+
+function firstInvalidField(value: unknown, sample: unknown, path: string): string | undefined {
+  if (value === undefined) return
+  if (Array.isArray(sample)) {
+    return Array.isArray(value) && value.every(item => typeof item === 'string') ? undefined : path
   }
+  if (isRecord(sample)) {
+    if (!isRecord(value)) return path
+    for (const [key, field] of Object.entries(sample)) {
+      const invalid = firstInvalidField(value[key], field, path ? `${path}.${key}` : key)
+      if (invalid) return invalid
+    }
+    return
+  }
+  return typeof value === 'string' ? undefined : path
+}
+
+function parseObject(raw: string) {
+  const parsed: unknown = JSON.parse(stripJsonFence(raw))
+  if (!isRecord(parsed)) throw new Error('Hasil AI harus berupa satu objek JSON.')
+  return parsed
+}
+
+function parseAttachments(value: unknown) {
+  const result = rppmAttachmentsSchema.safeParse(value)
+  if (!result.success) {
+    const issue = result.error.issues[0]
+    const path = ['lampiran', ...issue.path].join('.')
+    throw new Error(`Periksa format ${path}. ${issue.code === 'custom' ? issue.message : 'Ikuti tipe data pada contoh prompt.'}`)
+  }
+  return result.data
+}
+
+export function parseRppmPackage(raw: string, templateType: RppmTemplateType, spec: RppmSpec): RppmContent {
+  const parsed = parseObject(raw)
+  const sections = ['identifikasi', 'desain_pembelajaran', 'pengalaman_belajar', 'asesmen_pembelajaran']
+  if (!sections.some(section => section in parsed)) {
+    throw new Error('Tempel hasil prompt paket lengkap yang memuat bagian RPPM A–E.')
+  }
+  const invalid = firstInvalidField(parsed, emptyRppmContent(), '')
+  if (invalid) throw new Error(`Periksa format ${invalid}. Ikuti tipe data pada contoh prompt.`)
+  const lampiran = parsed.lampiran === undefined ? undefined : parseAttachments(parsed.lampiran)
+  return {
+    ...normalizeRppmContent({ ...parsed, format: undefined, spesifikasi: spec }),
+    format: 'paket-v1',
+    acuan_import: rppmImportReference(templateType, spec),
+    lampiran,
+  }
+}
+
+export function replaceRppmAttachments(raw: string, templateType: RppmTemplateType, content: RppmContent): RppmContent {
+  if (content.format !== 'paket-v1' || !hasCurrentRppmImport(templateType, content) || validateRppmContent(content).length) {
+    throw new Error('Impor naskah RPPM lengkap sesuai model dan spesifikasi terkini terlebih dahulu.')
+  }
+  const lampiran = parseAttachments(parseObject(raw).lampiran)
+  const errors = validateRppmAttachments(lampiran)
+  if (errors.length) throw new Error(errors[0].message)
+  return { ...content, lampiran }
+}
+
+export function validateRppmOutput(templateType: RppmTemplateType, content: RppmContent): RppmValidationError[] {
+  const errors = validateRppmContent(content)
+  if (content.format === 'paket-v1') {
+    if (!hasCurrentRppmImport(templateType, content)) {
+      errors.unshift({
+        path: 'acuan_import',
+        label: 'Acuan impor',
+        message: 'Impor paket RPPM lengkap sesuai model dan spesifikasi terkini.',
+      })
+    }
+    errors.push(...validateRppmAttachments(content.lampiran))
+  }
+  return errors
 }
 
 export function validateRppmContent(content: RppmContent): RppmValidationError[] {
@@ -342,7 +438,7 @@ export function normalizePrintSettings(value: unknown): RppmPrintSettings {
   }
 }
 
-export function buildRppmPrompt(templateType: RppmTemplateType, spec: RppmSpec): string {
+export function buildRppmPrompt(templateType: RppmTemplateType, spec: RppmSpec, includeAttachments = false): string {
   const template = getRppmTemplate(templateType)
   const schema = emptyRppmContent(spec)
   const subjectProfile = getRppmSubjectProfile(spec)
@@ -355,7 +451,9 @@ export function buildRppmPrompt(templateType: RppmTemplateType, spec: RppmSpec):
     'Anda adalah penyusun RPPM KBC madrasah. Tugas Anda mengisi template RPPM, bukan membuat format baru.',
     `Gunakan MODEL PEMBELAJARAN: ${template.modelLabel}.`,
     'Output harus sangat setia pada struktur template RPPM KBC: A Spesifikasi, B Identifikasi, C Desain Pembelajaran, D Pengalaman Belajar, E Asesmen Pembelajaran.',
-    'Jangan menambah bagian baru, jangan mengubah nama bagian, dan jangan menghilangkan baris template.',
+    includeAttachments
+      ? 'Pertahankan bagian A–E. Letakkan ketiga lampiran dalam field lampiran di luar bagian A–E.'
+      : 'Jangan menambah bagian baru, jangan mengubah nama bagian, dan jangan menghilangkan baris template.',
     'Template adalah kerangka pedagogis; isi pembelajaran harus ditulis ulang secara hidup sesuai mapel, topik, kelas, konteks topik, dan model yang dipilih.',
     '',
     'DATA SPESIFIKASI YANG WAJIB DIPAKAI APA ADANYA:',
@@ -408,6 +506,14 @@ export function buildRppmPrompt(templateType: RppmTemplateType, spec: RppmSpec):
     '- Jangan membuat isi generik seperti "materi ajar" jika data topik sudah tersedia; ganti dengan topik spesifik.',
     '- Jangan memakai contoh sumber, media, produk, kasus, atau aktivitas dari mapel lain kecuali Konteks Topik secara eksplisit memintanya.',
     `- Hindari contoh yang tidak cocok untuk ${subjectProfile.label}: ${subjectProfile.avoidExamples.join(', ')}.`,
+    ...(includeAttachments ? [
+      '',
+      'STANDAR PAKET RPPM DAN LAMPIRAN:',
+      '- Tulis tujuan dengan tindakan yang dapat diamati dan bukti keberhasilan. Bagi waktu secara realistis antara kegiatan awal, inti, dan penutup sesuai alokasi guru.',
+      '- Jelaskan tindakan guru dan murid, stimulus yang dipakai, serta hasil tiap tahap. Kegiatan harus menunjukkan kapan Ringkasan Materi dan LKPD digunakan.',
+      '- Asesmen proses harus merujuk ke rubrik dan menyebut cara memberi umpan balik. Asesmen akhir menyebut bukti capaian, kriteria, serta tindak lanjut bagi murid yang perlu bantuan dan murid yang siap memperdalam.',
+      RPPM_ATTACHMENT_INSTRUCTIONS,
+    ] : []),
     '',
     'ATURAN FORMAT JSON:',
     '- Kembalikan hanya JSON valid tanpa markdown, tanpa komentar, tanpa teks pembuka/penutup.',
@@ -417,8 +523,20 @@ export function buildRppmPrompt(templateType: RppmTemplateType, spec: RppmSpec):
     '- Pastikan semua field dalam schema terisi.',
     '',
     'SCHEMA JSON WAJIB:',
-    JSON.stringify(schema, null, 2),
+    JSON.stringify(includeAttachments ? { ...schema, lampiran: RPPM_ATTACHMENT_EXAMPLE } : schema, null, 2),
   ].join('\n')
+}
+
+export function buildRppmAttachmentsPrompt(templateType: RppmTemplateType, content: RppmContent) {
+  const { spesifikasi, identifikasi, desain_pembelajaran, pengalaman_belajar, asesmen_pembelajaran } = content
+  return [
+    `Susun ulang lampiran untuk RPPM KBC dengan model ${getRppmTemplate(templateType).modelLabel}.`,
+    'Gunakan naskah RPPM berikut sebagai sumber. Pertahankan tujuan, kegiatan, dan asesmen yang ada.',
+    JSON.stringify({ spesifikasi, identifikasi, desain_pembelajaran, pengalaman_belajar, asesmen_pembelajaran }, null, 2),
+    RPPM_ATTACHMENT_INSTRUCTIONS,
+    'Kembalikan hanya JSON valid dengan satu field lampiran sesuai struktur berikut.',
+    JSON.stringify({ lampiran: RPPM_ATTACHMENT_EXAMPLE }, null, 2),
+  ].join('\n\n')
 }
 
 function buildKerangkaFrame(template: RppmTemplateConfig, spec: RppmSpec, subjectProfile: RppmSubjectProfile) {
@@ -520,12 +638,6 @@ function buildModelAdaptationRules(template: RppmTemplateConfig, subjectProfile:
     `- Karena modelnya Cooperative Learning, tugas kelompok harus cocok untuk ${subjectProfile.label}; atur peran, diskusi, olah informasi, presentasi, evaluasi, dan apresiasi kelompok.`,
     '- Jangan menjadikan Cooperative Learning sebagai proyek panjang; fokus pada kerja tim dan tanggung jawab antaranggota.',
   ]
-}
-
-export function buildRppmKerangkaDigitalText(spec: RppmSpec): string {
-  return buildRppmKerangkaDigitalLines(spec, getRppmSubjectProfile(spec))
-    .map(line => line.replace(/^- /, ''))
-    .join('\n')
 }
 
 function buildRppmKerangkaDigitalLines(spec: RppmSpec, subjectProfile: RppmSubjectProfile) {
@@ -717,7 +829,7 @@ function cleanText(value: unknown): string {
   return String(value ?? '').replace(/\r\n/g, '\n').trim()
 }
 
-export function cleanTextArray(value: unknown): string[] {
+function cleanTextArray(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value.map(item => cleanText(item)).filter(Boolean)
   }
