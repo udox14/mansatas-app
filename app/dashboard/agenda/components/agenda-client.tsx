@@ -42,6 +42,9 @@ type JadwalBlock = {
   is_fully_excepted: boolean
   sudah_isi: boolean
   sudah_didelegasi: boolean
+  cuti?: boolean
+  pengganti_cuti?: boolean
+  pengganti_cuti_nama?: string | null
   alasan_ketidakhadiran?: 'SAKIT' | 'IZIN'
   deskripsi_ketidakhadiran?: string | null
   alasan_delegasi?: string | null
@@ -151,7 +154,7 @@ export function AgendaClient({ initialData, userRole, draftOwnerId, isActingAs =
         const draft = readAgendaDraft(draftKey)
         if (!draft) return
         const block = initialData.blocks.find(item => item.penugasan_id === draft.penugasanId)
-        if (!block || block.sudah_isi || block.sudah_didelegasi) { clearAgendaDraft(draftKey); return }
+        if (!block || block.sudah_isi || block.sudah_didelegasi || (block.cuti && !block.pengganti_cuti)) { clearAgendaDraft(draftKey); return }
         setExpandedBlock(block.penugasan_id)
         setMateri(draft.materi)
         setShowCamera(false)
@@ -342,7 +345,7 @@ export function AgendaClient({ initialData, userRole, draftOwnerId, isActingAs =
 
   const { blocks, tanggal, hari, error, calendarStatus } = data
   const activeExceptions = data.kbmExceptions || []
-  const activeBlockCount = blocks.filter(block => !block.is_fully_excepted).length
+  const activeBlockCount = blocks.filter(block => !block.is_fully_excepted && (!block.cuti || block.pengganti_cuti)).length
 
   if (error) {
     return (
@@ -446,6 +449,9 @@ export function AgendaClient({ initialData, userRole, draftOwnerId, isActingAs =
                 <div className="flex flex-col gap-0.5 mb-1">
                   <span className="text-base font-bold text-slate-800 dark:text-slate-100">{block.kelas_label}</span>
                   <span className="text-sm font-medium text-slate-600 dark:text-slate-400">{block.mapel_nama}</span>
+                  {block.cuti && !block.is_fully_excepted && <p className="text-sm text-muted-foreground">
+                    {block.pengganti_cuti ? `Menggantikan ${block.guru_nama}` : `Cuti · ${block.pengganti_cuti_nama ? (block.sudah_isi ? `Diisi oleh ${block.pengganti_cuti_nama}` : block.pengganti_cuti_nama) : block.sudah_isi ? 'Agenda tercatat' : 'Belum ada pengganti'}`}
+                  </p>}
                   {block.status === 'IZIN' && !block.sudah_didelegasi && block.deskripsi_ketidakhadiran && <p className="text-xs text-slate-500 whitespace-pre-wrap">{block.deskripsi_ketidakhadiran}</p>}
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -486,15 +492,15 @@ export function AgendaClient({ initialData, userRole, draftOwnerId, isActingAs =
                       {style.label}
                     </div>
                   </>
-                ) : block.pengajuan_lupa_status === 'PENDING' ? (
+                ) : block.cuti && !block.pengganti_cuti ? null : !block.pengganti_cuti && block.pengajuan_lupa_status === 'PENDING' ? (
                   <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
                     <Clock className="h-3.5 w-3.5" /> Menunggu persetujuan
                   </span>
-                ) : block.pengajuan_lupa_status === 'REJECTED' ? (
+                ) : !block.pengganti_cuti && block.pengajuan_lupa_status === 'REJECTED' ? (
                   <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700">
                     <XCircle className="h-3.5 w-3.5" /> Pengajuan ditolak
                   </span>
-                ) : block.pengajuan_lupa_status === 'CANCELLED' ? (
+                ) : !block.pengganti_cuti && block.pengajuan_lupa_status === 'CANCELLED' ? (
                   <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
                     <Ban className="h-3.5 w-3.5" /> Pengajuan dibatalkan
                   </span>
@@ -589,7 +595,7 @@ export function AgendaClient({ initialData, userRole, draftOwnerId, isActingAs =
               </div>
             )}
 
-            {isExpanded && !block.sudah_isi && !block.sudah_didelegasi && (
+            {isExpanded && !block.sudah_isi && !block.sudah_didelegasi && (!block.cuti || block.pengganti_cuti) && (
               <div className="border-t bg-slate-50 dark:bg-slate-800/50 px-4 py-4 space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div>

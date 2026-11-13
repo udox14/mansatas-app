@@ -13,6 +13,8 @@ import { getCurrentUser } from '@/utils/auth/server'
 import { getUserRoles } from '@/lib/features'
 import { revalidatePath } from 'next/cache'
 import { nowWIBISO, todayWIB } from '@/lib/time'
+import { canCoverWaliClass } from '@/lib/teacher-leave-period'
+import { getAccessibleWaliKelasClasses } from '@/lib/wali-kelas-attendance'
 import { formatNamaKelas } from '@/lib/utils'
 import { invalidateAttendanceCache } from '@/lib/attendance-cache'
 import {
@@ -187,9 +189,7 @@ export async function getKelasBinaanForIzin(): Promise<{ error: string | null; k
       `SELECT id, tingkat, nomor_kelas, kelompok FROM kelas ORDER BY tingkat, CAST(nomor_kelas AS INTEGER)`
     ).all<any>()).results || []
   } else {
-    rows = (await db.prepare(
-      `SELECT id, tingkat, nomor_kelas, kelompok FROM kelas WHERE wali_kelas_id = ? ORDER BY tingkat, CAST(nomor_kelas AS INTEGER)`
-    ).bind(user.id).all<any>()).results || []
+    rows = await getAccessibleWaliKelasClasses(db, user.id, roles)
   }
 
   return {
@@ -217,7 +217,7 @@ export async function loadSiswaUntukIzin(kelasId: string, tanggal: string): Prom
     const kelas = await db.prepare(
       `SELECT id FROM kelas WHERE id = ? AND wali_kelas_id = ?`
     ).bind(kelasId, user.id).first<any>()
-    if (!kelas) return { error: 'Anda tidak memiliki akses ke kelas ini', siswa: [] }
+    if (!kelas && !(await canCoverWaliClass(db, user.id, kelasId, tanggal))) return { error: 'Anda tidak memiliki akses ke kelas ini', siswa: [] }
   }
 
   const [siswaRes, izinRes] = await Promise.all([
@@ -271,11 +271,14 @@ export async function simpanIzinWaliKelasBatch(
     const kelas = await db.prepare(
       `SELECT id FROM kelas WHERE id = ? AND wali_kelas_id = ?`
     ).bind(kelasId, user.id).first<any>()
-    if (!kelas) return { error: 'Akses ditolak' }
+    if (!kelas && !(await canCoverWaliClass(db, user.id, kelasId, tanggal))) return { error: 'Akses ditolak' }
   }
 
   const siswaIds = data.map(d => d.siswa_id)
-  const toHapus = data.filter(d => d.alasan === null).map(d => d.siswa_id)
+  if (!isValidTanggal(tanggal) || !siswaIds.length || siswaIds.length > 100) return { error: 'Data izin atau tanggal tidak valid.' }
+  const roster = await db.prepare(`SELECT id FROM siswa WHERE kelas_id = ? AND status = 'aktif'
+    AND id IN (SELECT value FROM json_each(?))`).bind(kelasId, JSON.stringify(siswaIds)).all<{ id: string }>()
+  if (roster.results.length !== new Set(siswaIds).size) return { error: 'Sebagian siswa tidak termasuk kelas ini.' }
   const toSimpan = data.filter(d => d.alasan !== null)
 
   try {

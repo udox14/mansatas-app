@@ -10,6 +10,7 @@ import { nowWIBISO, todayWIB } from '@/lib/time'
 import { emitConfiguredNotification, prepareAttendanceNotificationWork, flushAttendanceNotificationOutbox } from '@/lib/notification-engine'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
 import { invalidateAttendanceCache } from '@/lib/attendance-cache'
+import { readTeacherPeriods } from '@/lib/teacher-leave-period'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
 import {
   getKalenderDateStatus,
@@ -37,7 +38,7 @@ export type DelegasiMasuk = {
   delegasi_id: string
   delegasi_kelas_id: string
   dari_user_nama: string
-  alasan_ketidakhadiran: 'SAKIT' | 'IZIN'
+  alasan_ketidakhadiran: 'SAKIT' | 'IZIN' | 'CUTI'
   deskripsi_ketidakhadiran: string
   pelaksana_user_id: string | null
   pelaksana_nama: string | null
@@ -138,6 +139,33 @@ async function isGuruPiketPadaHari(db: D1Database, userId: string, hari: number)
      LIMIT 1`
   ).bind(hari, userId).first<any>()
   return !!row
+}
+
+async function getLeavePiketBlocks(db: D1Database, userId: string, tanggal: string) {
+  const hari = getHariFromDate(tanggal)
+  const leave = (await readTeacherPeriods(db, tanggal)).filter(row => !row.pengganti_id)
+  if (!leave.length || !await isGuruPiketPadaHari(db, userId, hari) || !(await getKalenderDateStatus(db, tanggal)).isEffective) return []
+  const [schedule, exceptions] = await Promise.all([
+    db.prepare(`SELECT pm.id, pm.guru_id, pm.kelas_id, k.tingkat, k.nomor_kelas, k.kelompok, mp.nama_mapel,
+      u.nama_lengkap AS guru_nama, GROUP_CONCAT(j.jam_ke) AS jam_list
+      FROM jadwal_mengajar j JOIN penugasan_mengajar pm ON pm.id = j.penugasan_id
+      JOIN tahun_ajaran ta ON ta.id = j.tahun_ajaran_id AND ta.is_active = 1
+      JOIN kelas k ON k.id = pm.kelas_id JOIN mata_pelajaran mp ON mp.id = pm.mapel_id
+      JOIN "user" u ON u.id = pm.guru_id
+      WHERE j.hari = ? AND pm.guru_id IN (SELECT value FROM json_each(?))
+        AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
+        AND NOT EXISTS (SELECT 1 FROM agenda_guru a WHERE a.penugasan_id = pm.id AND a.tanggal = ?)
+        AND NOT EXISTS (SELECT 1 FROM absensi_sesi_guru a WHERE a.penugasan_id = pm.id AND a.tanggal = ?)
+        AND NOT EXISTS (SELECT 1 FROM delegasi_tugas_kelas d JOIN delegasi_tugas t ON t.id = d.delegasi_id
+          WHERE d.penugasan_mengajar_id = pm.id AND t.tanggal = ?)
+      GROUP BY pm.id`).bind(hari, JSON.stringify(leave.map(row => row.guru_id)), tanggal, tanggal, tanggal, tanggal)
+      .all<{ id: string; guru_id: string; kelas_id: string; tingkat: number; nomor_kelas: string; kelompok: string; nama_mapel: string; guru_nama: string; jam_list: string }>(),
+    getKbmExceptionsForDate(db, tanggal),
+  ])
+  return schedule.results.flatMap(row => {
+    const active = splitTeachingSlotsByExceptions(exceptions, { id: row.kelas_id, tingkat: row.tingkat }, row.jam_list.split(',').map(Number)).activeJamKe
+    return active.length ? [{ ...row, mulai: active[0], selesai: active.at(-1)!, jumlahJam: active.length }] : []
+  })
 }
 
 // Semua petugas, termasuk akun PPL, harus ditempatkan langsung melalui
@@ -437,6 +465,7 @@ export async function getTugasMasuk(tanggal: string): Promise<{
   const rows = (await db.prepare(`
     SELECT
       dt.id as delegasi_id,
+      dt.dari_user_id,
       dtk.id as delegasi_kelas_id,
       u_dari.nama_lengkap as dari_user_nama,
       dt.alasan_ketidakhadiran,
@@ -484,7 +513,8 @@ export async function getTugasMasuk(tanggal: string): Promise<{
     }
   }
 
-  const data: DelegasiMasuk[] = rows.map((r: any) => {
+  const withReplacement = new Set((await readTeacherPeriods(db, tanggal)).filter(row => row.pengganti_id).map(row => row.guru_id))
+  const data: DelegasiMasuk[] = rows.filter(r => r.absen_selesai || !withReplacement.has(r.dari_user_id)).map((r: any) => {
     const jam = jamMap.get(r.penugasan_mengajar_id)
     const slotMulai = slots.find(s => s.id === jam?.mulai)
     const slotSelesai = slots.find(s => s.id === jam?.selesai)
@@ -511,6 +541,17 @@ export async function getTugasMasuk(tanggal: string): Promise<{
     }
   })
 
+  for (const block of await getLeavePiketBlocks(db, user.id, tanggal)) {
+    data.push({
+      delegasi_id: `cuti:${block.guru_id}`, delegasi_kelas_id: `cuti:${block.id}`, dari_user_nama: block.guru_nama,
+      alasan_ketidakhadiran: 'CUTI', deskripsi_ketidakhadiran: 'Belum ada guru pengganti.',
+      pelaksana_user_id: null, pelaksana_nama: null, tanggal, kelas_id: block.kelas_id,
+      kelas_label: formatNamaKelas(block.tingkat, block.nomor_kelas, block.kelompok), penugasan_mengajar_id: block.id,
+      mapel_nama: block.nama_mapel, tugas: '', absen_selesai: false, status: 'DIKIRIM',
+      jam_ke_mulai: block.mulai, jam_ke_selesai: block.selesai,
+      slot_mulai: slots.find(s => s.id === block.mulai)?.mulai || '-', slot_selesai: slots.find(s => s.id === block.selesai)?.selesai || '-',
+    })
+  }
   return { error: null, data, slots }
 }
 
@@ -639,12 +680,15 @@ export async function loadSiswaDelegasi(
   const db = await getDB()
 
   // Verify user is the assigned receiver (legacy) or any teacher on today's piket roster.
-  const dtk = await db.prepare(`
-    SELECT dtk.id, dt.kepada_user_id FROM delegasi_tugas_kelas dtk
+  const cuti = delegasiKelasId === `cuti:${penugasanMengajarId}`
+    && (await getLeavePiketBlocks(db, user.id, tanggal)).some(block => block.id === penugasanMengajarId && block.kelas_id === kelasId)
+  const dtk = cuti ? { kepada_user_id: user.id } : await db.prepare(`
+    SELECT dtk.id, dtk.absen_selesai, dt.kepada_user_id, dt.dari_user_id FROM delegasi_tugas_kelas dtk
     JOIN delegasi_tugas dt ON dtk.delegasi_id = dt.id
-    WHERE dtk.id = ? AND dt.tanggal = ?
-  `).bind(delegasiKelasId, tanggal).first<any>()
+    WHERE dtk.id = ? AND dt.tanggal = ? AND dtk.penugasan_mengajar_id = ? AND dtk.kelas_id = ?
+  `).bind(delegasiKelasId, tanggal, penugasanMengajarId, kelasId).first<any>()
   if (!dtk) return { error: 'Tidak memiliki akses.', siswa: [] }
+  if (!cuti && !dtk.absen_selesai && (await readTeacherPeriods(db, tanggal, tanggal, dtk.dari_user_id)).some(row => row.pengganti_id)) return { error: 'Sesi dialihkan kepada pengganti cuti.', siswa: [] }
   if (dtk.kepada_user_id && dtk.kepada_user_id !== user.id) return { error: 'Tidak memiliki akses.', siswa: [] }
   if (!dtk.kepada_user_id && !(await isGuruPiketPadaHari(db, user.id, getHariFromDate(tanggal)))) {
     return { error: 'Tidak memiliki akses.', siswa: [] }
@@ -723,12 +767,17 @@ export async function simpanAbsensiDelegasi(
   const db = await getDB()
 
   // Verify user is the assigned receiver (legacy) or any teacher on today's piket roster.
-  const dtk = await db.prepare(`
-    SELECT dtk.id, dtk.delegasi_id, dtk.absen_selesai, dtk.pelaksana_user_id, dt.kepada_user_id FROM delegasi_tugas_kelas dtk
+  const cuti = delegasiKelasId === `cuti:${penugasanMengajarId}`
+    ? (await getLeavePiketBlocks(db, user.id, tanggal)).find(block => block.id === penugasanMengajarId)
+    : undefined
+  if (cuti && (tanggal !== todayWIB() || jamKeMulai !== cuti.mulai || jamKeSelesai !== cuti.selesai)) return { error: 'Sesi cuti sudah berubah.' }
+  const dtk = cuti ? { kepada_user_id: user.id } : await db.prepare(`
+    SELECT dtk.id, dtk.delegasi_id, dtk.absen_selesai, dtk.pelaksana_user_id, dt.kepada_user_id, dt.dari_user_id FROM delegasi_tugas_kelas dtk
     JOIN delegasi_tugas dt ON dtk.delegasi_id = dt.id
-    WHERE dtk.id = ? AND dt.tanggal = ?
-  `).bind(delegasiKelasId, tanggal).first<any>()
+    WHERE dtk.id = ? AND dt.tanggal = ? AND dtk.penugasan_mengajar_id = ?
+  `).bind(delegasiKelasId, tanggal, penugasanMengajarId).first<any>()
   if (!dtk) return { error: 'Tidak memiliki akses.' }
+  if (!cuti && !dtk.absen_selesai && (await readTeacherPeriods(db, tanggal, tanggal, dtk.dari_user_id)).some(row => row.pengganti_id)) return { error: 'Sesi dialihkan kepada pengganti cuti.' }
   if (dtk.kepada_user_id && dtk.kepada_user_id !== user.id) return { error: 'Tidak memiliki akses.' }
   if (!dtk.kepada_user_id && !(await isGuruPiketPadaHari(db, user.id, getHariFromDate(tanggal)))) {
     return { error: 'Tidak memiliki akses.' }
@@ -740,7 +789,14 @@ export async function simpanAbsensiDelegasi(
   // Sparse: only save non-HADIR
   await ensureSchemaOnce('absensi-sesi-guru-index', () => ensureAbsensiSessionTable(db))
   const toSave = dataAbsen.filter(d => d.status !== 'HADIR')
-  const jumlahJam = jamKeSelesai - jamKeMulai + 1
+  const jumlahJam = cuti?.jumlahJam ?? jamKeSelesai - jamKeMulai + 1
+  if (cuti) {
+    const ids = [...new Set(dataAbsen.map(row => row.siswa_id))]
+    const roster = await db.prepare(`SELECT id FROM siswa WHERE kelas_id = ? AND status = 'aktif'
+      AND id IN (SELECT value FROM json_each(?))`).bind(cuti.kelas_id, JSON.stringify(ids)).all<{ id: string }>()
+    if (!ids.length || ids.length !== dataAbsen.length || roster.results.length !== ids.length
+      || dataAbsen.some(row => !['HADIR', 'SAKIT', 'ALFA', 'IZIN'].includes(row.status))) return { error: 'Data siswa atau status absensi tidak valid.' }
+  }
   const delStmt = db.prepare(
     'DELETE FROM absensi_siswa WHERE penugasan_id = ? AND tanggal = ?'
   ).bind(penugasanMengajarId, tanggal)
@@ -762,26 +818,32 @@ export async function simpanAbsensiDelegasi(
   try {
     const work = await prepareAttendanceNotificationWork(db, { penugasanId: penugasanMengajarId, tanggal,
       siswaIds: dataAbsen.map(d => d.siswa_id), notifyIds })
-    await db.batch([delStmt, ...inserts, upsertSesiStmt, ...work])
+    const claim = db.prepare(`INSERT INTO absensi_sesi_guru (penugasan_id, tanggal, submitted_at, diinput_oleh, updated_at)
+      VALUES (?, ?, datetime('now'), ?, datetime('now'))`).bind(penugasanMengajarId, tanggal, user.id)
+    const snapshots = cuti ? dataAbsen.map(row => db.prepare(`INSERT INTO absensi_sesi_siswa
+      (penugasan_id, siswa_id, tanggal, jam_ke_mulai, jam_ke_selesai, jumlah_jam, status, catatan, diinput_oleh)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(
+      penugasanMengajarId, row.siswa_id, tanggal, jamKeMulai, jamKeSelesai, jumlahJam, row.status, row.catatan || null, user.id,
+    )) : []
+    await db.batch(cuti ? [claim, ...inserts, ...snapshots, ...work] : [delStmt, ...inserts, upsertSesiStmt, ...work])
   } catch (error: unknown) { return { error: error instanceof Error ? error.message : 'Absensi gagal disimpan.' } }
 
-  // Mark absen_selesai
-  await dbUpdate(db, 'delegasi_tugas_kelas', {
-    absen_selesai: 1,
-    pelaksana_user_id: user.id,
-    selesai_at: nowWIBISO(),
-  }, { id: delegasiKelasId })
+  if (!cuti) {
+    await dbUpdate(db, 'delegasi_tugas_kelas', {
+      absen_selesai: 1,
+      pelaksana_user_id: user.id,
+      selesai_at: nowWIBISO(),
+    }, { id: delegasiKelasId })
 
-  // Check if all kelas in this delegasi are done → mark delegasi as SELESAI
-  const remaining = await db.prepare(
-    'SELECT COUNT(*) as cnt FROM delegasi_tugas_kelas WHERE delegasi_id = ? AND absen_selesai = 0'
-  ).bind(dtk.delegasi_id).first<any>()
-
-  if (remaining?.cnt === 0) {
-    await dbUpdate(db, 'delegasi_tugas', {
-      status: 'SELESAI',
-      updated_at: nowWIBISO(),
-    }, { id: dtk.delegasi_id })
+    const remaining = await db.prepare(
+      'SELECT COUNT(*) as cnt FROM delegasi_tugas_kelas WHERE delegasi_id = ? AND absen_selesai = 0'
+    ).bind(dtk.delegasi_id).first<any>()
+    if (remaining?.cnt === 0) {
+      await dbUpdate(db, 'delegasi_tugas', {
+        status: 'SELESAI',
+        updated_at: nowWIBISO(),
+      }, { id: dtk.delegasi_id })
+    }
   }
 
   invalidateAttendanceCache()

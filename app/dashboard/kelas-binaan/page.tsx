@@ -42,15 +42,13 @@ export default async function KelasBinaanPage({
 
   const db = await getDB()
   const roles = await getUserRoles(db, user.id)
-  const canAccess = roles.some(role => ['wali_kelas', 'super_admin', 'admin_tu', 'kepsek', 'wakamad'].includes(role))
-  if (!canAccess) redirect('/dashboard')
 
   const [freshUser, taAktif, kelasList] = await Promise.all([
     db.prepare('SELECT nama_lengkap, role, avatar_url FROM "user" WHERE id = ?')
       .bind(user.id).first<{ nama_lengkap: string; role: string; avatar_url: string | null }>(),
     db.prepare('SELECT id, nama, semester FROM tahun_ajaran WHERE is_active = 1 LIMIT 1')
       .first<{ id: string; nama: string; semester: number }>(),
-    getAccessibleWaliKelasClasses(db, user.id, roles),
+    getAccessibleWaliKelasClasses(db, user.id, roles, tanggal),
   ])
 
   if (kelasList.length === 0) redirect('/dashboard')
@@ -68,7 +66,6 @@ export default async function KelasBinaanPage({
   const namaDepan = namaLengkap.split(' ')[0]
   const avatarUrl = freshUser?.avatar_url ?? null
   const isWaliKelasOnly =
-    roles.includes('wali_kelas') &&
     !roles.some(role => ['super_admin', 'admin_tu', 'kepsek', 'wakamad'].includes(role))
   const activeView: KelasBinaanView = KELAS_BINAAN_VIEWS.includes(view as KelasBinaanView)
     ? view as KelasBinaanView

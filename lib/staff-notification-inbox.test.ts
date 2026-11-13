@@ -6,7 +6,7 @@ const runtime = vi.hoisted(() => ({ db:null as unknown as D1Database,userId:'wal
 vi.mock('./schema-guard', () => ({ensureSchemaOnce:async (_key:string,ensure:()=>Promise<unknown>)=>ensure()}))
 vi.mock('@/utils/db-server', () => ({getDB:async()=>runtime.db}))
 vi.mock('@/utils/auth/server', () => ({getCurrentUser:async()=>runtime.userId ? {id:runtime.userId} : null}))
-vi.mock('@/lib/features', () => ({getUserRoles:async()=>runtime.roles}))
+vi.mock('@/lib/features', () => ({getUserRoles:async()=>runtime.roles, checkFeatureAccess: async () => false}))
 vi.mock('next/cache', () => ({revalidatePath:vi.fn()}))
 vi.mock('next/navigation', () => ({redirect:(url:string)=>{throw new Error(`redirect:${url}`)}}))
 import { getStaffInbox, getUnreadStaffNotificationCount, readStaffNotification, staffNotificationHref, writeStaffNotifications } from './staff-notification-inbox'

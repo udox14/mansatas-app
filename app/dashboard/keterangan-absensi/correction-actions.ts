@@ -1,5 +1,7 @@
 'use server'
 
+import { canCoverWaliClass } from '@/lib/teacher-leave-period'
+
 import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
@@ -53,14 +55,15 @@ async function requireCorrectionReviewerAccess() {
   return reviewer ? { db, user, ...reviewer } : null
 }
 
-async function requireCorrectionStudentAccess(siswaId: string) {
+async function requireCorrectionStudentAccess(siswaId: string, tanggal: string) {
   const user = await getCurrentUser()
   if (!user) return null
   const db = await getDB()
-  const student = await db.prepare(`SELECT s.kelas_id FROM siswa s JOIN kelas k ON k.id = s.kelas_id
-    WHERE s.id = ? AND s.status = 'aktif' AND k.wali_kelas_id = ?`).bind(siswaId, user.id)
-    .first<{ kelas_id: string }>()
-  return student && { db, user, kelasId: student.kelas_id }
+  const student = await db.prepare(`SELECT s.kelas_id, k.wali_kelas_id FROM siswa s JOIN kelas k ON k.id = s.kelas_id
+    WHERE s.id = ? AND s.status = 'aktif'`).bind(siswaId)
+    .first<{ kelas_id: string; wali_kelas_id: string }>()
+  if (!student || (student.wali_kelas_id !== user.id && !(await canCoverWaliClass(db, user.id, student.kelas_id, tanggal)))) return null
+  return { db, user, kelasId: student.kelas_id, waliId: student.wali_kelas_id }
 }
 
 function validDate(value: string) {
@@ -70,8 +73,9 @@ function validDate(value: string) {
 }
 
 export async function getStudentAttendanceCorrections(siswaId: string, tanggal: string) {
-  const access = await requireCorrectionStudentAccess(siswaId)
-  if (!access || !validDate(tanggal)) return { error: 'Akses ajuan tidak tersedia.' }
+  if (!validDate(tanggal)) return { error: 'Akses ajuan tidak tersedia.' }
+  const access = await requireCorrectionStudentAccess(siswaId, tanggal)
+  if (!access) return { error: 'Akses ajuan tidak tersedia.' }
   const rows = await access.db.prepare(`SELECT id, requested_status AS proposed, reason, status, evidence_json
     FROM attendance_correction_requests WHERE siswa_id = ? AND tanggal = ? AND kelas_id = ?
     ORDER BY requested_at DESC, rowid DESC LIMIT 20`).bind(siswaId, tanggal, access.kelasId)
@@ -97,7 +101,7 @@ export async function requestAttendanceCorrection(input: {
       typeof input.reason !== 'string' || !input.reason.trim() || input.reason.length > 2000) {
     return { error: 'Pilih status dan isi alasan koreksi (maksimal 2.000 karakter).' }
   }
-  const access = await requireCorrectionStudentAccess(input.siswaId)
+  const access = await requireCorrectionStudentAccess(input.siswaId, input.tanggal)
   if (!access) return { error: 'Ajuan hanya dapat dikirim oleh wali kelas siswa.' }
   const { db, user, kelasId } = access
   const source = await readCorrectionSource(db, input.siswaId, input.tanggal)
@@ -128,7 +132,7 @@ export async function requestAttendanceCorrection(input: {
       ) ON CONFLICT DO NOTHING`).bind(
       requestId, kelasId, snapshot.tahunAjaranId, day.is_daily_final ? day.status_akhir : 'ALFA',
       input.status, input.reason.trim(), key, JSON.stringify(evidence),
-      input.siswaId, input.tanggal, user.id, source, kelasId, user.id,
+      input.siswaId, input.tanggal, user.id, source, kelasId, access.waliId,
     ),
     ...notice.statements,
   ]

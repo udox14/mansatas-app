@@ -213,7 +213,7 @@ function addPage(sheet: SheetBuilder, page: AgendaKelasPageData, index: number, 
       indexRow + 1,
       row?.mapel_nama ? row.mapel_nama.toUpperCase() : null,
       row?.pokok_bahasan || null,
-      row?.tugas || null,
+      row?.pengganti_nama ? `Pengganti: ${row.pengganti_nama}` : row?.tugas || null,
       row?.guru_status || row?.paraf || null,
     ]
     for (let col = 0; col < values.length; col++) sheet.set(excelRow, col, values[col], bodyStyles[col])

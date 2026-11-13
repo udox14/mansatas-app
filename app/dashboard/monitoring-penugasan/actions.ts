@@ -6,13 +6,15 @@ import { getDB } from '@/utils/db-server'
 import { getCurrentUser } from '@/utils/auth/server'
 import { checkFeatureAccess } from '@/lib/features'
 import { formatNamaKelas } from '@/lib/utils'
+import { readTeacherPeriods } from '@/lib/teacher-leave-period'
+import { getKalenderDateStatus, getKbmExceptionsForDate, splitTeachingSlotsByExceptions } from '@/lib/kalender-pendidikan'
 
 export type MonitoringDelegasi = TeacherLeaveMetadata & {
   delegasi_id: string
   dari_nama: string
   kepada_nama: string
   status: string
-  alasan_ketidakhadiran: 'SAKIT' | 'IZIN'
+  alasan_ketidakhadiran: 'SAKIT' | 'IZIN' | 'CUTI'
   deskripsi_ketidakhadiran: string
   tanggal: string
   created_at: string
@@ -124,4 +126,47 @@ export async function getMonitoringData(tanggal: string): Promise<{ error: strin
   }
 
   return { error: null, data: await enrichTeacherDelegations(db, Array.from(grouped.values())) }
+}
+
+export async function getCutiMonitoring(tanggal: string): Promise<MonitoringDelegasi[]> {
+  const user = await getCurrentUser()
+  if (!user) return []
+  const db = await getDB()
+  if (!(await checkFeatureAccess(db, user.id, 'monitoring-penugasan'))) return []
+  const periods = await readTeacherPeriods(db, tanggal)
+  if (!periods.length || !(await getKalenderDateStatus(db, tanggal)).isEffective) return []
+  const [schedule, exceptions] = await Promise.all([
+    db.prepare(`SELECT pm.id, pm.guru_id, k.id AS kelas_id, k.tingkat, k.nomor_kelas, k.kelompok,
+      mp.nama_mapel, u.nama_lengkap AS guru_nama, GROUP_CONCAT(j.jam_ke) AS jam_list,
+      a.id AS agenda_id, ab.id AS absensi_id,
+      COALESCE(pelaksana.nama_lengkap, praktik.nama_lengkap, absen_actor.nama_lengkap) AS pelaksana_nama
+      FROM jadwal_mengajar j JOIN penugasan_mengajar pm ON pm.id = j.penugasan_id
+      JOIN tahun_ajaran ta ON ta.id = j.tahun_ajaran_id AND ta.is_active = 1
+      JOIN kelas k ON k.id = pm.kelas_id JOIN mata_pelajaran mp ON mp.id = pm.mapel_id JOIN "user" u ON u.id = pm.guru_id
+      LEFT JOIN agenda_guru a ON a.penugasan_id = pm.id AND a.tanggal = ?
+      LEFT JOIN absensi_sesi_guru ab ON ab.penugasan_id = pm.id AND ab.tanggal = ?
+      LEFT JOIN "user" pelaksana ON pelaksana.id = a.pengganti_cuti_user_id
+      LEFT JOIN "user" praktik ON praktik.id = a.ppl_user_id
+      LEFT JOIN "user" absen_actor ON absen_actor.id = ab.diinput_oleh
+      WHERE j.hari = ? AND pm.guru_id IN (SELECT value FROM json_each(?))
+        AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
+      GROUP BY pm.id`).bind(tanggal, tanggal, getHariFromDate(tanggal), JSON.stringify(periods.map(row => row.guru_id)), tanggal)
+      .all<{ guru_id: string; kelas_id: string; tingkat: number; nomor_kelas: string; kelompok: string; nama_mapel: string; guru_nama: string; jam_list: string; agenda_id: string | null; absensi_id: string | null; pelaksana_nama: string | null }>(),
+    getKbmExceptionsForDate(db, tanggal),
+  ])
+  return periods.flatMap(period => {
+    const rows = schedule.results.filter(row => row.guru_id === period.guru_id && splitTeachingSlotsByExceptions(
+      exceptions, { id: row.kelas_id, tingkat: row.tingkat }, row.jam_list.split(',').map(Number),
+    ).activeJamKe.length)
+    if (!rows.length) return []
+    const items = rows.map(row => ({
+      kelas_label: formatNamaKelas(row.tingkat, row.nomor_kelas, row.kelompok), mapel_nama: row.nama_mapel,
+      tugas: row.agenda_id ? 'Agenda terisi' : 'Agenda belum terisi', absen_selesai: !!row.absensi_id, pelaksana_nama: row.pelaksana_nama,
+    }))
+    return [{
+      delegasi_id: `cuti:${period.id}`, dari_nama: rows[0].guru_nama, kepada_nama: period.pengganti_nama || 'Belum ada pengganti',
+      status: items.every(item => item.absen_selesai) ? 'SELESAI' : 'DIKIRIM', alasan_ketidakhadiran: 'CUTI',
+      deskripsi_ketidakhadiran: '', tanggal, created_at: tanggal, items,
+    }]
+  })
 }

@@ -155,6 +155,7 @@ export function AgendaHistory() {
             <SelectItem value="IZIN">Izin</SelectItem>
             <SelectItem value="SAKIT">Sakit</SelectItem>
             <SelectItem value="ALFA">Alfa</SelectItem>
+            <SelectItem value="CUTI">Cuti</SelectItem>
           </SelectContent>
         </Select></div>
         <Button size="sm" onClick={loadLeaves} disabled={loading || !month}>{loading ? 'Memuat…' : 'Tampilkan'}</Button>
@@ -177,7 +178,7 @@ export function AgendaHistory() {
               <TableCell>{row.status === 'IZIN' ? <input type="checkbox" aria-label={`Pilih izin ${row.guru_nama} ${row.tanggal}`} checked={selected.includes(row.id)} onChange={event => setSelected(current => event.target.checked ? [...current, row.id] : current.filter(id => id !== row.id))} /> : <span className="text-slate-300">—</span>}</TableCell>
               <TableCell className="min-w-40 align-top text-sm"><span className="font-medium">{row.guru_nama}</span><br /><span className="text-slate-500">{dateLabel(row.tanggal)}</span></TableCell>
               <TableCell className="min-w-40 align-top text-sm">{row.kelas || '—'}{row.mapel ? <><br /><span className="text-slate-500">{row.mapel} · {row.jam}</span></> : null}</TableCell>
-              <TableCell className="whitespace-nowrap align-top text-sm">{row.status === 'IZIN' ? 'Izin' : row.status === 'SAKIT' ? 'Sakit' : 'Alfa'}</TableCell>
+              <TableCell className="whitespace-nowrap align-top text-sm">{row.status === 'IZIN' ? 'Izin' : row.status === 'SAKIT' ? 'Sakit' : row.status === 'CUTI' ? 'Cuti' : 'Alfa'}</TableCell>
               <TableCell className="min-w-56 max-w-sm whitespace-pre-wrap align-top text-sm">{row.deskripsi || '—'}</TableCell>
               <TableCell className="min-w-40 align-top text-sm"><span>{row.alasan_nama || (row.status === 'IZIN' ? 'Belum dipetakan' : '—')}</span><br /><span className={row.kepentingan_sekolah ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500'}>{row.status === 'IZIN' ? (row.kepentingan_sekolah ? 'Izin sekolah' : 'Izin biasa') : '—'}</span></TableCell>
               <TableCell className="min-w-32 align-top text-xs text-slate-500">{monthlySourceLabel(row.source)}<br />{timeLabel(row.waktu_input)}</TableCell>

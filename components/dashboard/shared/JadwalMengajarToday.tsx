@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { getDB } from '@/utils/db-server'
 import { todayWIB } from '@/lib/time'
+import { readReplacementScopes, readTeacherPeriods } from '@/lib/teacher-leave-period'
 import { ClipboardText as ClipboardPen, BookOpen, CheckCircle as CheckCircle2, WarningCircle as AlertCircle, UserCheck, Calendar as CalendarDays, Prohibit as Ban } from '@phosphor-icons/react/dist/ssr'
 import { getKbmExceptionsForDate, getKalenderDateStatus, splitTeachingSlotsByExceptions } from '@/lib/kalender-pendidikan'
 import { formatNamaKelas } from '@/lib/utils'
@@ -16,14 +17,17 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
   if (!taAktif?.id) return null
 
   const db = await getDB()
+  const today = todayWIB()
+  const [scopes, periods] = await Promise.all([readReplacementScopes(db, userId, today), readTeacherPeriods(db, today)])
+  const teacherIds = JSON.stringify([userId, ...scopes.map(row => row.guru_id)])
+  const leaveByTeacher = new Map(periods.map(row => [row.guru_id, row]))
   
   // Cek apakah user punya penugasan mengajar
-  const isGuru = await db.prepare('SELECT id FROM penugasan_mengajar WHERE guru_id = ? AND tahun_ajaran_id = ? LIMIT 1')
-    .bind(userId, taAktif.id).first()
+  const isGuru = await db.prepare('SELECT id FROM penugasan_mengajar WHERE guru_id IN (SELECT value FROM json_each(?)) AND tahun_ajaran_id = ? LIMIT 1')
+    .bind(teacherIds, taAktif.id).first()
 
   if (!isGuru) return null
 
-  const today = todayWIB()
   const d = new Date(today + 'T00:00:00')
   const hariIni = d.getDay() === 0 ? 7 : d.getDay()
   const calendarStatus = await getKalenderDateStatus(db, today)
@@ -50,6 +54,7 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
       MIN(jm.jam_ke) as jam_mulai, MAX(jm.jam_ke) as jam_selesai,
       GROUP_CONCAT(jm.jam_ke) as jam_list,
       jm.penugasan_id,
+      pm.guru_id,
       mp.nama_mapel,
       k.id as kelas_id, k.tingkat, k.nomor_kelas, k.kelompok,
       ag.id as agenda_id,
@@ -72,11 +77,11 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
     JOIN mata_pelajaran mp ON pm.mapel_id = mp.id
     JOIN kelas k ON pm.kelas_id = k.id
     LEFT JOIN agenda_guru ag ON ag.penugasan_id = jm.penugasan_id AND ag.tanggal = ?
-    WHERE jm.tahun_ajaran_id = ? AND jm.hari = ? AND pm.guru_id = ?
+    WHERE jm.tahun_ajaran_id = ? AND jm.hari = ? AND pm.guru_id IN (SELECT value FROM json_each(?))
       AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
     GROUP BY jm.penugasan_id, mp.nama_mapel, k.id, k.tingkat, k.nomor_kelas, k.kelompok, ag.id
     ORDER BY jam_mulai ASC
-  `).bind(today, today, taAktif.id, hariIni, userId, today).all<any>().then(r => r.results ?? [])
+  `).bind(today, today, taAktif.id, hariIni, teacherIds, today).all<any>().then(r => r.results ?? [])
 
   // Parse jam dari pola jam pelajaran
   let slotsMap: Record<number, { mulai: string; selesai: string }> = {}
@@ -105,7 +110,7 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
       is_fully_excepted: slotState.activeJamKe.length === 0,
     }
   })
-  const activeJadwalRows = displayJadwalRows.filter((j: any) => !j.is_fully_excepted)
+  const activeJadwalRows = displayJadwalRows.filter((j: any) => !j.is_fully_excepted && (j.guru_id !== userId || !leaveByTeacher.has(userId)))
   const totalJadwal = activeJadwalRows.length
   const sudahIsiAgenda = activeJadwalRows.filter((j: any) => !!j.agenda_id).length
   const sudahMenugaskan = activeJadwalRows.filter((j: any) => !!j.delegasi_status).length
@@ -166,6 +171,7 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
             const filled = !!j.agenda_id
             const delegated = !!j.delegasi_status
             const delegationPending = j.delegasi_status === 'DIKIRIM'
+            const leave = leaveByTeacher.get(j.guru_id)
             return (
               <div key={i} className={`flex items-start gap-3 px-4 py-2.5 ${j.is_fully_excepted ? 'bg-slate-50/80 dark:bg-slate-900/40' : filled || delegated ? '' : 'bg-amber-50/30 dark:bg-amber-900/10'}`}>
                 <div className={`h-8 w-8 shrink-0 rounded-lg flex items-center justify-center ${j.is_fully_excepted ? 'bg-slate-100 dark:bg-slate-800' : filled || delegated ? 'bg-emerald-50 dark:bg-emerald-900/30' : 'bg-amber-50 dark:bg-amber-900/30'}`}>
@@ -182,6 +188,7 @@ export async function JadwalMengajarToday({ userId, taAktif, showAbsensiAction =
                   <div className="flex flex-col gap-0.5 mb-1 min-w-0">
                     <span className="text-sm font-bold text-slate-800 dark:text-slate-100 whitespace-nowrap" title={`Kelas ${formatNamaKelas(j.tingkat, j.nomor_kelas, j.kelompok)}`}>Kelas {formatNamaKelas(j.tingkat, j.nomor_kelas, j.kelompok)}</span>
                     <span className="text-xs font-medium text-slate-600 dark:text-slate-400 whitespace-nowrap" title={j.nama_mapel}>{j.nama_mapel}</span>
+                    {leave && !j.is_fully_excepted && <span className="text-xs text-muted-foreground">{j.guru_id === userId ? `Cuti · ${leave.pengganti_nama || 'Belum ada pengganti'}` : 'Jadwal pengganti cuti'}</span>}
                   </div>
                   {j.exception_segments.map((segment: any) => (
                     <p key={`${segment.exception_id}-${segment.jam_ke_mulai}`} className="mt-1 text-[9px] font-medium text-sky-600">

@@ -8,6 +8,7 @@ import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
 import { formatNamaKelas } from '@/lib/utils'
 import { getEffectiveUser, getActAsDate } from '@/lib/act-as'
 import { resolveTeachingAssignmentAccess } from '@/lib/guru-ppl-access'
+import { readReplacementScopes, readTeacherPeriods } from '@/lib/teacher-leave-period'
 import { currentTimeWIB, todayWIB, nowWIB } from '@/lib/time'
 import { getSystemSettingBoolean, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 import { prepareAttendanceNotificationWork, flushAttendanceNotificationOutbox } from '@/lib/notification-engine'
@@ -144,11 +145,12 @@ async function getAccessiblePenugasan(
   penugasanId: string,
   guruId: string,
   tanggal?: string,
-): Promise<{ kelas_id: string; tingkat: number; kbm_nonaktif_mulai: string | null } | null> {
+) {
   const access = await resolveTeachingAssignmentAccess(db, guruId, penugasanId, tanggal)
   if (!access) return null
-  return db.prepare(`SELECT id AS kelas_id, tingkat, kbm_nonaktif_mulai FROM kelas WHERE id = ? LIMIT 1`)
-    .bind(access.kelasId).first<any>()
+  const kelas = await db.prepare(`SELECT id AS kelas_id, tingkat, kbm_nonaktif_mulai FROM kelas WHERE id = ? LIMIT 1`)
+    .bind(access.kelasId).first<{ kelas_id: string; tingkat: number; kbm_nonaktif_mulai: string | null }>()
+  return kelas && { ...kelas, access }
 }
 
 // ============================================================
@@ -219,9 +221,12 @@ export async function getBlokMengajarHariIni(guruIdOverride?: string, dateOverri
   const slots = getSlotsHari(ta.jam_pelajaran || '[]', hari)
   if (!slots.length) return { error: null, blocks: [], tanggal, hari, hariNama: HARI[hari] }
   const kbmExceptions = await getKbmExceptionsForDate(db, tanggal)
+  const [scopes, periods] = await Promise.all([readReplacementScopes(db, guruId, tanggal), readTeacherPeriods(db, tanggal)])
+  const substituteFor = scopes.map(row => row.guru_id)
+  const cuti = new Map(periods.map(row => [row.guru_id, row]))
 
   const rows = (await db.prepare(`
-    SELECT jm.penugasan_id, jm.jam_ke,
+    SELECT jm.penugasan_id, jm.jam_ke, pm.guru_id,
       mp.nama_mapel, k.id as kelas_id, k.tingkat, k.nomor_kelas, k.kelompok
     FROM jadwal_mengajar jm
     JOIN penugasan_mengajar pm ON jm.penugasan_id = pm.id
@@ -229,7 +234,7 @@ export async function getBlokMengajarHariIni(guruIdOverride?: string, dateOverri
     JOIN kelas k ON pm.kelas_id = k.id
     WHERE jm.tahun_ajaran_id = ? AND jm.hari = ?
       AND (
-        pm.guru_id = ?
+        pm.guru_id = ? OR pm.guru_id IN (SELECT value FROM json_each(?))
         OR pm.id IN (
           SELECT penugasan_mengajar_id FROM guru_ppl_mapping
           WHERE guru_ppl_id = ? AND berlaku_mulai <= ?
@@ -238,7 +243,7 @@ export async function getBlokMengajarHariIni(guruIdOverride?: string, dateOverri
       )
       AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
     ORDER BY jm.jam_ke
-  `).bind(ta.id, hari, guruId, guruId, tanggal, tanggal, tanggal).all<any>()).results || []
+  `).bind(ta.id, hari, guruId, JSON.stringify(substituteFor), guruId, tanggal, tanggal, tanggal).all<any>()).results || []
 
   if (!rows.length) return { error: null, blocks: [], tanggal, hari, hariNama: HARI[hari] }
 
@@ -265,6 +270,7 @@ export async function getBlokMengajarHariIni(guruIdOverride?: string, dateOverri
   // Group per penugasan
   const grouped = new Map<string, any[]>()
   for (const r of rows) {
+    if (cuti.has(r.guru_id) && !substituteFor.includes(r.guru_id)) continue
     if (!grouped.has(r.penugasan_id)) grouped.set(r.penugasan_id, [])
     grouped.get(r.penugasan_id)!.push(r)
   }
@@ -415,6 +421,12 @@ export async function simpanAbsensi(
   await ensureSchemaOnce('absensi-session', () => ensureAbsensiSessionTable(db))
   const penugasan = await getAccessiblePenugasan(db, penugasanId, guruId, tanggal)
   if (!penugasan) return { error: 'Penugasan tidak ditemukan atau bukan sesi mengajar Anda.' }
+  if (penugasan.access.ownerOnLeave && penugasan.access.actorKind === 'GURU') return { error: 'Guru utama tercatat cuti pada tanggal ini.' }
+  if (penugasan.access.actorKind === 'PENGGANTI') {
+    const saved = await db.prepare('SELECT diinput_oleh FROM absensi_sesi_guru WHERE penugasan_id = ? AND tanggal = ?')
+      .bind(penugasanId, tanggal).first<{ diinput_oleh: string }>()
+    if (saved && saved.diinput_oleh !== user.id) return { error: 'Presensi sesi sudah diisi oleh pelaksana lain.' }
+  }
   const calendarStatus = await getKalenderDateStatus(db, tanggal, {
     kelasId: penugasan.kelas_id,
     tingkat: Number(penugasan.tingkat),
@@ -514,6 +526,11 @@ export async function simpanAbsensi(
       diinput_oleh = excluded.diinput_oleh,
       updated_at = excluded.updated_at
   `).bind(penugasanId, tanggal, diinputOleh)
+  const claimReplacementSession = penugasan.access.actorKind === 'PENGGANTI' ? db.prepare(`
+    INSERT INTO absensi_sesi_guru (penugasan_id, tanggal, submitted_at, diinput_oleh, updated_at)
+    SELECT ?, ?, datetime('now'), ?, datetime('now')
+    WHERE NOT EXISTS (SELECT 1 FROM absensi_sesi_guru WHERE penugasan_id = ? AND tanggal = ? AND diinput_oleh = ?)
+  `).bind(penugasanId, tanggal, diinputOleh, penugasanId, tanggal, diinputOleh) : null
 
   const insStmts = toSave.map(d => db.prepare(
     `INSERT INTO absensi_siswa (penugasan_id,siswa_id,tanggal,jam_ke_mulai,jam_ke_selesai,jumlah_jam,status,catatan,diinput_oleh) VALUES (?,?,?,?,?,?,?,?,?)`
@@ -521,7 +538,7 @@ export async function simpanAbsensi(
   try {
     const work = await prepareAttendanceNotificationWork(db, { penugasanId, tanggal,
       siswaIds: dataAbsen.map(d => d.siswa_id), notifyIds: changedNotificationIds })
-    await db.batch([delStmt, delSnapshotStmt, ...insStmts, ...snapshotStmts, upsertSesiStmt, ...work])
+    await db.batch([...(claimReplacementSession ? [claimReplacementSession] : []), delStmt, delSnapshotStmt, ...insStmts, ...snapshotStmts, upsertSesiStmt, ...work])
   } catch (error: unknown) { return { error: error instanceof Error ? error.message : 'Absensi gagal disimpan.' } }
   invalidateAttendanceCache()
   try { await flushAttendanceNotificationOutbox(db) } catch (error) { console.error('Antrean absensi akan dipulihkan oleh cron:', error) }
@@ -553,9 +570,10 @@ export async function koreksiAbsensiDariRekap(
   const penugasan = await getAccessiblePenugasan(db, penugasanId, guruId, tanggal)
   if (!penugasan) return { error: 'Penugasan tidak ditemukan atau bukan sesi mengajar Anda.' }
   const session = await db.prepare(`
-    SELECT 1 FROM absensi_sesi_guru WHERE penugasan_id = ? AND tanggal = ?
-  `).bind(penugasanId, tanggal).first()
+    SELECT diinput_oleh FROM absensi_sesi_guru WHERE penugasan_id = ? AND tanggal = ?
+  `).bind(penugasanId, tanggal).first<{ diinput_oleh: string }>()
   if (!session) return { error: 'Sesi absensi belum ditemukan.' }
+  if (penugasan.access.actorKind === 'PENGGANTI' && session.diinput_oleh !== user.id) return { error: 'Presensi sesi diisi oleh pelaksana lain.' }
 
   const validStatuses = new Set(['HADIR', 'SAKIT', 'IZIN', 'ALFA'])
   const unique = new Map(changes.map(change => [change.siswa_id, change]))

@@ -1,4 +1,7 @@
-export type TeachingAssignmentActorKind = 'GURU' | 'PPL'
+import { readReplacementScopes, readTeacherPeriods } from './teacher-leave-period'
+import { todayWIB } from './time'
+
+export type TeachingAssignmentActorKind = 'GURU' | 'PPL' | 'PENGGANTI'
 
 export type TeachingAssignmentAccess = {
   penugasanId: string
@@ -7,6 +10,9 @@ export type TeachingAssignmentAccess = {
   actorKind: TeachingAssignmentActorKind
   kelasId: string
   tahunAjaranId: string
+  periodStart?: string
+  periodEnd?: string
+  ownerOnLeave?: boolean
 }
 
 /**
@@ -17,7 +23,7 @@ export async function resolveTeachingAssignmentAccess(
   db: D1Database,
   actorId: string,
   penugasanId: string,
-  _effectiveDate?: string,
+  effectiveDate = todayWIB(),
 ): Promise<TeachingAssignmentAccess | null> {
   const row = await db.prepare(`
     SELECT pm.id, pm.guru_id, pm.kelas_id, pm.tahun_ajaran_id,
@@ -44,12 +50,23 @@ export async function resolveTeachingAssignmentAccess(
     LIMIT 1
   `).bind(actorId, actorId, penugasanId).first<any>()
 
-  if (!row?.actor_kind) return null
+  if (!row) return null
+  const [scopes, leave] = await Promise.all([
+    row.actor_kind === 'GURU' ? [] : readReplacementScopes(db, actorId, effectiveDate),
+    readTeacherPeriods(db, effectiveDate, effectiveDate, row.guru_id),
+  ])
+  const scope = scopes.find(item => item.guru_id === row.guru_id)
+  if (scope && !await db.prepare('SELECT 1 FROM tahun_ajaran WHERE id = ? AND is_active = 1').bind(row.tahun_ajaran_id).first()) return null
+  const actorKind = scope ? 'PENGGANTI' : row.actor_kind
+  if (!actorKind || (actorKind === 'PPL' && leave.some(item => item.pengganti_id))) return null
   return {
     penugasanId: row.id,
     guruUtamaId: row.guru_id,
     actorId,
-    actorKind: row.actor_kind,
+    actorKind,
+    periodStart: scope?.mulai,
+    periodEnd: scope?.selesai,
+    ownerOnLeave: leave.length > 0,
     kelasId: row.kelas_id,
     tahunAjaranId: row.tahun_ajaran_id,
   }

@@ -20,6 +20,7 @@ import { PramubaktiDashboard } from '@/components/dashboard/PramubaktiDashboard'
 import { JadwalPramubaktiToday } from '@/components/dashboard/shared/JadwalPramubaktiToday'
 import { DashboardSPAShell } from '@/components/dashboard/shared/DashboardSPAShell'
 import { WelcomeStrip } from '@/components/dashboard/shared/WelcomeStrip'
+import { JadwalMengajarToday } from '@/components/dashboard/shared/JadwalMengajarToday'
 import { DASHBOARD_VISIBILITY_KEY, dashboardKeyForRole, parseVisibility } from '@/lib/dashboard-visibility'
 import { DASHBOARD_WIDGETS_CONFIG_KEY, parseWidgetsConfig, getWidgetMeta } from '@/lib/dashboard-widgets-meta'
 import { WIDGET_COMPONENTS } from '@/lib/dashboard-widgets'
@@ -56,6 +57,7 @@ const ROLE_LABEL: Record<string, string> = {
   kepsek:      'Kepala Madrasah',
   wakamad:     'Wakil Kepala Madrasah',
   guru:        'Guru Mata Pelajaran',
+  guru_pengganti_cuti: 'Guru Pengganti',
   guru_bk:     'Guru BK',
   guru_piket:  'Guru Piket',
   wali_kelas:  'Wali Kelas',
@@ -188,6 +190,9 @@ export default async function DashboardPage({
 
       case 'pengurus_koperasi':
         return <GeneralDashboard userId={user.id} dashboardVisibility={dashboardVisibility} />
+
+      case 'guru_pengganti_cuti':
+        return <JadwalMengajarToday userId={user.id} taAktif={taAktif} showAbsensiAction />
 
       case 'guru':
       case 'guru_tahfidz':

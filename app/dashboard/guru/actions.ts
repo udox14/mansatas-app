@@ -35,23 +35,31 @@ export async function tambahPegawai(prevState: any, formData: FormData) {
   const nama_lengkap = (formData.get('nama_lengkap') as string).trim()
   const email = (formData.get('email') as string).trim()
   const role = formData.get('role') as string
+  const replacementAccount = formData.get('akun_pengganti_cuti') === 'on'
   const nip = (formData.get('nip') as string)?.trim() || null
   const jabatan_cetak = (formData.get('jabatan_cetak') as string)?.trim() || null
   const nomor_whatsapp = (formData.get('nomor_whatsapp') as string)?.trim() || null
   const jabatan_struktural_id_raw = (formData.get('jabatan_struktural_id') as string)?.trim()
   const jabatan_struktural_id = jabatan_struktural_id_raw && jabatan_struktural_id_raw !== '_none' ? jabatan_struktural_id_raw : null
 
-  if (!nama_lengkap || !email || !role) {
+  if (!nama_lengkap || !email || (!role && !replacementAccount)) {
     return { error: 'Semua field wajib diisi.', success: null }
   }
 
   const auth = await getAuth()
+  const password = replacementAccount ? crypto.randomUUID() : 'mansatas2026'
   try {
     const res = await auth.api.signUpEmail({
-      body: { name: nama_lengkap, email, password: 'mansatas2026' },
+      body: { name: nama_lengkap, email, password },
+      replacementAccount,
     }) as any
     if (!res?.user?.id) throw new Error('Gagal membuat akun.')
     const db = await getDB()
+    if (replacementAccount) {
+      await logActivity({ db, module: 'pegawai', action: 'create', summary: `Membuat akun pengganti cuti ${nama_lengkap}`, entityType: 'user', entityId: res.user.id })
+      revalidatePath('/dashboard/guru')
+      return { error: null, success: `Akun pengganti dibuat. Password awal: ${password}` }
+    }
     await ensureJabatanStrukturalSchema(db)
     // Update role utama di tabel user
     await db.prepare(`UPDATE "user" SET role = ?, nama_lengkap = ?, nip = ?, jabatan_cetak = ?, nomor_whatsapp = ?, jabatan_struktural_id = ?, updatedAt = datetime('now') WHERE id = ?`)
@@ -136,10 +144,11 @@ export async function resetPasswordPegawai(id: string) {
   if (!(await verifyStaffAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.' }
   const db = await getDB()
   try {
-    const passwordHash = await hashPassword('mansatas2026')
+    const target = await db.prepare('SELECT * FROM "user" WHERE id = ?').bind(id).first<any>()
+    const password = target?.akun_pengganti_cuti ? crypto.randomUUID() : 'mansatas2026'
+    const passwordHash = await hashPassword(password)
     await db.prepare(`UPDATE account SET password = ?, updatedAt = datetime('now') WHERE userId = ? AND providerId = 'credential'`)
       .bind(passwordHash, id).run()
-    const target = await db.prepare('SELECT id, nama_lengkap, name, email FROM "user" WHERE id = ?').bind(id).first<any>()
     await logActivity({
       db,
       module: 'pegawai',
@@ -151,10 +160,10 @@ export async function resetPasswordPegawai(id: string) {
       entityLabel: target?.nama_lengkap || target?.name || id,
       metadata: { password_reset: true },
     })
+    return { success: `Password berhasil direset ke: ${password}` }
   } catch (e: any) {
     return { error: 'Gagal mereset password: ' + (e?.message || '') }
   }
-  return { success: 'Password berhasil direset ke: mansatas2026' }
 }
 
 // ============================================================
@@ -167,6 +176,7 @@ export async function setUserRoles(userId: string, roles: string[], primaryRole:
 
   const db = await getDB()
   const beforeUser = await db.prepare('SELECT id, role, nama_lengkap, name, email FROM "user" WHERE id = ?').bind(userId).first<any>()
+  if (beforeUser?.role === 'guru_pengganti_cuti') return { error: 'Hak akun khusus mengikuti periode penugasan cuti.' }
   const beforeRoles = await db.prepare('SELECT role FROM user_roles WHERE user_id = ? ORDER BY role ASC').bind(userId).all<{ role: string }>()
 
   const stmts: D1PreparedStatement[] = [
@@ -215,6 +225,7 @@ export async function ubahRolePegawai(id: string, newRole: string) {
   if (!(await verifyStaffAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.' }
   const db = await getDB()
   const beforeUser = await db.prepare('SELECT id, role, nama_lengkap, name, email FROM "user" WHERE id = ?').bind(id).first<any>()
+  if (beforeUser?.role === 'guru_pengganti_cuti') return { error: 'Hak akun khusus mengikuti periode penugasan cuti.' }
 
   const stmts: D1PreparedStatement[] = [
     db.prepare('UPDATE "user" SET role = ?, updatedAt = datetime(\'now\') WHERE id = ?').bind(newRole, id),

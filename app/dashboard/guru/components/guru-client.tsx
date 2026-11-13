@@ -225,7 +225,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES, masterJab
   }
 
   const handleResetPassword = async (id: string, nama: string) => {
-    if (!confirm(`Reset password ${nama} ke "mansatas2026"?`)) return
+    if (!confirm(`Reset password ${nama}?`)) return
     setIsPending(true)
     const res = await resetPasswordPegawai(id)
     if (res?.error) alert(res.error)
@@ -880,6 +880,7 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES, masterJab
                 <form action={formAction} className="space-y-3 pt-2">
                   {state?.error && <div className="p-2.5 text-xs text-rose-600 bg-rose-50 rounded-lg border border-rose-200 flex gap-1.5"><AlertCircle className="h-3.5 w-3.5 shrink-0" />{state.error}</div>}
                   {state?.success && <div className="p-2.5 text-xs text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 rounded-lg border border-emerald-200 dark:border-emerald-800 flex gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 shrink-0" />{state.success}</div>}
+                  <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="akun_pengganti_cuti" /> Akun khusus pengganti cuti</label>
                   <div className="bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-100 p-2.5 rounded-lg flex gap-2 text-xs text-emerald-800 dark:text-emerald-400">
                     <ShieldAlert className="h-3.5 w-3.5 shrink-0 text-emerald-600 mt-0.5" />
                     Password default: <strong className="font-mono bg-surface px-1 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">mansatas2026</strong>

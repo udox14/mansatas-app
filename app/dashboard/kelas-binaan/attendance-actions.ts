@@ -5,6 +5,7 @@ import { getUserRoles } from '@/lib/features'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
 import { todayWIB } from '@/lib/time'
+import { canCoverWaliClass } from '@/lib/teacher-leave-period'
 import { readAttendanceNoticeState, attendanceNoticeActivation } from '@/lib/attendance-notice-state'
 import { invalidateAttendanceCache } from '@/lib/attendance-cache'
 import { ensureActivityLogTables, logActivity } from '@/lib/activity-log'
@@ -40,14 +41,14 @@ function isValidDateOnly(value: string) {
   return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
 }
 
-async function canAccessKelas(db: D1Database, userId: string, kelasId: string, roles: string[]) {
+async function canAccessKelas(db: D1Database, userId: string, kelasId: string, roles: string[], date?: string) {
   if (isAdminRole(roles)) return true
 
   const kelas = await db.prepare(
     `SELECT id FROM kelas WHERE id = ? AND wali_kelas_id = ? LIMIT 1`
   ).bind(kelasId, userId).first<{ id: string }>()
 
-  return !!kelas
+  return !!kelas || canCoverWaliClass(db, userId, kelasId, date)
 }
 
 function revalidateAttendanceViews() {
@@ -77,7 +78,7 @@ async function saveWaliBatch(
 
   const db = await getDB()
   const roles = await getUserRoles(db, user.id)
-  const allowed = await canAccessKelas(db, user.id, kelasId, roles)
+  const allowed = await canAccessKelas(db, user.id, kelasId, roles, tanggal)
   if (!allowed) return { error: 'Akses ditolak' }
 
   const siswaIds = data.map(item => item.siswa_id).filter(Boolean)
@@ -232,7 +233,7 @@ export async function getKoreksiAbsensiCepat(siswaId: string, tanggal: string, p
   const db = await getDB()
   const student = await db.prepare(`SELECT s.kelas_id FROM siswa s JOIN penugasan_mengajar pm ON pm.kelas_id = s.kelas_id
     WHERE s.id = ? AND s.status = 'aktif' AND pm.id = ?`).bind(siswaId, penugasanId).first<{ kelas_id: string }>()
-  if (!student || !await canAccessKelas(db, user.id, student.kelas_id, await getUserRoles(db, user.id))) return { error: 'Siswa tidak tersedia atau Anda tidak berhak mengoreksi kelas ini.' }
+  if (!student || !await canAccessKelas(db, user.id, student.kelas_id, await getUserRoles(db, user.id), tanggal)) return { error: 'Siswa tidak tersedia atau Anda tidak berhak mengoreksi kelas ini.' }
   const [snapshot, raw, wali] = await Promise.all([
     correctionAttendanceSnapshot(db, student.kelas_id, tanggal, [siswaId]),
     db.prepare(`SELECT mp.nama_mapel, ab.status, ab.updated_at, ab.catatan, ab.jam_ke_mulai, ab.jam_ke_selesai
@@ -294,8 +295,11 @@ export async function getKeputusanAbsensiHistory(siswaId: string, tanggal?: stri
   const roles = await getUserRoles(db, user.id)
   const siswa = await db.prepare('SELECT kelas_id FROM siswa WHERE id = ? LIMIT 1')
     .bind(siswaId).first<{ kelas_id: string }>()
-  if (!siswa?.kelas_id || !(await canAccessKelas(db, user.id, siswa.kelas_id, roles))) {
+  if (!siswa?.kelas_id || !(await canAccessKelas(db, user.id, siswa.kelas_id, roles, tanggal))) {
     return { error: 'Akses ditolak', history: [] as KeputusanAbsensiHistoryRow[] }
+  }
+  if (!tanggal && !isAdminRole(roles) && await canCoverWaliClass(db, user.id, siswa.kelas_id)) {
+    return { error: 'Pilih tanggal untuk melihat riwayat koreksi kelas pengganti.', history: [] as KeputusanAbsensiHistoryRow[] }
   }
 
   const rows = await db.prepare(`

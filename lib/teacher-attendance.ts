@@ -1,4 +1,5 @@
 import { enrichTeacherLeaveSessions } from './teacher-leave-db'
+import { readAgendaReplacementActors, readTeacherPeriods } from './teacher-leave-period'
 import { currentTimeWIB, todayWIB } from './time'
 import {
   getEffectiveDatesInRange,
@@ -119,7 +120,7 @@ export async function getTeacherAttendance(
   const effectiveDates = await getEffectiveDatesInRange(db, range.start, range.end)
   if (effectiveDates.length === 0) return emptyResult()
 
-  const [scheduleResult, agendaResult, delegationResult, exceptions] = await Promise.all([
+  const [scheduleResult, agendaResult, delegationResult, exceptions, leavePeriods, replacementActors] = await Promise.all([
     db.prepare(`
       SELECT DISTINCT jm.penugasan_id, jm.hari, jm.jam_ke,
         k.id as kelas_id, k.tingkat, k.nomor_kelas, k.kelompok, k.kbm_nonaktif_mulai,
@@ -146,6 +147,8 @@ export async function getTeacherAttendance(
       WHERE dt.dari_user_id = ? AND dt.tanggal BETWEEN ? AND ?
     `).bind(guruId, range.start, range.end).all<DelegationRow>(),
     getKbmExceptionsForRange(db, range.start, range.end),
+    readTeacherPeriods(db, range.start, range.end, guruId),
+    readAgendaReplacementActors(db, range.start, range.end),
   ])
 
   const scheduleByDay = new Map<number, Map<string, ScheduleRow[]>>()
@@ -208,7 +211,8 @@ export async function getTeacherAttendance(
         }
       }
 
-      const status = resolveTeacherAttendanceStatus({
+      const onLeave = leavePeriods.some(period => period.mulai <= tanggal && period.selesai >= tanggal)
+      const status = onLeave ? 'CUTI' : resolveTeacherAttendanceStatus({
         agendaStatus: agenda?.status,
         delegationReason: delegation?.alasan_ketidakhadiran,
         blockEnded,
@@ -233,6 +237,7 @@ export async function getTeacherAttendance(
         catatan: agenda?.catatan_admin || delegation?.deskripsi_ketidakhadiran || null,
         pplUserId: agenda?.ppl_user_id || null,
         pplNama: agenda?.ppl_nama || null,
+        penggantiNama: agenda ? replacementActors.get(agenda.id) || null : null,
       })
     }
   }

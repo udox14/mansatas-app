@@ -2,7 +2,7 @@ import { isSchoolLeave, teacherPerformance, type TeacherLeaveMetadata } from './
 
 export const TEACHER_ATTENDANCE_START_DATE = '2026-07-20'
 
-export type TeacherAttendanceStatus = 'TEPAT_WAKTU' | 'TELAT' | 'SAKIT' | 'IZIN' | 'ALFA'
+export type TeacherAttendanceStatus = 'TEPAT_WAKTU' | 'TELAT' | 'SAKIT' | 'IZIN' | 'ALFA' | 'CUTI'
 
 export type TeacherAttendanceSummary = {
   total: number
@@ -32,6 +32,7 @@ export type TeacherAttendanceItem = TeacherLeaveMetadata & {
   catatan: string | null
   pplUserId?: string | null
   pplNama?: string | null
+  penggantiNama?: string | null
 }
 
 export type TeacherAttendanceResult = {
@@ -73,6 +74,7 @@ export function emptyTeacherAttendanceSummary(): TeacherAttendanceSummary {
 export function summarizeTeacherAttendance(items: TeacherAttendanceItem[]): TeacherAttendanceSummary {
   const summary = emptyTeacherAttendanceSummary()
   for (const item of items) {
+    if (item.status === 'CUTI') continue
     summary.total++
     if (item.status === 'TEPAT_WAKTU' || item.status === 'TELAT') summary.hadir++
     if (item.status === 'TELAT') summary.telat++

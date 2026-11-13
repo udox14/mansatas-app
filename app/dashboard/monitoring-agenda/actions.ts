@@ -1,6 +1,8 @@
 // Lokasi: app/dashboard/monitoring-agenda/actions.ts
 'use server'
 
+import { readAgendaReplacementActors, readTeacherPeriods } from '@/lib/teacher-leave-period'
+
 import { enrichTeacherLeaveSessions, validateTeacherLeaveReason } from '@/lib/teacher-leave-db'
 import { isSchoolLeave, teacherPerformance, type TeacherLeaveMetadata } from '@/lib/teacher-leave'
 import { dbUpdate, dbInsert } from '@/utils/db'
@@ -188,6 +190,8 @@ export async function getMonitoringHarian(
 
   const result = await db.prepare(sql).bind(...params).all<any>()
   const rows = result.results || []
+  const [periods, replacementActors] = await Promise.all([readTeacherPeriods(db, tanggal), readAgendaReplacementActors(db, tanggal)])
+  const leaveByTeacher = new Map(periods.map(period => [period.guru_id, period]))
 
   // Group per penugasan
   const grouped = new Map<string, any[]>()
@@ -200,6 +204,7 @@ export async function getMonitoringHarian(
   for (const [pid, pRows] of grouped) {
     const jamList = pRows.map(r => r.jam_ke).sort((a: number, b: number) => a - b)
     const first = pRows[0]
+    const leave = leaveByTeacher.get(first.guru_id)
     const slotState = splitTeachingSlotsByExceptions(
       kbmExceptions,
       { id: first.kelas_id, tingkat: Number(first.tingkat) },
@@ -238,7 +243,9 @@ export async function getMonitoringHarian(
       agenda_id: first.agenda_id,
       materi: first.materi,
       foto_url: first.foto_url,
-      status,
+      status: leave ? 'CUTI' : status,
+      status_sesi: status,
+      pengganti_cuti_nama: first.agenda_id ? replacementActors.get(first.agenda_id) || null : leave?.pengganti_nama || null,
       waktu_input: first.waktu_input,
       catatan_admin: first.catatan_admin,
       sudah_absen_siswa: Boolean(first.sudah_absen_siswa),
@@ -459,6 +466,7 @@ export async function getTeacherAgendaSubmissions(guruId: string, start: string,
     sudah_absen_siswa: row.sudah_absen_siswa,
     diubah_oleh_nama: row.diubah_oleh_nama,
     ppl_nama: row.ppl_nama,
+    pengganti_cuti_nama: row.pengganti_cuti_nama,
   })).sort((a, b) => b.tanggal.localeCompare(a.tanggal) || a.jam_ke_mulai - b.jam_ke_mulai)
 }
 
@@ -656,7 +664,8 @@ type CanonicalTeacherSession = TeacherLeaveMetadata & {
   jam_ke_selesai: number
   materi: string | null
   foto_url: string | null
-  status: 'TEPAT_WAKTU' | 'TELAT' | 'ALFA' | 'SAKIT' | 'IZIN'
+  status: 'TEPAT_WAKTU' | 'TELAT' | 'ALFA' | 'SAKIT' | 'IZIN' | 'CUTI'
+  pengganti_cuti_nama?: string | null
   waktu_input: string | null
   catatan_admin: string | null
   diubah_oleh_nama: string | null
@@ -678,6 +687,10 @@ async function getCanonicalTeacherSessions(
 ): Promise<CanonicalTeacherSession[]> {
   const effectiveDates = await getEffectiveDatesInRange(db, tanggalMulai, tanggalSelesai)
   if (effectiveDates.length === 0) return []
+  const [leavePeriods, replacementActors] = await Promise.all([
+    readTeacherPeriods(db, tanggalMulai, tanggalSelesai, filters.guruId),
+    readAgendaReplacementActors(db, tanggalMulai, tanggalSelesai),
+  ])
 
   let scheduleSql = `
     SELECT pm.id as penugasan_id, pm.guru_id, u.nama_lengkap as guru_nama,
@@ -813,7 +826,8 @@ async function getCanonicalTeacherSessions(
       const slotSelesai = slots.find(slot => slot.id === jamKeSelesai)
 
       // Sesi hari ini yang belum selesai tidak boleh langsung dianggap ALFA.
-      if (!agenda && !delegation && !isTeachingBlockEnded(tanggal, slotSelesai)) continue
+      const leave = leavePeriods.some(period => period.guru_id === schedule.guru_id && period.mulai <= tanggal && period.selesai >= tanggal)
+      if (!leave && !agenda && !delegation && !isTeachingBlockEnded(tanggal, slotSelesai)) continue
 
       const agendaStatus = EDITABLE_AGENDA_STATUSES.has(agenda?.status)
         ? agenda.status as CanonicalTeacherSession['status']
@@ -837,7 +851,8 @@ async function getCanonicalTeacherSessions(
         jam_ke_selesai: jamKeSelesai,
         materi: agenda?.materi || null,
         foto_url: agenda?.foto_url || null,
-        status: agendaStatus || delegationStatus || 'ALFA',
+        status: leave ? 'CUTI' : agendaStatus || delegationStatus || 'ALFA',
+        pengganti_cuti_nama: agenda ? replacementActors.get(agenda.id) || null : null,
         waktu_input: agenda?.waktu_input || null,
         catatan_admin: agenda?.catatan_admin || null,
         diubah_oleh_nama: agenda?.diubah_oleh_nama || null,
@@ -872,7 +887,7 @@ export async function getMonthlyTeacherAttendanceHistory(
   statusFilter: MonthlyTeacherHistoryStatus = 'ALL'
 ) {
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw new Error('Bulan tidak valid.')
-  if (!['ALL', 'IZIN', 'SAKIT', 'ALFA'].includes(statusFilter)) throw new Error('Filter status tidak valid.')
+  if (!['ALL', 'IZIN', 'SAKIT', 'ALFA', 'CUTI'].includes(statusFilter)) throw new Error('Filter status tidak valid.')
 
   const db = await getDB()
   const [leaveRows, ta] = await Promise.all([
@@ -887,16 +902,17 @@ export async function getMonthlyTeacherAttendanceHistory(
     : []
 
   const rows: MonthlyTeacherHistoryRow[] = [
-    ...leaveRows.map(row => ({ ...row, status: 'IZIN' as const })),
-    ...canonicalRows.filter(row => row.status === 'SAKIT' || row.status === 'ALFA').map(row => ({
+    ...leaveRows.filter(row => !canonicalRows.some(session => session.status === 'CUTI' && session.tanggal === row.tanggal && session.guru_id === row.guru_id))
+      .map(row => ({ ...row, status: 'IZIN' as const })),
+    ...canonicalRows.filter(row => row.status === 'SAKIT' || row.status === 'ALFA' || row.status === 'CUTI').map(row => ({
       id: `session:${row.penugasan_id}:${row.tanggal}`,
-      status: row.status as 'SAKIT' | 'ALFA',
+      status: row.status as 'SAKIT' | 'ALFA' | 'CUTI',
       source: row.sumber,
       guru_id: row.guru_id,
       guru_nama: row.guru_nama,
       tanggal: row.tanggal,
       waktu_input: row.waktu_input,
-      deskripsi: row.keterangan,
+      deskripsi: row.pengganti_cuti_nama ? `Diisi oleh ${row.pengganti_cuti_nama}` : row.keterangan,
       alasan_nama: row.alasan_izin_guru_nama || null,
       alasan_izin_guru_id: row.alasan_izin_guru_id || null,
       kepentingan_sekolah: Boolean(row.kepentingan_sekolah),
@@ -922,12 +938,16 @@ async function buildRekapKehadiranGuru(
     if (!rows.has(session.guru_id)) {
       rows.set(session.guru_id, {
         guru_id: session.guru_id, guru_nama: session.guru_nama,
-         total_blok: 0, tepat_waktu: 0, telat: 0, alfa: 0, sakit: 0, izin: 0, izinSekolah: 0,
+         total_blok: 0, tepat_waktu: 0, telat: 0, alfa: 0, sakit: 0, izin: 0, izinSekolah: 0, cuti: 0,
          absen_siswa_terisi: 0, absen_siswa_belum: 0,
          absen_siswa_belum_detail: [] as Array<{ tanggal: string; mapel: string; kelas: string; jam: string }>,
       })
     }
     const row = rows.get(session.guru_id)!
+    if (session.status === 'CUTI') {
+      row.cuti++
+      continue
+    }
     row.total_blok++
     if (session.waktu_input) {
       if (session.sudah_absen_siswa) row.absen_siswa_terisi++

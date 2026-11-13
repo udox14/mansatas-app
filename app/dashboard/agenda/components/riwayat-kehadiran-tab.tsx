@@ -22,6 +22,7 @@ import {
 type AttendanceFilter = 'SEMUA' | 'HADIR' | TeacherAttendanceStatus
 
 const STATUS_META: Record<TeacherAttendanceStatus, { label: string; classes: string; dot: string }> = {
+  CUTI: { label: 'Cuti', classes: 'border-slate-300 bg-slate-100 text-slate-700', dot: 'bg-slate-500' },
   TEPAT_WAKTU: {
     label: 'Hadir',
     classes: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300',
@@ -99,6 +100,7 @@ export function RiwayatKehadiranTab({ result }: { result: TeacherAttendancePubli
     { filter: 'SAKIT', label: 'Sakit', value: result.summary.sakit, color: 'text-amber-600', icon: Stethoscope },
     { filter: 'IZIN', label: 'Izin', value: result.summary.izin, color: 'text-blue-600', icon: FileText },
     { filter: 'ALFA', label: 'Alfa', value: result.summary.alfa, color: 'text-rose-600', icon: ShieldAlert },
+    { filter: 'CUTI', label: 'Cuti', value: result.items.filter(item => item.status === 'CUTI').length, color: 'text-slate-600', icon: CalendarDays },
   ]
 
   return (
@@ -206,6 +208,7 @@ export function RiwayatKehadiranTab({ result }: { result: TeacherAttendancePubli
                             )}
                           </div>
                           {item.pplNama && <p className="mt-1 text-[11px] font-medium text-violet-600 dark:text-violet-400">Diisi oleh {item.pplNama} (PPL)</p>}
+                          {item.penggantiNama && <p className="mt-1 text-xs text-muted-foreground">Diisi oleh {item.penggantiNama} (pengganti)</p>}
                         </div>
                       </div>
 

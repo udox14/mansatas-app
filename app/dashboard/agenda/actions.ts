@@ -19,6 +19,7 @@ import { nowWIB, currentTimeWIB, nowWIBISO, todayWIB } from '@/lib/time'
 import { formatNamaKelas } from '@/lib/utils'
 import { getEffectiveUser, getActAsDate } from '@/lib/act-as'
 import { resolveTeachingAssignmentAccess } from '@/lib/guru-ppl-access'
+import { readAgendaReplacementActors, readReplacementScopes, readTeacherPeriods } from '@/lib/teacher-leave-period'
 import { isForgottenAgendaRequestWindow, normalizeForgottenMonthlyLimit } from '@/lib/agenda-forgotten'
 import { getSystemSetting, getSystemSettingBoolean, getSystemSettingNumber, SYSTEM_SETTING_KEYS } from '@/lib/system-settings'
 import {
@@ -57,6 +58,9 @@ type JadwalBlock = {
   pelaksana_nama?: string | null
   delegasi_selesai?: boolean
   agenda_id?: string
+  cuti?: boolean
+  pengganti_cuti?: boolean
+  pengganti_cuti_nama?: string | null
   status?: string
   pengajuan_lupa_id?: string
   pengajuan_lupa_status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
@@ -170,6 +174,13 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
   }
 
   // Ambil jadwal hari ini + existing agenda dalam 1 query
+  const [replacementScopes, periods, replacementActors] = await Promise.all([
+    readReplacementScopes(db, guruId, tanggal),
+    readTeacherPeriods(db, tanggal),
+    readAgendaReplacementActors(db, tanggal),
+  ])
+  const leaveByTeacher = new Map(periods.map(period => [period.guru_id, period]))
+  const replacementTeachers = [...new Set(replacementScopes.map(scope => scope.guru_id))]
   const result = await db.prepare(`
     SELECT
       jm.penugasan_id,
@@ -208,10 +219,10 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
         SELECT penugasan_mengajar_id FROM guru_ppl_mapping
         WHERE guru_ppl_id = ? AND berlaku_mulai <= ?
           AND (berlaku_selesai IS NULL OR berlaku_selesai >= ?)
-      ))
+      ) OR pm.guru_id IN (SELECT value FROM json_each(?)))
       AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
     ORDER BY jm.jam_ke ASC
-  `).bind(tanggal, tanggal, tanggal, ta.id, hari, guruId, guruId, tanggal, tanggal, tanggal).all<any>()
+  `).bind(tanggal, tanggal, tanggal, ta.id, hari, guruId, guruId, tanggal, tanggal, JSON.stringify(replacementTeachers), tanggal).all<any>()
 
   const rows = result.results || []
   if (rows.length === 0) return { error: null, blocks: [], slots, tanggal, hari, forgottenRequestQuota }
@@ -219,6 +230,8 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
   // Group per penugasan_id → collect jam_ke → build blocks
   const grouped = new Map<string, { rows: any[], jamList: number[] }>()
   for (const r of rows) {
+    const leave = leaveByTeacher.get(r.guru_id)
+    if (leave?.pengganti_id && r.guru_id !== guruId && !replacementTeachers.includes(r.guru_id)) continue
     const key = r.penugasan_id
     if (!grouped.has(key)) grouped.set(key, { rows: [r], jamList: [r.jam_ke] })
     else { grouped.get(key)!.rows.push(r); grouped.get(key)!.jamList.push(r.jam_ke) }
@@ -228,6 +241,8 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
   for (const [pid, data] of grouped) {
     const jamList = data.jamList.sort((a, b) => a - b)
     const first = data.rows[0]
+    const leave = leaveByTeacher.get(first.guru_id)
+    const isReplacement = replacementTeachers.includes(first.guru_id)
     const jadwalJamMulai = jamList[0]
     const jadwalJamSelesai = jamList[jamList.length - 1]
     const slotState = splitTeachingSlotsByExceptions(
@@ -254,6 +269,7 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
       timeRestrictionEnabled: agendaTimeRestrictionEnabled,
     })
       && isOwner
+      && !leave
       && slotState.activeJamKe.length > 0
       && !first.agenda_id
       && !first.delegasi_kelas_id
@@ -277,7 +293,10 @@ export async function getJadwalGuruHariIni(guruIdOverride?: string, dateOverride
       exception_segments: slotState.exceptionSegments,
       is_fully_excepted: slotState.activeJamKe.length === 0,
       sudah_isi: !!first.agenda_id,
-      sudah_didelegasi: !!first.delegasi_kelas_id,
+      sudah_didelegasi: !!first.delegasi_kelas_id && (!isReplacement || !!first.delegasi_selesai),
+      cuti: !!leave,
+      pengganti_cuti: isReplacement,
+      pengganti_cuti_nama: first.agenda_id ? replacementActors.get(first.agenda_id) || null : leave?.pengganti_nama,
       alasan_ketidakhadiran: first.alasan_ketidakhadiran || undefined,
       deskripsi_ketidakhadiran: first.deskripsi_ketidakhadiran || null,
       alasan_delegasi: first.alasan_delegasi || null,
@@ -339,6 +358,7 @@ export async function submitForgottenAgendaRequest(formData: FormData): Promise<
     JOIN tahun_ajaran ta ON ta.id = pm.tahun_ajaran_id AND ta.is_active = 1
     WHERE pm.id = ? AND pm.guru_id = ?
   `).bind(penugasanId, user.id).first<any>()
+  if ((await readTeacherPeriods(db, tanggal, tanggal, user.id)).length) return { error: 'Guru tercatat cuti pada tanggal ini.' }
   if (!assignment) return { error: 'Pengajuan hanya dapat dibuat oleh guru utama pemilik jadwal.' }
   if (assignment.kbm_nonaktif_mulai && assignment.kbm_nonaktif_mulai <= tanggal) {
     return { error: 'Kelas ini sudah tidak memiliki kewajiban KBM.' }
@@ -488,6 +508,7 @@ export async function submitAgenda(formData: FormData): Promise<import('@/lib/ag
   const actingUserId = effective?.effectiveUserId || user.id
   const assignmentAccess = await resolveTeachingAssignmentAccess(db, actingUserId, penugasanId, tanggal)
   if (!assignmentAccess) return { error: 'Anda tidak memiliki akses ke penugasan ini.' }
+  if (assignmentAccess.ownerOnLeave && assignmentAccess.actorKind === 'GURU') return { error: 'Guru utama tercatat cuti pada tanggal ini.' }
   const kelasRow = assignmentAccess.kelasId
     ? await db.prepare('SELECT tingkat FROM kelas WHERE id = ?').bind(assignmentAccess.kelasId).first<{ tingkat: number }>()
     : null
@@ -523,16 +544,19 @@ export async function submitAgenda(formData: FormData): Promise<import('@/lib/ag
     'SELECT id, status FROM agenda_guru WHERE penugasan_id = ? AND tanggal = ?'
   ).bind(penugasanId, tanggal).first<{ id: string; status: string }>()
   if (existing) return savedResponse(existing)
+  if (assignmentAccess.actorKind === 'PENGGANTI' && await db.prepare(
+    'SELECT 1 FROM absensi_sesi_guru WHERE penugasan_id = ? AND tanggal = ? AND diinput_oleh <> ?'
+  ).bind(penugasanId, tanggal, user.id).first()) return { error: 'Sesi sudah ditangani oleh pelaksana lain.' }
   if (!isActingAs && (!foto || typeof foto === 'string' || !foto.size)) return { error: 'Foto kegiatan wajib diambil sebelum mengirim agenda.' }
 
   const delegated = await db.prepare(`
-    SELECT dtk.id
+    SELECT dtk.id, dtk.absen_selesai
     FROM delegasi_tugas_kelas dtk
     JOIN delegasi_tugas dt ON dt.id = dtk.delegasi_id
     WHERE dtk.penugasan_mengajar_id = ? AND dt.tanggal = ?
     LIMIT 1
   `).bind(penugasanId, tanggal).first<any>()
-  if (delegated) {
+  if (delegated && (assignmentAccess.actorKind !== 'PENGGANTI' || delegated.absen_selesai)) {
     return { error: 'Jadwal ini sudah didelegasikan sebagai SAKIT/IZIN dan tidak dapat diisi sebagai agenda mengajar.' }
   }
 
@@ -635,6 +659,7 @@ export async function submitAgenda(formData: FormData): Promise<import('@/lib/ag
     waktu_input: nowWIBISO(),
     diubah_oleh: effective?.realUserId || user.id, // audit trail: siapa admin yang input
     ppl_user_id: assignmentAccess.actorKind === 'PPL' && !isActingAs ? user.id : null,
+    ...(assignmentAccess.actorKind === 'PENGGANTI' ? { pengganti_cuti_user_id: user.id } : {}),
   }
 
   const result = await dbInsert<any>(db, 'agenda_guru', payload)
@@ -696,6 +721,9 @@ export async function submitAgenda(formData: FormData): Promise<import('@/lib/ag
 // 3. AMBIL DETAIL AGENDA (untuk modal detail)
 // ============================================================
 export async function getAgendaDetail(agendaId: string) {
+  const user = await getCurrentUser()
+  if (!user) return null
+  const effective = await getEffectiveUser()
   const db = await getDB()
   const row = await db.prepare(`
     SELECT ag.*,
@@ -711,5 +739,6 @@ export async function getAgendaDetail(agendaId: string) {
     LEFT JOIN "user" editor ON ag.diubah_oleh = editor.id
     WHERE ag.id = ?
   `).bind(agendaId).first<any>()
-  return row ?? null
+  if (!row || !(await resolveTeachingAssignmentAccess(db, effective?.effectiveUserId || user.id, row.penugasan_id, row.tanggal))) return null
+  return row
 }

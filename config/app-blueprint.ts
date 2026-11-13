@@ -163,7 +163,7 @@ export const APP_MODULES: ModuleItem[] = [
     summary: 'Pemantauan realtime keterlaksanaan jam mengajar serta riwayat kehadiran guru oleh guru piket dan pimpinan.',
     description: 'Memastikan seluruh jam pelajaran terisi oleh guru yang bertugas atau ditangani oleh guru delegasi/piket jika guru utama berhalangan, dengan riwayat bulanan Izin/Sakit/Alfa dan rincian status per guru.',
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_piket'],
-    keyFeatures: ['Status kelas kosong vs terisi', 'Pendelegasian tugas guru berhalangan', 'Riwayat Izin, Sakit, dan Alfa bulanan dengan filter status', 'Agenda per guru menampilkan sesi, sumber status, dan keterangan', 'Cetak rekap piket harian'],
+    keyFeatures: ['Status kelas kosong vs terisi', 'Pendelegasian tugas guru berhalangan', 'Cuti Guru dikelola Super Admin dan Wakamad Kurikulum dengan pengganti opsional', 'Pengganti sementara dapat mengisi agenda, presensi, nilai, dan menjalankan tugas wali kelas sesuai cakupan', 'Cuti dikeluarkan dari target agenda dan performa guru utama', 'Akun pengganti khusus dibuat oleh Super Admin atau Admin TU dan hanya aktif selama penugasan', 'Riwayat Izin, Sakit, dan Alfa bulanan dengan filter status', 'Agenda per guru menampilkan sesi, sumber status, dan keterangan', 'Cetak rekap piket harian'],
     inputs: ['Laporan keterlambatan/kekosongan kelas', 'Penugasan guru piket pengganti'],
     outputs: ['Laporan jurnal piket harian', 'Notifikasi ke pimpinan'],
   },

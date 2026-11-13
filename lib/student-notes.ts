@@ -1,4 +1,5 @@
 import { getUserRoles } from '@/lib/features'
+import { readReplacementScopes } from '@/lib/teacher-leave-period'
 import { formatNamaKelas } from '@/lib/utils'
 import { currentTimeWIB, nowWIB, todayWIB } from '@/lib/time'
 import { getKalenderDateStatus } from '@/lib/kalender-pendidikan'
@@ -260,14 +261,26 @@ export async function getStudentNotes(
   siswaId: string,
   roles?: string[],
 ): Promise<StudentNote[]> {
-  if (!(await canReadStudentNotes(db, userId, siswaId, roles))) return []
+  const nativeAccess = await canReadStudentNotes(db, userId, siswaId, roles)
+  let start: string | null = null
+  let end: string | null = null
+  if (!nativeAccess) {
+    const scopes = await readReplacementScopes(db, userId)
+    if (!scopes.length) return []
+    const student = await db.prepare(`SELECT k.wali_kelas_id FROM siswa s JOIN kelas k ON k.id = s.kelas_id
+      WHERE s.id = ? AND s.status = 'aktif'`).bind(siswaId).first<{ wali_kelas_id: string }>()
+    const scope = scopes.find(row => row.guru_id === student?.wali_kelas_id)
+    if (!scope) return []
+    start = scope.mulai
+    end = scope.selesai
+  }
   const rows = await db.prepare(`
     SELECT cs.*, s.nama_lengkap AS siswa_nama, s.foto_url AS siswa_foto_url
     FROM catatan_siswa cs
     JOIN siswa s ON s.id = cs.siswa_id
-    WHERE cs.siswa_id = ?
+    WHERE cs.siswa_id = ? AND (? IS NULL OR date(cs.created_at, '+7 hours') BETWEEN ? AND ?)
     ORDER BY cs.created_at DESC, cs.id DESC
-  `).bind(siswaId).all<any>()
+  `).bind(siswaId, start, start, end).all<any>()
   return (rows.results || []).map(row => mapStudentNote(row, userId))
 }
 

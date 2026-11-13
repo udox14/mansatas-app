@@ -1,6 +1,9 @@
 // Lokasi: app/dashboard/keterangan-absensi/actions.ts
 'use server'
 
+import { canCoverWaliClass } from '@/lib/teacher-leave-period'
+import { getAccessibleWaliKelasClasses } from '@/lib/wali-kelas-attendance'
+
 import { getDB as getRawDB } from '@/utils/db-server'
 import { requireActionAccess } from '@/lib/action-security'
 
@@ -70,9 +73,7 @@ export async function getKelasBinaan(): Promise<{ error: string | null; kelas: K
     ).all<any>()).results || []
   } else {
     // Wali kelas hanya melihat kelas binaannya sendiri
-    rows = (await db.prepare(
-      `SELECT id, tingkat, nomor_kelas, kelompok FROM kelas WHERE wali_kelas_id = ? ORDER BY tingkat, CAST(nomor_kelas AS INTEGER)`
-    ).bind(user.id).all<any>()).results || []
+    rows = await getAccessibleWaliKelasClasses(db, user.id, roles)
   }
 
   return {
@@ -109,7 +110,7 @@ export async function loadSiswaKeterangan(kelasId: string, tanggal: string): Pro
     const kelas = await db.prepare(
       `SELECT id FROM kelas WHERE id = ? AND wali_kelas_id = ?`
     ).bind(kelasId, user.id).first<any>()
-    if (!kelas) return { error: 'Anda tidak memiliki akses ke kelas ini', siswa: [] }
+    if (!kelas && !(await canCoverWaliClass(db, user.id, kelasId, tanggal))) return { error: 'Anda tidak memiliki akses ke kelas ini', siswa: [] }
   }
 
   const [semester, keteranganRes] = await Promise.all([

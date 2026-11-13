@@ -253,7 +253,7 @@ function agendaTable(rows: AgendaKelasRow[], widthMm: number) {
       textRuns(index + 1, { size: 8, bold: true }),
       textRuns(row?.mapel_nama ? row.mapel_nama.toUpperCase() : '', { size: 8 }),
       textRuns(wrapTwoLines(row?.pokok_bahasan, 27), { size: 7.8 }),
-      textRuns(wrapTwoLines(row?.tugas, 20), { size: 7.8 }),
+      textRuns(wrapTwoLines(row?.pengganti_nama ? `Pengganti: ${row.pengganti_nama}` : row?.tugas, 20), { size: 7.8 }),
       textRuns(row?.guru_status || '', { size: 7.5, bold: true }),
     ]
     return rowXml(values.map((value, column) => cellXml(

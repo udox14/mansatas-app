@@ -1,5 +1,7 @@
 'use server'
 
+import { canCoverWaliClass } from '@/lib/teacher-leave-period'
+
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
 import { revalidatePath } from 'next/cache'
@@ -72,13 +74,13 @@ async function canAccessStudentClass(db: D1Database, userId: string, siswaId: st
   if (isAdmin) return true
 
   const row = await db.prepare(`
-    SELECT s.id
+    SELECT s.id, k.id AS kelas_id, k.wali_kelas_id
     FROM siswa s
     JOIN kelas k ON k.id = s.kelas_id
-    WHERE s.id = ? AND k.wali_kelas_id = ?
+    WHERE s.id = ?
     LIMIT 1
-  `).bind(siswaId, userId).first<any>()
-  return !!row
+  `).bind(siswaId).first<{ kelas_id: string; wali_kelas_id: string }>()
+  return !!row && (row.wali_kelas_id === userId || await canCoverWaliClass(db, userId, row.kelas_id))
 }
 
 function normalizeWhatsAppNumber(raw: string) {

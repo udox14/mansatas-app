@@ -11,6 +11,7 @@ function d1(): D1Database {
       const statement = {
         bind(...values: Array<string | number | null>) { args = values; return statement },
         async first<T>() { return (sqlite.prepare(sql).get(...args) || null) as T | null },
+        async all<T>() { return { results: sqlite.prepare(sql).all(...args) as T[] } },
       }
       return statement
     },

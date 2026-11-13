@@ -25,6 +25,24 @@ const assets: AgendaKelasExportAssets = {
 }
 
 describe('ekspor Agenda Kelas membedakan izin sekolah', () => {
+  it('menyimpan cuti dan nama pelaksana di Word dan Excel', async () => {
+    const leavePage = {
+      ...page,
+      agendaRows: [{ ...page.agendaRows[0], guru_status: 'CUTI', pengganti_nama: 'Rina' }, ...page.agendaRows.slice(1)],
+    }
+    const [docx, xlsx] = await Promise.all([
+      buildAgendaKelasDocxBytes([leavePage], settings, assets),
+      buildAgendaKelasXlsxBytes([leavePage], settings, assets, { paperSize: 'F4' }),
+    ])
+    const xml = await Promise.all([
+      JSZip.loadAsync(docx).then(zip => zip.file('word/document.xml')!.async('string')),
+      JSZip.loadAsync(xlsx).then(zip => zip.file('xl/worksheets/sheet1.xml')!.async('string')),
+    ])
+    for (const contents of xml) {
+      expect(contents).toContain('CUTI')
+      expect(contents).toContain('Pengganti: Rina')
+    }
+  })
   it('Word menyimpan IS dan legenda dengan tinggi baris tetap', async () => {
     const zip = await JSZip.loadAsync(await buildAgendaKelasDocxBytes([page], settings, assets))
     const xml = await zip.file('word/document.xml')!.async('string')

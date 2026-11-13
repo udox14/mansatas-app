@@ -4,6 +4,7 @@
 
 import { logActivity } from '@/lib/activity-log'
 import { recordLoginAccessAudit } from '@/lib/agenda-access-audit'
+import { getReplacementSessionEnd } from '@/lib/teacher-leave-period'
 import {
   COOKIE_NAME,
   extractToken,
@@ -265,11 +266,16 @@ export function createAuth(db: D1Database) {
           throw new Error('Invalid credentials')
         }
 
+        const replacementEnd = user.akun_pengganti_cuti ? await getReplacementSessionEnd(db, user.id) : null
+        if (user.akun_pengganti_cuti && !replacementEnd) {
+          if (opts.asResponse) return new Response('Account inactive', { status: 403 })
+          throw new Error('Account banned outside replacement period')
+        }
         // Create session
         const token = generateToken()
         const sessionId = crypto.randomUUID()
         const now = new Date().toISOString()
-        const expiresAt = getExpiresAt()
+        const expiresAt = [getExpiresAt(), replacementEnd].filter((value): value is string => !!value).sort()[0]
 
         await db.prepare(
           `INSERT INTO session (id, token, userId, expiresAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)`
@@ -328,7 +334,7 @@ export function createAuth(db: D1Database) {
       },
 
       // ---- SIGN UP ----
-      async signUpEmail(opts: { body: { name: string; email: string; password: string } }) {
+      async signUpEmail(opts: { body: { name: string; email: string; password: string }; replacementAccount?: boolean }) {
         const { name, email, password } = opts.body
 
         const existing = await db.prepare('SELECT id FROM "user" WHERE email = ?').bind(email).first<any>()
@@ -346,6 +352,9 @@ export function createAuth(db: D1Database) {
           db.prepare(
             `INSERT INTO account (id, accountId, providerId, userId, password, createdAt, updatedAt) VALUES (?, ?, 'credential', ?, ?, ?, ?)`
           ).bind(accountId, email, userId, passwordHash, now, now),
+          ...(opts.replacementAccount ? [db.prepare(
+            "UPDATE \"user\" SET akun_pengganti_cuti = 1, role = 'guru_pengganti_cuti' WHERE id = ?"
+          ).bind(userId)] : []),
         ])
 
         const user = await db.prepare('SELECT * FROM "user" WHERE id = ?').bind(userId).first<any>()
@@ -405,6 +414,7 @@ export function createAuth(db: D1Database) {
         }
 
         if (row.banned) return null
+        if (row.akun_pengganti_cuti && !(await getReplacementSessionEnd(db, row.id))) return null
 
         return {
           user: mapUser(row),

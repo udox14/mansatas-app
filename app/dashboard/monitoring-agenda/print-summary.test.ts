@@ -38,6 +38,14 @@ describe('calculatePerformance', () => {
 })
 
 describe('aggregateTeacherAttendance', () => {
+  it('keeps leave sessions visible and excludes them from performance totals', () => {
+    const teachers = aggregateTeacherAttendance([
+      session({ status: 'TEPAT_WAKTU' }),
+      session({ status: 'CUTI', pengganti_cuti_nama: 'Rina' }),
+    ], 'excused_penalized')
+    expect(teachers[0]).toMatchObject({ totalBlok: 1, hadir: 1, alfa: 0, performa: 100 })
+    expect(teachers[0].sessions).toContainEqual(expect.objectContaining({ status: 'CUTI', pengganti_cuti_nama: 'Rina' }))
+  })
   it('combines on-time and late sessions as present and sorts teachers and sessions', () => {
     const result = aggregateTeacherAttendance([
       session({ guru_id: 'guru-2', guru_nama: 'Citra', status: 'IZIN' }),

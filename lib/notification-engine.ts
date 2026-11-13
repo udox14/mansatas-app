@@ -1,6 +1,7 @@
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { getDB } from '@/utils/db-server'
 import { currentTimeWIB, nowWIB, todayWIB } from '@/lib/time'
+import { getActingWaliId, readTeacherPeriods } from '@/lib/teacher-leave-period'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
 import {
   defaultNotificationSettings,
@@ -702,19 +703,20 @@ export async function notifyParentsAttendanceConfigured(
   const wali = homeroomEnabled ? await db.prepare(`SELECT u.id FROM kelas k
     JOIN "user" u ON u.id = k.wali_kelas_id AND COALESCE(u.banned, 0) = 0
     WHERE k.id = ?`).bind(assignment.kelas_id).first<{ id: string }>() : null
+  const waliId = wali ? await getActingWaliId(db, wali.id, options.tanggal) : null
   let queued = 0
   for (const candidate of rows.results || []) {
     const day = data?.statusByStudent.get(candidate.siswa_id)?.[0]
     if (!effectiveInitialAttendanceStatus(day, candidate.penugasan_id, candidate.status)) continue
     // Staff reports are independent of the parent's one-report-per-day state.
-    if (wali?.id && candidate.penugasan_id === options.penugasanId && options.notifyHomeroom !== false && teacherNoticeStillValid(day, candidate.penugasan_id, candidate.status)) {
+    if (waliId && candidate.penugasan_id === options.penugasanId && options.notifyHomeroom !== false && teacherNoticeStillValid(day, candidate.penugasan_id, candidate.status)) {
       const due = Date.parse(utcSourceTimestamp(candidate.updated_at)) + attendanceDelayMinutes('attendance_homeroom_alert', homeroomSetting?.reminder_json) * 60_000
       const result = await emitConfiguredNotification({
         eventKey: 'attendance_homeroom_alert', db,
         sourceRef: `attendance-homeroom-v2:${candidate.siswa_id}:${options.tanggal}:${candidate.penugasan_id}:${candidate.status}:${candidate.updated_at}`,
         delaySeconds: Math.max(0, Math.ceil((due - Date.now()) / 1000)),
         targetOverride: { kind: 'staff_users' },
-        context: { userId: wali.id, siswaId: candidate.siswa_id, penugasanId: candidate.penugasan_id, nama_siswa: candidate.nama_lengkap,
+        context: { userId: waliId, siswaId: candidate.siswa_id, penugasanId: candidate.penugasan_id, nama_siswa: candidate.nama_lengkap,
           kelas: data?.kelas.label || '', kelasId: assignment.kelas_id, tanggal: options.tanggal,
           status_kehadiran: attendanceStatusLabel(candidate.status), mapel: candidate.nama_mapel,
           rentang_jam: `${candidate.jam_ke_mulai}–${candidate.jam_ke_selesai}`,
@@ -1104,7 +1106,9 @@ async function validatedQueueRecipientIds(db: D1Database, message: NotificationQ
       JOIN kelas k ON k.id = s.kelas_id
       JOIN "user" u ON u.id = k.wali_kelas_id AND COALESCE(u.banned, 0) = 0
       WHERE s.id = ? AND s.status = 'aktif'`).bind(v.siswaId).first<{ kelas_id: string; wali_id: string }>()
-    if (!student || !message.target.ids.includes(student.wali_id)) return []
+    if (!student) return []
+    const waliId = await getActingWaliId(db, student.wali_id, v.tanggal)
+    if (!message.target.ids.includes(waliId)) return []
     const raw = await db.prepare(`SELECT updated_at, status FROM absensi_siswa
       WHERE siswa_id = ? AND penugasan_id = ? AND tanggal = ?`)
       .bind(v.siswaId, v.penugasanId, v.tanggal).first<{ updated_at: string; status: string }>()
@@ -1112,7 +1116,7 @@ async function validatedQueueRecipientIds(db: D1Database, message: NotificationQ
       Date.parse(utcSourceTimestamp(raw.updated_at)) < Date.parse(activation)) return []
     const data = await getFinalAttendanceForClass(db, student.kelas_id, v.tanggal, v.tanggal, { siswaId: v.siswaId, fresh: true })
     if (!teacherNoticeStillValid(data?.statusByStudent.get(v.siswaId)?.[0], v.penugasanId, v.status)) return []
-    return [student.wali_id]
+    return [waliId]
   }
   if (message.validation?.kind === 'attendance_session' || message.validation?.kind === 'attendance_daily') {
     const v = message.validation
@@ -1338,7 +1342,7 @@ export async function emitParentAndHomeroomNotification(
   const staffResult = await emitConfiguredNotification({
     ...input,
     eventKey: input.homeroomEventKey,
-    context: { ...input.context, userId: wali.id },
+    context: { ...input.context, userId: await getActingWaliId(db, wali.id) },
     targetOverride: { kind: 'staff_users' },
     parentType: undefined,
   })
@@ -1692,12 +1696,16 @@ export async function dispatchConfiguredReminders(db: D1Database, runtimeEnv?: F
         LIMIT 200
       `).bind(weekday, today, today).all<any>()
       const bucket = Math.floor(now / (Math.max(5, attendance.reminder.frequencyMinutes) * 60_000))
+      const leaveByTeacher = new Map((await readTeacherPeriods(db, today)).map(period => [period.guru_id, period]))
       for (const row of rows.results || []) {
+        const leave = leaveByTeacher.get(row.guru_id)
+        if (leave && !leave.pengganti_id) continue
+        const target = leave?.pengganti_id || row.guru_id
         const kelas = [row.tingkat, row.nomor_kelas, row.kelompok].filter(Boolean).join(' ')
         const result = await emitConfiguredNotification({
           eventKey: 'attendance_missing_reminder',
           sourceRef: `attendance-missing:${today}:${row.penugasan_id}:${bucket}`,
-          context: { userId: row.guru_id, userIds: [row.guru_id], nama_guru: row.nama_lengkap, kelas, tanggal: today },
+          context: { userId: target, userIds: [target], nama_guru: leave?.pengganti_nama || row.nama_lengkap, kelas, tanggal: today },
           db,
           runtimeEnv,
         })
@@ -1928,6 +1936,7 @@ export async function dispatchTeachingSessionReminders(
   `).bind(today, today, today, ta.id, weekday, today).all<any>()
 
   if (!rows || rows.length === 0) return { processed: 0 }
+  const leaveByTeacher = new Map((await readTeacherPeriods(db, today)).map(period => [period.guru_id, period]))
 
   let processed = 0
 
@@ -1953,7 +1962,12 @@ export async function dispatchTeachingSessionReminders(
     // Penentuan penerima: jika didelegasikan ke guru lain
     let targetUserId = r.guru_id
     let targetGuruNama = r.guru_nama
-    if (r.delegasi_id) {
+    const leave = leaveByTeacher.get(r.guru_id)
+    if (leave) {
+      if (!leave.pengganti_id) continue
+      targetUserId = leave.pengganti_id
+      targetGuruNama = leave.pengganti_nama || 'Guru Pengganti'
+    } else if (r.delegasi_id) {
       if (r.pelaksana_user_id) {
         targetUserId = r.pelaksana_user_id
         targetGuruNama = r.pelaksana_nama || 'Guru Pengganti'

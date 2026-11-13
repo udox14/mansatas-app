@@ -11,6 +11,7 @@ export type TeacherAttendanceSort =
   | 'alfa_desc'
 
 export type AgendaPrintSession = TeacherLeaveMetadata & {
+  pengganti_cuti_nama?: string | null
   penugasan_id: string
   tanggal: string
   guru_id: string
@@ -119,8 +120,9 @@ export function aggregateTeacherAttendance(
     }
 
     const row = grouped.get(session.guru_id)!
-    row.totalBlok += 1
     row.sessions.push(session)
+    if (session.status === 'CUTI') continue
+    row.totalBlok += 1
     if (isSchoolLeave(session.status, session)) row.izinSekolah += 1
     if (session.status === 'TEPAT_WAKTU' || session.status === 'TELAT' || session.status === 'HADIR') row.hadir += 1
     else if (session.status === 'SAKIT') row.sakit += 1

@@ -49,6 +49,7 @@ interface MonitoringClientProps {
 }
 
 const STATUS_STYLE: Record<string, { bg: string; text: string; icon: any; label: string; dot: string }> = {
+  CUTI: { bg: 'bg-slate-100 border-slate-200', text: 'text-slate-700', icon: Clock, label: 'Cuti', dot: 'bg-slate-500' },
   TEPAT_WAKTU: { bg: 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800', text: 'text-emerald-700 dark:text-emerald-400', icon: CheckCircle2, label: 'Tepat Waktu', dot: 'bg-emerald-500' },
   HADIR:       { bg: 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-200 dark:border-emerald-800', text: 'text-emerald-700 dark:text-emerald-400', icon: CheckCircle2, label: 'Hadir', dot: 'bg-emerald-500' },
   BELUM_MENGISI: { bg: 'bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700', text: 'text-slate-600 dark:text-slate-300', icon: Clock, label: 'Belum Mengisi', dot: 'bg-slate-400' },
@@ -720,6 +721,7 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
                     <TableCell>
                       <StatusBadge status={item.kepentingan_sekolah ? 'IZIN_SEKOLAH' : item.status} /><TeacherLeaveBadge data={item} />
                       {item.ppl_nama && <p className="mt-0.5 text-[10px] text-violet-500">Diisi oleh {item.ppl_nama} (PPL)</p>}
+                      {item.pengganti_cuti_nama && <p className="mt-0.5 text-xs text-muted-foreground">{item.agenda_id ? 'Diisi oleh' : 'Pengganti'} {item.pengganti_cuti_nama}</p>}
                       {item.alasan_ketidakhadiran && item.pelaksana_nama && (
                         <p className="text-[10px] text-violet-500 mt-0.5">Pelaksana: {item.pelaksana_nama}</p>
                       )}
@@ -778,6 +780,7 @@ function TabHarian({ filterOptions }: { filterOptions: MonitoringClientProps['fi
                   <p className="text-[11px] text-slate-400">{item.jam_label} &middot; {item.slot_mulai}-{item.slot_selesai}</p>
                   <p className="mt-1 text-[11px]">Absensi siswa: <StudentAttendanceLabel filled={item.sudah_absen_siswa} /></p>
                   {item.ppl_nama && <p className="mt-0.5 truncate text-[11px] text-violet-500">Diisi oleh {item.ppl_nama} (PPL)</p>}
+                  {item.pengganti_cuti_nama && <p className="mt-0.5 text-xs text-muted-foreground">{item.agenda_id ? 'Diisi oleh' : 'Pengganti'} {item.pengganti_cuti_nama}</p>}
                   {item.alasan_ketidakhadiran && item.pelaksana_nama && (
                     <p className="mt-0.5 truncate text-[11px] text-violet-500">Pelaksana: {item.pelaksana_nama}</p>
                   )}
@@ -1405,7 +1408,7 @@ tr { break-inside: avoid; page-break-inside: avoid; }
                       <td style={{ border: '1px solid #000', padding: '4px 6px' }} className={statusClass}>
                         {item.kepentingan_sekolah ? 'IS' : STATUS_STYLE[item.status]?.label || item.status}
                       </td>
-                      <td style={{ border: '1px solid #000', padding: '4px 6px' }}>{[item.ppl_nama ? `Diisi oleh ${item.ppl_nama} (PPL)` : null, item.kepentingan_sekolah ? 'Kepentingan Sekolah' : null, item.alasan_izin_guru_nama, item.keterangan].filter(Boolean).join(' — ') || '-'}</td>
+                      <td style={{ border: '1px solid #000', padding: '4px 6px' }}>{[item.pengganti_cuti_nama ? `Diisi oleh ${item.pengganti_cuti_nama} (pengganti)` : null, item.ppl_nama ? `Diisi oleh ${item.ppl_nama} (PPL)` : null, item.kepentingan_sekolah ? 'Kepentingan Sekolah' : null, item.alasan_izin_guru_nama, item.keterangan].filter(Boolean).join(' — ') || '-'}</td>
                     </tr>
                   )
                 })}
@@ -1509,7 +1512,7 @@ function LegacyAgendaPrintDocument({ data, scope, scopeLabel, periodLabel }: {
               <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{item.jam_ke_mulai === item.jam_ke_selesai ? item.jam_ke_mulai : `${item.jam_ke_mulai}-${item.jam_ke_selesai}`}</td>
               <td style={{ ...agendaPrintCell, overflowWrap: 'break-word' }}>{item.materi || '-'}</td>
               <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{item.kepentingan_sekolah ? 'IS' : STATUS_STYLE[item.status]?.label || item.status}</td>
-              <td style={{ ...agendaPrintCell, overflowWrap: 'break-word' }}>{[item.ppl_nama ? `Diisi oleh ${item.ppl_nama} (PPL)` : null, item.kepentingan_sekolah ? 'Kepentingan Sekolah' : null, item.alasan_izin_guru_nama, item.keterangan].filter(Boolean).join(' — ') || '-'}</td>
+              <td style={{ ...agendaPrintCell, overflowWrap: 'break-word' }}>{[item.pengganti_cuti_nama ? `Diisi oleh ${item.pengganti_cuti_nama} (pengganti)` : null, item.ppl_nama ? `Diisi oleh ${item.ppl_nama} (PPL)` : null, item.kepentingan_sekolah ? 'Kepentingan Sekolah' : null, item.alasan_izin_guru_nama, item.keterangan].filter(Boolean).join(' — ') || '-'}</td>
             </tr>
           ))}
         </tbody>
@@ -1683,7 +1686,7 @@ function TeacherAttendanceAttachment({ teacher, periodLabel }: {
               <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{item.jam_ke_mulai === item.jam_ke_selesai ? item.jam_ke_mulai : `${item.jam_ke_mulai}-${item.jam_ke_selesai}`}</td>
               <td style={{ ...agendaPrintCell, overflowWrap: 'break-word' }}>{item.materi || '-'}</td>
               <td style={{ ...agendaPrintCell, textAlign: 'center', whiteSpace: 'nowrap' }}>{item.kepentingan_sekolah ? 'IS' : STATUS_STYLE[item.status]?.label || item.status}</td>
-              <td style={{ ...agendaPrintCell, overflowWrap: 'break-word' }}>{[item.ppl_nama ? `Diisi oleh ${item.ppl_nama} (PPL)` : null, item.kepentingan_sekolah ? 'Kepentingan Sekolah' : null, item.alasan_izin_guru_nama, item.keterangan].filter(Boolean).join(' — ') || '-'}</td>
+              <td style={{ ...agendaPrintCell, overflowWrap: 'break-word' }}>{[item.pengganti_cuti_nama ? `Diisi oleh ${item.pengganti_cuti_nama} (pengganti)` : null, item.ppl_nama ? `Diisi oleh ${item.ppl_nama} (PPL)` : null, item.kepentingan_sekolah ? 'Kepentingan Sekolah' : null, item.alasan_izin_guru_nama, item.keterangan].filter(Boolean).join(' — ') || '-'}</td>
             </tr>
           ))}
         </tbody>

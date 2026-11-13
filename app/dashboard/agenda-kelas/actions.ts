@@ -1,5 +1,7 @@
 'use server'
 
+import { readAgendaReplacementActors, readTeacherPeriods, type TeacherLeavePeriod } from '@/lib/teacher-leave-period'
+
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
 import { checkFeatureAccess } from '@/lib/features'
@@ -73,6 +75,7 @@ export type AgendaKelasRow = {
   guru_nama: string
   paraf: string
   guru_status: string
+  pengganti_nama?: string
 }
 
 export type AgendaKelasAbsensiRow = {
@@ -460,14 +463,14 @@ async function buildAgendaKelasHari(
   if (!ta?.id) return { error: 'Tahun ajaran aktif belum diatur.', data: null }
 
   const slots = getSlots(ta.jam_pelajaran, hari)
-  const [exceptions, jadwalRes] = await Promise.all([
+  const [exceptions, jadwalRes, periods, actors] = await Promise.all([
     getKbmExceptionsForDate(db, tanggal),
     db.prepare(`
       SELECT jm.penugasan_id, jm.jam_ke,
         pm.guru_id,
         guru.nama_lengkap as guru_nama,
         mp.nama_mapel,
-        ag.materi,
+        ag.id AS agenda_id, ag.materi,
         ag.status as agenda_status,
         dtk.id as delegasi_kelas_id,
         dt_info.alasan_ketidakhadiran as delegasi_alasan,
@@ -486,6 +489,8 @@ async function buildAgendaKelasHari(
       WHERE pm.kelas_id = ? AND jm.tahun_ajaran_id = ? AND jm.hari = ?
       ORDER BY jm.jam_ke ASC
     `).bind(tanggal, tanggal, kelasId, ta.id, hari).all<any>(),
+    readTeacherPeriods(db, tanggal),
+    readAgendaReplacementActors(db, tanggal),
   ])
 
   const grouped = new Map<string, any[]>()
@@ -517,7 +522,7 @@ async function buildAgendaKelasHari(
     if (slotState.activeJamKe.length === 0) continue
 
     const slotSelesai = slots.find(s => s.id === slotState.activeJamKe[slotState.activeJamKe.length - 1])
-    const guruStatus = resolveGuruStatus({
+    const guruStatus = periods.some(period => period.guru_id === first.guru_id) ? 'CUTI' : resolveGuruStatus({
       agendaStatus: first.agenda_status,
       izinSekolah: first.izin_sekolah === 1,
       hasDelegasi: !!first.delegasi_kelas_id,
@@ -535,6 +540,7 @@ async function buildAgendaKelasHari(
         pokok_bahasan: first.materi || '',
         tugas: first.tugas || '',
         guru_nama: first.guru_nama || '',
+        pengganti_nama: actors.get(first.agenda_id),
         paraf: '',
         guru_status: guruStatus,
       }
@@ -794,13 +800,13 @@ export async function getAgendaKelasCetakBatch(jobs: { kelasId: string; tanggal:
     const dayExceptions = exceptionsByDate.get(tanggal) || []
     
     // Fetch day-specific teaching schedule
-    const [jadwalRes] = await Promise.all([
+    const [jadwalRes, periods, actors] = await Promise.all([
       db.prepare(`
         SELECT jm.penugasan_id, jm.jam_ke,
           pm.guru_id,
           guru.nama_lengkap as guru_nama,
           mp.nama_mapel,
-          ag.materi,
+          ag.id AS agenda_id, ag.materi,
           ag.status as agenda_status,
           dtk.id as delegasi_kelas_id,
           dt.alasan_ketidakhadiran as delegasi_alasan,
@@ -819,7 +825,9 @@ export async function getAgendaKelasCetakBatch(jobs: { kelasId: string; tanggal:
         LEFT JOIN delegasi_tugas dt ON dtk.delegasi_id = dt.id
         WHERE pm.kelas_id = ? AND jm.tahun_ajaran_id = ? AND jm.hari = ?
         ORDER BY jm.jam_ke ASC
-      `).bind(tanggal, tanggal, kelasId, ta.id, hari).all<any>()
+      `).bind(tanggal, tanggal, kelasId, ta.id, hari).all<any>(),
+      readTeacherPeriods(db, tanggal),
+      readAgendaReplacementActors(db, tanggal),
     ])
 
     const grouped = new Map<string, any[]>()
@@ -851,7 +859,7 @@ export async function getAgendaKelasCetakBatch(jobs: { kelasId: string; tanggal:
       if (slotState.activeJamKe.length === 0) continue
 
       const slotSelesai = slots.find(s => s.id === slotState.activeJamKe[slotState.activeJamKe.length - 1])
-      const guruStatus = resolveGuruStatus({
+      const guruStatus = periods.some(period => period.guru_id === first.guru_id) ? 'CUTI' : resolveGuruStatus({
         agendaStatus: first.agenda_status,
         izinSekolah: first.izin_sekolah === 1,
         hasDelegasi: !!first.delegasi_kelas_id,
@@ -869,6 +877,7 @@ export async function getAgendaKelasCetakBatch(jobs: { kelasId: string; tanggal:
           pokok_bahasan: first.materi || '',
           tugas: first.tugas || '',
           guru_nama: first.guru_nama || '',
+          pengganti_nama: actors.get(first.agenda_id),
           paraf: '',
           guru_status: guruStatus,
         }
@@ -951,6 +960,7 @@ type BulkScheduleRow = {
 }
 
 type BulkAgendaRow = {
+  id: string
   penugasan_id: string
   tanggal: string
   materi: string | null
@@ -1066,6 +1076,8 @@ function buildAgendaKelasExportPage(input: {
   schedulesByClassDay: Map<string, BulkScheduleRow[]>
   agendasByDate: Map<string, BulkAgendaRow[]>
   delegationsByDate: Map<string, BulkDelegationRow[]>
+  leavePeriods: TeacherLeavePeriod[]
+  replacementActors: Map<string, string>
   finalAttendance: FinalAttendanceClassData | null
 }): AgendaKelasPageData {
   const { job, kelas, kepala } = input
@@ -1154,7 +1166,7 @@ function buildAgendaKelasExportPage(input: {
     if (slotState.activeJamKe.length === 0) continue
 
     const slotSelesai = slots.find(s => s.id === slotState.activeJamKe[slotState.activeJamKe.length - 1])
-    const guruStatus = resolveGuruStatus({
+    const guruStatus = input.leavePeriods.some(period => period.guru_id === first.guru_id && period.mulai <= tanggal && period.selesai >= tanggal) ? 'CUTI' : resolveGuruStatus({
       agendaStatus: agenda?.agenda_status,
       izinSekolah: (agenda?.alasan_izin_guru_id ? agenda.izin_sekolah : delegation?.izin_sekolah) === 1,
       hasDelegasi: !!delegation?.delegasi_kelas_id,
@@ -1172,6 +1184,7 @@ function buildAgendaKelasExportPage(input: {
         pokok_bahasan: agenda?.materi || '',
         tugas: delegation?.tugas || '',
         guru_nama: first.guru_nama || '',
+        pengganti_nama: agenda ? input.replacementActors.get(agenda.id) : undefined,
         paraf: '',
         guru_status: guruStatus,
       }
@@ -1228,7 +1241,7 @@ export async function getAgendaKelasCetakExportData(
   const maxDate = dates[dates.length - 1]
   const idChunks = chunkAgendaKelasIds(uniqueKelasIds)
 
-  const [ta, kepala, events, exceptions] = await Promise.all([
+  const [ta, kepala, events, exceptions, leavePeriods, replacementActors] = await Promise.all([
     db.prepare('SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<any>(),
     db.prepare(`
       SELECT COALESCE(u.nama_lengkap, u.name) as nama, u.nip, u.signature_url
@@ -1240,6 +1253,8 @@ export async function getAgendaKelasCetakExportData(
     `).first<{ nama: string; nip: string | null; signature_url: string | null }>(),
     getKalenderEventsForRange(db, minDate, maxDate),
     getKbmExceptionsForRange(db, minDate, maxDate),
+    readTeacherPeriods(db, minDate, maxDate),
+    readAgendaReplacementActors(db, minDate, maxDate),
   ])
   if (!ta?.id) return { error: 'Tahun ajaran aktif belum diatur.', pages: [], meta: emptyMeta }
 
@@ -1274,7 +1289,7 @@ export async function getAgendaKelasCetakExportData(
         ORDER BY pm.kelas_id ASC, jm.hari ASC, jm.jam_ke ASC
       `).bind(...ids, ta.id).all<BulkScheduleRow>(),
       db.prepare(`
-        SELECT ag.penugasan_id, ag.tanggal, ag.materi, ag.status as agenda_status,
+        SELECT ag.id, ag.penugasan_id, ag.tanggal, ag.materi, ag.status as agenda_status,
           ag.alasan_izin_guru_id,
           (SELECT kepentingan_sekolah FROM alasan_izin_guru WHERE id = ag.alasan_izin_guru_id) AS izin_sekolah
         FROM agenda_guru ag
@@ -1349,6 +1364,8 @@ export async function getAgendaKelasCetakExportData(
       schedulesByClassDay,
       agendasByDate,
       delegationsByDate,
+      leavePeriods,
+      replacementActors,
       finalAttendance: finalAttendanceByClass.get(job.kelasId) || null,
     })
     if (isPrintableAgendaKelasPage(page)) pages.push(page)

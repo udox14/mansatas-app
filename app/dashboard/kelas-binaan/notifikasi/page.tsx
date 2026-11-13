@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
-import { getUserRoles } from '@/lib/features'
+import { checkFeatureAccess, getUserRoles } from '@/lib/features'
 import { PageHeader } from '@/components/layout/page-header'
 import { getStaffInbox } from '@/lib/staff-notification-inbox'
 import { getAttendanceCorrectionReviewer } from '@/lib/attendance-correction-reviewer'
@@ -19,7 +19,8 @@ export default async function WaliInboxPage({ searchParams }: { searchParams: Pr
   const params = await searchParams
   const corrections = params.scope === 'koreksi'
   const allowed = corrections ? await getAttendanceCorrectionReviewer(db, user.id) :
-    (await getUserRoles(db, user.id)).some(role => ['wali_kelas','super_admin','admin_tu','kepsek','wakamad'].includes(role))
+    ((await getUserRoles(db, user.id)).some(role => ['wali_kelas','super_admin','admin_tu','kepsek','wakamad'].includes(role))
+      || await checkFeatureAccess(db, user.id, 'kelas-binaan'))
   if (!allowed) redirect('/dashboard')
   const unread = params.filter === 'unread'
   const inbox = await getStaffInbox(db,user.id,{before:params.before,unread,corrections})

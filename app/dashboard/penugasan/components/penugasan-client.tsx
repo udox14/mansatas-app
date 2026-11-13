@@ -51,7 +51,8 @@ interface PenugasanClientProps {
 }
 
 const HARI_NAMA = ['', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu']
-const ALASAN_STYLE: Record<'SAKIT' | 'IZIN', { label: string; badge: string; panel: string }> = {
+const ALASAN_STYLE: Record<'SAKIT' | 'IZIN' | 'CUTI', { label: string; badge: string; panel: string }> = {
+  CUTI: { label: 'Cuti', badge: 'bg-slate-100 text-slate-700 border-slate-200', panel: 'bg-slate-50 border-slate-200 text-slate-800' },
   SAKIT: {
     label: 'Sakit',
     badge: 'bg-blue-100 text-blue-700 border-blue-200',
@@ -64,7 +65,7 @@ const ALASAN_STYLE: Record<'SAKIT' | 'IZIN', { label: string; badge: string; pan
   },
 }
 
-function AlasanBadge({ alasan }: { alasan: 'SAKIT' | 'IZIN' }) {
+function AlasanBadge({ alasan }: { alasan: 'SAKIT' | 'IZIN' | 'CUTI' }) {
   const style = ALASAN_STYLE[alasan]
   return (
     <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${style.badge}`}>

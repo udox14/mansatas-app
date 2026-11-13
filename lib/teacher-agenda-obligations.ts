@@ -1,5 +1,6 @@
 import { getKalenderDateStatus, getKbmExceptionsForDate, splitTeachingSlotsByExceptions } from './kalender-pendidikan'
 import { enrichTeacherLeaveSessions } from './teacher-leave-db'
+import { readTeacherPeriods } from './teacher-leave-period'
 
 export async function getTeacherAgendaObligations(db: D1Database, tanggal: string, taId: string) {
   if (!(await getKalenderDateStatus(db, tanggal)).isEffective) return []
@@ -23,5 +24,6 @@ export async function getTeacherAgendaObligations(db: D1Database, tanggal: strin
   const exceptions = await getKbmExceptionsForDate(db, tanggal)
   const active = (rows.results || []).filter(row => splitTeachingSlotsByExceptions(exceptions,
     { id: row.kelas_id, tingkat: row.tingkat }, row.jam_list.split(',').map(Number)).activeJamKe.length > 0)
-  return enrichTeacherLeaveSessions(db, active.map(row => ({ ...row, tanggal })))
+  const onLeave = new Set((await readTeacherPeriods(db, tanggal)).map(row => row.guru_id))
+  return enrichTeacherLeaveSessions(db, active.filter(row => !onLeave.has(row.guru_id)).map(row => ({ ...row, tanggal })))
 }

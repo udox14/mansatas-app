@@ -46,16 +46,16 @@ beforeEach(() => {
     CREATE TABLE tahun_ajaran (id TEXT PRIMARY KEY, is_active INTEGER, jam_pelajaran TEXT);
     CREATE TABLE jadwal_mengajar (penugasan_id TEXT, tahun_ajaran_id TEXT, hari INTEGER, jam_ke INTEGER);
     CREATE TABLE absensi_siswa (penugasan_id TEXT, siswa_id TEXT, tanggal TEXT, jam_ke_mulai INTEGER, jam_ke_selesai INTEGER, jumlah_jam INTEGER, status TEXT, catatan TEXT, diinput_oleh TEXT);
-    CREATE TABLE delegasi_tugas (id TEXT PRIMARY KEY, kepada_user_id TEXT, tanggal TEXT, status TEXT, updated_at TEXT);
-    CREATE TABLE delegasi_tugas_kelas (id TEXT PRIMARY KEY, delegasi_id TEXT, absen_selesai INTEGER, pelaksana_user_id TEXT, selesai_at TEXT);
+    CREATE TABLE delegasi_tugas (id TEXT PRIMARY KEY, kepada_user_id TEXT, tanggal TEXT, status TEXT, updated_at TEXT, dari_user_id TEXT);
+    CREATE TABLE delegasi_tugas_kelas (id TEXT PRIMARY KEY, delegasi_id TEXT, absen_selesai INTEGER, pelaksana_user_id TEXT, selesai_at TEXT, penugasan_mengajar_id TEXT);
     INSERT INTO "user" VALUES ('teacher');
     INSERT INTO kelas VALUES ('class',10,NULL);
     INSERT INTO siswa VALUES ('s','class','aktif');
     INSERT INTO penugasan_mengajar VALUES ('assignment');
     INSERT INTO tahun_ajaran VALUES ('year',1,'[]');
     INSERT INTO jadwal_mengajar VALUES ('assignment','year',4,1),('assignment','year',4,2);
-    INSERT INTO delegasi_tugas VALUES ('delegation','teacher','2026-10-01','PENDING',NULL);
-    INSERT INTO delegasi_tugas_kelas VALUES ('delegation-class','delegation',0,NULL,NULL);
+    INSERT INTO delegasi_tugas VALUES ('delegation','teacher','2026-10-01','PENDING',NULL,'guru-utama');
+    INSERT INTO delegasi_tugas_kelas VALUES ('delegation-class','delegation',0,NULL,NULL,'assignment');
   `)
   function prepared(sql: string, args: SQLInputValue[] = []) {
     // No WA tables exist: any accidental enqueue/schema recreation is a regression.

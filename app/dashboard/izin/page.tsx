@@ -104,7 +104,7 @@ export default async function IzinPage({
   if (!allowed) redirect('/dashboard')
 
   const roles = await getUserRoles(db, user.id)
-  const isWaliKelasOnly = roles.includes('wali_kelas') &&
+  const isWaliKelasOnly =
     !roles.includes('super_admin') &&
     !roles.includes('admin_tu') &&
     !roles.includes('kepsek') &&

@@ -13,7 +13,8 @@ import {
 import type { MonitoringDelegasi, MonitoringPetugasPiket } from '../actions'
 import { todayWIB } from '@/lib/time'
 
-const ALASAN_STYLE: Record<'SAKIT' | 'IZIN', { label: string; badge: string; border: string; text: string }> = {
+const ALASAN_STYLE: Record<'SAKIT' | 'IZIN' | 'CUTI', { label: string; badge: string; border: string; text: string }> = {
+  CUTI: { label: 'Cuti', badge: 'bg-slate-100 text-slate-700 border-slate-200', border: 'border-slate-200', text: 'text-slate-700' },
   SAKIT: {
     label: 'Sakit',
     badge: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-400 dark:border-blue-800',
@@ -28,7 +29,7 @@ const ALASAN_STYLE: Record<'SAKIT' | 'IZIN', { label: string; badge: string; bor
   },
 }
 
-function AlasanBadge({ alasan }: { alasan: 'SAKIT' | 'IZIN' }) {
+function AlasanBadge({ alasan }: { alasan: 'SAKIT' | 'IZIN' | 'CUTI' }) {
   const style = ALASAN_STYLE[alasan] || ALASAN_STYLE.IZIN
   return (
     <span className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full border font-semibold tracking-wide ${style.badge}`}>

@@ -7,6 +7,8 @@ import { revalidatePath } from 'next/cache'
 import { formatNamaKelas } from '@/lib/utils'
 import { getEffectiveUser } from '@/lib/act-as'
 import { canManageTeachingRecord, resolveTeachingAssignmentAccess } from '@/lib/guru-ppl-access'
+import { readReplacementScopes } from '@/lib/teacher-leave-period'
+import { isValidTanggal } from '@/lib/izin-massal'
 import { notifyParentsGradeAvailable } from '@/lib/notification-engine'
 import { requireActionAccess } from '@/lib/action-security'
 
@@ -56,6 +58,7 @@ export async function getPenugasanGuru(guruIdOverride?: string): Promise<Penugas
   const db = await getDB()
   const ta = await db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<any>()
   if (!ta) return []
+  const delegated = await readReplacementScopes(db, guruId)
 
   const { results } = await db.prepare(`
     SELECT pm.id, mp.nama_mapel, k.id as kelas_id,
@@ -69,9 +72,9 @@ export async function getPenugasanGuru(guruIdOverride?: string): Promise<Penugas
       SELECT penugasan_mengajar_id FROM guru_ppl_mapping
       WHERE guru_ppl_id = ? AND berlaku_mulai <= date('now', '+7 hours')
         AND (berlaku_selesai IS NULL OR berlaku_selesai >= date('now', '+7 hours'))
-    )) AND pm.tahun_ajaran_id = ?
+    ) OR pm.guru_id IN (SELECT value FROM json_each(?))) AND pm.tahun_ajaran_id = ?
     ORDER BY k.tingkat ASC, k.nomor_kelas ASC, mp.nama_mapel ASC
-  `).bind(guruId, guruId, ta.id).all<any>()
+  `).bind(guruId, guruId, JSON.stringify(delegated.map(row => row.guru_id)), ta.id).all<any>()
 
   return (results || []).map(r => ({
     id: r.id,
@@ -95,8 +98,9 @@ export async function getNilaiHeaders(penugasanId: string): Promise<NilaiHeader[
   const db = await getDB()
   const access = await resolveTeachingAssignmentAccess(db, guruId, penugasanId)
   if (!access) return []
-  const actorFilter = access.actorKind === 'PPL' ? ' AND h.diinput_oleh = ?' : ''
-  const actorParams = access.actorKind === 'PPL' ? [guruId] : []
+  const actorFilter = access.actorKind === 'PENGGANTI' ? ' AND h.tanggal BETWEEN ? AND ? AND h.diinput_oleh = ?'
+    : access.actorKind === 'PPL' ? ' AND h.diinput_oleh = ?' : ''
+  const actorParams = access.actorKind === 'PENGGANTI' ? [access.periodStart, access.periodEnd, guruId] : access.actorKind === 'PPL' ? [guruId] : []
   const { results } = await db.prepare(`
     SELECT
       h.id, h.penugasan_id, h.judul, h.tanggal, h.keterangan, h.kkm, h.tipe_nilai, h.created_at,
@@ -128,7 +132,7 @@ export async function getNilaiDetail(headerId: string, kelasId: string): Promise
     'SELECT id, judul, tanggal, penugasan_id, created_by, diinput_oleh FROM nilai_harian_header WHERE id = ?'
   ).bind(headerId).first<any>()
   if (!header) return []
-  const access = await resolveTeachingAssignmentAccess(db, guruId, header.penugasan_id)
+  const access = await resolveTeachingAssignmentAccess(db, guruId, header.penugasan_id, header.tanggal)
   if (!access || header.created_by !== access.guruUtamaId || !canManageTeachingRecord(access, header.diinput_oleh)) return []
   if (kelasId !== access.kelasId) return []
 
@@ -169,8 +173,9 @@ export async function buatSesiNilai(data: {
   if (!['angka', 'huruf'].includes(data.tipe_nilai)) return { error: 'Jenis nilai tidak valid.' }
   if (!Number.isFinite(data.kkm) || data.kkm < 0 || data.kkm > 100) return { error: 'KKM harus antara 0 dan 100.' }
 
-  const access = await resolveTeachingAssignmentAccess(db, guruId, data.penugasan_id)
-  if (!access) return { error: 'Penugasan tidak ditemukan atau tidak ditugaskan kepada Anda.' }
+  if (!isValidTanggal(data.tanggal)) return { error: 'Tanggal penilaian tidak valid.' }
+  const access = await resolveTeachingAssignmentAccess(db, guruId, data.penugasan_id, data.tanggal)
+  if (!access || access.tahunAjaranId !== ta.id || (access.actorKind === 'GURU' && access.ownerOnLeave)) return { error: 'Penugasan tidak ditemukan atau tidak ditugaskan kepada Anda.' }
 
   const res = await dbInsert(db, 'nilai_harian_header', {
     penugasan_id: data.penugasan_id,
@@ -205,9 +210,12 @@ export async function editSesiNilai(id: string, data: {
   const actualActorId = effective?.realUserId || user.id
 
   const db = await getDB()
-  const header = await db.prepare('SELECT penugasan_id, created_by, diinput_oleh FROM nilai_harian_header WHERE id = ?').bind(id).first<any>()
+  const header = await db.prepare('SELECT tanggal, penugasan_id, created_by, diinput_oleh FROM nilai_harian_header WHERE id = ?').bind(id).first<any>()
   if (!header) return { error: 'Sesi tidak ditemukan.' }
-  const access = await resolveTeachingAssignmentAccess(db, guruId, header.penugasan_id)
+  if (!isValidTanggal(data.tanggal)) return { error: 'Tanggal penilaian tidak valid.' }
+  const access = await resolveTeachingAssignmentAccess(db, guruId, header.penugasan_id, header.tanggal)
+  const destination = await resolveTeachingAssignmentAccess(db, guruId, header.penugasan_id, data.tanggal)
+  if (!destination || (destination.actorKind === 'GURU' && destination.ownerOnLeave) || destination.actorKind !== access?.actorKind) return { error: 'Tanggal di luar penugasan Anda.' }
   if (!access || header.created_by !== access.guruUtamaId || !canManageTeachingRecord(access, header.diinput_oleh)) {
     return { error: 'Sesi tidak ditemukan atau bukan sesi yang dapat Anda kelola.' }
   }
@@ -238,10 +246,10 @@ export async function hapusSesiNilai(id: string): Promise<{ error?: string; succ
 
   const db = await getDB()
   const header = await db.prepare(
-    'SELECT id, penugasan_id, created_by, diinput_oleh FROM nilai_harian_header WHERE id = ?'
+    'SELECT id, tanggal, penugasan_id, created_by, diinput_oleh FROM nilai_harian_header WHERE id = ?'
   ).bind(id).first<any>()
   if (!header) return { error: 'Sesi tidak ditemukan.' }
-  const access = await resolveTeachingAssignmentAccess(db, guruId, header.penugasan_id)
+  const access = await resolveTeachingAssignmentAccess(db, guruId, header.penugasan_id, header.tanggal)
   if (!access || header.created_by !== access.guruUtamaId || !canManageTeachingRecord(access, header.diinput_oleh)) return { error: 'Sesi tidak ditemukan atau bukan sesi yang dapat Anda kelola.' }
 
   await db.prepare('DELETE FROM nilai_harian_header WHERE id = ?').bind(id).run()
@@ -269,7 +277,7 @@ export async function simpanNilaiSiswa(
     'SELECT id, judul, tanggal, tipe_nilai, penugasan_id, created_by, diinput_oleh FROM nilai_harian_header WHERE id = ?'
   ).bind(headerId).first<any>()
   if (!header) return { error: 'Sesi tidak ditemukan atau anda bukan pemiliknya.' }
-  const access = await resolveTeachingAssignmentAccess(db, guruId, header.penugasan_id)
+  const access = await resolveTeachingAssignmentAccess(db, guruId, header.penugasan_id, header.tanggal)
   if (!access || header.created_by !== access.guruUtamaId || !canManageTeachingRecord(access, header.diinput_oleh)) return { error: 'Sesi tidak ditemukan atau bukan sesi yang dapat Anda kelola.' }
 
   if (data.length === 0) return { error: 'Tidak ada perubahan nilai.' }
@@ -356,8 +364,9 @@ export async function getRekapNilai(penugasanId: string): Promise<{
     WHERE pm.id = ? AND pm.guru_id = ?
   `).bind(penugasanId, access.guruUtamaId).first<any>()
   if (!pm) return { headers: [], rows: [], kkm: 75 }
-  const actorFilter = access.actorKind === 'PPL' ? ' AND h.diinput_oleh = ?' : ''
-  const actorParams = access.actorKind === 'PPL' ? [guruId] : []
+  const actorFilter = access.actorKind === 'PENGGANTI' ? ' AND h.tanggal BETWEEN ? AND ? AND h.diinput_oleh = ?'
+    : access.actorKind === 'PPL' ? ' AND h.diinput_oleh = ?' : ''
+  const actorParams = access.actorKind === 'PENGGANTI' ? [access.periodStart, access.periodEnd, guruId] : access.actorKind === 'PPL' ? [guruId] : []
 
   const [headersRes, siswaRes, detailRes] = await Promise.all([
     db.prepare(`

@@ -1,4 +1,5 @@
 import { formatNamaKelas } from '@/lib/utils'
+import { readReplacementScopes } from '@/lib/teacher-leave-period'
 import {
   getEffectiveDatesInRange,
   getKbmExceptionsForRange,
@@ -173,8 +174,9 @@ function getSlotsHari(raw: string | null | undefined, hari: number): Array<{ id:
   }
 }
 
-export async function getAccessibleWaliKelasClasses(db: D1Database, userId: string, roles: string[]) {
+export async function getAccessibleWaliKelasClasses(db: D1Database, userId: string, roles: string[], date?: string) {
   const isAdmin = roles.some(role => ['super_admin', 'admin_tu', 'kepsek', 'wakamad'].includes(role))
+  const delegated = isAdmin ? [] : await readReplacementScopes(db, userId, date)
   const rows = isAdmin
     ? await db.prepare(`
         SELECT k.id, k.tingkat, k.nomor_kelas, k.kelompok, k.wali_kelas_id, u.nama_lengkap as wali_kelas_nama
@@ -186,9 +188,9 @@ export async function getAccessibleWaliKelasClasses(db: D1Database, userId: stri
         SELECT k.id, k.tingkat, k.nomor_kelas, k.kelompok, k.wali_kelas_id, u.nama_lengkap as wali_kelas_nama
         FROM kelas k
         LEFT JOIN "user" u ON k.wali_kelas_id = u.id
-        WHERE k.wali_kelas_id = ?
+        WHERE k.wali_kelas_id IN (SELECT value FROM json_each(?))
         ORDER BY k.tingkat, k.kelompok, CAST(k.nomor_kelas AS INTEGER)
-      `).bind(userId).all<ClassRow>()
+      `).bind(JSON.stringify([userId, ...delegated.map(row => row.guru_id)])).all<ClassRow>()
 
   return (rows.results || []).map(row => ({
     ...row,

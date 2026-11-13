@@ -133,7 +133,7 @@ export const AgendaKelasTemplate = React.forwardRef<HTMLDivElement, Props>(
                       <td style={tdStyle}>
                         <div style={lineClampStyle}>{row?.tugas || ''}</div>
                       </td>
-                      <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 'bold', fontSize: '7.5pt' }}>{row?.guru_status || ''}</td>
+                      <td style={{ ...tdStyle, textAlign: 'center', fontWeight: 'bold', fontSize: '7.5pt' }}>{row?.guru_status || ''}{row?.pengganti_nama && <div>{row.pengganti_nama}</div>}</td>
                     </tr>
                   )
                 })}

@@ -16,6 +16,7 @@ import { KehadiranPribadiCard } from './shared/KehadiranPribadiCard'
 import { PenugasanMasukCard } from './shared/PenugasanMasukCard'
 import { QuickEditSiswa } from '@/app/dashboard/kelas-binaan/components/quick-edit-siswa'
 import { KelasBinaanCatatanSiswaView } from '@/app/dashboard/kelas-binaan/components/catatan-siswa-view'
+import { readReplacementScopes } from '@/lib/teacher-leave-period'
 import { getStudentNotes, getUnreadStudentNoteCountForWali } from '@/lib/student-notes'
 import { studentNoteCollator, type StudentNoteStudent } from '@/lib/student-note-shared'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
@@ -156,8 +157,7 @@ export async function KelasBinaanDashboard({
   const db = await getDB()
   const today = todayWIB()
   const startOfMonthStr = `${today.slice(0, 7)}-01`
-  const semesterStartDate = resolveSemesterStartDate(taAktif, today, startOfMonthStr)
-  const selectedDecisionDate = resolveDecisionDate(decisionDate, today, semesterStartDate)
+  let semesterStartDate = resolveSemesterStartDate(taAktif, today, startOfMonthStr)
 
   const kelas = kelasIdOverride
     ? await db.prepare(`
@@ -183,6 +183,12 @@ export async function KelasBinaanDashboard({
       </div>
     )
   }
+  if (kelas.wali_kelas_id !== userId) {
+    const scopes = await readReplacementScopes(db, userId)
+    const scope = scopes.find(row => row.guru_id === kelas.wali_kelas_id)
+    if (scope && scope.mulai > semesterStartDate) semesterStartDate = scope.mulai
+  }
+  const selectedDecisionDate = resolveDecisionDate(decisionDate, today, semesterStartDate)
 
   await ensureSchemaOnce('kelas_binaan:parent_comm_v1', async () => {
     await db.prepare(`
