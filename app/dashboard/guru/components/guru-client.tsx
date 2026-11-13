@@ -1020,9 +1020,9 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES, masterJab
                     <button onClick={() => setEditingPegawai(p)} disabled={isPending} className="p-1.5 rounded text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/50" title="Edit">
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
-                    <button onClick={() => handleHapus(p.id, p.nama_lengkap)} disabled={isPending} className="p-1.5 rounded text-rose-500 hover:bg-rose-50" title="Hapus">
+                    {p.role !== 'guru_ppl' && !p.roles.includes('guru_ppl') && <button onClick={() => handleHapus(p.id, p.nama_lengkap)} disabled={isPending} className="p-1.5 rounded text-rose-500 hover:bg-rose-50" title="Hapus">
                       <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    </button>}
                   </div>
                 </div>
               ))}
@@ -1101,9 +1101,9 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES, masterJab
                           <button onClick={() => setEditingPegawai(p)} disabled={isPending} className="p-1.5 rounded text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/50" title="Edit">
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
-                          <button onClick={() => handleHapus(p.id, p.nama_lengkap)} disabled={isPending} className="p-1.5 rounded text-rose-500 hover:bg-rose-50" title="Hapus">
+                          {p.role !== 'guru_ppl' && !p.roles.includes('guru_ppl') && <button onClick={() => handleHapus(p.id, p.nama_lengkap)} disabled={isPending} className="p-1.5 rounded text-rose-500 hover:bg-rose-50" title="Hapus">
                             <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          </button>}
                         </div>
                       </TableCell>
                     </TableRow>

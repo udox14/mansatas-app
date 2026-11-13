@@ -292,6 +292,14 @@ export const MENU_ITEMS: MenuItem[] = [
     desc: 'Memantau status dan pelaksanaan pendelegasian/penitipan tugas mengajar antar guru'
   },
   {
+    id: 'cuti-guru',
+    title: 'Cuti Guru',
+    href: '/dashboard/cuti-guru',
+    icon: CalendarDays,
+    roles: ['super_admin', 'wakamad'],
+    desc: 'Mengatur periode cuti guru dan penugasan pengganti sementara'
+  },
+  {
     id: 'rapat',
     title: 'Undangan Rapat',
     href: '/dashboard/rapat',
@@ -568,7 +576,7 @@ export const DEFAULT_SIDEBAR_GROUPS: SidebarGroupConfig[] = [
   { id: 'monitoring-rekap', label: 'Monitoring & Rekap', items: ['monitoring-agenda', 'audit-akses-agenda', 'monitoring-penugasan', 'rekap-absensi', 'akademik-nilai'] },
   { id: 'program-khusus', label: 'Program Khusus', items: ['tahfidz'] },
   { id: 'kesiswaan-bk', label: 'Kesiswaan & BK', items: ['kelas-binaan', 'keterangan-absensi', 'jadwal-piket', 'izin', 'kedisiplinan', 'sp', 'bk', 'psikotes', 'tka', 'penerimaan-pt'] },
-  { id: 'administrasi-hr', label: 'Administrasi & HR', items: ['tpg-dokumen', 'documentation', 'surat', 'rapat', 'kelola-ppl', 'buku-tamu'] },
+  { id: 'administrasi-hr', label: 'Administrasi & HR', items: ['cuti-guru', 'tpg-dokumen', 'documentation', 'surat', 'rapat', 'kelola-ppl', 'buku-tamu'] },
   { id: 'keuangan', label: 'Komite', items: ['komite-pengajuan', 'keuangan-rapbm', 'keuangan-daftar-ulang', 'keuangan-transaksi', 'keuangan-dspt', 'keuangan-dspt-nonaktif', 'keuangan-export', 'keuangan-kas-keluar', 'keuangan-laporan', 'keuangan-pengaturan'] },
   { id: 'sistem', label: 'Sistem', items: ['settings', 'log-aktivitas', 'settings-notifications', 'settings-mobile-app', 'settings-fitur', 'pengumuman-ortu', 'kotak-saran-ortu'] },
 ]

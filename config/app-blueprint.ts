@@ -132,6 +132,18 @@ export const APP_MODULES: ModuleItem[] = [
     outputs: ['Daftar penugasan aktif', 'Hak akses guru mengisi agenda'],
   },
   {
+    id: 'kelola-ppl',
+    title: 'Kelola PPL',
+    href: '/dashboard/kelola-ppl',
+    domain: 'kbm',
+    summary: 'Kelola kampus, penugasan mengajar, dan rekap kehadiran Guru PPL.',
+    description: 'Saat masa PPL selesai, Super Admin dapat menonaktifkan akun terpilih yang hanya memiliki peran Guru PPL. Sesi ditutup dan penugasan diakhiri pada tanggal yang dikonfirmasi. Daftar dan ekspor GTK menyembunyikan akun PPL nonaktif. Monitoring Kehadiran tetap menampilkan riwayat beserta identitas penginput.',
+    roles: ['super_admin', 'kepsek', 'wakamad'],
+    keyFeatures: ['Tag kampus', 'Delegasi mapel–kelas', 'Rekap kehadiran', 'Penonaktifan akun terpilih oleh Super Admin dengan log aktivitas'],
+    inputs: ['Akun Guru PPL', 'Kampus', 'Penugasan guru utama', 'Hari terakhir PPL (WIB)'],
+    outputs: ['Penugasan aktif dan riwayat', 'Rekap kehadiran PPL', 'Catatan penonaktifan akun'],
+  },
+  {
     id: 'kehadiran',
     title: 'Rekap Presensi Siswa',
     href: '/dashboard/kehadiran',
@@ -163,9 +175,22 @@ export const APP_MODULES: ModuleItem[] = [
     summary: 'Pemantauan realtime keterlaksanaan jam mengajar serta riwayat kehadiran guru oleh guru piket dan pimpinan.',
     description: 'Memastikan seluruh jam pelajaran terisi oleh guru yang bertugas atau ditangani oleh guru delegasi/piket jika guru utama berhalangan, dengan riwayat bulanan Izin/Sakit/Alfa dan rincian status per guru.',
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_piket'],
-    keyFeatures: ['Status kelas kosong vs terisi', 'Pendelegasian tugas guru berhalangan', 'Cuti Guru dikelola Super Admin dan Wakamad Kurikulum dengan pengganti opsional', 'Pengganti sementara dapat mengisi agenda, presensi, nilai, dan menjalankan tugas wali kelas sesuai cakupan', 'Cuti dikeluarkan dari target agenda dan performa guru utama', 'Akun pengganti khusus dibuat oleh Super Admin atau Admin TU dan hanya aktif selama penugasan', 'Riwayat Izin, Sakit, dan Alfa bulanan dengan filter status', 'Agenda per guru menampilkan sesi, sumber status, dan keterangan', 'Cetak rekap piket harian'],
+    keyFeatures: ['Status kelas kosong vs terisi', 'Pendelegasian tugas guru berhalangan', 'Cuti dikeluarkan dari target agenda dan performa guru utama', 'Riwayat Izin, Sakit, Alfa, dan Cuti bulanan dengan filter status', 'Agenda per guru menampilkan sesi, sumber status, dan keterangan', 'Cetak rekap piket harian'],
     inputs: ['Laporan keterlambatan/kekosongan kelas', 'Penugasan guru piket pengganti'],
     outputs: ['Laporan jurnal piket harian', 'Notifikasi ke pimpinan'],
+  },
+
+  {
+    id: 'cuti-guru',
+    title: 'Cuti Guru',
+    href: '/dashboard/cuti-guru',
+    domain: 'kepegawaian',
+    summary: 'Pencatatan periode cuti guru dan penunjukan pengganti sementara.',
+    description: 'Super Admin dan Wakamad Kurikulum mengelola cuti melalui sidebar Administrasi & HR. Status cuti dan pelaksanaan tugas tampil di monitoring.',
+    roles: ['super_admin', 'wakamad'],
+    keyFeatures: ['Cuti berperiode, termasuk tanggal lampau', 'Pengganti opsional untuk tugas mengajar dan wali kelas', 'Konfirmasi bentrok jadwal dan riwayat perubahan', 'Akun khusus dibuat oleh Super Admin atau Admin TU dan aktif selama penugasan'],
+    inputs: ['Guru, tanggal mulai dan selesai, catatan internal, dan pengganti opsional'],
+    outputs: ['Status cuti dan penugasan pengganti di agenda, presensi, dan monitoring'],
   },
 
   // --- KESISWAAN ---

@@ -3,11 +3,15 @@
 import { revalidatePath } from 'next/cache'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB as getRawDB } from '@/utils/db-server'
-import { requireActionAccess } from '@/lib/action-security'
+import { ActionAccessError, requireActionAccess } from '@/lib/action-security'
 import { formatNamaKelas } from '@/lib/utils'
 import { currentTimeWIB, nowWIBISO, todayWIB } from '@/lib/time'
 import { getEffectiveDatesInRange, getKbmExceptionsForRange, hariNumFromDateString, splitTeachingSlotsByExceptions } from '@/lib/kalender-pendidikan'
 import { filterPplAttendanceStatus, summarizePplAttendance, type PplAttendanceItem, type PplAttendanceStatus, type PplCampus } from '@/lib/guru-ppl-attendance'
+import { deactivatePplAccounts } from '@/lib/guru-ppl-deactivation'
+import { ensureActivityLogTables } from '@/lib/activity-log'
+import { ensureSchemaOnce } from '@/lib/schema-guard'
+import { isPlayReviewerRole } from '@/lib/play-reviewer'
 import type { PolaJam, SlotJam } from '@/app/dashboard/settings/types'
 
 export type {
@@ -28,7 +32,7 @@ const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 const OVERRIDE_STATUSES = new Set(['HADIR', 'TELAT', 'SAKIT', 'IZIN', 'ALFA'])
 
 function assertDate(value: string, label = 'Tanggal') {
-  if (!DATE_RE.test(value)) throw new Error(`${label} tidak valid.`)
+  if (typeof value !== 'string' || !DATE_RE.test(value)) throw new Error(`${label} tidak valid.`)
   const parsed = new Date(`${value}T00:00:00Z`)
   if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== value) {
     throw new Error(`${label} tidak valid.`)
@@ -44,7 +48,7 @@ export type PplSummaryItem = { guruUtamaId: string; guruUtamaNama: string; kbm: 
 export type PplWithSummary = GuruInfo & {
   kampus_id: string | null; kampus_nama: string | null; kampus_singkatan: string | null
   substitutions: PplSummaryItem[]; totalKbm: number
-  status: 'aktif' | 'belum_ditugaskan'
+  status: 'aktif' | 'belum_ditugaskan' | 'nonaktif'
 }
 export type PplDutyOption = { id: string; guru_utama_id: string; guru_utama_nama: string; label: string; jadwal_label: string; conflict_ppl_id: string | null; conflict_ppl_nama: string | null; schedule_conflict_label: string | null }
 export type PplMappingRow = { id: string; guru_ppl_id: string; guru_utama_id: string; guru_utama_nama: string; penugasan_mengajar_id: string; label: string }
@@ -52,15 +56,15 @@ export type PplMappingRow = { id: string; guru_ppl_id: string; guru_utama_id: st
 export async function getDaftarGuruPPLWithSummary(): Promise<PplWithSummary[]> {
   const db = await getDB()
   const [users, mappings] = await Promise.all([
-    db.prepare(`SELECT DISTINCT u.id,u.nama_lengkap,u.role,p.kampus_id,k.nama AS kampus_nama,k.singkatan AS kampus_singkatan FROM "user" u LEFT JOIN user_roles ur ON ur.user_id=u.id LEFT JOIN guru_ppl_profile p ON p.user_id=u.id LEFT JOIN guru_ppl_kampus k ON k.id=p.kampus_id WHERE u.role='guru_ppl' OR ur.role='guru_ppl' ORDER BY u.nama_lengkap`).all<any>(),
+    db.prepare(`SELECT DISTINCT u.id,COALESCE(NULLIF(u.nama_lengkap,''),u.name) AS nama_lengkap,u.role,u.banned,p.kampus_id,k.nama AS kampus_nama,k.singkatan AS kampus_singkatan FROM "user" u LEFT JOIN user_roles ur ON ur.user_id=u.id LEFT JOIN guru_ppl_profile p ON p.user_id=u.id LEFT JOIN guru_ppl_kampus k ON k.id=p.kampus_id WHERE u.role='guru_ppl' OR ur.role='guru_ppl' ORDER BY nama_lengkap`).all<Omit<PplWithSummary, 'substitutions' | 'totalKbm' | 'status'> & { banned: number | null }>(),
     db.prepare(`SELECT m.guru_ppl_id,m.guru_utama_id,u.nama_lengkap AS guru_utama_nama,m.penugasan_mengajar_id FROM guru_ppl_mapping m JOIN "user" u ON u.id=m.guru_utama_id WHERE m.berlaku_selesai IS NULL AND m.penugasan_mengajar_id IS NOT NULL ORDER BY u.nama_lengkap`).all<any>(),
   ])
   const all = mappings.results || []
-  return (users.results || []).map((ppl: any) => {
+  return (users.results || []).map(({ banned, ...ppl }) => {
     const own = all.filter((row: any) => row.guru_ppl_id === ppl.id)
     const byTeacher = new Map<string, PplSummaryItem>()
     for (const row of own) { if (!byTeacher.has(row.guru_utama_id)) byTeacher.set(row.guru_utama_id,{guruUtamaId:row.guru_utama_id,guruUtamaNama:row.guru_utama_nama,kbm:0}); byTeacher.get(row.guru_utama_id)!.kbm++ }
-    return {...ppl,substitutions:[...byTeacher.values()],totalKbm:own.length,status:own.length?'aktif':'belum_ditugaskan'}
+    return {...ppl,substitutions:[...byTeacher.values()],totalKbm:own.length,status:banned?'nonaktif':own.length?'aktif':'belum_ditugaskan'}
   })
 }
 
@@ -85,8 +89,40 @@ export async function batchSetPplCampus(userIds:string[],campusId:string|null){
   try{const db=await getDB('update');const actor=await getCurrentUser();if(!actor)return{error:'Unauthorized'};const ids=[...new Set(userIds.filter(Boolean))];const normalizedCampusId=campusId?.trim()||null;if(!ids.length||ids.length>200)return{error:'Pilih 1–200 akun PPL.'};if(normalizedCampusId&&!(await db.prepare('SELECT 1 FROM guru_ppl_kampus WHERE id=?').bind(normalizedCampusId).first()))return{error:'Kampus tidak ditemukan.'};const ph=ids.map(()=>'?').join(',');const valid=await db.prepare(`SELECT DISTINCT u.id FROM "user" u LEFT JOIN user_roles ur ON ur.user_id=u.id WHERE u.id IN (${ph}) AND (u.role='guru_ppl' OR ur.role='guru_ppl')`).bind(...ids).all<any>();if((valid.results||[]).length!==ids.length)return{error:'Pilihan memuat akun yang bukan Guru PPL.'};await db.batch(ids.map(id=>db.prepare(`INSERT INTO guru_ppl_profile(user_id,kampus_id,updated_by,updated_at) VALUES(?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET kampus_id=excluded.kampus_id,updated_by=excluded.updated_by,updated_at=excluded.updated_at`).bind(id,normalizedCampusId,actor.id,nowWIBISO())));revalidatePath('/dashboard/kelola-ppl');return{success:`${ids.length} akun PPL berhasil diperbarui.`}}catch(error){return{error:error instanceof Error?error.message:'Gagal memperbarui tag kampus.'}}
 }
 
+export async function batchDeactivatePplAccounts(input: { userIds: string[]; lastDay: string }): Promise<
+  { success: string; error?: never; details?: never } | { success?: never; error: string; details?: string[] }
+> {
+  try {
+    const actor = await requireActionAccess('kelola-ppl', 'update', { allowedRoles: ['super_admin'] })
+    if (actor.kind !== 'staff' || isPlayReviewerRole(actor.roles)) return { error: 'Hanya Super Admin yang dapat menonaktifkan akun PPL.' }
+
+    if (!Array.isArray(input?.userIds) || input.userIds.some(id => typeof id !== 'string' || !id.trim())) {
+      return { error: 'Pilihan akun PPL tidak valid.' }
+    }
+    const ids = [...new Set(input.userIds)]
+    if (!ids.length || ids.length > 200) return { error: 'Pilih 1–200 akun PPL.' }
+    const lastDay = input.lastDay
+    try {
+      assertDate(lastDay, 'Hari terakhir PPL')
+    } catch {
+      return { error: 'Masukkan hari terakhir PPL yang valid.' }
+    }
+    if (lastDay > todayWIB()) return { error: 'Hari terakhir PPL tidak boleh setelah hari ini (WIB).' }
+
+    const db = await getRawDB()
+    await ensureSchemaOnce('activity-log', () => ensureActivityLogTables(db))
+    const result = await deactivatePplAccounts(db, { ids, lastDay }, actor)
+    if (result.success) revalidatePath('/dashboard', 'layout')
+    return result
+  } catch (error) {
+    if (error instanceof ActionAccessError) return { error: 'Hanya Super Admin yang dapat menonaktifkan akun PPL.' }
+    console.error('Gagal menonaktifkan akun Guru PPL:', error)
+    return { error: 'Penonaktifan akun PPL gagal. Muat ulang daftar dan coba lagi.' }
+  }
+}
+
 export async function getPplWorkspace(pplUserId:string):Promise<{options:PplDutyOption[];mappings:PplMappingRow[]}>{
-  const db=await getDB();const role=await db.prepare(`SELECT 1 FROM "user" u LEFT JOIN user_roles ur ON ur.user_id=u.id WHERE u.id=? AND (u.role='guru_ppl' OR ur.role='guru_ppl')`).bind(pplUserId).first();if(!role)return{options:[],mappings:[]}
+  const db=await getDB();const role=await db.prepare(`SELECT 1 FROM "user" u LEFT JOIN user_roles ur ON ur.user_id=u.id WHERE u.id=? AND COALESCE(u.banned,0)=0 AND (u.role='guru_ppl' OR ur.role='guru_ppl')`).bind(pplUserId).first();if(!role)return{options:[],mappings:[]}
   const [kbm,history,ownKbmSchedule]=await Promise.all([
     db.prepare(`SELECT pm.id,pm.guru_id,u.nama_lengkap AS guru_nama,mp.nama_mapel,k.tingkat,k.nomor_kelas,k.kelompok,GROUP_CONCAT(jm.hari||':'||jm.jam_ke) AS jadwal_label,(SELECT cm.guru_ppl_id FROM guru_ppl_mapping cm WHERE cm.penugasan_mengajar_id=pm.id AND cm.berlaku_selesai IS NULL LIMIT 1) AS conflict_ppl_id,(SELECT pu.nama_lengkap FROM guru_ppl_mapping cm JOIN "user" pu ON pu.id=cm.guru_ppl_id WHERE cm.penugasan_mengajar_id=pm.id AND cm.berlaku_selesai IS NULL LIMIT 1) AS conflict_ppl_nama FROM penugasan_mengajar pm JOIN tahun_ajaran ta ON ta.id=pm.tahun_ajaran_id AND ta.is_active=1 JOIN "user" u ON u.id=pm.guru_id JOIN mata_pelajaran mp ON mp.id=pm.mapel_id JOIN kelas k ON k.id=pm.kelas_id JOIN jadwal_mengajar jm ON jm.penugasan_id=pm.id GROUP BY pm.id ORDER BY u.nama_lengkap,k.tingkat,k.nomor_kelas,mp.nama_mapel`).all<any>(),
     db.prepare(`SELECT m.*,u.nama_lengkap AS guru_utama_nama,mp.nama_mapel,k.tingkat,k.nomor_kelas,k.kelompok FROM guru_ppl_mapping m JOIN "user" u ON u.id=m.guru_utama_id JOIN penugasan_mengajar pm ON pm.id=m.penugasan_mengajar_id JOIN mata_pelajaran mp ON mp.id=pm.mapel_id JOIN kelas k ON k.id=pm.kelas_id WHERE m.guru_ppl_id=? AND m.berlaku_selesai IS NULL AND m.penugasan_mengajar_id IS NOT NULL ORDER BY u.nama_lengkap`).bind(pplUserId).all<any>(),
@@ -99,13 +135,26 @@ export async function getPplWorkspace(pplUserId:string):Promise<{options:PplDuty
 }
 
 export async function createPplMappings(input:{pplUserId:string;dutyIds:string[]}){
-  try{const db=await getDB('create');const ids=[...new Set(input.dutyIds.filter(Boolean))];if(!ids.length||ids.length>100)return{error:'Pilih 1–100 tugas.'};const ppl=await db.prepare(`SELECT 1 FROM "user" u LEFT JOIN user_roles ur ON ur.user_id=u.id WHERE u.id=? AND (u.role='guru_ppl' OR ur.role='guru_ppl')`).bind(input.pplUserId).first();if(!ppl)return{error:'Akun Guru PPL tidak valid.'};const ph=ids.map(()=>'?').join(',');const rows=(await db.prepare(`SELECT pm.id,pm.guru_id,GROUP_CONCAT(jm.hari||':'||jm.jam_ke) AS snapshot FROM penugasan_mengajar pm JOIN tahun_ajaran ta ON ta.id=pm.tahun_ajaran_id AND ta.is_active=1 JOIN jadwal_mengajar jm ON jm.penugasan_id=pm.id WHERE pm.id IN (${ph}) GROUP BY pm.id`).bind(...ids).all<any>()).results||[];if(rows.length!==ids.length)return{error:'Ada mapel–kelas yang tidak valid atau tidak aktif.'}
+  try{const db=await getDB('create');const ids=[...new Set(input.dutyIds.filter(Boolean))];if(!ids.length||ids.length>100)return{error:'Pilih 1–100 tugas.'};const activePpl = `SELECT 1 FROM "user" u LEFT JOIN user_roles ur ON ur.user_id=u.id WHERE u.id=? AND COALESCE(u.banned,0)=0 AND (u.role='guru_ppl' OR ur.role='guru_ppl')`;const ppl=await db.prepare(activePpl).bind(input.pplUserId).first();if(!ppl)return{error:'Pilih akun Guru PPL yang masih aktif.'};const ph=ids.map(()=>'?').join(',');const rows=(await db.prepare(`SELECT pm.id,pm.guru_id,GROUP_CONCAT(jm.hari||':'||jm.jam_ke) AS snapshot FROM penugasan_mengajar pm JOIN tahun_ajaran ta ON ta.id=pm.tahun_ajaran_id AND ta.is_active=1 JOIN jadwal_mengajar jm ON jm.penugasan_id=pm.id WHERE pm.id IN (${ph}) GROUP BY pm.id`).bind(...ids).all<any>()).results||[];if(rows.length!==ids.length)return{error:'Ada mapel–kelas yang tidak valid atau tidak aktif.'}
     if(rows.some(row=>row.guru_id===input.pplUserId))return{error:'Akun PPL tidak boleh menggantikan dirinya sendiri.'}
     const guruIds=[...new Set(rows.map(row=>row.guru_id).filter(Boolean))];const guruPh=guruIds.map(()=>'?').join(',');if(guruIds.length&&(await db.prepare(`SELECT 1 FROM "user" u LEFT JOIN user_roles ur ON ur.user_id=u.id WHERE u.id IN (${guruPh}) AND (u.role='guru_ppl' OR ur.role='guru_ppl') LIMIT 1`).bind(...guruIds).first()))return{error:'Guru utama harus berasal dari akun guru, bukan akun PPL.'}
     if(await db.prepare(`SELECT 1 FROM guru_ppl_mapping WHERE penugasan_mengajar_id IN (${ph}) AND berlaku_selesai IS NULL LIMIT 1`).bind(...ids).first())return{error:'Salah satu mapel–kelas sudah ditempati PPL lain.'}
     if(await db.prepare(`SELECT 1 FROM jadwal_mengajar calon JOIN jadwal_mengajar aktif ON aktif.hari=calon.hari AND aktif.jam_ke=calon.jam_ke JOIN guru_ppl_mapping m ON m.penugasan_mengajar_id=aktif.penugasan_id WHERE calon.penugasan_id IN (${ph}) AND m.guru_ppl_id=? AND m.berlaku_selesai IS NULL LIMIT 1`).bind(...ids,input.pplUserId).first())return{error:'Jadwal bentrok dengan mapping aktif PPL ini.'}
     if(ids.length>1&&await db.prepare(`SELECT 1 FROM jadwal_mengajar a JOIN jadwal_mengajar b ON b.hari=a.hari AND b.jam_ke=a.jam_ke AND b.penugasan_id<>a.penugasan_id WHERE a.penugasan_id IN (${ph}) AND b.penugasan_id IN (${ph}) LIMIT 1`).bind(...ids,...ids).first())return{error:'Jadwal mapel–kelas yang dipilih saling bentrok.'}
-    await db.batch(rows.map(r=>db.prepare(`INSERT INTO guru_ppl_mapping(id,guru_ppl_id,guru_utama_id,penugasan_mengajar_id,jadwal_piket_id,berlaku_mulai,berlaku_selesai,jadwal_snapshot,updated_at) VALUES(?,?,?,?,NULL,?,NULL,?,?)`).bind(crypto.randomUUID(),input.pplUserId,r.guru_id,r.id,todayWIB(),JSON.stringify(String(r.snapshot||'').split(',').filter(Boolean).map((v:string)=>{const [hari,jamKe]=v.split(':').map(Number);return{hari,jamKe}})),nowWIBISO())));revalidatePath('/dashboard/kelola-ppl');revalidatePath('/dashboard/agenda');revalidatePath('/dashboard/kehadiran');return{success:`${rows.length} penugasan PPL berhasil ditambahkan.`}
+    const start = todayWIB()
+    const updatedAt = nowWIBISO()
+    const inserted = await db.batch(rows.map(row => {
+      const snapshot = String(row.snapshot || '').split(',').filter(Boolean).map(value => {
+        const [hari, jamKe] = value.split(':').map(Number)
+        return { hari, jamKe }
+      })
+      return db.prepare(`INSERT INTO guru_ppl_mapping
+        (id,guru_ppl_id,guru_utama_id,penugasan_mengajar_id,jadwal_piket_id,berlaku_mulai,berlaku_selesai,jadwal_snapshot,updated_at)
+        SELECT ?,?,?,?,NULL,?,NULL,?,? WHERE EXISTS (${activePpl})`)
+        .bind(crypto.randomUUID(), input.pplUserId, row.guru_id, row.id, start, JSON.stringify(snapshot), updatedAt, input.pplUserId)
+    }))
+    if (!inserted[0].meta.changes) return { error: 'Pilih akun Guru PPL yang masih aktif.' }
+    revalidatePath('/dashboard/kelola-ppl');revalidatePath('/dashboard/agenda');revalidatePath('/dashboard/kehadiran');return{success:`${rows.length} penugasan PPL berhasil ditambahkan.`}
   }catch(error){return{error:error instanceof Error?error.message:'Gagal menambahkan penugasan.'}}
 }
 
@@ -134,5 +183,38 @@ export async function getPplAttendance(input:PplAttendanceQuery){try{const db=aw
 /** Rekap cetak memakai agregasi/filter yang sama persis dengan layar monitoring. */
 export async function getPplAttendancePrintData(input:PplAttendanceQuery){return getPplAttendance(input)}
 
-export async function setPplAttendanceOverride(input:{mappingId:string;tanggal:string;status:Exclude<PplAttendanceStatus,'DIAMBIL_GURU'>;catatan:string}){try{const db=await getDB('update'),actor=await getCurrentUser();if(!actor)return{error:'Unauthorized'};assertDate(input.tanggal);if(!OVERRIDE_STATUSES.has(input.status))return{error:'Status koreksi tidak valid.'};const catatan=input.catatan.trim();if(!catatan||catatan.length>500)return{error:'Catatan koreksi wajib diisi, maksimal 500 karakter.'};const obligations=await buildPplAttendance(db,{start:input.tanggal,end:input.tanggal});if(!obligations.some(item=>item.mapping_id===input.mappingId))return{error:'Tidak ada kewajiban PPL yang efektif untuk mapping pada tanggal tersebut.'};await db.prepare(`INSERT INTO guru_ppl_kehadiran_override(id,mapping_id,tanggal,status,catatan,diubah_oleh,updated_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(mapping_id,tanggal) DO UPDATE SET status=excluded.status,catatan=excluded.catatan,diubah_oleh=excluded.diubah_oleh,updated_at=excluded.updated_at`).bind(crypto.randomUUID(),input.mappingId,input.tanggal,input.status,catatan,actor.id,nowWIBISO()).run();revalidatePath('/dashboard/kelola-ppl');return{success:'Koreksi kehadiran PPL berhasil disimpan.'}}catch(error){return{error:error instanceof Error?error.message:'Gagal menyimpan koreksi.'}}}
+export async function setPplAttendanceOverride(input: {
+  mappingId: string
+  tanggal: string
+  status: Exclude<PplAttendanceStatus, 'DIAMBIL_GURU'>
+  catatan: string
+}) {
+  try {
+    const db = await getDB('update')
+    const actor = await getCurrentUser()
+    if (!actor) return { error: 'Unauthorized' }
+    assertDate(input.tanggal)
+    if (!OVERRIDE_STATUSES.has(input.status)) return { error: 'Status koreksi tidak valid.' }
+    const catatan = input.catatan.trim()
+    if (!catatan || catatan.length > 500) return { error: 'Catatan koreksi wajib diisi, maksimal 500 karakter.' }
+
+    const obligations = await buildPplAttendance(db, { start: input.tanggal, end: input.tanggal })
+    if (!obligations.some(item => item.mapping_id === input.mappingId)) {
+      return { error: 'Tidak ada kewajiban PPL yang efektif untuk mapping pada tanggal tersebut.' }
+    }
+    const saved = await db.prepare(`
+      INSERT INTO guru_ppl_kehadiran_override (id, mapping_id, tanggal, status, catatan, diubah_oleh, updated_at)
+      SELECT ?1, id, ?3, ?4, ?5, ?6, ?7 FROM guru_ppl_mapping
+      WHERE id = ?2 AND berlaku_mulai <= ?3 AND (berlaku_selesai IS NULL OR berlaku_selesai >= ?3)
+      ON CONFLICT(mapping_id, tanggal) DO UPDATE SET
+        status = excluded.status, catatan = excluded.catatan, diubah_oleh = excluded.diubah_oleh, updated_at = excluded.updated_at
+    `).bind(crypto.randomUUID(), input.mappingId, input.tanggal, input.status, catatan, actor.id, nowWIBISO()).run()
+    if (!saved.meta.changes) return { error: 'Penugasan PPL sudah berubah. Muat ulang rekap kehadiran.' }
+    revalidatePath('/dashboard/kelola-ppl')
+    return { success: 'Koreksi kehadiran PPL berhasil disimpan.' }
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : 'Gagal menyimpan koreksi.' }
+  }
+}
+
 export async function clearPplAttendanceOverride(mappingId:string,tanggal:string){try{const db=await getDB('delete');await db.prepare('DELETE FROM guru_ppl_kehadiran_override WHERE mapping_id=? AND tanggal=?').bind(mappingId,tanggal).run();revalidatePath('/dashboard/kelola-ppl');return{success:'Koreksi dihapus.'}}catch(error){return{error:error instanceof Error?error.message:'Gagal menghapus koreksi.'}}}

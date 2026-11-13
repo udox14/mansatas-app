@@ -17,7 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { DataPagination, usePagination } from '@/components/ui/data-pagination'
 import { Building2, ClipboardCheck, Edit3, Loader2, Pencil, Plus, Printer, Save, Search, Tags, Trash2, UserCog, X } from 'lucide-react'
 import {
-  batchSetPplCampus, clearPplAttendanceOverride, createPplMappings, deletePplCampus,
+  batchDeactivatePplAccounts, batchSetPplCampus, clearPplAttendanceOverride, createPplMappings, deletePplCampus,
   deletePplMapping, getDaftarGuruPPLWithSummary, getDaftarGuruUtama, getPplAttendance, getPplCampuses,
   getPplWorkspace, savePplCampus, setPplAttendanceOverride,
   type PplDutyOption, type PplMappingRow, type PplWithSummary,
@@ -25,31 +25,103 @@ import {
 import type { PplAttendanceItem, PplAttendanceStatus, PplAttendanceSummary, PplCampus } from '@/lib/guru-ppl-attendance'
 import { formatTimeWIB, todayWIB } from '@/lib/time'
 
-const STATUS_LABEL: Record<string,string> = { aktif:'Aktif', belum_ditugaskan:'Belum ditugaskan', HADIR:'Tepat waktu', TELAT:'Telat', SAKIT:'Sakit', IZIN:'Izin', ALFA:'Alfa', DIAMBIL_GURU:'Diambil guru' }
-const STATUS_CLASS: Record<string,string> = { aktif:'bg-emerald-50 text-emerald-700 border-emerald-200', belum_ditugaskan:'bg-amber-50 text-amber-700 border-amber-200', HADIR:'bg-emerald-50 text-emerald-700 border-emerald-200', TELAT:'bg-amber-50 text-amber-700 border-amber-200', SAKIT:'bg-blue-50 text-blue-700 border-blue-200', IZIN:'bg-violet-50 text-violet-700 border-violet-200', ALFA:'bg-rose-50 text-rose-700 border-rose-200', DIAMBIL_GURU:'bg-slate-100 text-slate-600' }
+const STATUS_LABEL: Record<string,string> = { aktif:'Aktif', belum_ditugaskan:'Belum ditugaskan', nonaktif:'Nonaktif', HADIR:'Tepat waktu', TELAT:'Telat', SAKIT:'Sakit', IZIN:'Izin', ALFA:'Alfa', DIAMBIL_GURU:'Diambil guru' }
+const STATUS_CLASS: Record<string,string> = { aktif:'bg-emerald-50 text-emerald-700 border-emerald-200', belum_ditugaskan:'bg-amber-50 text-amber-700 border-amber-200', nonaktif:'bg-slate-100 text-slate-600', HADIR:'bg-emerald-50 text-emerald-700 border-emerald-200', TELAT:'bg-amber-50 text-amber-700 border-amber-200', SAKIT:'bg-blue-50 text-blue-700 border-blue-200', IZIN:'bg-violet-50 text-violet-700 border-violet-200', ALFA:'bg-rose-50 text-rose-700 border-rose-200', DIAMBIL_GURU:'bg-slate-100 text-slate-600' }
 const HARI = ['', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min']
 
 function campusLabel(campus: PplCampus) { return campus.singkatan ? `${campus.singkatan} — ${campus.nama}` : campus.nama }
 function scheduleLabel(raw:string){return raw.split(',').filter(Boolean).map(v=>{const[h,j]=v.split(':').map(Number);return `${HARI[h]||'Hari'} ${j}`}).join(', ')}
 function notify(result:{error?:string;success?:string}){alert(result.error||result.success||'Selesai')}
 
-export function KelolaPplClient({pplList:initialPpl,campuses:initialCampuses}:{pplList:PplWithSummary[];campuses:PplCampus[]}){
+export function KelolaPplClient({pplList:initialPpl,campuses:initialCampuses,canDeactivate}:{pplList:PplWithSummary[];campuses:PplCampus[];canDeactivate:boolean}){
   const [pplList,setPplList]=useState(initialPpl),[campuses,setCampuses]=useState(initialCampuses)
   const refresh=async()=>{const[p,c]=await Promise.all([getDaftarGuruPPLWithSummary(),getPplCampuses()]);setPplList(p);setCampuses(c)}
-  return <Tabs defaultValue="penugasan" className="space-y-4"><TabsList className="grid h-auto w-full max-w-md grid-cols-2 p-1"><TabsTrigger value="penugasan"><UserCog className="mr-2 h-4 w-4"/>Penugasan PPL</TabsTrigger><TabsTrigger value="monitoring"><ClipboardCheck className="mr-2 h-4 w-4"/>Monitoring Kehadiran</TabsTrigger></TabsList><TabsContent value="penugasan"><AssignmentTab pplList={pplList} campuses={campuses} refresh={refresh}/></TabsContent><TabsContent value="monitoring"><MonitoringTab campuses={campuses} pplList={pplList}/></TabsContent></Tabs>
+  return <Tabs defaultValue="penugasan" className="space-y-4"><TabsList className="grid h-auto w-full max-w-md grid-cols-2 p-1"><TabsTrigger value="penugasan"><UserCog className="mr-2 h-4 w-4"/>Penugasan PPL</TabsTrigger><TabsTrigger value="monitoring"><ClipboardCheck className="mr-2 h-4 w-4"/>Monitoring Kehadiran</TabsTrigger></TabsList><TabsContent value="penugasan"><AssignmentTab pplList={pplList} campuses={campuses} refresh={refresh} canDeactivate={canDeactivate}/></TabsContent><TabsContent value="monitoring"><MonitoringTab campuses={campuses} pplList={pplList}/></TabsContent></Tabs>
 }
 
-function AssignmentTab({pplList,campuses,refresh}:{pplList:PplWithSummary[];campuses:PplCampus[];refresh:()=>Promise<void>}){
+function AssignmentTab({pplList,campuses,refresh,canDeactivate}:{pplList:PplWithSummary[];campuses:PplCampus[];refresh:()=>Promise<void>;canDeactivate:boolean}){
   const [query,setQuery]=useState(''),[campus,setCampus]=useState('semua'),[status,setStatus]=useState('semua'),[sort,setSort]=useState('nama'),[selected,setSelected]=useState<Set<string>>(new Set()),[batchCampus,setBatchCampus]=useState(''),[editing,setEditing]=useState<PplWithSummary|null>(null),[campusOpen,setCampusOpen]=useState(false),[pending,startTransition]=useTransition();const pg=usePagination(20)
+  const [deactivationSelection, setDeactivationSelection] = useState<{ id: string; name: string }[] | null>(null)
+  const [deactivationSuccess, setDeactivationSuccess] = useState('')
+  const openDeactivation = () => {
+    const names = new Map(pplList.map(ppl => [ppl.id, ppl.nama_lengkap]))
+    setDeactivationSuccess('')
+    setDeactivationSelection([...selected].map(id => ({ id, name: names.get(id) || id })))
+  }
   const filtered=useMemo(()=>{const q=query.toLowerCase();return [...pplList].filter(p=>(!q||p.nama_lengkap.toLowerCase().includes(q)||(p.kampus_nama||'').toLowerCase().includes(q))&&(campus==='semua'||p.kampus_id===campus)&&(status==='semua'||p.status===status)).sort((a,b)=>sort==='kbm'?b.totalKbm-a.totalKbm:sort==='kampus'?(a.kampus_nama||'').localeCompare(b.kampus_nama||'', 'id-ID'):a.nama_lengkap.localeCompare(b.nama_lengkap,'id-ID'))},[pplList,query,campus,status,sort])
   const pageRows=pg.paginate(filtered),allChecked=pageRows.length>0&&pageRows.every(p=>selected.has(p.id));const toggle=(id:string)=>setSelected(s=>{const n=new Set(s);n.has(id)?n.delete(id):n.add(id);return n})
   const applyCampus=(value:string|null)=>startTransition(async()=>{const result=await batchSetPplCampus([...selected],value);notify(result);if(!result.error){setSelected(new Set());setBatchCampus('');await refresh()}})
   return <div className="space-y-3">
-    <div className="flex flex-col gap-2 rounded-xl border bg-white p-3 dark:bg-slate-900 lg:flex-row lg:items-center"><div className="relative min-w-0 flex-1"><Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400"/><Input value={query} onChange={e=>{setQuery(e.target.value);pg.reset()}} placeholder="Cari nama PPL atau kampus..." className="pl-9"/></div><Select value={campus} onValueChange={v=>{setCampus(v);pg.reset()}}><SelectTrigger className="lg:w-56"><SelectValue placeholder="Semua kampus"/></SelectTrigger><SelectContent><SelectItem value="semua">Semua kampus</SelectItem>{campuses.map(c=><SelectItem key={c.id} value={c.id}>{campusLabel(c)}</SelectItem>)}</SelectContent></Select><Select value={status} onValueChange={v=>{setStatus(v);pg.reset()}}><SelectTrigger className="lg:w-44"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="semua">Semua status</SelectItem>{['aktif','belum_ditugaskan'].map(s=><SelectItem key={s} value={s}>{STATUS_LABEL[s]}</SelectItem>)}</SelectContent></Select><Select value={sort} onValueChange={setSort}><SelectTrigger className="lg:w-44"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="nama">Nama A–Z</SelectItem><SelectItem value="kampus">Kampus A–Z</SelectItem><SelectItem value="kbm">KBM terbanyak</SelectItem></SelectContent></Select><Button variant="outline" onClick={()=>setCampusOpen(true)}><Building2 className="h-4 w-4"/>Kelola Kampus</Button></div>
-    {selected.size>0&&<div className="flex flex-wrap items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 p-3 dark:border-indigo-900 dark:bg-indigo-950/30"><Badge>{selected.size} dipilih</Badge><div className="min-w-52 flex-1 sm:max-w-sm"><Combobox options={campuses.map(c=>({value:c.id,label:campusLabel(c)}))} value={batchCampus} onValueChange={setBatchCampus} placeholder="Pilih tag kampus..." searchPlaceholder="Cari kampus..."/></div><Button size="sm" disabled={!batchCampus||pending} onClick={()=>applyCampus(batchCampus)}><Tags className="h-4 w-4"/>Terapkan</Button><Button size="sm" variant="outline" disabled={pending} onClick={()=>applyCampus(null)}><X className="h-4 w-4"/>Hapus tag</Button></div>}
-    <div className="overflow-hidden rounded-xl border bg-white dark:bg-slate-900"><div className="overflow-x-auto"><Table><TableHeader><TableRow className="bg-slate-50 dark:bg-slate-800/60"><TableHead className="w-10"><Checkbox checked={allChecked} onCheckedChange={()=>{const n=new Set(selected);pageRows.forEach(p=>allChecked?n.delete(p.id):n.add(p.id));setSelected(n)}}/></TableHead><TableHead>Nama PPL</TableHead><TableHead>Kampus</TableHead><TableHead>Guru utama</TableHead><TableHead className="text-center">Mapel–Kelas</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader><TableBody>{pageRows.length?pageRows.map(p=><TableRow key={p.id}><TableCell><Checkbox checked={selected.has(p.id)} onCheckedChange={()=>toggle(p.id)}/></TableCell><TableCell className="font-medium">{p.nama_lengkap}</TableCell><TableCell>{p.kampus_nama?<Badge variant="outline" className="whitespace-nowrap"><Building2 className="mr-1 h-3 w-3"/>{p.kampus_singkatan||p.kampus_nama}</Badge>:<span className="text-xs text-slate-400">Belum ditag</span>}</TableCell><TableCell className="max-w-60"><span className="line-clamp-2 text-xs">{p.substitutions.map(s=>s.guruUtamaNama).join(', ')||'—'}</span></TableCell><TableCell className="text-center tabular-nums">{p.totalKbm}</TableCell><TableCell><Badge variant="outline" className={STATUS_CLASS[p.status]}>{STATUS_LABEL[p.status]}</Badge></TableCell><TableCell className="text-right"><Button size="sm" variant="outline" onClick={()=>setEditing(p)}><UserCog className="h-4 w-4"/>Kelola</Button></TableCell></TableRow>):<TableRow><TableCell colSpan={7} className="h-28 text-center text-slate-500">Tidak ada akun PPL yang sesuai filter.</TableCell></TableRow>}</TableBody></Table></div><DataPagination total={filtered.length} page={pg.page} pageSize={pg.pageSize} onPageChange={pg.setPage} onPageSizeChange={pg.setPageSize} entityLabel="akun PPL"/></div>
+    <div className="flex flex-col gap-2 rounded-xl border bg-white p-3 dark:bg-slate-900 lg:flex-row lg:items-center"><div className="relative min-w-0 flex-1"><Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400"/><Input value={query} onChange={e=>{setQuery(e.target.value);pg.reset()}} placeholder="Cari nama PPL atau kampus..." className="pl-9"/></div><Select value={campus} onValueChange={v=>{setCampus(v);pg.reset()}}><SelectTrigger className="lg:w-56"><SelectValue placeholder="Semua kampus"/></SelectTrigger><SelectContent><SelectItem value="semua">Semua kampus</SelectItem>{campuses.map(c=><SelectItem key={c.id} value={c.id}>{campusLabel(c)}</SelectItem>)}</SelectContent></Select><Select value={status} onValueChange={v=>{setStatus(v);pg.reset()}}><SelectTrigger className="lg:w-44"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="semua">Semua status</SelectItem>{['aktif','belum_ditugaskan','nonaktif'].map(s=><SelectItem key={s} value={s}>{STATUS_LABEL[s]}</SelectItem>)}</SelectContent></Select><Select value={sort} onValueChange={setSort}><SelectTrigger className="lg:w-44"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="nama">Nama A–Z</SelectItem><SelectItem value="kampus">Kampus A–Z</SelectItem><SelectItem value="kbm">KBM terbanyak</SelectItem></SelectContent></Select><Button variant="outline" onClick={()=>setCampusOpen(true)}><Building2 className="h-4 w-4"/>Kelola Kampus</Button></div>
+    {selected.size>0&&<div className="flex flex-wrap items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 p-3 dark:border-indigo-900 dark:bg-indigo-950/30"><Badge>{selected.size} dipilih</Badge><div className="min-w-52 flex-1 sm:max-w-sm"><Combobox options={campuses.map(c=>({value:c.id,label:campusLabel(c)}))} value={batchCampus} onValueChange={setBatchCampus} placeholder="Pilih tag kampus..." searchPlaceholder="Cari kampus..."/></div><Button size="sm" disabled={!batchCampus||pending} onClick={()=>applyCampus(batchCampus)}><Tags className="h-4 w-4"/>Terapkan</Button><Button size="sm" variant="outline" disabled={pending} onClick={()=>applyCampus(null)}><X className="h-4 w-4"/>Hapus tag</Button>{canDeactivate && <Button size="sm" variant="destructive" disabled={pending} onClick={openDeactivation}>Nonaktifkan akun terpilih</Button>}</div>}
+    <div className="overflow-hidden rounded-xl border bg-white dark:bg-slate-900"><div className="overflow-x-auto"><Table><TableHeader><TableRow className="bg-slate-50 dark:bg-slate-800/60"><TableHead className="w-10"><Checkbox checked={allChecked} onCheckedChange={()=>{const n=new Set(selected);pageRows.forEach(p=>allChecked?n.delete(p.id):n.add(p.id));setSelected(n)}}/></TableHead><TableHead>Nama PPL</TableHead><TableHead>Kampus</TableHead><TableHead>Guru utama</TableHead><TableHead className="text-center">Mapel–Kelas</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader><TableBody>{pageRows.length?pageRows.map(p=><TableRow key={p.id}><TableCell><Checkbox checked={selected.has(p.id)} onCheckedChange={()=>toggle(p.id)}/></TableCell><TableCell className="font-medium">{p.nama_lengkap}</TableCell><TableCell>{p.kampus_nama?<Badge variant="outline" className="whitespace-nowrap"><Building2 className="mr-1 h-3 w-3"/>{p.kampus_singkatan||p.kampus_nama}</Badge>:<span className="text-xs text-slate-400">Belum ditag</span>}</TableCell><TableCell className="max-w-60"><span className="line-clamp-2 text-xs">{p.substitutions.map(s=>s.guruUtamaNama).join(', ')||'—'}</span></TableCell><TableCell className="text-center tabular-nums">{p.totalKbm}</TableCell><TableCell><Badge variant="outline" className={STATUS_CLASS[p.status]}>{STATUS_LABEL[p.status]}</Badge></TableCell><TableCell className="text-right"><Button size="sm" variant="outline" disabled={p.status === 'nonaktif'} onClick={()=>setEditing(p)}><UserCog className="h-4 w-4"/>Kelola</Button></TableCell></TableRow>):<TableRow><TableCell colSpan={7} className="h-28 text-center text-slate-500">Tidak ada akun PPL yang sesuai filter.</TableCell></TableRow>}</TableBody></Table></div><DataPagination total={filtered.length} page={pg.page} pageSize={pg.pageSize} onPageChange={pg.setPage} onPageSizeChange={pg.setPageSize} entityLabel="akun PPL"/></div>
+    {deactivationSuccess && <p role="status" className="text-sm text-emerald-700 dark:text-emerald-400">{deactivationSuccess}</p>}
     <CampusDialog open={campusOpen} onOpenChange={setCampusOpen} campuses={campuses} refresh={refresh}/><AssignmentSheet ppl={editing} open={!!editing} onOpenChange={o=>!o&&setEditing(null)} refresh={refresh}/>
+    {deactivationSelection && <DeactivatePplDialog
+      accounts={deactivationSelection}
+      onClose={() => setDeactivationSelection(null)}
+      onSuccess={async message => {
+        setSelected(new Set())
+        setDeactivationSuccess(message)
+        setDeactivationSelection(null)
+        await refresh()
+      }}
+    />}
   </div>
+}
+
+function DeactivatePplDialog({ accounts, onClose, onSuccess }: {
+  accounts: { id: string; name: string }[]
+  onClose: () => void
+  onSuccess: (message: string) => Promise<void>
+}) {
+  const [lastDay, setLastDay] = useState('')
+  const [failure, setFailure] = useState<{ error: string; details?: string[] } | null>(null)
+  const [pending, startTransition] = useTransition()
+  const today = todayWIB()
+  const confirm = () => startTransition(async () => {
+    setFailure(null)
+    let result: Awaited<ReturnType<typeof batchDeactivatePplAccounts>>
+    try {
+      result = await batchDeactivatePplAccounts({ userIds: accounts.map(account => account.id), lastDay })
+    } catch {
+      setFailure({ error: 'Status penonaktifan belum dapat dikonfirmasi. Muat ulang daftar akun untuk memeriksanya.' })
+      return
+    }
+    if (result.error !== undefined) setFailure({ error: result.error, details: result.details })
+    else await onSuccess(result.success)
+  })
+
+  return <Dialog open onOpenChange={open => { if (!open && !pending) onClose() }}>
+    <DialogContent className="max-h-[90vh] overflow-y-auto">
+      <DialogHeader>
+        <DialogTitle>Nonaktifkan {accounts.length} akun Guru PPL</DialogTitle>
+        <DialogDescription>
+          Akses masuk ditutup segera dan penugasan diakhiri pada hari terakhir PPL. Riwayat dan nama penginput tetap tersimpan.
+        </DialogDescription>
+      </DialogHeader>
+      <ul aria-label="Akun terpilih" className="max-h-36 list-disc space-y-1 overflow-y-auto rounded-md border py-2 pl-7 pr-3 text-sm">
+        {accounts.map(account => <li key={account.id}>{account.name}</li>)}
+      </ul>
+      <div className="space-y-2">
+        <Label htmlFor="ppl-last-day">Hari terakhir PPL (WIB)</Label>
+        <Input id="ppl-last-day" type="date" max={today} value={lastDay} disabled={pending}
+          onChange={event => { setLastDay(event.target.value); setFailure(null) }} />
+      </div>
+      {failure && <div role="alert" className="space-y-1 text-sm text-red-700 dark:text-red-400">
+        <p>{failure.error}</p>
+        {!!failure.details?.length && <ul className="max-h-32 list-disc overflow-y-auto pl-5">
+          {failure.details.map((detail, index) => <li key={index}>{detail}</li>)}
+        </ul>}
+      </div>}
+      <DialogFooter>
+        <Button variant="outline" onClick={onClose} disabled={pending}>Batal</Button>
+        <Button variant="destructive" disabled={pending || !lastDay || lastDay > today} onClick={confirm}>
+          {pending && <Loader2 className="animate-spin" />} Nonaktifkan akun
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 }
 
 function CampusDialog({open,onOpenChange,campuses,refresh}:{open:boolean;onOpenChange:(v:boolean)=>void;campuses:PplCampus[];refresh:()=>Promise<void>}){

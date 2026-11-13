@@ -662,8 +662,25 @@ export async function submitAgenda(formData: FormData): Promise<import('@/lib/ag
     ...(assignmentAccess.actorKind === 'PENGGANTI' ? { pengganti_cuti_user_id: user.id } : {}),
   }
 
-  const result = await dbInsert<any>(db, 'agenda_guru', payload)
+  const result = payload.ppl_user_id
+    ? await db.prepare(`
+        INSERT INTO agenda_guru (
+          guru_id, penugasan_id, tanggal, jam_ke_mulai, jam_ke_selesai,
+          materi, foto_url, status, waktu_input, diubah_oleh, ppl_user_id
+        )
+        SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, u.id FROM "user" u
+        WHERE u.id = ? AND COALESCE(u.banned, 0) = 0
+        RETURNING id
+      `).bind(
+        payload.guru_id, payload.penugasan_id, payload.tanggal, payload.jam_ke_mulai,
+        payload.jam_ke_selesai, payload.materi, payload.foto_url, payload.status,
+        payload.waktu_input, payload.diubah_oleh, payload.ppl_user_id,
+      ).first<{ id: string }>()
+      .then(data => ({ data, error: data ? null : 'Akun Guru PPL sudah nonaktif.' }))
+      .catch((error: unknown) => ({ data: null, error: String(error) }))
+    : await dbInsert<any>(db, 'agenda_guru', payload)
   if (result.error) {
+    if (result.error === 'Akun Guru PPL sudah nonaktif.') return { error: result.error }
     if (result.error.includes('UNIQUE')) {
       const saved = await db.prepare('SELECT id, status FROM agenda_guru WHERE penugasan_id = ? AND tanggal = ?')
         .bind(penugasanId, tanggal).first<{ id: string; status: string }>()

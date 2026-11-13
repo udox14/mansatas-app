@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { getCurrentUser, isCurrentUserPlayReviewer } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
-import { getUserRoles } from '@/lib/features'
+import { checkFeatureAccess } from '@/lib/features'
 import { isValidTanggal } from '@/lib/izin-massal'
 import { getEffectiveDatesInRange, getKbmExceptionsForRange, hariNumFromDateString, splitTeachingSlotsByExceptions } from '@/lib/kalender-pendidikan'
 import { todayWIB } from '@/lib/time'
@@ -22,13 +22,7 @@ async function access() {
   const user = await getCurrentUser()
   if (!user || await isCurrentUserPlayReviewer()) return null
   const db = await getDB()
-  const roles = await getUserRoles(db, user.id)
-  if (!roles.includes('super_admin')) {
-    if (!roles.includes('wakamad')) return null
-    const position = await db.prepare('SELECT jabatan_struktural_id FROM "user" WHERE id = ?')
-      .bind(user.id).first<string>('jabatan_struktural_id')
-    if (position !== 'jbt_waka_kurikulum') return null
-  }
+  if (!(await checkFeatureAccess(db, user.id, 'cuti-guru'))) return null
   return { db, actorId: user.id }
 }
 

@@ -277,9 +277,14 @@ export function createAuth(db: D1Database) {
         const now = new Date().toISOString()
         const expiresAt = [getExpiresAt(), replacementEnd].filter((value): value is string => !!value).sort()[0]
 
-        await db.prepare(
-          `INSERT INTO session (id, token, userId, expiresAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)`
-        ).bind(sessionId, token, user.id, expiresAt, now, now).run()
+        const createdSession = await db.prepare(
+          `INSERT INTO session (id, token, userId, expiresAt, createdAt, updatedAt)
+           SELECT ?, ?, id, ?, ?, ? FROM "user" WHERE id = ? AND COALESCE(banned, 0) = 0`
+        ).bind(sessionId, token, expiresAt, now, now, user.id).run()
+        if (!createdSession.meta.changes) {
+          if (opts.asResponse) return new Response('Account inactive', { status: 403 })
+          throw new Error('Account banned')
+        }
 
         const loginActivityId = await logActivity({
           db,

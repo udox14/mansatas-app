@@ -2,14 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({
   existing: null as { id: string; status: string } | null,
-  insert: vi.fn(), upload: vi.fn(), access: true,
+  insert: vi.fn(), insertPpl: vi.fn(), upload: vi.fn(), access: true, actorKind: 'GURU',
 }))
 vi.mock('@/utils/db', () => ({ dbInsert: state.insert, dbUpdate: vi.fn() }))
 vi.mock('@/utils/db-server', () => ({ getDB: async () => ({
   prepare: (sql: string) => {
     const statement = {
       bind: () => statement,
-      first: async () => sql.includes('FROM agenda_guru') ? state.existing
+      first: async () => sql.includes('INSERT INTO agenda_guru') ? state.insertPpl()
+        : sql.includes('FROM agenda_guru') ? state.existing
         : sql.includes('FROM penugasan_mengajar') ? { kelas_id: 'k1', tingkat: 10, tahun_ajaran_id: 'ta', jam_pelajaran: JSON.stringify([{ hari: [5], slots: [{ id: 1, mulai: '08:00', selesai: '08:45' }] }]) } : null,
       all: async () => ({ results: [{ jam_ke: 1 }] }),
     }
@@ -21,7 +22,7 @@ vi.mock('@/lib/action-security', () => ({ requireActionAccess: vi.fn() }))
 vi.mock('@/lib/act-as', () => ({ getEffectiveUser: async () => null, getActAsDate: vi.fn() }))
 vi.mock('@/lib/activity-log', () => ({ logActivity: async () => 'log1' }))
 vi.mock('@/lib/agenda-access-audit', () => ({ getAgendaAccessBlock: async () => null, recordAgendaAccessAudit: vi.fn() }))
-vi.mock('@/lib/guru-ppl-access', () => ({ resolveTeachingAssignmentAccess: async () => state.access ? { guruUtamaId: 'guru', actorKind: 'GURU' } : null }))
+vi.mock('@/lib/guru-ppl-access', () => ({ resolveTeachingAssignmentAccess: async () => state.access ? { guruUtamaId: 'guru', actorKind: state.actorKind } : null }))
 vi.mock('@/lib/kalender-pendidikan', () => ({
   getKalenderDateStatus: async () => ({ isEffective: true }), getKbmExceptionsForDate: async () => [],
   splitTeachingSlotsByExceptions: () => ({ activeJamKe: [1], exceptionSegments: [] }),
@@ -43,6 +44,7 @@ describe('agenda persisted acknowledgment and retries', () => {
     vi.clearAllMocks()
     state.existing = null
     state.access = true
+    state.actorKind = 'GURU'
     state.insert.mockResolvedValue({ data: { id: 'ag1' }, error: null })
     state.upload.mockResolvedValue({ url: '/api/media/agenda/foto.webp', error: null })
   })
@@ -78,5 +80,12 @@ describe('agenda persisted acknowledgment and retries', () => {
       return { error: 'UNIQUE constraint failed' }
     })
     expect((await submitAgenda(form())).agenda).toEqual({ id: 'ag1', status: 'TELAT' })
+  })
+  it('rejects a PPL submission when the account was deactivated during upload', async () => {
+    state.actorKind = 'PPL'
+    state.insertPpl.mockResolvedValue(null)
+    expect(await submitAgenda(form())).toEqual({ error: 'Akun Guru PPL sudah nonaktif.' })
+    expect(state.insertPpl).toHaveBeenCalledOnce()
+    expect(state.insert).not.toHaveBeenCalled()
   })
 })

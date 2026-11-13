@@ -26,6 +26,11 @@ async function GuruDataFetcher() {
         u.jabatan_struktural_id, mjs.nama AS jabatan_struktural_nama
       FROM "user" u
       LEFT JOIN master_jabatan_struktural mjs ON u.jabatan_struktural_id = mjs.id
+      WHERE COALESCE(u.banned, 0) = 0 OR (
+        u.role <> 'guru_ppl' AND NOT EXISTS (
+          SELECT 1 FROM user_roles ur WHERE ur.user_id = u.id AND ur.role = 'guru_ppl'
+        )
+      )
       ORDER BY u.nama_lengkap ASC
     `).all<any>(),
     db.prepare(`

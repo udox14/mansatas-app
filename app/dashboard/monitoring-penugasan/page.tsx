@@ -1,10 +1,8 @@
 import { Suspense } from 'react'
-import Link from 'next/link'
-import { getCurrentUser, isCurrentUserPlayReviewer } from '@/utils/auth/server'
+import { getCurrentUser } from '@/utils/auth/server'
 import { redirect } from 'next/navigation'
 import { getDB } from '@/utils/db-server'
 import { checkFeatureAccess, getUserRoles } from '@/lib/features'
-import { Eye } from 'lucide-react'
 import { PageHeader } from '@/components/layout/page-header'
 import { PageLoading } from '@/components/layout/page-loading'
 import { MonitoringClient } from '@/app/dashboard/monitoring-penugasan/components/monitoring-client'
@@ -38,9 +36,6 @@ export default async function MonitoringPenugasanPage({
   if (!allowed) redirect('/dashboard')
   const roles = await getUserRoles(db, user.id)
   const canManageReasons = roles.includes('super_admin')
-  const canManageLeave = !(await isCurrentUserPlayReviewer()) && (canManageReasons || (roles.includes('wakamad') && await db.prepare(
-    'SELECT jabatan_struktural_id FROM "user" WHERE id = ?'
-  ).bind(user.id).first<string>('jabatan_struktural_id') === 'jbt_waka_kurikulum'))
 
   const { tanggal: requestedTanggal } = await searchParams
   const tanggal = requestedTanggal || todayWIB()
@@ -51,7 +46,6 @@ export default async function MonitoringPenugasanPage({
         title="Monitoring Penugasan"
         description="Pantau seluruh pendelegasian tugas antar guru sekolah."
       />
-      {canManageLeave && <Link href="/dashboard/monitoring-penugasan/cuti-guru" className="inline-flex rounded-md border px-3 py-2 text-sm font-medium">Cuti Guru</Link>}
 
       <Suspense fallback={<PageLoading text="Memuat data monitoring..." />} key={tanggal}>
         <Fetcher tanggal={tanggal} canManageReasons={canManageReasons} />

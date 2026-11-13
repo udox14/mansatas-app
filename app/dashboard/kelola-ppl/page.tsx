@@ -1,7 +1,8 @@
 import { getCurrentUser } from '@/utils/auth/server'
 import { redirect } from 'next/navigation'
 import { PageHeader } from '@/components/layout/page-header'
-import { checkFeatureAccess } from '@/lib/features'
+import { checkFeatureAccess, checkFeatureCrudAccess, getUserRoles } from '@/lib/features'
+import { isPlayReviewerRole } from '@/lib/play-reviewer'
 import { getDB } from '@/utils/db-server'
 import { getDaftarGuruPPLWithSummary, getPplCampuses } from './actions'
 import { KelolaPplClient } from './components/KelolaPplClient'
@@ -19,10 +20,13 @@ export default async function KelolaPPLPage() {
   const allowed = await checkFeatureAccess(db, user.id, 'kelola-ppl') // Feature is optional, but menu.ts restricts it
   if (!allowed) redirect('/dashboard')
 
-  const [pplList, campuses] = await Promise.all([
+  const [pplList, campuses, roles, canUpdate] = await Promise.all([
     getDaftarGuruPPLWithSummary(),
     getPplCampuses(),
+    getUserRoles(db, user.id),
+    checkFeatureCrudAccess(db, user.id, 'kelola-ppl', 'update'),
   ])
+  const canDeactivate = canUpdate && roles.includes('super_admin') && !isPlayReviewerRole(roles)
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500 pb-12">
@@ -35,7 +39,7 @@ export default async function KelolaPPLPage() {
         <p>Silakan pilih Guru PPL dan Guru Utama yang digantikan. PPL kemudian dapat mengisi agenda, absensi siswa, catatan siswa, dan nilai untuk mapel–kelas yang dipilih; seluruh data resmi tetap atas nama Guru Utama.</p>
       </div>
 
-      <KelolaPplClient pplList={pplList} campuses={campuses} />
+      <KelolaPplClient pplList={pplList} campuses={campuses} canDeactivate={canDeactivate} />
     </div>
   )
 }

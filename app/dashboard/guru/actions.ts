@@ -12,6 +12,7 @@ import { getUserRoles } from '@/lib/features'
 import { createActivityDiff, logActivity } from '@/lib/activity-log'
 import { ensureJabatanStrukturalSchema } from '@/lib/jabatan-struktural-service'
 import { normalizePegawaiImportRow, resolveImportedRoles } from '@/lib/pegawai-import'
+import { isGuruPplUser } from '@/lib/guru-ppl-access'
 
 async function getAuth() {
   const { env } = await getCloudflareContext({ async: true })
@@ -263,6 +264,10 @@ export async function ubahRolePegawai(id: string, newRole: string) {
 export async function hapusPegawai(id: string) {
   if (!(await verifyStaffAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.' }
   const db = await getDB()
+  const archivedPpl = await db.prepare(`SELECT 1 FROM "user" WHERE id = ? AND banReason = 'Masa PPL selesai'`).bind(id).first()
+  if (archivedPpl || await isGuruPplUser(db, id)) {
+    return { error: 'Akun Guru PPL dilindungi agar riwayat tetap tersedia. Gunakan Kelola PPL untuk menonaktifkan akun.' }
+  }
   const before = await db.prepare('SELECT id, name, email, role, nama_lengkap, nip, jabatan_cetak, nomor_whatsapp FROM "user" WHERE id = ?').bind(id).first<any>()
   try {
     await db.prepare('DELETE FROM user_feature_overrides WHERE user_id = ?').bind(id).run()

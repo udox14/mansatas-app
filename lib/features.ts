@@ -112,12 +112,14 @@ export async function getUserAllowedFeatures(db: D1Database, userId: string): Pr
   for (const feature of delegated) allowed.add(feature)
 
   // Sarana Prasarana is a structural assignment, not a separate role.
+  let isCurriculumDeputy = false
   if (roles.includes('wakamad')) {
     const structural = await db.prepare('SELECT jabatan_struktural_id FROM "user" WHERE id=?').bind(userId).first<{ jabatan_struktural_id: string | null }>()
     if (isAttendanceReviewPosition(structural?.jabatan_struktural_id)) {
       allowed.add('keterangan-absensi')
     }
-    if (structural?.jabatan_struktural_id === 'jbt_waka_kurikulum') allowed.add('monitoring-penugasan')
+    isCurriculumDeputy = structural?.jabatan_struktural_id === 'jbt_waka_kurikulum'
+    if (isCurriculumDeputy) allowed.add('monitoring-penugasan')
     if (!roles.some(r => ['super_admin', 'admin_tu', 'kepsek'].includes(r))) {
       if (structural?.jabatan_struktural_id !== 'jbt_waka_sarpras') allowed.delete('monitoring-pramubakti')
       if (structural?.jabatan_struktural_id !== 'jbt_waka_kurikulum') {
@@ -142,6 +144,9 @@ export async function getUserAllowedFeatures(db: D1Database, userId: string): Pr
   if (roles.includes('super_admin') || roles.includes(PLAY_REVIEWER_ROLE)) {
     for (const item of MENU_ITEMS) allowed.add(item.id)
   }
+
+  if (!isPlayReviewerRole(roles) && (roles.includes('super_admin') || isCurriculumDeputy)) allowed.add('cuti-guru')
+  else allowed.delete('cuti-guru')
 
   // Dokumentasi bersifat universal untuk semua user internal.
   if (roles.length === 0 || roles.some(role => role !== 'orang_tua')) {

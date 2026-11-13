@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { cancelCutiGuru, previewCutiGuru, saveCutiGuru, type LeaveInput, type loadCutiGuru } from '../cuti-actions'
+import { cancelCutiGuru, previewCutiGuru, saveCutiGuru, type LeaveInput, type loadCutiGuru } from './actions'
 
 type Props = Extract<Awaited<ReturnType<typeof loadCutiGuru>>, { people: unknown }> & { today: string }
 type Preview = Exclude<Awaited<ReturnType<typeof previewCutiGuru>>, { error: string }>

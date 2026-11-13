@@ -11,7 +11,7 @@ describe('public authentication response contract', () => {
     passwordHash = await hashPassword('valid-password')
   })
 
-  function authDb() {
+  function authDb(sessionChanges = 1) {
     return {
       prepare(sql: string) {
         return {
@@ -29,7 +29,7 @@ describe('public authentication response contract', () => {
                 return null
               },
               async run() {
-                return { success: true, meta: {} }
+                return { success: true, meta: { changes: sessionChanges } }
               },
             }
           },
@@ -51,5 +51,16 @@ describe('public authentication response contract', () => {
     const body = await response.json() as Record<string, unknown>
     expect(JSON.stringify(body)).not.toContain('token')
     expect(body).toMatchObject({ session: { id: expect.any(String), userId: 'user-1', expiresAt: expect.any(String) } })
+  })
+
+  it('does not issue a login cookie when the account was deactivated before the session insert', async () => {
+    const auth = createAuth(authDb(0))
+    const response = await auth.api.signInEmail({
+      body: { email: 'staff@example.test', password: 'valid-password' },
+      asResponse: true,
+    }) as Response
+
+    expect(response.status).toBe(403)
+    expect(response.headers.get('set-cookie')).toBeNull()
   })
 })
