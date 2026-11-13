@@ -145,7 +145,7 @@ describe('Komite SPB letterhead', () => {
   it.each([true, false])('only renders a PDF when image decoding succeeds: %s', async succeeds => {
     const decode = vi.fn(async () => { if (!succeeds) throw new Error('Invalid image') })
     vi.stubGlobal('document', { fonts: { ready: Promise.resolve() }, images: [{ decode }, { decode }] })
-    const page = { setContent: vi.fn(), evaluate: vi.fn(async callback => callback()),
+    const page = { setContent: vi.fn(), waitForNetworkIdle: vi.fn(), evaluate: vi.fn(async callback => callback()),
       pdf: vi.fn(async () => new Uint8Array([37, 80, 68, 70])) }
     const browser = { newPage: vi.fn(async () => page), close: vi.fn() }
     vi.mocked(puppeteer.launch).mockResolvedValue(browser as unknown as Awaited<ReturnType<typeof puppeteer.launch>>)

@@ -45,7 +45,8 @@ export async function GET(request: Request) {
       const browser = await puppeteer.launch(env.BROWSER as Parameters<typeof puppeteer.launch>[0])
       try {
         const page = await browser.newPage()
-        await page.setContent(html, { waitUntil: 'networkidle0' })
+        await page.setContent(html)
+        await page.waitForNetworkIdle()
         await page.evaluate(() => (document as any).fonts.ready) // pastikan @font-face termuat sebelum render
         return await page.pdf({
           width: '215mm',

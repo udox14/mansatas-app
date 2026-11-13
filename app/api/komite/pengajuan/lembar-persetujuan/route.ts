@@ -87,7 +87,8 @@ export async function POST(request: Request) {
     const browser = await puppeteer.launch(env.BROWSER as Parameters<typeof puppeteer.launch>[0])
     try {
       const page = await browser.newPage()
-      await page.setContent(html, { waitUntil: 'networkidle0' })
+      await page.setContent(html)
+      await page.waitForNetworkIdle()
       const pdf = await page.pdf({ format: 'A4', printBackground: true, preferCSSPageSize: true })
       return new Response(pdf as BodyInit, {
         headers: {

@@ -220,7 +220,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       const browser = await puppeteer.launch(env.BROWSER as Parameters<typeof puppeteer.launch>[0])
       try {
         const page = await browser.newPage()
-        await page.setContent(html,{ waitUntil:'networkidle0' })
+        await page.setContent(html)
+        await page.waitForNetworkIdle()
         // Gagal decode harus membatalkan render agar PDF tanpa kop tidak tersimpan di cache.
         await page.evaluate(async () => {
           await document.fonts.ready

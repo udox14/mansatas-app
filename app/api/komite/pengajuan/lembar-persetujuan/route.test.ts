@@ -20,7 +20,7 @@ vi.mock('@opennextjs/cloudflare', () => ({ getCloudflareContext: async () => ({ 
 vi.mock('@cloudflare/puppeteer', () => ({
   default: {
     launch: vi.fn(async () => ({
-      newPage: async () => ({ setContent: mocks.setContent, pdf: mocks.pdf }),
+      newPage: async () => ({ setContent: mocks.setContent, waitForNetworkIdle: vi.fn(), pdf: mocks.pdf }),
       close: mocks.close,
     })),
   },
