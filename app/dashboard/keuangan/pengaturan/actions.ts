@@ -1,5 +1,6 @@
 'use server'
 
+import { isKomiteFundSource, isKomiteFundScope } from '@/lib/komite-funds'
 import { revalidatePath } from 'next/cache'
 import { checkFeatureAccess, checkFeatureCrudAccess } from '@/lib/features'
 import type { CashDirection } from '@/lib/cashflow'
@@ -198,4 +199,36 @@ export async function saveKomiteReportSettings(input: {
   revalidatePath('/dashboard/keuangan/pengaturan')
   revalidatePath('/dashboard/keuangan/laporan')
   return { error: null, success: 'Pengaturan laporan keuangan berhasil disimpan.' }
+}
+
+
+export async function saveKomiteFundSetting(source: string, allowNegative: boolean) {
+  const {db,userId}=await requirePengaturanKomite()
+  if (!(await checkFeatureCrudAccess(db,userId,'keuangan-pengaturan','update'))) return {error:'Anda tidak memiliki izin mengubah pengaturan.'}
+  if (!isKomiteFundSource(source) || typeof allowNegative!=='boolean') return {error:'Sumber dana tidak valid.'}
+  await db.batch([
+    db.prepare(`INSERT INTO fin_komite_fund_setting_audit (source,before_value,after_value,actor_id)
+      VALUES (?,COALESCE((SELECT allow_negative FROM fin_komite_fund_settings WHERE source=?),0),?,?)`)
+      .bind(source,source,Number(allowNegative),userId),
+    db.prepare(`INSERT INTO fin_komite_fund_settings (source,allow_negative,updated_by) VALUES (?,?,?)
+      ON CONFLICT(source) DO UPDATE SET allow_negative=excluded.allow_negative,updated_by=excluded.updated_by,updated_at=datetime('now')`)
+      .bind(source,Number(allowNegative),userId),
+  ])
+  revalidatePath('/dashboard/keuangan/pengaturan')
+  return {success:'Izin saldo minus tersimpan.'}
+}
+
+export async function saveKomiteFundOpeningBalance(form: FormData) {
+  const {db,userId}=await requirePengaturanKomite()
+  if (!(await checkFeatureCrudAccess(db,userId,'keuangan-pengaturan','update'))) return {error:'Anda tidak memiliki izin mengubah saldo awal.'}
+  const source=form.get('fund')
+  const period=String(form.get('period')??'')
+  const raw=String(form.get('amount')??'').trim()
+  const amount=Number(raw)
+  if (!isKomiteFundScope(source)||source==='all'||!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)||!raw||!Number.isSafeInteger(amount)) return {error:'Sumber, bulan, atau saldo awal tidak valid.'}
+  await db.prepare(`INSERT INTO fin_komite_opening_balances (period,source,amount,note,updated_by) VALUES (?,?,?,?,?)
+    ON CONFLICT(period,source) DO UPDATE SET amount=excluded.amount,note=excluded.note,updated_by=excluded.updated_by,updated_at=datetime('now')`)
+    .bind(period,source,amount,String(form.get('note')??'').trim().slice(0,300)||null,userId).run()
+  revalidatePath('/dashboard/keuangan/pengaturan')
+  return {success:'Saldo awal laporan tersimpan.'}
 }

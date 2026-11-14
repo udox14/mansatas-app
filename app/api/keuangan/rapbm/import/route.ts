@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     if (form.getAll('file').length!==1) return noStoreJson({error:'Unggah satu file Excel untuk satu versi RAPBM.'},{status:400})
     const file=form.get('file')
     if (!(file instanceof File)) return noStoreJson({error:'Pilih file RAPBM berformat .xlsx.'},{status:400})
-    const result=await importRapbm(file,context)
+    const result=await (form.has('cohort') ? importRapbm(file,context,Number(form.get('cohort'))) : importRapbm(file,context))
     revalidatePath('/dashboard/keuangan/rapbm')
     return noStoreJson({...result,success:'Draft RAPBM tersimpan. Periksa rincian dan Catatan Angka sebelum menerbitkan.'})
   } catch(error) {

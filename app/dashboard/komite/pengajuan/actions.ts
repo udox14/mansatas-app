@@ -12,9 +12,13 @@ import {
   komiteNextReviewStatus,
   type KomiteReviewAction,
 } from '@/lib/komite-pengajuan'
-import { deleteKomiteObjects, uploadKomitePdfs } from '@/utils/r2'
+import { deleteKomiteObjects, uploadCashflowProof, uploadKomitePdfs } from '@/utils/r2'
 import { logActivity } from '@/lib/activity-log'
 import { emitConfiguredNotification, type NotificationContext, type NotificationQueueMessage } from '@/lib/notification-engine'
+import { checkKomiteCash, checkKomiteWrite, komiteCashError, listKomiteFundOptions, parseFundAllocations, validateKomiteFundSources, type FundAllocation } from '@/lib/komite-funds'
+import { todayWIB } from '@/lib/time'
+import { isValidIsoDate } from '@/lib/cashflow'
+import { invalidateFinanceCache } from '@/lib/finance-cache'
 import { formatRupiah } from '@/lib/utils'
 
 const PAGE_PATH = '/dashboard/komite/pengajuan'
@@ -198,7 +202,7 @@ export async function getKomiteDashboardData() {
   const verifier = await komiteConfiguredUser(db, KOMITE_VERIFIER_KEY, 'anggota_komite')
   const chairman = await komiteChairman(db)
   const visible = (rowsResult.results || []).filter(row => {
-    if (isSuper || roles.includes('kepsek') || row.pengaju_id === user.id || reviewedIds.has(row.id)) return true
+    if (isSuper || (roles.includes('bendahara_komite') && row.status==='disetujui') || roles.includes('kepsek') || row.pengaju_id === user.id || reviewedIds.has(row.id)) return true
     if (isMember && row.status === 'disetujui') return true
     if (row.status === 'menunggu_ketua' && verifier?.id === user.id) return true
     const stage = stageForStatus(row.status)
@@ -271,6 +275,15 @@ export async function getKomiteDashboardData() {
     committeeMembers = memberRows.results || []
   }
 
+  const allocations = items.length ? await db.prepare(`SELECT a.pengajuan_id,a.source,a.group_id,a.amount,a.state,g.label
+    FROM fin_komite_allocations a LEFT JOIN fin_rapbm_groups g ON g.id=a.group_id
+    WHERE a.pengajuan_id IN (SELECT value FROM json_each(?)) AND a.state<>'released'`)
+    .bind(JSON.stringify(items.map(item=>item.id))).all<Record<string,unknown>>() : { results: [] }
+  const allocationsById = new Map<string, Record<string, unknown>[]>()
+  for (const row of allocations.results) {
+    const id = String(row.pengajuan_id)
+    allocationsById.set(id,[...(allocationsById.get(id) ?? []),row])
+  }
   const reviewQueue = items.filter(item => item.status === 'menunggu_bendahara'
     ? isSuper || roles.includes('bendahara_komite')
     : item.status === 'menunggu_ketua' && Boolean(verifier) &&
@@ -280,10 +293,19 @@ export async function getKomiteDashboardData() {
       SELECT 1 FROM user_roles ur WHERE ur.user_id=u.id AND ur.role='ketua_komite')) ORDER BY name`).all<any>() : { results: [] }
 
   const canApproveSpb = isSuper || roles.includes('bendahara_komite')
-  const nextNomorSpb = canApproveSpb ? await generateNextNomorSpb(db) : undefined
+  const [nextNomorSpb, fundOptions, historicalCash] = await Promise.all([
+    canApproveSpb ? generateNextNomorSpb(db) : undefined,
+    canApproveSpb ? listKomiteFundOptions(db) : {years:[],positions:[],historicalPositions:[]},
+    canApproveSpb ? db.prepare(`SELECT e.id,e.amount,e.transaction_date,e.proof_number,e.description FROM fin_cashflow_entries e
+      WHERE e.direction='expense' AND e.is_void=0 AND e.komite_pre_migration=1 AND e.komite_pengajuan_id IS NULL
+        AND NOT EXISTS(SELECT 1 FROM fin_komite_allocations a WHERE a.cashflow_id=e.id AND a.state='realized')
+      ORDER BY e.transaction_date DESC,e.id`)
+      .all<{id:string;amount:number;transaction_date:string;proof_number:string|null;description:string}>().then(result=>result.results) : [],
+  ])
 
   return {
-    items,
+    items: items.map(item=>({...item, fundAllocations: allocationsById.get(item.id) || []})),
+    fundOptions, historicalCash,
     users,
     committeeMembers,
     currentUserId: user.id,
@@ -456,6 +478,7 @@ export async function reviewKomiteAction(formData: FormData) {
   let kodeRkasProgram = row.kode_rkas_program || '-'
   let detailRows: RincianInput[] | null = null
   let nominal = Number(row.nominal || 0)
+  let allocations: FundAllocation[] | null = null
   if (permission.stage === 'bendahara' && action === 'setujui') {
     nomorSpb = cleanText(formData.get('nomor_spb'), 100)
     if (!nomorSpb) {
@@ -468,6 +491,8 @@ export async function reviewKomiteAction(formData: FormData) {
     if ('error' in parsedDetails) return { error: parsedDetails.error }
     detailRows = parsedDetails.rows
     nominal = parsedDetails.total
+    try { allocations = parseFundAllocations(JSON.parse(String(formData.get('fund_allocations') || 'null')),nominal); await validateKomiteFundSources(db,allocations) }
+    catch (error) { return { error: error instanceof SyntaxError ? 'Alokasi sumber dana tidak valid.' : (error as Error).message } }
     if (!nomorSpb || !penerima) return { error: 'Nomor SPB dan penerima pembayaran wajib diisi.' }
     const duplicate = await db.prepare('SELECT id FROM komite_pengajuan WHERE nomor_spb=? COLLATE NOCASE AND id<>? LIMIT 1').bind(nomorSpb, id).first()
     if (duplicate) return { error: 'Nomor SPB sudah digunakan pengajuan lain.' }
@@ -486,14 +511,24 @@ export async function reviewKomiteAction(formData: FormData) {
   try {
     const statements = [
       db.prepare(`INSERT INTO komite_pengajuan_reviews
-        (id,pengajuan_id,version_number,stage,action,catatan,actor_id,actor_name,actor_role,actor_signature_url,is_super_admin_bypass,nomor_spb_snapshot,penerima_snapshot,workflow_version)
-        SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,2 WHERE EXISTS (
-          SELECT 1 FROM komite_pengajuan WHERE id=? AND status=? AND current_version=? AND updated_at=? AND ketua_delegate_id IS ? AND workflow_version=2)
+        (id,pengajuan_id,version_number,stage,action,catatan,actor_id,actor_name,actor_role,actor_signature_url,is_super_admin_bypass,nomor_spb_snapshot,penerima_snapshot,workflow_version,fund_review_cycle)
+        SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,2,? WHERE EXISTS (
+          SELECT 1 FROM komite_pengajuan WHERE id=? AND status=? AND current_version=? AND updated_at=? AND ketua_delegate_id IS ? AND workflow_version=2 AND fund_review_cycle=?)
           AND (?='bendahara' OR EXISTS (SELECT 1 FROM system_settings s JOIN "user" u ON u.id=s.value
             WHERE s.key=? AND s.value=? AND COALESCE(u.banned,0)=0 AND (u.role='anggota_komite' OR EXISTS (
               SELECT 1 FROM user_roles ur WHERE ur.user_id=u.id AND ur.role='anggota_komite'))))`)
-        .bind(reviewId,id,row.current_version,permission.stage,action,catatan || null,user.id,actor?.name || user.name,actorRole,actor?.signature_url || null,permission.bypass ? 1 : 0,nomorSpb || null,penerima || null,
-          id,row.status,row.current_version,row.updated_at,row.ketua_delegate_id || null,permission.stage,KOMITE_VERIFIER_KEY,verifier?.id || ''),
+        .bind(reviewId,id,row.current_version,permission.stage,action,catatan || null,user.id,actor?.name || user.name,actorRole,actor?.signature_url || null,permission.bypass ? 1 : 0,nomorSpb || null,penerima || null,row.fund_review_cycle,
+          id,row.status,row.current_version,row.updated_at,row.ketua_delegate_id || null,row.fund_review_cycle,permission.stage,KOMITE_VERIFIER_KEY,verifier?.id || ''),
+      ...(allocations || (permission.stage === 'ketua' && action !== 'setujui') ? [
+        db.prepare(`UPDATE fin_komite_allocations SET state='released' WHERE pengajuan_id=? AND state='review'
+          AND EXISTS(SELECT 1 FROM komite_pengajuan_reviews WHERE id=?)`).bind(id,reviewId),
+      ] : []),
+      ...(allocations ?? []).map(allocation=>db.prepare(`INSERT INTO fin_komite_allocations
+        (id,pengajuan_id,source,group_id,amount,state,actor_id)
+        SELECT ?,?,?,?,?,'review',? WHERE EXISTS(SELECT 1 FROM komite_pengajuan_reviews WHERE id=?)`)
+        .bind(crypto.randomUUID(),id,allocation.source,allocation.groupId,allocation.amount,user.id,reviewId)),
+      ...(nextStatus === 'disetujui' ? [db.prepare(`UPDATE fin_komite_allocations SET state='locked'
+        WHERE pengajuan_id=? AND state='review' AND EXISTS(SELECT 1 FROM komite_pengajuan_reviews WHERE id=?)`).bind(id,reviewId)] : []),
       db.prepare(`UPDATE komite_pengajuan SET status=?,nomor_spb=?,penerima_pembayaran=?,nominal=?,tahun_anggaran=?,kode_rkas_program=?,
         ketua_delegate_id=CASE WHEN ?='bendahara' AND ?='setujui' THEN NULL ELSE ketua_delegate_id END,
         ketua_delegated_by=CASE WHEN ?='bendahara' AND ?='setujui' THEN NULL ELSE ketua_delegated_by END,
@@ -508,7 +543,7 @@ export async function reviewKomiteAction(formData: FormData) {
     ]
     if (detailRows) statements.push(...detailStatements(db, id, detailRows, reviewId))
     const results = await db.batch(statements)
-    if (!results[0].meta.changes || !results[1].meta.changes) return { error: 'Pengajuan sudah berubah atau tahap ini sudah diproses. Muat ulang halaman.' }
+    if (!results[0].meta.changes) return { error: 'Pengajuan sudah berubah atau tahap ini sudah diproses. Muat ulang halaman.' }
   } catch (error: any) {
     if (error?.message?.includes('UNIQUE')) {
       const latest = await db.prepare('SELECT status FROM komite_pengajuan WHERE id=?').bind(id).first<{ status: string }>()
@@ -528,7 +563,7 @@ export async function reviewKomiteAction(formData: FormData) {
   })
   const notifyApplicant = (eventKey: string, suffix: string) => sendKomiteNotification(db, {
     eventKey,
-    sourceRef: `komite:${id}:review:${row.current_version}:${permission.stage}:${suffix}:applicant`,
+    sourceRef: `komite:${id}:review:${row.current_version}:${permission.stage}:${row.fund_review_cycle ?? 0}:${suffix}:applicant`,
     context: commonContext,
   })
   const reviewerContext = { ...commonContext }
@@ -536,7 +571,7 @@ export async function reviewKomiteAction(formData: FormData) {
   delete reviewerContext.userIds
   const notifyNextReviewer = async (eventKey: string, suffix: string) => sendKomiteNotification(db, {
     eventKey,
-    sourceRef: `komite:${id}:review:${row.current_version}:${permission.stage}:${suffix}:reviewer`,
+    sourceRef: `komite:${id}:review:${row.current_version}:${permission.stage}:${row.fund_review_cycle ?? 0}:${suffix}:reviewer`,
     context: { ...reviewerContext, userIds: verifier && verifier.id !== row.pengaju_id ? [verifier.id] : [] },
     targetOverride: { kind: 'staff_users' },
     validation: { kind: 'komite_review_request',pengajuanId:id,version:row.current_version,status:nextStatus,
@@ -549,6 +584,7 @@ export async function reviewKomiteAction(formData: FormData) {
     else await notifyNextReviewer(plan.eventKey, plan.suffix)
   }
   revalidatePath(PAGE_PATH)
+  revalidateKomiteFunds()
   return { success: nextStatus === 'disetujui' ? 'Pengajuan disetujui dan SPB telah terbit.' : 'Review berhasil disimpan.' }
 }
 
@@ -616,4 +652,151 @@ export async function setNamedKomiteSubmitterAction(userId: string, enabled: boo
   await logActivity({ db, module: 'komite_pengajuan', action: enabled ? 'grant_submitter' : 'revoke_submitter', summary: `${enabled ? 'Memberi' : 'Mencabut'} izin pengajuan khusus untuk ${target.name}`, entityType: 'user', entityId: userId, entityLabel: target.name, metadata: { changedBy: user.id } })
   revalidatePath(PAGE_PATH)
   return { success: enabled ? 'Pengguna ditambahkan sebagai pengaju.' : 'Izin pengaju khusus dicabut.' }
+}
+
+function revalidateKomiteFunds() {
+  invalidateFinanceCache()
+  for (const path of [PAGE_PATH,'/dashboard','/dashboard/keuangan/rapbm','/dashboard/keuangan/kas-keluar','/dashboard/keuangan/laporan']) revalidatePath(path)
+}
+
+export async function recordKomiteRealization(formData: FormData) {
+  const {db,user,roles} = await requireContext()
+  if (!roles.some(role=>role==='bendahara_komite' || role==='super_admin')) return {error:'Anda tidak berwenang mencairkan SPB.'}
+  const id = cleanText(formData.get('id'),80)
+  const date = cleanText(formData.get('date'),10)
+  const method = cleanText(formData.get('method'),10)
+  if (!isValidIsoDate(date) || date>todayWIB() || !['tunai','transfer'].includes(method)) return {error:'Tanggal atau metode pembayaran tidak valid.'}
+  const row = await db.prepare("SELECT nominal,realisasi_status FROM komite_pengajuan WHERE id=? AND status='disetujui' AND komite_cancelled_at IS NULL").bind(id).first<{nominal:number;realisasi_status:string}>()
+  if (row?.realisasi_status === 'sudah') return {success:'Pencairan sudah tercatat.'}
+  const parts = (await db.prepare("SELECT source,amount FROM fin_komite_allocations WHERE pengajuan_id=? AND state='locked'").bind(id).all<{source:string;amount:number}>()).results
+  if (!row || parts.reduce((sum,part)=>sum+part.amount,0)!==row.nominal) return {error:'Alokasi pencairan belum lengkap.'}
+  const held = await db.prepare(`SELECT 1 FROM fin_komite_allocations a JOIN fin_komite_budget_balances b ON b.group_id=a.group_id
+    WHERE a.pengajuan_id=? AND a.state='locked' AND b.enabled=0 LIMIT 1`).bind(id).first()
+  if (held) return {error:'Pagu RAPBM angkatan ini belum aktif.'}
+  const cashId = crypto.randomUUID()
+  const file = formData.get('proof')
+  if (!(file instanceof File) || !file.size) return {error:'Unggah bukti pembayaran.'}
+  const proof = await uploadCashflowProof(file,cashId)
+  if (proof.error) return {error:proof.error}
+  try {
+    await db.batch([
+      db.prepare(`UPDATE komite_pengajuan SET realisasi_status='sudah',realisasi_tanggal=?,realisasi_metode=?,realisasi_petugas=?,updated_at=datetime('now')
+        WHERE id=? AND status='disetujui' AND komite_cancelled_at IS NULL AND realisasi_status='belum'
+        AND nominal=(SELECT SUM(amount) FROM fin_komite_allocations WHERE pengajuan_id=? AND state='locked')
+        AND NOT EXISTS (SELECT 1 FROM fin_komite_allocations a JOIN fin_komite_budget_balances b ON b.group_id=a.group_id
+          WHERE a.pengajuan_id=komite_pengajuan.id AND a.state='locked' AND b.enabled=0)`)
+        .bind(date,method==='tunai'?'Tunai':'Transfer',user.id,id,id),
+      checkKomiteWrite(db),
+      db.prepare(`INSERT INTO fin_cashflow_entries(id,direction,category_id,transaction_date,amount,method,counterparty,description,proof_url,created_by,komite_pengajuan_id)
+        SELECT ?,'expense','expense-komite-spb',?,nominal,?,COALESCE(penerima_pembayaran,''),nomor_spb||' · '||judul,?,?,id
+        FROM komite_pengajuan WHERE id=?`).bind(cashId,date,method,proof.url,user.id,id),
+      db.prepare("UPDATE fin_komite_allocations SET state='realized' WHERE pengajuan_id=? AND state='locked'").bind(id),
+      db.prepare(`INSERT INTO fin_komite_spb_cash_parts (cashflow_id,source,amount)
+        SELECT ?,source,SUM(amount) FROM fin_komite_allocations WHERE pengajuan_id=? AND state='realized' GROUP BY source`).bind(cashId,id),
+      checkKomiteCash(db,parts.map(part=>part.source)),
+      db.prepare("INSERT INTO fin_cashflow_audit(id,entry_id,action,actor_id,after_json) VALUES(?,?,'create',?,?)")
+        .bind(crypto.randomUUID(),cashId,user.id,JSON.stringify({pengajuanId:id,date,method,parts})),
+    ])
+  } catch (error) {
+    const latest=await db.prepare("SELECT id FROM fin_cashflow_entries WHERE komite_pengajuan_id=? AND is_void=0").bind(id).first()
+    if (latest) return {success:'Pencairan sudah tercatat.'}
+    return {error:await komiteCashError(db,error,parts.map(part=>({...part,amount:-part.amount})))}
+  }
+  revalidateKomiteFunds()
+  return {success:'Pencairan SPB tercatat.'}
+}
+
+export async function changeKomiteSpbAction(formData: FormData) {
+  const {db,user,roles} = await requireContext()
+  const id = cleanText(formData.get('id'),80)
+  const reason = cleanMultiline(formData.get('reason'),300)
+  const action = formData.get('operation')
+  const treasurer = roles.some(role=>role==='bendahara_komite' || role==='super_admin')
+  if (reason.length<3) return {error:'Alasan wajib diisi.'}
+  try {
+    if (action==='return') {
+      const row = await db.prepare("SELECT * FROM komite_pengajuan WHERE id=? AND status='menunggu_ketua'").bind(id).first<{pengaju_id:string;status:string;ketua_delegate_id:string|null;current_version:number;fund_review_cycle:number}>()
+      if (!row || !(await canReviewKomite(db,user.id,row,roles)).allowed) return {error:'Anda tidak berwenang mengembalikan pengajuan ini.'}
+      await db.batch([
+        db.prepare(`UPDATE komite_pengajuan SET status='menunggu_bendahara',fund_review_cycle=fund_review_cycle+1,updated_at=datetime('now')
+          WHERE id=? AND status='menunggu_ketua' AND current_version=? AND fund_review_cycle=?`).bind(id,row.current_version,row.fund_review_cycle),
+        checkKomiteWrite(db),
+        db.prepare("UPDATE fin_komite_allocations SET state='released' WHERE pengajuan_id=? AND state='review'").bind(id),
+      ])
+    } else if (treasurer && action==='cancel') {
+      await db.batch([
+        db.prepare(`UPDATE komite_pengajuan SET komite_cancelled_at=datetime('now'),komite_cancel_reason=?,komite_cancelled_by=?
+          WHERE id=? AND status='disetujui' AND realisasi_status='belum' AND komite_cancelled_at IS NULL`).bind(reason,user.id,id),
+        checkKomiteWrite(db),
+        db.prepare("UPDATE fin_komite_allocations SET state='released' WHERE pengajuan_id=? AND state='locked'").bind(id),
+      ])
+    } else if (treasurer && action==='reverse') {
+      const cash = await db.prepare('SELECT id FROM fin_cashflow_entries WHERE komite_pengajuan_id=? AND is_void=0').bind(id).first<{id:string}>()
+      if (!cash) return {error:'Transaksi pencairan aktif tidak ditemukan.'}
+      await db.batch([
+        db.prepare("UPDATE fin_cashflow_entries SET is_void=1,void_reason=?,voided_by=?,voided_at=datetime('now') WHERE id=? AND is_void=0").bind(reason,user.id,cash.id),
+        checkKomiteWrite(db),
+        db.prepare("UPDATE komite_pengajuan SET realisasi_status='belum',realisasi_tanggal=NULL,realisasi_metode=NULL,realisasi_petugas=NULL WHERE id=?").bind(id),
+        db.prepare("UPDATE fin_komite_allocations SET state='locked' WHERE pengajuan_id=? AND state='realized'").bind(id),
+        db.prepare("INSERT INTO fin_cashflow_audit(id,entry_id,action,actor_id,reason) VALUES(?,?,'void',?,?)").bind(crypto.randomUUID(),cash.id,user.id,reason),
+      ])
+    } else return {error:'Operasi tidak diizinkan.'}
+  } catch(error) { return {error:await komiteCashError(db,error,[])} }
+  await logActivity({db,module:'komite_pengajuan',action:String(action),severity:'warning',summary:reason,entityType:'komite_pengajuan',entityId:id})
+  revalidateKomiteFunds()
+  return {success:'Perubahan SPB tersimpan.'}
+}
+export async function mapHistoricalKomiteSpb(formData: FormData) {
+  const {db,user,roles} = await requireContext()
+  if (!roles.some(role=>role==='bendahara_komite' || role==='super_admin')) return {error:'Anda tidak berwenang memetakan SPB.'}
+  const id = cleanText(formData.get('id'),80)
+  const cashId = cleanText(formData.get('cash_id'),100)
+  const reason = cleanMultiline(formData.get('reason'),300)
+  const row = await db.prepare("SELECT nominal,realisasi_status,realisasi_tanggal,realisasi_metode FROM komite_pengajuan WHERE id=? AND status='disetujui' AND komite_cancelled_at IS NULL")
+    .bind(id).first<{nominal:number;realisasi_status:string;realisasi_tanggal:string|null;realisasi_metode:string|null}>()
+  if (!row || reason.length<3) return {error:'Pengajuan atau catatan pemetaan belum lengkap.'}
+  const restoreCash=row.realisasi_status==='sudah' && !cashId
+  const historicalDate=row.realisasi_tanggal ?? cleanText(formData.get('date'),10)
+  const historicalMethod=(row.realisasi_metode ?? cleanText(formData.get('method'),10)).toLowerCase()
+  if (restoreCash && (!isValidIsoDate(historicalDate)||historicalDate>todayWIB()||!['tunai','transfer'].includes(historicalMethod))) {
+    return {error:'Isi tanggal dan metode historis atau tautkan transaksi Arus Kas.'}
+  }
+  const linkedId=cashId || (restoreCash ? crypto.randomUUID() : '')
+  try {
+    const allocations = parseFundAllocations(JSON.parse(String(formData.get('fund_allocations') ?? 'null')),row.nominal)
+    await validateKomiteFundSources(db,allocations)
+    const state = linkedId ? 'realized' : 'locked'
+    await db.batch([
+      db.prepare(`UPDATE komite_pengajuan SET updated_at=strftime('%Y-%m-%d %H:%M:%f','now')
+        WHERE id=? AND status='disetujui' AND komite_cancelled_at IS NULL AND komite_pre_migration=1 AND nominal=? AND realisasi_status=?
+        AND NOT EXISTS(SELECT 1 FROM fin_komite_allocations WHERE pengajuan_id=? AND state<>'released')`).bind(id,row.nominal,row.realisasi_status,id),
+      checkKomiteWrite(db),
+      ...(cashId ? [
+        db.prepare(`UPDATE fin_cashflow_entries SET komite_pengajuan_id=? WHERE id=? AND komite_pengajuan_id IS NULL
+          AND direction='expense' AND komite_pre_migration=1 AND is_void=0 AND amount=?
+          AND NOT EXISTS(SELECT 1 FROM fin_komite_allocations WHERE cashflow_id=? AND state='realized')`).bind(id,cashId,row.nominal,cashId),
+        checkKomiteWrite(db),
+        db.prepare(`UPDATE komite_pengajuan SET realisasi_status='sudah',
+          realisasi_tanggal=COALESCE(realisasi_tanggal,(SELECT transaction_date FROM fin_cashflow_entries WHERE id=?)),
+          realisasi_metode=COALESCE(realisasi_metode,(SELECT CASE method WHEN 'tunai' THEN 'Tunai' ELSE 'Transfer' END FROM fin_cashflow_entries WHERE id=?))
+          WHERE id=?`).bind(cashId,cashId,id),
+      ] : []),
+      ...(restoreCash ? [
+        db.prepare(`INSERT INTO fin_cashflow_entries(id,direction,category_id,transaction_date,amount,method,counterparty,description,created_by,komite_pengajuan_id)
+          SELECT ?,'expense','expense-komite-spb',?,nominal,?,COALESCE(penerima_pembayaran,''),nomor_spb||' · '||judul,?,id
+          FROM komite_pengajuan WHERE id=?`).bind(linkedId,historicalDate,historicalMethod,user.id,id),
+        db.prepare(`UPDATE komite_pengajuan SET realisasi_tanggal=COALESCE(realisasi_tanggal,?),realisasi_metode=COALESCE(realisasi_metode,?) WHERE id=?`)
+          .bind(historicalDate,historicalMethod==='tunai'?'Tunai':'Transfer',id),
+        db.prepare("INSERT INTO fin_cashflow_audit(id,entry_id,action,actor_id,reason) VALUES(?,?,'create',?,?)").bind(crypto.randomUUID(),linkedId,user.id,reason),
+      ] : []),
+      ...allocations.map(part=>db.prepare(`INSERT INTO fin_komite_allocations
+        (id,pengajuan_id,source,group_id,amount,state,actor_id,historical,mapping_note) VALUES (?,?,?,?,?,?,?,1,?)`)
+        .bind(crypto.randomUUID(),id,part.source,part.groupId,part.amount,state,user.id,reason)),
+      ...(linkedId ? [db.prepare(`INSERT INTO fin_komite_spb_cash_parts (cashflow_id,source,amount)
+        SELECT ?,source,SUM(amount) FROM fin_komite_allocations WHERE pengajuan_id=? AND state='realized' GROUP BY source`).bind(linkedId,id)] : []),
+    ])
+    await logActivity({db,module:'komite_pengajuan',action:'map_funds',summary:reason,entityType:'komite_pengajuan',entityId:id,metadata:{cashId:linkedId,allocations}})
+  } catch(error) { return {error:await komiteCashError(db,error,[])} }
+  revalidateKomiteFunds()
+  return {success:'Pemetaan SPB tersimpan.'}
 }

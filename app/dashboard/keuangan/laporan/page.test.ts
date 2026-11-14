@@ -1,10 +1,11 @@
+import { cashLedgerSql } from '@/lib/komite-funds'
 import { readFileSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 // Execute the actual page SQL: mocks of D1 cannot detect invalid compound SELECTs.
 const page = readFileSync(new URL('./page.tsx', import.meta.url), 'utf8')
-const queries = [...page.matchAll(/db\.prepare\(`([\s\S]*?)`\)/g)].map(match => match[1])
+const queries = [...page.matchAll(/db\.prepare\(`([\s\S]*?)`\)/g)].map(match => match[1].replace('${cashLedgerSql(fund)}',cashLedgerSql()))
 
 describe('Laporan Keuangan page queries', () => {
   let db: DatabaseSync
@@ -19,6 +20,19 @@ describe('Laporan Keuangan page queries', () => {
       }
     }
     db.exec('ALTER TABLE siswa ADD COLUMN tahun_masuk INTEGER')
+    for (const file of ['0071_add_komite_pengajuan.sql','0101_add_komite_monthly_report.sql','0122_komite_verifier_and_activity_report.sql','0123_add_rapbm.sql']) {
+      const migration=readFileSync(new URL(`../../../../migrations/${file}`,import.meta.url),'utf8')
+      if (file.startsWith('0122')) {
+        db.exec('ALTER TABLE komite_pengajuan_reviews ADD COLUMN workflow_version INTEGER DEFAULT 1')
+        continue
+      }
+      if (file.startsWith('0101')) {
+        db.exec('ALTER TABLE fin_cashflow_entries ADD COLUMN proof_number TEXT')
+        continue
+      }
+      db.exec(migration.split(/INSERT OR IGNORE INTO (master_roles|role_features)/)[0])
+    }
+    db.exec(readFileSync(new URL('../../../../migrations/0127_komite_fund_sources.sql',import.meta.url),'utf8'))
   })
 
   afterEach(() => db.close())
@@ -48,7 +62,7 @@ describe('Laporan Keuangan page queries', () => {
 
     const rows = db.prepare(queries[1]).all()
     expect(rows.map(row => [row.id, row.jumlah_total])).toEqual([
-      ['e', 600], ['spp-balance-sp', 400], ['dspt-balance-d', 300], ['t', 200],
+      ['e', 600], ['student-spp-balance-sp', 400], ['student-dspt-balance-d', 300], ['student-t', 200],
     ])
     expect(rows.map(row => row.created_at)).toEqual([
       '2026-09-04 08:00:00', '2026-09-03 08:00:00', '2026-09-02 08:00:00', '2026-09-01 08:00:00',

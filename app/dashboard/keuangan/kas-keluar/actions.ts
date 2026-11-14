@@ -14,11 +14,14 @@ import {
   type CashflowPageData,
   type CashMethod,
 } from '@/lib/cashflow'
+import { todayWIB } from '@/lib/time'
 import { getSession } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
 import { uploadCashflowProof } from '@/utils/r2'
 import { getKomiteReportSettings } from '@/lib/komite-report-settings'
 import { getOrSetFinanceCache, invalidateFinanceCache } from '@/lib/finance-cache'
+
+import { cashLedgerSql, checkKomiteCash, checkKomiteWrite, isKomiteFundScope, komiteCashError, listKomiteFundOptions, parseFundAllocations, validateKomiteFundSources } from '@/lib/komite-funds'
 
 const FEATURE_ID = 'keuangan-kas-keluar'
 
@@ -35,106 +38,34 @@ function revalidateCashflow() {
   revalidatePath('/dashboard/keuangan/kas-keluar')
   revalidatePath('/dashboard/keuangan/laporan')
   revalidatePath('/dashboard/keuangan/pengaturan')
+  revalidatePath('/dashboard/keuangan/rapbm')
   revalidatePath('/dashboard')
 }
-
-const ledgerCte = `
-  WITH ledger AS (
-    SELECT
-      'student-' || t.id AS id, 'student' AS origin, 'income' AS direction,
-      CASE WHEN t.kategori='spp' THEN 'spp' ELSE 'dspt' END AS source,
-      NULL AS category_id, CASE WHEN t.kategori='spp' THEN 'SPP' ELSE 'DSPT' END AS category_name,
-      substr(t.created_at,1,10) AS transaction_date, t.jumlah_total AS amount,
-      t.metode_bayar AS method, s.nama_lengkap AS counterparty,
-      COALESCE(t.nomor_kuitansi,'Pembayaran siswa') AS description,
-      t.bukti_transfer_url AS proof_url, t.nomor_kuitansi AS proof_number, t.input_oleh AS recorder_id,
-      COALESCE(u.nama_lengkap,u.name,'Sistem') AS recorder_name,
-      s.id AS student_id, s.nama_lengkap AS student_name,
-      trim(COALESCE(k.tingkat || '-' || k.nomor_kelas || CASE WHEN k.kelompok IS NOT NULL AND k.kelompok<>'' THEN ' ' || k.kelompok ELSE '' END,'-')) AS student_class,
-      s.tahun_masuk AS angkatan,
-      CASE WHEN t.is_void=1 THEN 'void' ELSE 'active' END AS status,
-      t.void_alasan AS void_reason, t.created_at AS created_at,
-      s.kelas_id AS kelas_id
-    FROM fin_transaksi t
-    JOIN siswa s ON s.id=t.siswa_id AND s.status='aktif'
-    LEFT JOIN kelas k ON k.id=s.kelas_id
-    LEFT JOIN "user" u ON u.id=t.input_oleh
-    WHERE t.kategori IN ('dspt','spp')
-
-    UNION ALL
-
-    SELECT
-      'student-dspt-balance-' || d.id, 'student', 'income', 'dspt', NULL, 'DSPT',
-      substr(COALESCE(d.updated_at,d.created_at),1,10), d.total_dibayar-COALESCE(r.total_recorded,0),
-      'tunai', s.nama_lengkap, 'Saldo DSPT tanpa rincian transaksi', NULL, NULL, NULL, 'Sistem',
-      s.id, s.nama_lengkap,
-      trim(COALESCE(k.tingkat || '-' || k.nomor_kelas || CASE WHEN k.kelompok IS NOT NULL AND k.kelompok<>'' THEN ' ' || k.kelompok ELSE '' END,'-')),
-      s.tahun_masuk, 'active', NULL, COALESCE(d.updated_at,d.created_at), s.kelas_id
-    FROM fin_dspt d
-    JOIN siswa s ON s.id=d.siswa_id AND s.status='aktif'
-    LEFT JOIN kelas k ON k.id=s.kelas_id
-    LEFT JOIN (
-      SELECT td.ref_id, SUM(td.jumlah) total_recorded
-      FROM fin_transaksi_detail td JOIN fin_transaksi t ON t.id=td.transaksi_id
-      WHERE td.ref_type='dspt' AND t.is_void=0 GROUP BY td.ref_id
-    ) r ON r.ref_id=d.id
-    WHERE d.total_dibayar-COALESCE(r.total_recorded,0) > 0
-
-    UNION ALL
-
-    SELECT
-      'student-spp-balance-' || sp.id, 'student', 'income', 'spp', NULL, 'SPP',
-      substr(COALESCE(sp.updated_at,sp.created_at),1,10), sp.total_dibayar-COALESCE(r.total_recorded,0),
-      'tunai', s.nama_lengkap, 'Saldo SPP tanpa rincian transaksi', NULL, NULL, NULL, 'Sistem',
-      s.id, s.nama_lengkap,
-      trim(COALESCE(k.tingkat || '-' || k.nomor_kelas || CASE WHEN k.kelompok IS NOT NULL AND k.kelompok<>'' THEN ' ' || k.kelompok ELSE '' END,'-')),
-      s.tahun_masuk, 'active', NULL, COALESCE(sp.updated_at,sp.created_at), s.kelas_id
-    FROM fin_spp_saldo_awal sp
-    JOIN siswa s ON s.id=sp.siswa_id AND s.status='aktif'
-    LEFT JOIN kelas k ON k.id=s.kelas_id
-    LEFT JOIN (
-      SELECT td.ref_id, SUM(td.jumlah) total_recorded
-      FROM fin_transaksi_detail td JOIN fin_transaksi t ON t.id=td.transaksi_id
-      WHERE td.ref_type='spp_saldo_awal' AND t.is_void=0 GROUP BY td.ref_id
-    ) r ON r.ref_id=sp.id
-    WHERE sp.total_dibayar-COALESCE(r.total_recorded,0) > 0
-
-    UNION ALL
-
-    SELECT
-      e.id, 'manual', e.direction, 'manual', e.category_id, c.name,
-      e.transaction_date, e.amount, e.method, e.counterparty, e.description,
-      e.proof_url, e.proof_number, e.created_by,
-      COALESCE(u.nama_lengkap,u.name,'-'), NULL, NULL, NULL, NULL,
-      CASE WHEN e.is_void=1 THEN 'void' ELSE 'active' END,
-      e.void_reason, e.created_at, NULL
-    FROM fin_cashflow_entries e
-    JOIN fin_cashflow_categories c ON c.id=e.category_id
-    LEFT JOIN "user" u ON u.id=e.created_by
-  )
-`
 
 function ledgerWhere(filters: CashflowFilters) {
   const f = normalizeCashflowFilters(filters)
   const clauses: string[] = ['1=1']
   const params: unknown[] = []
+  if (typeof f.entryId==='string' && f.entryId.length<=120) { clauses.push('id=?');params.push(f.entryId) }
   if (f.dateFrom && isValidIsoDate(f.dateFrom)) { clauses.push('transaction_date >= ?'); params.push(f.dateFrom) }
   if (f.dateTo && isValidIsoDate(f.dateTo)) { clauses.push('transaction_date <= ?'); params.push(f.dateTo) }
   if (f.direction && f.direction !== 'all') { clauses.push('direction = ?'); params.push(f.direction) }
+  if (f.studentScope==='active_students') clauses.push("(student_id IS NULL OR student_status='aktif')")
   if (f.source && f.source !== 'all') { clauses.push('source = ?'); params.push(f.source) }
   if (f.categoryId) { clauses.push('category_id = ?'); params.push(f.categoryId) }
   if (f.method && f.method !== 'all') { clauses.push('method = ?'); params.push(f.method) }
   if (f.recorderId) { clauses.push('recorder_id = ?'); params.push(f.recorderId) }
   if (f.status && f.status !== 'all') { clauses.push('status = ?'); params.push(f.status) }
-  else if (!f.status) clauses.push("status = 'active'")
-  if (f.angkatan) { clauses.push('angkatan = ?'); params.push(Number(f.angkatan)) }
+  else if (!f.status && !f.entryId) clauses.push("status = 'active'")
+
   if (f.kelasId) { clauses.push('kelas_id = ?'); params.push(f.kelasId) }
   if (f.search) {
     clauses.push("(lower(counterparty) LIKE ? OR lower(description) LIKE ? OR lower(category_name) LIKE ? OR lower(recorder_name) LIKE ?)")
     const term = `%${f.search.toLowerCase()}%`
     params.push(term, term, term, term)
   }
-  return { f, where: clauses.join(' AND '), params }
+  const fund = isKomiteFundScope(f.angkatan) && f.angkatan !== 'all' ? f.angkatan : undefined
+  return { f, where: clauses.join(' AND '), params: fund ? [fund, ...params] : params, ledgerCte: cashLedgerSql(fund) }
 }
 
 function number(value: unknown) { return Number(value || 0) }
@@ -148,6 +79,9 @@ function toEntry(row: any): CashflowEntry {
     recorderId: row.recorder_id || null, recorderName: row.recorder_name || '-', studentId: row.student_id || null,
     studentName: row.student_name || null, studentClass: row.student_class || null,
     angkatan: row.angkatan == null ? null : number(row.angkatan), status: row.status,
+    fundSource: row.fund_source || null,
+    linkedSpb: !!row.komite_pengajuan_id,
+    groupId: row.group_id || null,
     voidReason: row.void_reason || null, createdAt: row.created_at,
   }
 }
@@ -164,7 +98,7 @@ function mappedSeriesJson(value: unknown) {
 
 export async function getCashflowPage(filters: CashflowFilters = {}): Promise<CashflowPageData> {
   const { db, userId } = await requireCashflow('read')
-  const { f, where, params } = ledgerWhere(filters)
+  const { f, where, params, ledgerCte } = ledgerWhere(filters)
   const cacheKey = `cashflow:${userId}:${JSON.stringify(f)}`
   return getOrSetFinanceCache(cacheKey, async () => {
     const offset = (f.page - 1) * f.pageSize
@@ -205,13 +139,13 @@ export async function getCashflowPage(filters: CashflowFilters = {}): Promise<Ca
       )) expense_categories_json
     FROM filtered`
 
-    const [rowsResult, aggregate, categoriesResult, recordersResult, classesResult, angkatanResult] = await Promise.all([
+    const [rowsResult, aggregate, categoriesResult, recordersResult, classesResult, fundOptions] = await Promise.all([
       db.prepare(`${ledgerCte} SELECT * FROM ledger WHERE ${where} ORDER BY transaction_date DESC, created_at DESC LIMIT ? OFFSET ?`).bind(...params,f.pageSize,offset).all<any>(),
       db.prepare(analyticsSql).bind(...params).first<any>(),
       db.prepare('SELECT id,direction,name,sort_order,is_active,is_system FROM fin_cashflow_categories ORDER BY direction,sort_order,name').all<any>(),
       db.prepare(`SELECT DISTINCT u.id, COALESCE(u.nama_lengkap,u.name,'-') name FROM "user" u WHERE EXISTS (SELECT 1 FROM fin_transaksi t WHERE t.input_oleh=u.id) OR EXISTS (SELECT 1 FROM fin_cashflow_entries e WHERE e.created_by=u.id) ORDER BY name`).all<any>(),
       db.prepare(`SELECT id, trim(tingkat || '-' || nomor_kelas || CASE WHEN kelompok IS NOT NULL AND kelompok<>'' THEN ' ' || kelompok ELSE '' END) label FROM kelas ORDER BY tingkat,nomor_kelas,kelompok`).all<any>(),
-      db.prepare("SELECT DISTINCT tahun_masuk FROM siswa WHERE status='aktif' AND tahun_masuk IS NOT NULL ORDER BY tahun_masuk DESC").all<any>(),
+      listKomiteFundOptions(db),
     ])
     const row = aggregate ?? {}
     const summary = { totalIncome: number(row.total_income), manualIncome: number(row.manual_income), totalExpense: number(row.total_expense) }
@@ -226,7 +160,7 @@ export async function getCashflowPage(filters: CashflowFilters = {}): Promise<Ca
       entries: (rowsResult.results ?? []).map(toEntry), totalRows: number(row.total_rows), summary, analytics,
       categories: (categoriesResult.results ?? []).map((item: any): CashflowCategory => ({ id: item.id, direction: item.direction, name: item.name, sortOrder: number(item.sort_order), isActive: item.is_active === 1, isSystem: item.is_system === 1 })),
       recorders: recordersResult.results ?? [], classes: classesResult.results ?? [],
-      angkatan: (angkatanResult.results ?? []).map((item: any) => number(item.tahun_masuk)),
+      angkatan: fundOptions.years, positions: fundOptions.positions, historicalPositions:fundOptions.historicalPositions,
     }
   })
 }
@@ -240,16 +174,19 @@ type ManualEntryInput = {
   counterparty: string
   description: string
   proofNumber?: string
+  fundSource?: string
+  groupId?: string
 }
 
 async function validateEntry(db: D1Database, input: ManualEntryInput) {
   if (!['income','expense'].includes(input.direction)) return 'Arah transaksi tidak valid.'
-  if (!isValidIsoDate(input.transactionDate)) return 'Tanggal transaksi tidak valid.'
+  if (!isValidIsoDate(input.transactionDate) || input.transactionDate>todayWIB()) return 'Tanggal transaksi tidak valid.'
   if (!Number.isSafeInteger(input.amount) || input.amount <= 0) return 'Nominal harus berupa bilangan rupiah positif.'
   if (!CASH_METHODS.includes(input.method)) return 'Metode transaksi tidak valid.'
   if (!input.description?.trim() || input.description.trim().length > 500) return 'Keterangan wajib diisi maksimal 500 karakter.'
   if ((input.counterparty || '').trim().length > 150) return 'Sumber/penerima maksimal 150 karakter.'
   if ((input.proofNumber || '').trim().length > 80) return 'Nomor bukti maksimal 80 karakter.'
+  if (input.categoryId==='expense-komite-spb') return 'Catat pencairan melalui pengajuan SPB.'
   const category = await db.prepare('SELECT id FROM fin_cashflow_categories WHERE id=? AND direction=? AND is_active=1').bind(input.categoryId,input.direction).first()
   return category ? null : 'Kategori tidak aktif atau tidak sesuai jenis transaksi.'
 }
@@ -272,6 +209,13 @@ export async function createCashflowEntry(input: ManualEntryInput, proof?: FormD
   const value = cleanInput(input)
   const error = await validateEntry(db, value)
   if (error) return { error, success: null }
+  let allocation
+  try {
+    ;[allocation] = parseFundAllocations([{ source: value.fundSource, groupId: value.groupId, amount: value.amount }], value.amount, value.direction === 'income')
+    await validateKomiteFundSources(db,[allocation])
+  } catch (cause) {
+    return { error: (cause as Error).message, success: null }
+  }
   const reportSettings = await getKomiteReportSettings()
   let proofNumber = value.proofNumber || ''
   if (reportSettings.proofNumberMode === 'manual' && !proofNumber) return { error: 'Nomor bukti wajib diisi sesuai pengaturan laporan.', success: null }
@@ -286,12 +230,17 @@ export async function createCashflowEntry(input: ManualEntryInput, proof?: FormD
     proofUrl = uploaded.url
   }
   const snapshot = { ...value, proofUrl, proofNumber }
-  await db.batch([
+  try { await db.batch([
     db.prepare(`INSERT INTO fin_cashflow_entries (id,direction,category_id,transaction_date,amount,method,counterparty,description,proof_url,proof_number,created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)`)
       .bind(id,value.direction,value.categoryId,value.transactionDate,value.amount,value.method,value.counterparty,value.description,proofUrl,proofNumber,userId),
+    db.prepare(`INSERT INTO fin_komite_allocations (id,cashflow_id,source,group_id,amount,state,actor_id)
+      VALUES (?,?,?,?,?,'realized',?)`).bind(crypto.randomUUID(),id,allocation.source,allocation.groupId,allocation.amount,userId),
+    ...(value.direction === 'expense' ? [checkKomiteCash(db,[allocation.source])] : []),
     db.prepare(`INSERT INTO fin_cashflow_audit (id,entry_id,action,after_json,actor_id) VALUES (?,?, 'create', ?,?)`)
       .bind(crypto.randomUUID(),id,JSON.stringify(snapshot),userId),
-  ])
+  ]) } catch (cause) {
+    return { error: await komiteCashError(db,cause,[{source: allocation.source,amount: -value.amount}]), success:null }
+  }
   revalidateCashflow()
   return { error: null, success: value.direction === 'income' ? 'Pemasukan berhasil dicatat.' : 'Pengeluaran berhasil dicatat.' }
 }
@@ -300,9 +249,17 @@ export async function updateCashflowEntry(id: string, input: ManualEntryInput, p
   const { db, userId } = await requireCashflow('update')
   const before = await db.prepare('SELECT * FROM fin_cashflow_entries WHERE id=? AND is_void=0').bind(id).first<any>()
   if (!before) return { error: 'Transaksi aktif tidak ditemukan.', success: null }
+  if (before.komite_pengajuan_id) return { error: 'Koreksi pencairan ini melalui pengajuan SPB.', success: null }
   const value = cleanInput(input)
   const error = await validateEntry(db, value)
   if (error) return { error, success: null }
+  let allocation
+  try {
+    ;[allocation] = parseFundAllocations([{ source: value.fundSource, groupId: value.groupId, amount: value.amount }], value.amount, value.direction === 'income')
+    await validateKomiteFundSources(db,[allocation])
+  } catch (cause) {
+    return { error: (cause as Error).message, success: null }
+  }
   const reportSettings = await getKomiteReportSettings()
   let proofNumber = reportSettings.proofNumberMode === 'automatic'
     ? before.proof_number || ''
@@ -318,12 +275,26 @@ export async function updateCashflowEntry(id: string, input: ManualEntryInput, p
     proofUrl = uploaded.url
   }
   const after = { ...value, proofUrl, proofNumber }
-  await db.batch([
-    db.prepare(`UPDATE fin_cashflow_entries SET direction=?,category_id=?,transaction_date=?,amount=?,method=?,counterparty=?,description=?,proof_url=?,proof_number=?,updated_by=?,updated_at=datetime('now') WHERE id=?`)
-      .bind(value.direction,value.categoryId,value.transactionDate,value.amount,value.method,value.counterparty,value.description,proofUrl,proofNumber || null,userId,id),
+  const old = (await db.prepare("SELECT source,amount FROM fin_komite_allocations WHERE cashflow_id=? AND state='realized'").bind(id).all<{source:string;amount:number}>()).results
+  const delta = new Map<string,number>()
+  for(const row of old) delta.set(row.source,(delta.get(row.source)??0)+(before.direction==='income'?-row.amount:row.amount))
+  delta.set(allocation.source,(delta.get(allocation.source)??0)+(value.direction==='income'?value.amount:-value.amount))
+  const affected=[...delta].filter(([,amount])=>amount<0).map(([source])=>source)
+  try { await db.batch([
+    db.prepare(`UPDATE fin_cashflow_entries SET direction=?,category_id=?,transaction_date=?,amount=?,method=?,counterparty=?,description=?,proof_url=?,proof_number=?,updated_by=?,komite_revision=komite_revision+1,updated_at=strftime('%Y-%m-%d %H:%M:%f','now') WHERE id=? AND is_void=0 AND komite_pengajuan_id IS NULL AND komite_revision=?`)
+      .bind(value.direction,value.categoryId,value.transactionDate,value.amount,value.method,value.counterparty,value.description,proofUrl,proofNumber || null,userId,id,before.komite_revision),
+    checkKomiteWrite(db),
+    db.prepare("UPDATE fin_komite_allocations SET state='released' WHERE cashflow_id=? AND state='realized'").bind(id),
+    db.prepare(`INSERT INTO fin_komite_allocations (id,cashflow_id,source,group_id,amount,state,actor_id)
+      VALUES (?,?,?,?,?,'realized',?)`).bind(crypto.randomUUID(),id,allocation.source,allocation.groupId,allocation.amount,userId),
+    checkKomiteCash(db,affected),
     db.prepare(`INSERT INTO fin_cashflow_audit (id,entry_id,action,before_json,after_json,actor_id) VALUES (?,?,'update',?,?,?)`)
       .bind(crypto.randomUUID(),id,JSON.stringify(before),JSON.stringify(after),userId),
-  ])
+  ]) } catch (cause) {
+    const delta = [...old.map(row => ({ ...row, amount: before.direction === 'income' ? -row.amount : row.amount })),
+      { source: allocation.source, amount: value.direction === 'income' ? value.amount : -value.amount }]
+    return { error: await komiteCashError(db,cause,delta), success:null }
+  }
   revalidateCashflow()
   return { error: null, success: 'Transaksi berhasil diperbarui.' }
 }
@@ -333,11 +304,56 @@ export async function voidCashflowEntry(id: string, reason: string) {
   const before = await db.prepare('SELECT * FROM fin_cashflow_entries WHERE id=? AND is_void=0').bind(id).first<any>()
   const cleanReason = reason.trim()
   if (!before) return { error: 'Transaksi aktif tidak ditemukan.', success: null }
+  if (before.komite_pengajuan_id) return { error: 'Koreksi pencairan ini melalui pengajuan SPB.', success: null }
   if (cleanReason.length < 3 || cleanReason.length > 300) return { error: 'Alasan pembatalan wajib diisi 3–300 karakter.', success: null }
-  await db.batch([
-    db.prepare(`UPDATE fin_cashflow_entries SET is_void=1,void_reason=?,voided_by=?,voided_at=datetime('now'),updated_by=?,updated_at=datetime('now') WHERE id=?`).bind(cleanReason,userId,userId,id),
+  const old = (await db.prepare("SELECT source,amount FROM fin_komite_allocations WHERE cashflow_id=? AND state='realized'").bind(id).all<{source:string;amount:number}>()).results
+  try { await db.batch([
+    db.prepare(`UPDATE fin_cashflow_entries SET is_void=1,void_reason=?,voided_by=?,voided_at=datetime('now'),updated_by=?,komite_revision=komite_revision+1,updated_at=strftime('%Y-%m-%d %H:%M:%f','now') WHERE id=? AND is_void=0 AND komite_pengajuan_id IS NULL AND komite_revision=?`).bind(cleanReason,userId,userId,id,before.komite_revision),
+    checkKomiteWrite(db),
+    ...(before.direction === 'income' ? [checkKomiteCash(db,old.map(row=>row.source))] : []),
     db.prepare(`INSERT INTO fin_cashflow_audit (id,entry_id,action,before_json,actor_id,reason) VALUES (?,?,'void',?,?,?)`).bind(crypto.randomUUID(),id,JSON.stringify(before),userId,cleanReason),
-  ])
+  ]) } catch (cause) {
+    return { error: await komiteCashError(db,cause,old.map(row=>({...row,amount:-row.amount}))), success:null }
+  }
   revalidateCashflow()
   return { error: null, success: 'Transaksi berhasil dibatalkan.' }
+}
+
+export async function mapHistoricalCashflow(id: string, fundSource: string, groupId: string, reason: string) {
+  const { db, userId } = await requireCashflow('update')
+  const entry = await db.prepare("SELECT * FROM fin_cashflow_entries WHERE id=? AND is_void=0 AND komite_pengajuan_id IS NULL").bind(id).first<{direction:CashDirection;amount:number}>()
+  if (!entry || reason.trim().length<3 || reason.trim().length>300) return {error:'Transaksi atau alasan pemetaan belum lengkap.',success:null}
+  try {
+    const [part] = parseFundAllocations([{source:fundSource,groupId,amount:entry.amount}],entry.amount,entry.direction==='income')
+    await validateKomiteFundSources(db,[part])
+    await db.batch([
+      db.prepare(`UPDATE fin_cashflow_entries SET komite_revision=komite_revision+1
+        WHERE id=? AND komite_pre_migration=1 AND komite_pengajuan_id IS NULL AND is_void=0
+        AND NOT EXISTS(SELECT 1 FROM fin_komite_allocations WHERE cashflow_id=?)`).bind(id,id),
+      checkKomiteWrite(db),
+      db.prepare(`INSERT INTO fin_komite_allocations (id,cashflow_id,source,group_id,amount,state,actor_id,historical)
+        SELECT ?,id,?,?,amount,'realized',?,1 FROM fin_cashflow_entries WHERE id=? AND amount=? AND direction=? AND is_void=0
+        AND komite_pengajuan_id IS NULL AND komite_pre_migration=1 AND NOT EXISTS(SELECT 1 FROM fin_komite_allocations WHERE cashflow_id=?)`)
+        .bind(crypto.randomUUID(),part.source,part.groupId,userId,id,entry.amount,entry.direction,id),
+      checkKomiteWrite(db),
+      db.prepare(`INSERT INTO fin_cashflow_audit (id,entry_id,action,after_json,actor_id,reason) VALUES (?,?,'update',?,?,?)`)
+        .bind(crypto.randomUUID(),id,JSON.stringify(part),userId,reason.trim()),
+    ])
+  } catch(error) { return {error:await komiteCashError(db,error,[]),success:null} }
+  revalidateCashflow()
+  return {error:null,success:'Sumber dana historis tersimpan.'}
+}
+
+
+export async function getCashflowPrintRows(filters: CashflowFilters, detailed: boolean) {
+  const { db } = await requireCashflow('read')
+  const { where, params, ledgerCte } = ledgerWhere(filters)
+  const rows = await db.prepare(`${ledgerCte} SELECT ${detailed ? '*' : 'status,direction,SUM(amount) amount'}
+    FROM ledger WHERE ${where}
+    ${detailed ? 'ORDER BY transaction_date,created_at,id' : 'GROUP BY status,direction'}`).bind(...params).all<Record<string,unknown>>()
+  return {
+    income: rows.results.filter(row=>row.status==='active'&&row.direction==='income').reduce((sum,row)=>sum+Number(row.amount),0),
+    expense: rows.results.filter(row=>row.status==='active'&&row.direction==='expense').reduce((sum,row)=>sum+Number(row.amount),0),
+    entries:detailed ? rows.results.map(toEntry) : [],
+  }
 }

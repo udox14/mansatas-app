@@ -26,6 +26,8 @@ import {
 import { formatRupiah } from '@/lib/utils'
 import { dateInputWIB, formatDateTimeWIB, formatDateWIB, todayWIB } from '@/lib/time'
 import type { KomiteReportSettings } from '@/lib/komite-report-settings'
+import { useRouter } from 'next/navigation'
+import { komiteFundLabel } from '@/lib/komite-funds'
 import { OfficialReportDialog } from './official-report-dialog'
 import {
   SiswaStatusFilter,
@@ -106,6 +108,7 @@ interface TunggakanRow {
 type MateriKey = 'ringkasan' | 'arusKas' | 'angkatan' | 'tunggakan'
 
 interface LaporanClientProps {
+  fund?:string
   dsptRows: DsptRow[]
   transaksi: TransaksiRow[]
   kasKeluar: KasKeluarRow[]
@@ -158,20 +161,22 @@ function sumBy<T>(rows: T[], picker: (row: T) => number) {
   return rows.reduce((sum, row) => sum + picker(row), 0)
 }
 
-export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan, reportSettings }: LaporanClientProps) {
+export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan, reportSettings, fund }: LaporanClientProps) {
   const printRef = useRef<HTMLElement>(null)
   const [tanggalAwal, setTanggalAwal] = useState(firstDayOfMonthInput())
   const [tanggalAkhir, setTanggalAkhir] = useState(todayInput())
   const [kategori, setKategori] = useState('semua')
   const [metodeBayar, setMetodeBayar] = useState('semua')
-  const [filterSiswaStatus, setFilterSiswaStatus] = useState<SiswaStatusFilterValue>('aktif')
+  const [filterSiswaStatus, setFilterSiswaStatus] = useState<SiswaStatusFilterValue>('semua')
   const [search, setSearch] = useState('')
   const [printModalOpen, setPrintModalOpen] = useState(false)
   const [judul, setJudul] = useState('Laporan Keuangan Madrasah')
   const [format, setFormat] = useState<'ringkas' | 'detail'>('detail')
   const [orientasi, setOrientasi] = useState<'portrait' | 'landscape'>('portrait')
   const [penandaTangan, setPenandaTangan] = useState('Bendahara Komite')
-  const [printAngkatan, setPrintAngkatan] = useState('semua')
+  const router=useRouter()
+  const printAngkatan=fund??'semua'
+  function setPrintAngkatan(value:string) { router.push(value==='semua' ? '/dashboard/keuangan/laporan' : `/dashboard/keuangan/laporan?fund=${value}`) }
   const [materi, setMateri] = useState<Record<MateriKey, boolean>>({
     ringkasan: true,
     arusKas: true,
@@ -185,7 +190,7 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan, repor
       const tanggal = dateOnly(row.created_at)
       const matchTanggal = tanggal >= tanggalAwal && tanggal <= tanggalAkhir
       const matchKategori = kategori === 'semua' || row.kategori === kategori
-      const matchSiswaStatus = matchSiswaStatusFilter(row.siswa_status, filterSiswaStatus)
+      const matchSiswaStatus = row.kategori==='manual' || matchSiswaStatusFilter(row.siswa_status, filterSiswaStatus)
       const matchMetode = metodeBayar === 'semua'
         || (metodeBayar === 'tunai'
           ? row.metode_bayar === 'tunai'
@@ -258,13 +263,11 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan, repor
   const saldo = pemasukan - pengeluaran
   const totalTunggakan = sumBy(tunggakanFiltered, row => row.sisa)
 
-  const angkatanOptions = rekapAngkatan.map(r => r.tahun_masuk).sort((a, b) => b - a)
+  const angkatanOptions = [...new Set(dsptRows.map(row=>row.tahun_masuk).filter(year=>year>=2000&&year<=2199))].sort((a,b)=>b-a)
   const rekapAngkatanPrint = printAngkatan === 'semua'
     ? rekapAngkatan
     : rekapAngkatan.filter(r => r.tahun_masuk === Number(printAngkatan))
-  const transaksiPrint = printAngkatan === 'semua'
-    ? transaksiAktif
-    : transaksiAktif.filter(r => r.tahun_masuk === Number(printAngkatan))
+  const transaksiPrint = transaksiAktif
   const tunggakanPrint = printAngkatan === 'semua'
     ? tunggakanFiltered
     : tunggakanFiltered.filter(r => r.tahun_masuk === Number(printAngkatan))
@@ -505,7 +508,7 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan, repor
                       <Select value={printAngkatan} onValueChange={setPrintAngkatan}>
                         <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="semua">Semua Angkatan</SelectItem>
+                          <SelectItem value="semua">Semua Angkatan</SelectItem><SelectItem value="general">Kas Umum</SelectItem><SelectItem value="unmapped">Belum Dipetakan</SelectItem>
                           {angkatanOptions.map(tahun => (
                             <SelectItem key={tahun} value={String(tahun)}>Angkatan {tahun}</SelectItem>
                           ))}
@@ -528,7 +531,7 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan, repor
                       </div>
                     </div>
                     <div className="rounded-lg bg-slate-50 px-3 py-2 text-[11px] text-slate-500 dark:bg-slate-800/60">
-                      Periode: {periodeLabel}. Status siswa: {filterSiswaStatus === 'semua' ? 'Semua' : filterSiswaStatus}. Sumber: {kategori === 'semua' ? 'Semua Sumber' : (KATEGORI_LABEL[kategori] ?? kategori)}. Metode: {metodeBayar === 'semua' ? 'Semua Metode' : metodeBayar === 'tunai' ? 'Tunai' : 'Transfer'}. Angkatan: {printAngkatan === 'semua' ? 'Semua' : printAngkatan}.
+                      Periode: {periodeLabel}. Status siswa: {filterSiswaStatus === 'semua' ? 'Semua' : filterSiswaStatus}. Sumber: {kategori === 'semua' ? 'Semua Sumber' : (KATEGORI_LABEL[kategori] ?? kategori)}. Metode: {metodeBayar === 'semua' ? 'Semua Metode' : metodeBayar === 'tunai' ? 'Tunai' : 'Transfer'}. {komiteFundLabel(fund)}.
                     </div>
                   </div>
 
@@ -548,7 +551,13 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan, repor
       </section>
 
       <section className="no-print flex justify-end">
-        <OfficialReportDialog settings={reportSettings} />
+        <label className="flex items-center gap-2 text-sm">Sumber dana
+          <select className="rounded-md border bg-background p-2" value={printAngkatan} onChange={e=>setPrintAngkatan(e.target.value)}>
+            <option value="semua">Semua Angkatan</option>{angkatanOptions.map(year=><option key={year} value={year}>Angkatan {year}</option>)}
+            <option value="general">Kas Umum</option><option value="unmapped">Belum Dipetakan</option>
+          </select>
+        </label>
+        <OfficialReportDialog settings={reportSettings} years={angkatanOptions} initialFund={printAngkatan==='semua' ? undefined : printAngkatan} key={printAngkatan} />
       </section>
 
       <section className="no-print grid gap-3 lg:grid-cols-3">
@@ -604,7 +613,7 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan, repor
           <PrintHeader
             judul={judul}
             periode={periodeLabel}
-            angkatan={printAngkatan !== 'semua' ? printAngkatan : undefined}
+            angkatan={printAngkatan !== 'semua' ? komiteFundLabel(printAngkatan) : undefined}
           />
 
           {materi.ringkasan ? (

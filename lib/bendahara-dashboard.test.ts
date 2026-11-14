@@ -57,6 +57,7 @@ describe('dashboard Bendahara Komite', () => {
 
     expect(db.prepare(PAYMENT_QUEUE_SQL).get()).toMatchObject({ count: 1, amount: 150000 })
     expect(db.prepare(APPROVAL_QUEUE_SQL).get('bendahara')).toMatchObject({ count: 1, amount: 700000 })
+    db.exec('ALTER TABLE komite_pengajuan ADD COLUMN komite_cancelled_at TEXT')
     expect(db.prepare(RELEASE_QUEUE_SQL).get()).toMatchObject({ count: 1, amount: 1200000 })
   })
 

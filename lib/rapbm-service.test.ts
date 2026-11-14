@@ -58,6 +58,19 @@ describe('RAPBM archive and publication',()=>{
     expect(data.document?.notes.some(n=>n.reference==='Sheet1!I63')).toBe(true)
     expect(data.document?.expenses.flatMap(g=>g.items).find(i=>i.reference==='Sheet1!E118:J118')?.amounts.total).toBeNull()
   })
+  it('publishes independent cohorts with the same fiscal year',async()=>{
+    sqlite.exec(`CREATE TABLE komite_pengajuan(id TEXT PRIMARY KEY,status TEXT,nominal INTEGER);
+      CREATE TABLE komite_pengajuan_reviews(pengajuan_id TEXT,version_number INTEGER,stage TEXT,workflow_version INTEGER);
+      CREATE TABLE fin_cashflow_entries(id TEXT PRIMARY KEY,is_void INTEGER);
+      CREATE TABLE fin_cashflow_categories(id TEXT PRIMARY KEY,direction TEXT,name TEXT,sort_order INTEGER,is_system INTEGER);`)
+    sqlite.exec(readFileSync(new URL('../migrations/0127_komite_fund_sources.sql',import.meta.url),'utf8'))
+    const one=await importRapbm(file(),undefined,2026)
+    const two=await importRapbm(file(),undefined,2027)
+    await publishRapbm(one.id,0,true)
+    await publishRapbm(two.id,1,true)
+    expect(row(one.id)).toMatchObject({status:'published',komite_cohort:2026})
+    expect(row(two.id)).toMatchObject({status:'published',komite_cohort:2027})
+  })
   it('requires acknowledgment of notes before publication',async()=>{
     const v=await importRapbm(file())
     await expect(publishRapbm(v.id,0,false)).rejects.toThrow(/Catatan Angka/)

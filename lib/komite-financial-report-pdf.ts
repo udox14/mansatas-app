@@ -1,3 +1,4 @@
+import { komiteFundLabel } from '@/lib/komite-funds'
 import type { KomiteFinancialReport, KomiteLedgerRow } from '@/lib/komite-financial-report'
 
 function esc(value: unknown) {
@@ -16,7 +17,7 @@ function date(value: string) {
 function detailTable(title: string, rows: KomiteLedgerRow[], totalLabel: string, openingBalance?: number) {
   const opening = openingBalance === undefined ? '' : `<tr class="opening"><td></td><td>Saldo Awal</td><td class="center">-</td><td class="money">-</td><td class="money">-</td><td class="money">${rupiah(openingBalance)}</td></tr>`
   const body = rows.length
-    ? rows.map(row => `<tr><td>${date(row.transactionDate)}</td><td>${esc(row.description)}</td><td class="center">${esc(row.proofNumber || '-')}</td><td class="money">${row.debit ? rupiah(row.debit) : '-'}</td><td class="money">${row.credit ? rupiah(row.credit) : '-'}</td><td class="money">${rupiah(row.balance)}</td></tr>`).join('')
+    ? rows.map(row => `<tr><td>${date(row.transactionDate)}</td><td>${esc(row.description)}${row.fundSource ? `<br><small>${esc(row.fundSource.split('|').map(komiteFundLabel).join(', '))}</small>` : ''}</td><td class="center">${esc(row.proofNumber || '-')}</td><td class="money">${row.debit ? rupiah(row.debit) : '-'}</td><td class="money">${row.credit ? rupiah(row.credit) : '-'}</td><td class="money">${rupiah(row.balance)}</td></tr>`).join('')
     : '<tr><td colspan="6" class="empty">Tidak ada transaksi pada periode ini.</td></tr>'
   const debit = rows.reduce((sum, row) => sum + row.debit, 0)
   const credit = rows.reduce((sum, row) => sum + row.credit, 0)
@@ -42,7 +43,7 @@ export function buildKomiteFinancialReportHtml(report: KomiteFinancialReport) {
     .summary-table{width:115mm}.summary-table td:first-child{width:65mm;font-weight:700}.summary-table td:last-child{width:50mm}.money{text-align:right;white-space:nowrap}.center{text-align:center}.total td{font-weight:700;background:#eaf4ec}.empty{text-align:center;color:#666;padding:5mm}
     .signatures{display:grid;grid-template-columns:repeat(3,1fr);gap:14mm;margin-top:10mm;break-inside:avoid;text-align:center}.sign-space{height:19mm}.signatures strong{display:block;border-top:1px solid #111;padding-top:1mm}
     footer{position:fixed;bottom:-8mm;left:0;right:0;text-align:right;font-size:8pt;color:#666} footer:after{content:'Halaman ' counter(page)}
-  </style></head><body><header><h1>LAPORAN KEUANGAN KOMITE MADRASAH</h1><p class="school">MAN 1 TASIKMALAYA</p><p class="period">PERIODE ${esc(report.periodLabel)}</p><p class="scope">Cakupan: ${esc(scope)}</p></header>
+  </style></head><body><header><h1>LAPORAN KEUANGAN KOMITE MADRASAH</h1><p class="school">MAN 1 TASIKMALAYA</p><p class="period">PERIODE ${esc(report.periodLabel)}</p><p class="scope">Cakupan: ${esc(scope)} · ${esc(komiteFundLabel(report.fund))}</p></header>
   <section class="summary"><h2>Ringkasan Saldo</h2><table class="summary-table"><thead><tr><th>Uraian</th><th>Jumlah</th></tr></thead><tbody>
     <tr><td>Saldo Awal</td><td class="money">${rupiah(report.openingBalance)}</td></tr><tr><td>Total Penerimaan</td><td class="money">${rupiah(report.totalIncome)}</td></tr><tr><td>Total Pengeluaran</td><td class="money">${rupiah(report.totalExpense)}</td></tr><tr class="total"><td>Saldo Akhir</td><td class="money">${rupiah(report.endingBalance)}</td></tr></tbody></table></section>
   ${detailTable('Rincian Penerimaan', report.incomeRows, 'JUMLAH PENERIMAAN')}

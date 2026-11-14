@@ -21,11 +21,22 @@ import {
   setNamedKomiteSubmitterAction, submitKomiteAction,
   setKomiteReviewerSettingAction, setKomiteActivityReportAction,
 } from './actions'
+import { FundAllocationFields, FundSourceOptions, fundSelectClass } from '@/components/dashboard/komite-fund-fields'
+import { komiteFundLabel, type BudgetPosition } from '@/lib/komite-funds'
+import { formatRupiah } from '@/lib/utils'
+import { todayWIB } from '@/lib/time'
+import { changeKomiteSpbAction, mapHistoricalKomiteSpb, recordKomiteRealization } from './actions'
 import { ApprovalSheetButton } from './approval-sheet-button'
 
 type Item = any
 type RincianRow = { uraian: string; penerima_penyedia: string; jumlah: string }
 type Props = {
+  initialId?:string
+  initialFund?:string
+  initialTab?:string
+  pendingOnly?:boolean
+  historicalCash: readonly {id:string;amount:number;transaction_date:string;proof_number:string|null;description:string}[]
+  fundOptions: {years:number[]; positions:BudgetPosition[]; historicalPositions:BudgetPosition[]}
   items: Item[]
   users: any[]
   committeeMembers: any[]
@@ -92,9 +103,13 @@ export function PengajuanKomiteClient(props: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const canSeeReviewerTabs = props.roles.some(role => ['super_admin', 'bendahara_komite', 'ketua_komite', 'anggota_komite', 'kepsek'].includes(role))
-  const initialTab = canSeeReviewerTabs && props.reviewCount ? 'review' : 'mine'
+  const initialTab = canSeeReviewerTabs && props.initialTab==='approved' ? 'approved' : canSeeReviewerTabs && props.reviewCount ? 'review' : 'mine'
+  const [fundFilter,setFundFilter]=useState(props.initialFund??'all')
+  const [pendingOnly,setPendingOnly]=useState(props.pendingOnly??false)
+  const items=props.items.filter(item=>fundFilter==='all'||(fundFilter==='unmapped' ? !item.fundAllocations?.length : item.fundAllocations?.some((row:{source:string})=>row.source===fundFilter)))
+  const years=[...new Set([...props.fundOptions.years,...props.items.flatMap(item=>item.fundAllocations?.map((row:{source:string})=>Number(row.source))??[])])].filter(year=>year>=2000&&year<=2199).sort((a,b)=>b-a)
   const [activeTab, setActiveTab] = useState(initialTab)
-  const [detailId, setDetailId] = useState('')
+  const [detailId, setDetailId] = useState(props.initialId??'')
   const [detailOriginTab, setDetailOriginTab] = useState(initialTab)
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Item | null>(null)
@@ -105,10 +120,10 @@ export function PengajuanKomiteClient(props: Props) {
   const [statusFilter, setStatusFilter] = useState('all')
   const canManageReports = props.isSuper || props.roles.includes('bendahara_komite')
 
-  const own = props.items.filter(item => item.pengaju_id === props.currentUserId)
-  const queue = props.items.filter(item => isQueueFor(item, props.roles, props.isSuper, props.currentUserId, props.verifier?.id))
-  const history = props.items.filter(item => item.reviews.some((entry: any) => entry.actor_id === props.currentUserId))
-  const approved = props.items.filter(item => item.status === 'disetujui')
+  const own = items.filter(item => item.pengaju_id === props.currentUserId)
+  const queue = items.filter(item => isQueueFor(item, props.roles, props.isSuper, props.currentUserId, props.verifier?.id))
+  const history = items.filter(item => item.reviews.some((entry: any) => entry.actor_id === props.currentUserId))
+  const approved = items.filter(item => item.status === 'disetujui' && (!pendingOnly || item.realisasi_status==='belum'&&!item.komite_cancelled_at))
   const detailItem = props.items.find(item => item.id === detailId)
   const namedUsers = props.users.filter(user => Boolean(user.is_named))
   const normalizedQuery = query.trim().toLowerCase()
@@ -163,6 +178,8 @@ export function PengajuanKomiteClient(props: Props) {
       {detailItem ? (
         <DetailPage item={detailItem} mode={detailOriginTab} onBack={() => { setActiveTab(detailOriginTab); setDetailId('') }} reportControls={detailItem.status === 'disetujui' ? <ReportStatus item={detailItem} canManage={canManageReports} pending={pending} onChange={received => run(() => setKomiteActivityReportAction(detailItem.id,received,detailItem.laporan_revision))} /> : null}
           actions={(showOwnerActions || showReviewActions || showSuperAdminDelete) ? <>
+            {(detailItem.status==='disetujui' && canManageReports || showReviewActions && detailItem.status==='menunggu_ketua') &&
+              <SpbFunds item={detailItem} options={props.fundOptions} historicalCash={props.historicalCash} pending={pending} onRun={task=>run(task)} />}
             {showOwnerActions && <OwnerActions item={detailItem} pending={pending} hideDelete={props.isSuper} onEdit={() => { setMessage(''); setEditing(detailItem); setFormOpen(true) }} onRun={task => run(task, () => setDetailId(''))} />}
             {showReviewActions && <ReviewActions item={detailItem} onReview={action => setReview({ item: detailItem, action })} />}
             {showSuperAdminDelete && <Button variant="destructive" className="mt-2 w-full sm:w-auto" disabled={pending} onClick={() => {
@@ -171,12 +188,16 @@ export function PengajuanKomiteClient(props: Props) {
           </> : null} />
       ) : <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="overflow-x-auto pb-1">
+          <div className="mb-2 flex flex-wrap gap-2">
+            <label className="text-sm">Sumber dana<select className={fundSelectClass} value={fundFilter} onChange={e=>setFundFilter(e.target.value)}><FundSourceOptions years={years} report/></select></label>
+            {activeTab==='approved'&&<label className="flex items-center gap-2 self-end text-sm"><input type="checkbox" checked={pendingOnly} onChange={e=>setPendingOnly(e.target.checked)}/>Menunggu pencairan</label>}
+          </div>
           <TabsList className="h-auto min-w-max justify-start">
             <TabsTrigger value="mine">Pengajuan Saya <Count value={own.length} /></TabsTrigger>
             {canSeeReviewerTabs && <TabsTrigger value="review">Perlu Direview <Count value={props.reviewCount} alert={props.reviewCount > 0} /></TabsTrigger>}
             {canSeeReviewerTabs && <TabsTrigger value="history">Riwayat Review <Count value={history.length} /></TabsTrigger>}
             {canSeeReviewerTabs && <TabsTrigger value="approved">Disetujui <Count value={approved.length} /></TabsTrigger>}
-            <TabsTrigger value="all">Semua Pengajuan <Count value={props.items.length} /></TabsTrigger>
+            <TabsTrigger value="all">Semua Pengajuan <Count value={items.length} /></TabsTrigger>
             {props.isSuper && <TabsTrigger value="settings">Pengaturan Pengaju</TabsTrigger>}
           </TabsList>
         </div>
@@ -211,7 +232,7 @@ export function PengajuanKomiteClient(props: Props) {
           <SectionToolbar title="Semua pengajuan yang dapat Anda lihat">
             <Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger className="w-52" aria-label="Filter status pengajuan"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Semua status</SelectItem>{Object.entries(statusLabel).filter(([key]) => key !== 'menunggu_kepala').map(([key,label]) => <SelectItem key={key} value={key}>{label}</SelectItem>)}</SelectContent></Select>
           </SectionToolbar>
-          <DataList items={props.items.filter(item => statusFilter === 'all' || item.status === statusFilter)} onOpen={openDetail} />
+          <DataList items={items.filter(item => statusFilter === 'all' || item.status === statusFilter)} onOpen={openDetail} />
         </TabsContent>
         {props.isSuper && (
           <TabsContent value="settings">
@@ -247,7 +268,7 @@ export function PengajuanKomiteClient(props: Props) {
         const result = await response.json().catch(() => ({ error: 'Respons upload tidak valid.' }))
         return response.ok ? result : { error: result.error || 'Gagal mengunggah dokumen.' }
       }, () => setFormOpen(false))} />
-      <ReviewDialog key={`${review?.item.id || 'none'}:${review?.action || 'none'}`} value={review} nextNomorSpb={props.nextNomorSpb} pending={pending} onClose={() => setReview(null)} onSubmit={formData => run(() => reviewKomiteAction(formData), () => { setReview(null); setDetailId(''); setActiveTab(detailOriginTab) })} />
+      <ReviewDialog fundOptions={props.fundOptions} key={`${review?.item.id || 'none'}:${review?.action || 'none'}`} value={review} nextNomorSpb={props.nextNomorSpb} pending={pending} onClose={() => setReview(null)} onSubmit={formData => run(() => reviewKomiteAction(formData), () => { setReview(null); setDetailId(''); setActiveTab(detailOriginTab) })} />
     </>
   )
 }
@@ -325,6 +346,7 @@ function DetailPage({ item, mode, onBack, actions, reportControls }: { item: Ite
     </dl>
     <div className="grid gap-3 sm:grid-cols-2">
       <InfoBlock label="Tahun Anggaran" value={item.tahun_anggaran || '-'} />
+      <InfoBlock label="Sumber dana" value={detailFundingLabel(item)} />
       <InfoBlock label="Kode RKAS/Program" value={item.kode_rkas_program || '-'} />
     </div>
     {item.workflow_version !== 2 && item.ketua_delegate_id && <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200"><p className="text-xs font-semibold uppercase tracking-wide">Delegasi Review Ketua Komite</p><p className="mt-1 text-sm">Ditugaskan kepada <strong>{item.ketua_delegate_name || 'Anggota Komite'}</strong>. Persetujuan pada SPB tetap atas nama Ketua Komite.</p></div>}
@@ -457,7 +479,7 @@ function DraftDialog({ open, item, pending, message, onClose, onSubmit }: { open
   </form></DialogContent></Dialog>
 }
 
-function ReviewDialog({ value, nextNomorSpb, pending, onClose, onSubmit }: { value: { item: Item; action: string } | null; nextNomorSpb?: string; pending: boolean; onClose: () => void; onSubmit: (data: FormData) => void }) {
+function ReviewDialog({ fundOptions, value, nextNomorSpb, pending, onClose, onSubmit }: { fundOptions: Props['fundOptions']; value: { item: Item; action: string } | null; nextNomorSpb?: string; pending: boolean; onClose: () => void; onSubmit: (data: FormData) => void }) {
   const isTreasurerApprove = value?.action === 'setujui' && value.item.status === 'menunggu_bendahara'
   const [rows, setRows] = useState<RincianRow[]>(rowsFromItem(value?.item))
   const [rejectConfirmation, setRejectConfirmation] = useState('')
@@ -499,10 +521,60 @@ function ReviewDialog({ value, nextNomorSpb, pending, onClose, onSubmit }: { val
         <div className="space-y-1.5"><Label htmlFor="review_tahun_anggaran">Tahun Anggaran</Label><Input id="review_tahun_anggaran" name="tahun_anggaran" defaultValue={value.item.tahun_anggaran || defaultTahunAnggaran()} maxLength={30} required /></div>
         <div className="space-y-1.5"><Label htmlFor="review_kode_rkas_program">Kode RKAS/Program</Label><Input id="review_kode_rkas_program" name="kode_rkas_program" defaultValue={value.item.kode_rkas_program || ''} maxLength={220} required /></div>
       </div>
+      <FundAllocationFields years={fundOptions.years} positions={fundOptions.positions} amount={detailTotal(rows)} />
       <DetailRowsEditor rows={rows} setRows={setRows} />
     </>}
     <div className="space-y-1.5"><Label htmlFor="catatan">Catatan {value.action === 'setujui' ? '(opsional)' : '(wajib)'}</Label><Textarea id="catatan" name="catatan" rows={4} required={value.action !== 'setujui'} placeholder={value.action === 'minta_revisi' ? 'Jelaskan bagian yang harus diperbaiki...' : value.action === 'tolak' ? 'Tuliskan alasan penolakan final...' : 'Catatan persetujuan...'} /></div>
     {value.action === 'tolak' && <div className="space-y-1.5"><Label htmlFor="reject_confirmation">Ketik <strong>TOLAK</strong> untuk mengonfirmasi</Label><Input id="reject_confirmation" name="reject_confirmation" value={rejectConfirmation} onChange={event => setRejectConfirmation(event.target.value)} autoComplete="off" placeholder="TOLAK" required /></div>}
     <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={closeDialog}>Batal</Button><Button type="submit" variant={value.action === 'tolak' ? 'destructive' : 'default'} disabled={pending || (isTreasurerApprove && detailTotal(rows) <= 0) || (value.action === 'tolak' && rejectConfirmation !== 'TOLAK')}>{pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Konfirmasi {value.action === 'setujui' ? 'Setujui' : value.action === 'minta_revisi' ? 'Revisi' : 'Tolak'}</Button></div>
   </form>}</DialogContent></Dialog>
+}
+
+function detailFundingLabel(item: Item) {
+  if (!item.fundAllocations?.length) return item.status==='disetujui' ? 'Belum Dipetakan' : 'Menunggu penetapan Bendahara'
+  return item.fundAllocations.map((row:{source:string;label?:string;amount:number})=>
+    [komiteFundLabel(row.source),row.label,formatRupiah(row.amount)].filter(Boolean).join(' · ')).join(' / ')
+}
+
+function SpbFunds({ item, options, historicalCash, pending, onRun }: {
+  item:Item; options:Props['fundOptions']; historicalCash:Props['historicalCash']; pending:boolean
+  onRun:(task:()=>Promise<{success?:string;error?:string}>)=>void
+}) {
+  const [operation,setOperation]=useState('')
+  if (item.komite_cancelled_at) return <p className="text-sm">SPB dibatalkan. {item.komite_cancel_reason}</p>
+  const needsMapping = !item.fundAllocations?.length
+  const choices = item.status==='menunggu_ketua' ? [['return','Kembalikan ke Bendahara']]
+    : needsMapping ? [['map','Petakan sumber dana lama']]
+    : item.realisasi_status==='sudah' ? [['reverse','Koreksi pencairan']]
+    : [['pay','Catat pencairan'],['cancel','Batalkan SPB']]
+  return <>
+    {choices.map(([value,label])=><Button key={value} type="button" variant="outline" onClick={()=>setOperation(value)}>{label}</Button>)}
+    <Dialog open={Boolean(operation)} onOpenChange={open=>!open&&setOperation('')}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"><DialogHeader><DialogTitle>{choices.find(([value])=>value===operation)?.[1]}</DialogTitle></DialogHeader>
+        <form className="space-y-3" action={form=>onRun(async()=>{
+          const result=await (operation==='pay' ? recordKomiteRealization(form) : operation==='map' ? mapHistoricalKomiteSpb(form) : changeKomiteSpbAction(form))
+          if (result.success) setOperation('')
+          return result
+        })}>
+          <input type="hidden" name="id" value={item.id}/><input type="hidden" name="operation" value={operation}/>
+          {operation==='pay' ? <>
+            <Label htmlFor="spb-date">Tanggal bayar</Label><Input id="spb-date" name="date" required type="date" defaultValue={todayWIB()}/>
+            <Label htmlFor="spb-method">Metode</Label><select name="method" id="spb-method" className="block rounded border p-2"><option value="tunai">Tunai</option><option value="transfer">Transfer</option></select>
+            <Label htmlFor="spb-proof">Bukti pembayaran</Label><Input id="spb-proof" name="proof" required type="file" accept="image/*,application/pdf"/>
+          </> : <><Label htmlFor="spb-fund-reason">Alasan</Label><Input id="spb-fund-reason" name="reason" required minLength={3} maxLength={300}/></>}
+          {operation==='map' && <>
+            <Label htmlFor="spb-cash-id">Transaksi Arus Kas yang sudah dibayar</Label>
+            <select id="spb-cash-id" name="cash_id" className="block w-full rounded border bg-background p-2 text-sm">
+              <option value="">{item.realisasi_status==='sudah'?'Belum dicatat di Arus Kas':'Belum dibayar'}</option>
+              {historicalCash.filter(row=>row.amount===Number(item.nominal)).map(row=><option key={row.id} value={row.id}>{row.transaction_date} · {row.proof_number||row.id} · {row.description}</option>)}
+            </select>
+            {item.realisasi_status==='sudah' && !item.realisasi_tanggal && <label className="text-sm">Tanggal bayar jika belum tercatat<Input name="date" type="date"/></label>}
+            {item.realisasi_status==='sudah' && !item.realisasi_metode && <label className="text-sm">Metode bayar jika belum tercatat<select name="method" className={fundSelectClass}><option value="">Pilih metode</option><option value="tunai">Tunai</option><option value="transfer">Transfer</option></select></label>}
+            <FundAllocationFields years={options.years} positions={options.historicalPositions} amount={Number(item.nominal)}/>
+          </>}
+          <Button disabled={pending} type="submit">Simpan</Button>
+        </form>
+      </DialogContent>
+    </Dialog>
+  </>
 }

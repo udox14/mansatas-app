@@ -4,10 +4,12 @@ export type CashSource = 'dspt' | 'spp' | 'manual'
 export type CashEntryStatus = 'active' | 'void'
 
 export interface CashflowFilters {
+  entryId?: string
   dateFrom?: string
   dateTo?: string
   direction?: CashDirection | 'all'
   source?: CashSource | 'all'
+  studentScope?: 'all' | 'active_students'
   categoryId?: string
   method?: CashMethod | 'all'
   recorderId?: string
@@ -49,6 +51,9 @@ export interface CashflowEntry {
   studentClass: string | null
   angkatan: number | null
   status: CashEntryStatus
+  fundSource?: string | null
+  linkedSpb?: boolean
+  groupId?: string | null
   voidReason: string | null
   createdAt: string
 }
@@ -87,6 +92,8 @@ export interface CashflowPageData {
   recorders: Array<{ id: string; name: string }>
   classes: Array<{ id: string; label: string }>
   angkatan: number[]
+  historicalPositions?: import('@/lib/komite-funds').BudgetPosition[]
+  positions?: import('@/lib/komite-funds').BudgetPosition[]
 }
 
 export const CASH_METHODS: CashMethod[] = ['tunai', 'transfer', 'qris']

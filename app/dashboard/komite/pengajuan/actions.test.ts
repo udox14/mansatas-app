@@ -1,6 +1,7 @@
+import { readFileSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { reviewKomiteAction, setKomiteReviewerSettingAction, setKomiteActivityReportAction, deleteKomiteAction, deleteKomiteDraftAction, getKomiteDashboardData } from './actions'
+import { reviewKomiteAction, setKomiteReviewerSettingAction, setKomiteActivityReportAction, deleteKomiteAction, deleteKomiteDraftAction, getKomiteDashboardData, mapHistoricalKomiteSpb } from './actions'
 
 const state = vi.hoisted(() => ({ db: null as unknown as D1Database, roles: ['ketua_komite'],
   userId: 'chair', requirePrincipal: false, race: false, failWrite: false,
@@ -33,7 +34,7 @@ beforeEach(() => {
       'Penyedia','2026/2027','1.2',NULL,NULL,NULL,NULL,NULL,NULL,'2026-10-06 00:00:00');
     CREATE TABLE komite_pengajuan_reviews (id TEXT PRIMARY KEY,pengajuan_id TEXT,version_number INTEGER,stage TEXT,action TEXT,
       catatan TEXT,actor_id TEXT,actor_name TEXT,actor_role TEXT,actor_signature_url TEXT,is_super_admin_bypass INTEGER,
-      nomor_spb_snapshot TEXT,penerima_snapshot TEXT, UNIQUE(pengajuan_id,version_number,stage));
+      nomor_spb_snapshot TEXT,penerima_snapshot TEXT);
     CREATE TABLE komite_pengajuan_rincian (id TEXT PRIMARY KEY,pengajuan_id TEXT,urutan INTEGER,uraian TEXT,
       penerima_penyedia TEXT,jumlah INTEGER);
     INSERT INTO komite_pengajuan_rincian VALUES ('original','p1',1,'Kebutuhan','Penyedia',100000);`)
@@ -58,6 +59,15 @@ beforeEach(() => {
     CREATE TABLE komite_pengajuan_versions (id TEXT,pengajuan_id TEXT,version_number INTEGER);
     CREATE TABLE komite_pengajuan_files (id TEXT,version_id TEXT,r2_key TEXT,original_filename TEXT,size_bytes INTEGER,created_at TEXT);
     CREATE TABLE user_feature_overrides (user_id TEXT,feature_id TEXT,action TEXT);`)
+  sqlite.exec(`CREATE TABLE siswa(tahun_masuk INTEGER); INSERT INTO siswa VALUES(2025);
+    CREATE TABLE fin_cashflow_entries(id TEXT PRIMARY KEY,is_void INTEGER,direction TEXT,amount INTEGER,transaction_date TEXT,proof_number TEXT,description TEXT,method TEXT);
+    CREATE TABLE fin_cashflow_categories(id TEXT PRIMARY KEY,direction TEXT,name TEXT,sort_order INTEGER,is_system INTEGER);
+    ALTER TABLE komite_pengajuan ADD COLUMN realisasi_status TEXT DEFAULT 'belum';
+    ALTER TABLE komite_pengajuan ADD COLUMN realisasi_tanggal TEXT;
+    ALTER TABLE komite_pengajuan ADD COLUMN realisasi_metode TEXT;`)
+  sqlite.exec(readFileSync(new URL('../../../../migrations/0123_add_rapbm.sql',import.meta.url),'utf8').split('INSERT OR IGNORE INTO role_features')[0])
+  sqlite.exec(readFileSync(new URL('../../../../migrations/0127_komite_fund_sources.sql',import.meta.url),'utf8'))
+  sqlite.exec("INSERT INTO fin_komite_allocations(id,pengajuan_id,source,amount,state,actor_id) VALUES('a1','p1','2025',100000,'review','chair')")
   state.db = { prepare(sql: string) {
     let args: (string | number | null)[] = []
     return { bind(...values: typeof args) {
@@ -70,8 +80,8 @@ beforeEach(() => {
         if (state.race && sql.includes('signature_url')) sqlite.exec('UPDATE komite_pengajuan SET current_version=2')
         return sqlite.prepare(sql).get(...args) || null
       },
-      async run() { return { meta: { changes: sqlite.prepare(sql).run(...args).changes } } } }
-  }, async batch(statements: { run(): Promise<unknown> }[]) {
+      async run() { return /^SELECT/.test(sql.trim()) ? {results:sqlite.prepare(sql).all(...args)} : { meta: { changes: sqlite.prepare(sql).run(...args).changes } } } }
+  }, async batch(statements: { run(): Promise<unknown>; all():Promise<unknown> }[]) {
     sqlite.exec('BEGIN')
     try {
       const results = []
@@ -173,8 +183,24 @@ describe('Komite approval workflow server actions', () => {
     state.userId='principal'
     expect(await approve()).toHaveProperty('success')
   })
+  it('maps a historical SPB to existing cash without duplicating the transaction',async()=>{
+    sqlite.exec(`UPDATE fin_komite_allocations SET state='locked';
+      UPDATE komite_pengajuan SET status='disetujui',komite_pre_migration=1;
+      UPDATE fin_komite_allocations SET state='released';
+      INSERT INTO fin_cashflow_entries(id,is_void,direction,amount,transaction_date,proof_number,description,method,komite_pre_migration)
+      VALUES('legacy',0,'expense',100000,'2026-10-06','KK-1','Bukti historis','transfer',1)`)
+    state.roles=['super_admin']
+    const data=new FormData()
+    data.set('id','p1');data.set('cash_id','legacy');data.set('reason','Sesuai bukti kas')
+    data.set('fund_allocations',JSON.stringify([{source:'2025',amount:100000}]))
+    expect(await mapHistoricalKomiteSpb(data)).toHaveProperty('success')
+    expect(proposal()).toMatchObject({realisasi_status:'sudah',realisasi_tanggal:'2026-10-06',realisasi_metode:'Transfer'})
+    expect(sqlite.prepare("SELECT cashflow_id,source,amount FROM fin_komite_spb_cash_parts").all()).toEqual([{cashflow_id:'legacy',source:'2025',amount:100000}])
+    expect(await mapHistoricalKomiteSpb(data)).toHaveProperty('error')
+    expect(sqlite.prepare("SELECT count(*) count FROM fin_cashflow_entries").get()?.count).toBe(1)
+  })
   it('marks and reverses activity reports with audit and optimistic revision checks', async () => {
-    sqlite.exec("UPDATE komite_pengajuan SET status='disetujui'")
+    sqlite.exec("UPDATE fin_komite_allocations SET state='locked'; UPDATE komite_pengajuan SET status='disetujui'")
     state.roles=['super_admin']
     expect(await setKomiteActivityReportAction('p1',true,0)).toHaveProperty('success')
     expect(proposal()).toMatchObject({ laporan_received_by:'delegate',laporan_received_name:'Anggota',laporan_revision:1 })
@@ -184,7 +210,7 @@ describe('Komite approval workflow server actions', () => {
     expect(sqlite.prepare('SELECT COUNT(*) AS total FROM activity_logs').get()?.total).toBe(2)
   })
   it('rolls back the report audit if the status write fails', async () => {
-    sqlite.exec("UPDATE komite_pengajuan SET status='disetujui'")
+    sqlite.exec("UPDATE fin_komite_allocations SET state='locked'; UPDATE komite_pengajuan SET status='disetujui'")
     state.roles=['super_admin']; state.failWrite=true
     await expect(setKomiteActivityReportAction('p1',true,0)).rejects.toThrow('Simulated write failure')
     expect(proposal()).toMatchObject({ laporan_received_at:null,laporan_revision:0 })
@@ -229,6 +255,7 @@ describe('Komite approval workflow server actions', () => {
   })
   it.each(['ditolak','disetujui','menunggu_ketua','perlu_revisi'])('prevents deleting a %s proposal and keeps its history', async status => {
     state.roles=['super_admin']
+    if (status==='disetujui') sqlite.exec("UPDATE fin_komite_allocations SET state='locked'")
     sqlite.prepare('UPDATE komite_pengajuan SET status=?').run(status)
     expect(await deleteKomiteAction('p1')).toHaveProperty('error')
     expect(proposal().status).toBe(status)
@@ -246,6 +273,7 @@ describe('Komite approval workflow server actions', () => {
     for (const [key, value] of Object.entries({ id: 'p1', action: 'setujui', nomor_spb: '001/SPB',
       penerima_pembayaran: 'Penyedia', nominal: '1', detail_uraian: 'Kebutuhan baru',
       detail_penerima_penyedia: 'Penyedia', detail_jumlah: '200000' })) data.set(key, value)
+    data.set('fund_allocations',JSON.stringify([{source:'2025',amount:200000}]))
     const result = await reviewKomiteAction(data)
     if (stale) {
       expect(result).toHaveProperty('error')

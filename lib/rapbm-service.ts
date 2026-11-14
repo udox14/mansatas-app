@@ -54,7 +54,7 @@ function bulkInsert(db: D1Database, table: string, columns: string[], rows: (str
 }
 
 // Context is supplied only by guarded server callers; never by a request payload.
-export async function importRapbm(file: File, context?: Awaited<ReturnType<typeof requireRapbmAccess>>) {
+export async function importRapbm(file: File, context?: Awaited<ReturnType<typeof requireRapbmAccess>>, cohort?: number) {
   const access=context || await requireRapbmAccess('create')
   if (!access.canManage) throw new RapbmAccessError(403)
   const {db,user,roles}=access
@@ -62,6 +62,7 @@ export async function importRapbm(file: File, context?: Awaited<ReturnType<typeo
   if (file.size>RAPBM_MAX_BYTES) throw new RapbmValidationError('Ukuran Excel maksimal 6 MB.')
   const bytes=new Uint8Array(await file.arrayBuffer())
   const document=parseRapbm(bytes)
+  if (cohort !== undefined && (!Number.isInteger(cohort)||cohort<2026||cohort>2199)) throw new RapbmValidationError('Angkatan RAPBM tidak valid.')
   const id=crypto.randomUUID()
   const key=`private/rapbm/${document.year}/${id}.xlsx`
   const filename=file.name.replace(/[\\/:*?"<>|\u0000-\u001f]/g,'_').slice(0,180)
@@ -81,9 +82,9 @@ export async function importRapbm(file: File, context?: Awaited<ReturnType<typeo
     await putRapbmSource(key,bytes)
     await db.batch([
       db.prepare('INSERT OR IGNORE INTO fin_rapbm_years (year) VALUES (?)').bind(document.year),
-      db.prepare(`INSERT INTO fin_rapbm_versions (id,year,version,title,institution,sheet,income_totals_json,expense_totals_json,notes_json,original_filename,r2_key,source_sha256,created_by,created_by_name)
-        SELECT ?,?,COALESCE(MAX(version),0)+1,?,?,?,?,?,?,?,?,?,?,? FROM fin_rapbm_versions WHERE year=?`)
-        .bind(id,document.year,document.title,document.institution,document.sheet,JSON.stringify(document.incomeTotal),JSON.stringify(document.expenseTotal),JSON.stringify(document.notes),filename,key,sha,user.id,actor,document.year),
+      db.prepare(`INSERT INTO fin_rapbm_versions (id,year,version,title,institution,sheet,income_totals_json,expense_totals_json,notes_json,original_filename,r2_key,source_sha256,created_by,created_by_name${cohort===undefined ? '' : ',komite_cohort'})
+        SELECT ?,?,COALESCE(MAX(version),0)+1,?,?,?,?,?,?,?,?,?,?,?${cohort===undefined ? '' : ',?'} FROM fin_rapbm_versions WHERE year=?`)
+        .bind(id,document.year,document.title,document.institution,document.sheet,JSON.stringify(document.incomeTotal),JSON.stringify(document.expenseTotal),JSON.stringify(document.notes),filename,key,sha,user.id,actor,...(cohort===undefined ? [] : [cohort]),document.year),
       ...bulkInsert(db,'fin_rapbm_groups',['id','version_id','section','sort_order','label','account','source_ref','subtotal_ref','apbn','komite','total'],groupRows),
       ...bulkInsert(db,'fin_rapbm_items',['id','group_id','sort_order','description','account','volume','unit','source_ref','apbn','komite','total'],itemRows),
       db.prepare(`INSERT INTO activity_logs (id,actor_user_id,actor_name,actor_roles,module,action,summary,entity_type,entity_id,metadata_json)
@@ -108,12 +109,13 @@ export async function publishRapbm(id: string, revision: number, acknowledged: b
   if (!access.canManage) throw new RapbmAccessError(403)
   const {db,user,roles}=access
   if (typeof id!=='string' || !Number.isSafeInteger(revision) || revision<0 || typeof acknowledged!=='boolean') throw new RapbmValidationError('Permintaan penerbitan tidak valid.')
-  const row=await db.prepare('SELECT id,year,status,notes_json FROM fin_rapbm_versions WHERE id=?').bind(id).first<{id:string;year:number;status:string;notes_json:string}>()
+  const row=await db.prepare('SELECT * FROM fin_rapbm_versions WHERE id=?').bind(id).first<{id:string;year:number;status:string;notes_json:string;komite_cohort?:number|null}>()
   if (!row || row.status!=='draft') throw new RapbmValidationError('Pilih draft RAPBM yang belum diterbitkan.')
   const notes=JSON.parse(row.notes_json) as RapbmDocument['notes']
   if (notes.length && !acknowledged) throw new RapbmValidationError('Baca dan akui Catatan Angka sebelum menerbitkan sesuai dokumen sumber.')
   await ensureActivityLogTables(db)
   const logId=crypto.randomUUID()
+  const cohortScoped = Object.hasOwn(row,'komite_cohort')
   const results=await db.batch([
     db.prepare(`INSERT INTO activity_logs (id,actor_user_id,actor_name,actor_roles,module,action,summary,entity_type,entity_id,before_json,metadata_json)
       SELECT ?,?,?,?,'rapbm','publish','Menerbitkan versi RAPBM','rapbm_version',?,
@@ -121,7 +123,7 @@ export async function publishRapbm(id: string, revision: number, acknowledged: b
       FROM fin_rapbm_years WHERE year=? AND publication_revision=?
         AND EXISTS (SELECT 1 FROM fin_rapbm_versions WHERE id=? AND status='draft')`)
       .bind(logId,user.id,user.nama_lengkap || user.name || user.id,JSON.stringify(roles),id,JSON.stringify({notesAcknowledged:acknowledged,noteCount:notes.length}),row.year,revision,id),
-    db.prepare(`UPDATE fin_rapbm_versions SET status='superseded' WHERE year=? AND status='published' AND EXISTS (SELECT 1 FROM activity_logs WHERE id=?)`).bind(row.year,logId),
+    db.prepare(`UPDATE fin_rapbm_versions SET status='superseded' WHERE year=? AND status='published' AND EXISTS (SELECT 1 FROM activity_logs WHERE id=?) ${cohortScoped ? 'AND komite_cohort IS ?' : ''}`).bind(row.year,logId,...(cohortScoped ? [row.komite_cohort ?? null] : [])),
     db.prepare(`UPDATE fin_rapbm_versions SET status='published',published_at=datetime('now'),published_by=?,notes_acknowledged=?
       WHERE id=? AND status='draft' AND EXISTS (SELECT 1 FROM activity_logs WHERE id=?)`).bind(user.id,acknowledged?1:0,id,logId),
     db.prepare(`UPDATE fin_rapbm_years SET active_version_id=?,publication_revision=publication_revision+1

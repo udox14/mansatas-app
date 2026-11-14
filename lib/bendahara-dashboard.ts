@@ -1,3 +1,4 @@
+import { isKomiteFundScope } from '@/lib/komite-funds'
 import { getKomiteFinancialReport, isValidReportPeriod, reportPeriodLabel } from '@/lib/komite-financial-report'
 import type { KomiteLedgerRow, KomiteFinancialReport } from '@/lib/komite-financial-report'
 import { todayWIB } from '@/lib/time'
@@ -84,11 +85,11 @@ export const INACTIVE_ARREARS_SQL = `
     COALESCE(SUM(remaining), 0) AS remaining
   FROM (
     SELECT d.nominal_target AS target, d.total_dibayar AS paid,
-      MAX(d.nominal_target - d.total_dibayar - d.total_diskon, 0) AS remaining
+      MAX(d.nominal_target - d.total_dibayar - d.total_diskon, 0) AS remaining, s.tahun_masuk
     FROM fin_dspt d JOIN siswa s ON s.id = d.siswa_id
     WHERE s.status <> 'aktif' AND s.status <> 'dihapus'
     UNION ALL
-    SELECT sp.jumlah, sp.total_dibayar, MAX(sp.jumlah - sp.total_dibayar, 0)
+    SELECT sp.jumlah, sp.total_dibayar, MAX(sp.jumlah - sp.total_dibayar, 0), s.tahun_masuk
     FROM fin_spp_saldo_awal sp JOIN siswa s ON s.id = sp.siswa_id
     WHERE s.status <> 'aktif' AND s.status <> 'dihapus'
   ) arrears
@@ -113,7 +114,7 @@ export const APPROVAL_QUEUE_SQL = `
 export const RELEASE_QUEUE_SQL = `
   SELECT COUNT(*) AS count, COALESCE(SUM(nominal), 0) AS amount, MIN(approved_at) AS oldest_at
   FROM komite_pengajuan
-  WHERE status = 'disetujui' AND realisasi_status = 'belum'
+  WHERE status = 'disetujui' AND realisasi_status = 'belum' AND komite_cancelled_at IS NULL
 `
 
 function number(value: unknown) {
@@ -175,10 +176,10 @@ function toQueue(row: any): QueueSummary {
   return { count: number(row?.count), amount: number(row?.amount), oldestAt: row?.oldest_at || null }
 }
 
-async function loadCashPosition(db: D1Database, period: string): Promise<CashPosition> {
+async function loadCashPosition(db: D1Database, period: string, fund?:string): Promise<CashPosition> {
   const report = await getKomiteFinancialReport(db, {
     period,
-    scope: 'all',
+    scope: 'all', fund,
     openingBalance: { mode: 'cumulative' },
     signatures: { enabled: false },
   }, {
@@ -202,34 +203,47 @@ export async function loadBendaharaDashboardData(input: {
   db: D1Database
   userId: string
   period?: string | null
+  fund?: string
   allowedFeatures: string[]
 }): Promise<BendaharaDashboardData> {
   const { db, userId, allowedFeatures } = input
   const period = resolveDashboardPeriod(input.period)
-  const cacheKey = `dashboard:${userId}:${period}:${[...allowedFeatures].sort().join(',')}`
+  const fund = isKomiteFundScope(input.fund) && input.fund!=='all' ? input.fund : undefined
+  const cohort = fund==='unmapped' ? ' AND s.tahun_masuk IS NULL' : fund==='general' ? ' AND 0' : fund ? ' AND s.tahun_masuk=?' : ''
+  const withCohort = (sql:string) => {
+    const stmt=db.prepare(sql)
+    return fund && /^\d{4}$/.test(fund) ? stmt.bind(Number(fund)) : stmt
+  }
+  const cacheKey = `dashboard:${userId}:${period}:${fund??'all'}:${[...allowedFeatures].sort().join(',')}`
   return getOrSetFinanceCache(cacheKey, async () => {
   const allowed = (featureId: string) => canAccessFinanceFeature(allowedFeatures, featureId)
 
   const cashPromise = allowed('keuangan-laporan')
-    ? settleDashboardSection('posisi kas', loadCashPosition(db, period))
+    ? settleDashboardSection('posisi kas', loadCashPosition(db, period,fund))
     : Promise.resolve(null)
   const dsptPromise = allowed('keuangan-dspt')
-    ? settleDashboardSection('ringkasan DSPT', db.prepare(DSPT_COLLECTION_SQL).first<any>().then(toCollection))
+    ? settleDashboardSection('ringkasan DSPT', withCohort(DSPT_COLLECTION_SQL+cohort).first<any>().then(toCollection))
     : Promise.resolve(null)
   const sppPromise = allowed('keuangan-dspt')
-    ? settleDashboardSection('tunggakan SPP', db.prepare(LEGACY_SPP_SQL).first<any>().then(toArrears))
+    ? settleDashboardSection('tunggakan SPP', withCohort(LEGACY_SPP_SQL+cohort).first<any>().then(toArrears))
     : Promise.resolve(null)
   const inactivePromise = allowed('keuangan-dspt')
-    ? settleDashboardSection('tunggakan nonaktif', db.prepare(INACTIVE_ARREARS_SQL).first<any>().then(toArrears))
+    ? settleDashboardSection('tunggakan nonaktif', withCohort(INACTIVE_ARREARS_SQL+cohort.replace('s.tahun_masuk','arrears.tahun_masuk')).first<any>().then(toArrears))
     : Promise.resolve(null)
   const paymentPromise = allowed('keuangan-dspt')
-    ? settleDashboardSection('antrean bukti pembayaran', db.prepare(PAYMENT_QUEUE_SQL).first<any>().then(toQueue))
+    ? settleDashboardSection('antrean bukti pembayaran', withCohort(PAYMENT_QUEUE_SQL+cohort).first<any>().then(toQueue))
     : Promise.resolve(null)
+  const approvalSql=fund && fund!=='unmapped' ? APPROVAL_QUEUE_SQL+' AND 0' : APPROVAL_QUEUE_SQL
   const approvalPromise = allowed('komite-pengajuan')
-    ? settleDashboardSection('antrean persetujuan', db.prepare(APPROVAL_QUEUE_SQL).bind(userId).first<any>().then(toQueue))
+    ? settleDashboardSection('antrean persetujuan', db.prepare(approvalSql).bind(userId).first<any>().then(toQueue))
     : Promise.resolve(null)
+  const releaseSql=fund==='unmapped' ? RELEASE_QUEUE_SQL+` AND NOT EXISTS (
+    SELECT 1 FROM fin_komite_allocations a WHERE a.pengajuan_id=komite_pengajuan.id AND a.state='locked'
+  )` : fund ? `SELECT COUNT(*) count,COALESCE(SUM(a.amount),0) amount,MIN(p.approved_at) oldest_at
+    FROM komite_pengajuan p JOIN (SELECT pengajuan_id,SUM(amount) amount FROM fin_komite_allocations WHERE state='locked' AND source=? GROUP BY pengajuan_id) a ON a.pengajuan_id=p.id
+    WHERE p.status='disetujui' AND p.realisasi_status='belum' AND p.komite_cancelled_at IS NULL` : RELEASE_QUEUE_SQL
   const releasePromise = allowed('komite-pengajuan')
-    ? settleDashboardSection('antrean pencairan', db.prepare(RELEASE_QUEUE_SQL).first<any>().then(toQueue))
+    ? settleDashboardSection('antrean pencairan', (fund && fund!=='unmapped' ? db.prepare(releaseSql).bind(fund) : db.prepare(releaseSql)).first<any>().then(toQueue))
     : Promise.resolve(null)
 
   const [cashPosition, dspt, legacySpp, inactiveArrears, paymentQueue, approvalQueue, releaseQueue] = await Promise.all([

@@ -13,12 +13,20 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatRupiah } from '@/lib/utils'
 import { filterRapbmGroups, rapbmStatusLabel, type RapbmActionResult, type RapbmAmounts, type RapbmGroup, type RapbmItem, type RapbmNote, type RapbmPageData } from '@/lib/rapbm'
-import { importInitialRapbmAction, publishRapbmAction } from './actions'
+import { activateKomiteRapbm, configureKomiteRapbm, importInitialRapbmAction, publishRapbmAction } from './actions'
 
 const money=(value:number|null)=>value===null?'—':formatRupiah(value)
 const date=(value:string)=>new Intl.DateTimeFormat('id-ID',{dateStyle:'medium',timeZone:'Asia/Jakarta'}).format(new Date(value.includes('T')?value:`${value.replace(' ','T')}Z`))
 
-export function RapbmClient({data}:{data:RapbmPageData}) {
+type BudgetData={
+  groups:{id:string;label:string;account:string|null;komite:number|null;detail:number}[]
+  positions:{group_id:string;label:string;account:string|null;amount:number;available:number;locked:number;realized:number}[]
+  history:{id:string;group_id:string;amount:number;state:string;cashflow_id:string|null;pengajuan_id:string|null;created_at:string;proof:string|null;description:string}[]
+  associations:{id:string;year:number;cohort:number|null;enabled:number|null;carry_forward:number|null;revision_reason:string|null}[]
+  remaining:{version_id:string;cohort:number;available:number}[]
+}
+
+export function RapbmClient({data,budget}:{data:RapbmPageData;budget:BudgetData}) {
   const router=useRouter()
   const [pending,startTransition]=useTransition()
   const [importOpen,setImportOpen]=useState(false)
@@ -27,9 +35,13 @@ export function RapbmClient({data}:{data:RapbmPageData}) {
   const [funding,setFunding]=useState('all')
   const [tab,setTab]=useState('expense')
   const {selected,document,versions,canManage}=data
-  const years=Array.from(new Set(versions.map(v=>v.year)))
+
   const groups=document?filterRapbmGroups(document.expenses,query,funding):[]
   const filtered=query.trim()!=='' || funding!=='all'
+  const [cohortFilter,setCohortFilter]=useState('all')
+  const cohorts=[...new Set(budget.associations.flatMap(row=>row.cohort?[row.cohort]:[]))].sort((a,b)=>b-a)
+  const filteredVersions=cohortFilter==='all' ? versions : versions.filter(v=>budget.associations.some(row=>row.id===v.id&&row.cohort===Number(cohortFilter)))
+  const years=[...new Set(filteredVersions.map(v=>v.year))]
   const has2026=versions.some(v=>v.year===2026)
 
   function navigate(year:number,version?:string) {
@@ -54,14 +66,19 @@ export function RapbmClient({data}:{data:RapbmPageData}) {
   return <div className="space-y-4">
     <div className="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-end sm:justify-between">
       <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
+        <label className="space-y-1.5 text-sm">Angkatan<select className="block h-9 rounded border bg-background px-2" value={cohortFilter} onChange={e=>{
+          setCohortFilter(e.target.value)
+          const version=versions.find(v=>e.target.value==='all'||budget.associations.some(row=>row.id===v.id&&row.cohort===Number(e.target.value)))
+          if(version) navigate(version.year,version.id)
+        }}><option value="all">Semua Angkatan</option>{cohorts.map(year=><option key={year} value={year}>{year}</option>)}</select></label>
         <div className="space-y-1.5"><Label htmlFor="rapbm-year">Tahun anggaran</Label>
-          <Select value={selected?String(selected.year):''} disabled={pending||!years.length} onValueChange={year=>navigate(Number(year))}>
+          <Select value={selected?String(selected.year):''} disabled={pending||!years.length} onValueChange={year=>{const candidates=filteredVersions.filter(v=>v.year===Number(year));const version=candidates.find(v=>v.status==='published')??candidates[0];navigate(Number(year),version?.id)}}>
             <SelectTrigger id="rapbm-year" className="w-full sm:w-36"><SelectValue placeholder="Pilih tahun" /></SelectTrigger><SelectContent>{years.map(year=><SelectItem key={year} value={String(year)}>{year}</SelectItem>)}</SelectContent>
           </Select>
         </div>
         <div className="space-y-1.5"><Label htmlFor="rapbm-version">Versi dokumen</Label>
           <Select value={selected?.id||''} disabled={pending||!selected} onValueChange={id=>selected&&navigate(selected.year,id)}>
-            <SelectTrigger id="rapbm-version" className="w-full sm:w-60"><SelectValue placeholder="Pilih versi" /></SelectTrigger><SelectContent>{versions.filter(v=>v.year===selected?.year).map(v=><SelectItem key={v.id} value={v.id}>Versi {v.version} · {v.status==='draft'?'Draft':v.status==='published'?'Terbit':'Arsip'}</SelectItem>)}</SelectContent>
+            <SelectTrigger id="rapbm-version" className="w-full sm:w-60"><SelectValue placeholder="Pilih versi" /></SelectTrigger><SelectContent>{filteredVersions.filter(v=>v.year===selected?.year).map(v=><SelectItem key={v.id} value={v.id}>Versi {v.version} · {v.status==='draft'?'Draft':v.status==='published'?'Terbit':'Arsip'}</SelectItem>)}</SelectContent>
           </Select>
         </div>
       </div>
@@ -86,6 +103,7 @@ export function RapbmClient({data}:{data:RapbmPageData}) {
       {document.notes.length>0&&<Notes notes={document.notes} />}
       {canManage&&selected.status==='draft'&&<PublishPanel key={selected.id} noteCount={document.notes.length} pending={pending} onPublish={ack=>run(()=>publishRapbmAction(selected.id,data.publicationRevision,ack))} />}
 
+      <OperationalBudget key={selected.id} version={selected.id} ready={selected.status!=='draft'} budget={budget} canManage={canManage} />
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList><TabsTrigger value="income">Pendapatan</TabsTrigger><TabsTrigger value="expense">Belanja</TabsTrigger></TabsList>
         <TabsContent value="income" className="mt-4 space-y-3">
@@ -123,7 +141,8 @@ export function RapbmClient({data}:{data:RapbmPageData}) {
           return result
         },()=>setImportOpen(false))
       }}>
-        <div className="space-y-2"><Label htmlFor="rapbm-file">File Excel (.xlsx)</Label><Input id="rapbm-file" name="file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required disabled={pending} /><p className="text-xs text-muted-foreground">Maksimal 6 MB. Setiap impor menjadi versi baru; dokumen lama tidak ditimpa.</p></div>
+        <div className="space-y-2"><Label htmlFor="rapbm-file">File Excel (.xlsx)</Label><label className="block text-sm">Angkatan sumber dana<Input name="cohort" required type="number" min={2026} max={2199} defaultValue={cohortFilter==='all'?2026:Number(cohortFilter)}/></label>
+      <Input id="rapbm-file" name="file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required disabled={pending} /><p className="text-xs text-muted-foreground">Maksimal 6 MB. Setiap impor menjadi versi baru; dokumen lama tidak ditimpa.</p></div>
         {canManage&&!has2026&&<Button variant="outline" type="button" disabled={pending} onClick={()=>run(importInitialRapbmAction,()=>setImportOpen(false))}>Gunakan dokumen awal 2026</Button>}
         {message?.error&&<p role="alert" className="text-sm text-rose-700">{message.text}</p>}
         <div className="flex justify-end gap-2"><Button type="button" variant="outline" disabled={pending} onClick={()=>setImportOpen(false)}>Batal</Button><Button type="submit" disabled={pending}>{pending&&<Loader2 className="mr-2 h-4 w-4 animate-spin" />}Impor sebagai draft</Button></div>
@@ -163,4 +182,49 @@ function Notes({notes}:{notes:RapbmNote[]}) {
 function PublishPanel({noteCount,pending,onPublish}:{noteCount:number;pending:boolean;onPublish:(acknowledged:boolean)=>void}) {
   const [acknowledged,setAcknowledged]=useState(false)
   return <section className="space-y-3 rounded-lg border border-border bg-muted/30 p-4"><div><h2 className="text-sm font-semibold">Periksa draft sebelum diterbitkan</h2><p className="mt-1 text-sm text-muted-foreground">Versi terbit dapat dibaca pengurus dan tidak dapat diubah. Koreksi berikutnya dilakukan melalui impor versi baru.</p></div>{noteCount>0&&<div className="flex items-start gap-2"><Checkbox id="rapbm-ack" className="mt-0.5" checked={acknowledged} disabled={pending} onCheckedChange={value=>setAcknowledged(value===true)} /><Label htmlFor="rapbm-ack" className="text-sm font-normal leading-5">Saya telah membaca Catatan Angka dan akan menerbitkan nominal sesuai dokumen sumber.</Label></div>}<Button size="sm" disabled={pending||(noteCount>0&&!acknowledged)} onClick={()=>onPublish(acknowledged)}>{pending&&<Loader2 className="mr-2 h-4 w-4 animate-spin" />}Terbitkan versi ini</Button></section>
+}
+
+function OperationalBudget({version,ready,budget,canManage}:{version:string;ready:boolean;budget:BudgetData;canManage:boolean}) {
+  const router=useRouter()
+  const association=budget.associations.find(row=>row.id===version)
+  const [cohort,setCohort]=useState(association?.cohort??2026)
+  const [values,setValues]=useState<Record<string,string>>(()=>Object.fromEntries(budget.groups.map(g=>[g.id,String(g.komite??0)])))
+  const [message,setMessage]=useState('')
+  const [pending,start]=useTransition()
+  const [reconciled,setReconciled]=useState(false)
+  const total=Object.values(values).reduce((sum,value)=>sum+Number(value),0)
+  const prior=budget.remaining.find(r=>r.cohort===cohort)
+  function submit(action:()=>Promise<{success?:string;error?:string}>) {
+    start(async()=>{const result=await action();setMessage(result.error??result.success??'');if(result.success)router.refresh()})
+  }
+  if (!budget.positions.length && (!canManage||!ready)) return null
+  return <section className="space-y-3 rounded-lg border p-4">
+    <h2 className="font-semibold">Pagu Komite {association?.cohort ? `Angkatan ${association.cohort}` : ''}</h2>
+    {budget.positions.length ? <>
+      {association?.carry_forward!==null && <p className="text-sm text-muted-foreground">Sisa dari versi sebelumnya {formatRupiah(association?.carry_forward??0)}{association?.revision_reason ? ` · ${association.revision_reason}` : ''}</p>}
+      {budget.positions.map(position=><details className="rounded border p-2 text-sm" key={position.group_id}>
+        <summary>{position.account} · {position.label} · Sisa {formatRupiah(position.available)}</summary>
+        <p>Pagu {formatRupiah(position.amount)} · Terkunci {formatRupiah(position.locked)} · Realisasi {formatRupiah(position.realized)}</p>
+        {budget.history.filter(row=>row.group_id===position.group_id).map(row=><p key={row.id} className="py-1">
+          <a className="underline" href={row.pengajuan_id ? `/dashboard/komite/pengajuan?id=${row.pengajuan_id}` : `/dashboard/keuangan/kas-keluar?fund=${cohort}&entry=${row.cashflow_id}`}>{row.description} {row.proof}</a> · {row.created_at.slice(0,10)} · {formatRupiah(row.amount)} · {row.state==='locked'?'Terkunci':row.state==='realized'?'Realisasi':'Dilepas'}
+        </p>)}
+      </details>)}
+      {canManage&&association?.enabled===0&&<div className="space-y-2">
+        <label className="flex gap-2 text-sm"><input type="checkbox" checked={reconciled} onChange={e=>setReconciled(e.target.checked)}/>Histori SPB dan Arus Kas sudah dipetakan dan saldo sudah direkonsiliasi.</label>
+        <Button disabled={!reconciled||pending} onClick={()=>submit(()=>activateKomiteRapbm(version,reconciled))}>Aktifkan pagu</Button>
+      </div>}
+    </> : <form className="space-y-3" action={form=>submit(()=>configureKomiteRapbm(form))}>
+      <input type="hidden" name="version" value={version}/><input type="hidden" name="prior_version" value={prior?.version_id??''}/><input type="hidden" name="prior_snapshot" value={prior?.available??''}/>
+      <label className="block text-sm">Angkatan<Input name="cohort" required type="number" min={2026} max={2199} value={cohort} readOnly={!!association?.cohort} onChange={e=>setCohort(Number(e.target.value))}/></label>
+      {prior&&<p className="text-sm">Sisa sebelumnya {formatRupiah(prior.available)} · Pagu baru {formatRupiah(total)} · Selisih {formatRupiah(total-prior.available)}</p>}
+      {budget.groups.map(group=><div key={group.id} className="grid items-end gap-2 border-b pb-2 sm:grid-cols-3">
+        <div className="text-sm">{group.account} · {group.label}<p className="text-xs text-muted-foreground">Subtotal {money(group.komite)} · Rincian {money(group.detail)}</p></div>
+        <label className="text-sm">Pagu operasional<Input name={`pagu:${group.id}`} required type="number" min={0} value={values[group.id]} onChange={e=>setValues({...values,[group.id]:e.target.value})}/></label>
+        <label className="text-sm">Alasan selisih<Input name={`alasan:${group.id}`} required={Number(values[group.id])!==(group.komite??0)||Number(values[group.id])!==group.detail} maxLength={300}/></label>
+      </div>)}
+      {prior&&<label className="block text-sm">Alasan perubahan total<Input name="revision_reason" required={prior.available!==total} maxLength={300}/></label>}
+      <Button disabled={pending}>{prior?'Terbitkan revisi pagu':'Konfirmasi pagu untuk pemetaan'}</Button>
+    </form>}
+    {message&&<p role="status" className="text-sm">{message}</p>}
+  </section>
 }

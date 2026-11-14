@@ -1,3 +1,4 @@
+import { komiteFundLabel } from '@/lib/komite-funds'
 import { createZip } from '@/lib/zip'
 import type { KomiteExcelLayout, KomiteFinancialReport, KomiteLedgerRow } from '@/lib/komite-financial-report'
 
@@ -13,7 +14,7 @@ function blankRow():Cell[]{return[]}
 
 function titleRows(report: KomiteFinancialReport): Cell[][] { return [
   [C('LAPORAN KEUANGAN KOMITE MADRASAH',1)], [C('MAN 1 TASIKMALAYA',2)], [C(`PERIODE ${report.periodLabel}`,2)],
-  [C(`Cakupan: ${report.scope==='all'?'Semua transaksi sah':'Siswa aktif saja'}`,10)], blankRow(),
+  [C(`Cakupan: ${report.scope==='all'?'Semua transaksi sah':'Siswa aktif saja'} · ${komiteFundLabel(report.fund)}`,10)], blankRow(),
 ] }
 function summaryRows(report:KomiteFinancialReport):Cell[][] { return [
   [C('RINGKASAN SALDO',3)], [C('Uraian',4),C('Jumlah',4)],
@@ -24,7 +25,7 @@ function detailRows(title:string,rows:KomiteLedgerRow[],opening:number,formulaBa
   const out:Cell[][]=[[C(title,3)],[C('Saldo Awal',8),C(opening,9)],blankRow(),[C('Tanggal',4),C('Uraian',4),C('No. Bukti',4),C('Debet (Rp)',4),C('Kredit (Rp)',4),C('Jumlah / Saldo',4)]]
   const openingRow=startRow+1
   const firstExcelRow=startRow+4
-  rows.forEach((r,i)=>{const er=firstExcelRow+i;const balanceFormula=formulaBalance?(i===0?`$B$${openingRow}+D${er}-E${er}`:`F${er-1}+D${er}-E${er}`):undefined;out.push([C(excelDate(r.transactionDate),6,'n'),C(r.description,5),C(r.proofNumber||'-',5),C(r.debit,7),C(r.credit,7),balanceFormula?C(r.balance,7,'n',balanceFormula):C(r.balance,7)])})
+  rows.forEach((r,i)=>{const er=firstExcelRow+i;const balanceFormula=formulaBalance?(i===0?`$B$${openingRow}+D${er}-E${er}`:`F${er-1}+D${er}-E${er}`):undefined;out.push([C(excelDate(r.transactionDate),6,'n'),C(r.fundSource ? `${r.description} · ${r.fundSource.split('|').map(komiteFundLabel).join(', ')}` : r.description,5),C(r.proofNumber||'-',5),C(r.debit,7),C(r.credit,7),balanceFormula?C(r.balance,7,'n',balanceFormula):C(r.balance,7)])})
   const totalRow=firstExcelRow+rows.length
   const totalDebit=rows.reduce((sum,row)=>sum+row.debit,0),totalCredit=rows.reduce((sum,row)=>sum+row.credit,0),ending=rows.length?rows[rows.length-1].balance:opening
   out.push([C('JUMLAH',8),C('',8),C('',8),C(totalDebit,9,'n',rows.length?`SUM(D${firstExcelRow}:D${totalRow-1})`:undefined),C(totalCredit,9,'n',rows.length?`SUM(E${firstExcelRow}:E${totalRow-1})`:undefined),C(ending,9,'n',rows.length?`F${totalRow-1}`:undefined)])

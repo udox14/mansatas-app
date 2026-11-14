@@ -71,7 +71,7 @@ const ROLE_LABEL: Record<string, string> = {
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ period?: string }>
+  searchParams?: Promise<{ period?: string; fund?:string }>
 }) {
   const query = searchParams ? await searchParams : {}
   const user = await getCurrentUser()
@@ -185,7 +185,7 @@ export default async function DashboardPage({
         return <BendaharaDashboard
           {...commonProps}
           allowedFeatures={allowedFeatures}
-          period={query.period}
+          period={query.period} fund={query.fund}
         />
 
       case 'pengurus_koperasi':

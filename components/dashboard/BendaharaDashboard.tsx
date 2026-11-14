@@ -1,3 +1,5 @@
+import { FundSourceOptions } from '@/components/dashboard/komite-fund-fields'
+import { isKomiteFundScope, listKomiteFundOptions } from '@/lib/komite-funds'
 import Link from 'next/link'
 import {
   AlertTriangle, ArrowRight, Banknote, CheckCircle2, ClipboardCheck,
@@ -25,6 +27,7 @@ type Props = {
   dashboardVisibility?: Record<string, boolean>
   allowedFeatures: string[]
   period?: string | null
+  fund?: string
 }
 
 const shortcuts = [
@@ -51,14 +54,17 @@ const tones: Record<string, string> = {
   slate: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
 }
 
-export async function BendaharaDashboard({ userId, isGuruPiket, dashboardVisibility, allowedFeatures, period }: Props) {
+export async function BendaharaDashboard({ userId, isGuruPiket, dashboardVisibility, allowedFeatures, period, fund }: Props) {
   const show = (id: string) => dashboardVisibility?.[id] !== false
-  const data = await loadBendaharaDashboardData({ db: await getDB(), userId, period, allowedFeatures })
+  const db=await getDB()
+  const source=isKomiteFundScope(fund)?fund:'all'
+  const [data, options]=await Promise.all([loadBendaharaDashboardData({ db, userId, period, fund:source, allowedFeatures }),listKomiteFundOptions(db)])
+  const fundQuery=source==='all' ? '' : `?fund=${source}`
   const visibleShortcuts = shortcuts.filter(item => canAccessFinanceFeature(allowedFeatures, item.feature))
   const queueCards = [
     data.paymentQueue && { title: 'Bukti bayar', description: 'Menunggu konfirmasi', href: '/dashboard/keuangan/dspt', icon: ReceiptText, section: data.paymentQueue, tone: 'amber' },
     data.approvalQueue && { title: 'Review pengajuan', description: 'Menunggu Bendahara', href: '/dashboard/komite/pengajuan?tab=review', icon: FileCheck2, section: data.approvalQueue, tone: 'violet' },
-    data.releaseQueue && { title: 'Realisasi SPB', description: 'Disetujui, belum dicairkan', href: '/dashboard/komite/pengajuan?tab=review', icon: Banknote, section: data.releaseQueue, tone: 'emerald' },
+    data.releaseQueue && { title: 'Realisasi SPB', description: 'Disetujui, belum dicairkan', href: `/dashboard/komite/pengajuan?tab=approved&pending=1&fund=${source}`, icon: Banknote, section: data.releaseQueue, tone: 'emerald' },
   ].filter(Boolean) as Array<{ title: string; description: string; href: string; icon: typeof ReceiptText; section: DashboardSection<QueueSummary>; tone: string }>
 
   return (
@@ -70,9 +76,10 @@ export async function BendaharaDashboard({ userId, isGuruPiket, dashboardVisibil
             <h2 className="text-xl font-bold tracking-tight sm:text-2xl">Posisi kas {data.periodLabel.toLocaleLowerCase('id-ID')}</h2>
             <p className="mt-1 text-sm text-emerald-100/80">Angka kas, tagihan, dan antrean kerja dalam satu pandangan.</p>
           </div>
-          <form action="/dashboard" method="get" className="flex items-center gap-2">
+          <form action="/dashboard" method="get" className="flex flex-wrap items-center gap-2">
             <label htmlFor="dashboard-period" className="sr-only">Periode dashboard</label>
             <input id="dashboard-period" name="period" type="month" defaultValue={data.period} className="h-10 rounded-xl border border-white/20 bg-white/10 px-3 text-sm font-medium text-white [color-scheme:dark] outline-none focus:border-white/50" />
+            <select name="fund" aria-label="Sumber dana" defaultValue={source} className="h-10 rounded-md border bg-background px-2 text-foreground"><FundSourceOptions years={options.years} report/></select>
             <Button type="submit" variant="secondary" className="h-10 bg-white px-3 text-sm font-semibold text-emerald-900 hover:bg-emerald-50">Tampilkan</Button>
           </form>
         </CardContent>
@@ -80,7 +87,7 @@ export async function BendaharaDashboard({ userId, isGuruPiket, dashboardVisibil
 
       {show('cash_position') && data.cashPosition && (
         <section aria-labelledby="cash-position-title" className="space-y-3">
-          <SectionHeading id="cash-position-title" title="Posisi Kas" description="Saldo bulan terpilih berdasarkan buku kas komite" href="/dashboard/keuangan/laporan" />
+          <SectionHeading id="cash-position-title" title="Posisi Kas" description="Saldo bulan terpilih berdasarkan buku kas komite" href={`/dashboard/keuangan/laporan${fundQuery}`} />
           {data.cashPosition.status === 'unavailable' ? <UnavailableCard /> : (
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <MoneyCard title="Saldo awal" value={data.cashPosition.data.openingBalance} icon={Landmark} tone="slate" />
@@ -129,7 +136,7 @@ export async function BendaharaDashboard({ userId, isGuruPiket, dashboardVisibil
 
       {show('kas_transaksi') && data.cashPosition && (
         <section aria-labelledby="activity-title" className="space-y-3">
-          <SectionHeading id="activity-title" title="Aktivitas Kas Terbaru" description={`Transaksi pada ${data.periodLabel.toLocaleLowerCase('id-ID')}`} href="/dashboard/keuangan/transaksi" />
+          <SectionHeading id="activity-title" title="Aktivitas Kas Terbaru" description={`Transaksi pada ${data.periodLabel.toLocaleLowerCase('id-ID')}`} href={`/dashboard/keuangan/kas-keluar${fundQuery}`} />
           {data.cashPosition.status === 'unavailable' ? <UnavailableCard /> : data.cashPosition.data.recentRows.length === 0 ? (
             <Card className="border-dashed border-slate-300 bg-white dark:border-slate-700 dark:bg-slate-900"><CardContent className="px-4 py-8 pt-8 text-center text-sm text-slate-500">Belum ada aktivitas kas pada periode ini.</CardContent></Card>
           ) : (

@@ -255,7 +255,7 @@ export async function uploadCashflowProof(file: File, entryId: string) {
   try {
     const r2 = await getR2()
     const ext = isPdf ? 'pdf' : file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg'
-    const key = `cashflow_proofs/${entryId}/bukti.${ext}`
+    const key = `cashflow_proofs/${entryId}/${crypto.randomUUID()}.${ext}`
     await r2.put(key, await file.arrayBuffer(), {
       httpMetadata: { contentType: isPdf ? 'application/pdf' : (file.type || 'image/jpeg'), cacheControl: 'private, no-store' },
     })

@@ -151,6 +151,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   <section class="page">
     <img class="kop" src="${letterhead}" alt="Kop Komite"><div class="rule"></div>
     <h1>Surat Perintah Bayar</h1>
+    ${row.komite_cancelled_at ? `<p class="center"><strong>SPB DIBATALKAN</strong> · ${esc(row.komite_cancel_reason)}</p>` : ''}
     <div class="nomor">Nomor: <strong>${esc(row.nomor_spb)}</strong></div>
     <table class="meta">
       <tr><td>Dari</td><td>:</td><td>Ketua Komite Sekolah</td></tr>

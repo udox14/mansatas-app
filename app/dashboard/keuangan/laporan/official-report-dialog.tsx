@@ -1,5 +1,6 @@
 'use client'
 
+import { FundSourceOptions, fundSelectClass } from '@/components/dashboard/komite-fund-fields'
 import { useState } from 'react'
 import { Download, FileSpreadsheet, Loader2, ReceiptText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -11,7 +12,8 @@ import type { KomiteReportSettings, OpeningBalanceMode } from '@/lib/komite-repo
 import { openPdfFromUrl } from '@/lib/pdf/download'
 import { todayWIB } from '@/lib/time'
 
-export function OfficialReportDialog({ settings }: { settings: KomiteReportSettings }) {
+export function OfficialReportDialog({ settings, years, initialFund }: { settings: KomiteReportSettings; years:number[]; initialFund?:string }) {
+  const [fund,setFund]=useState(initialFund ?? 'all')
   const [open, setOpen] = useState(false)
   const [period, setPeriod] = useState(todayWIB().slice(0, 7))
   const [scope, setScope] = useState<'all' | 'active_students'>('all')
@@ -27,7 +29,7 @@ export function OfficialReportDialog({ settings }: { settings: KomiteReportSetti
 
   function payload(): KomiteReportRequest {
     return {
-      period, scope,
+      period, scope, fund,
       openingBalance: { mode: openingMode, amount: openingMode === 'manual' ? Number(openingAmount) : undefined },
       signatures: { enabled: signaturesEnabled, treasurerName, chairmanName, principalName },
       excelLayout,
@@ -51,6 +53,7 @@ export function OfficialReportDialog({ settings }: { settings: KomiteReportSetti
       <DialogHeader><DialogTitle>Laporan Keuangan Bulanan / BKU</DialogTitle></DialogHeader>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Bulan laporan"><Input type="month" value={period} onChange={e=>setPeriod(e.target.value)}/></Field>
+        <Field label="Sumber dana"><select className={fundSelectClass} value={fund} onChange={e=>setFund(e.target.value)}><FundSourceOptions years={years} report /></select></Field>
         <Field label="Cakupan transaksi"><Select value={scope} onValueChange={v=>setScope(v as typeof scope)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="all">Semua transaksi sah</SelectItem><SelectItem value="active_students">Siswa aktif saja</SelectItem></SelectContent></Select></Field>
         <Field label="Sumber saldo awal"><Select value={openingMode} onValueChange={v=>setOpeningMode(v as OpeningBalanceMode)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="cumulative">Kumulatif sebelum bulan</SelectItem><SelectItem value="manual">Input manual</SelectItem><SelectItem value="stored">Saldo bulanan tersimpan</SelectItem></SelectContent></Select></Field>
         {openingMode==='manual' ? <Field label="Saldo awal manual (Rp)"><Input type="number" step="1" value={openingAmount} onChange={e=>setOpeningAmount(e.target.value)}/></Field> : <div/>}

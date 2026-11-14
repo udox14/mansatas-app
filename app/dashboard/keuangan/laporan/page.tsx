@@ -1,3 +1,4 @@
+import { cashLedgerSql, isKomiteFundScope } from '@/lib/komite-funds'
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/utils/auth/server'
@@ -71,9 +72,9 @@ type TunggakanRow = {
   updated_at: string
 }
 
-async function LaporanDataFetcher({ cacheScope }: { cacheScope: string }) {
+async function LaporanDataFetcher({ cacheScope,fund }: { cacheScope: string; fund?:string }) {
   const db = await getDB()
-  const [dsptRows, transaksi, kasKeluar, tunggakan, reportSettings] = await getOrSetFinanceCache(`report-page:${cacheScope}`, () => Promise.all([
+  const [dsptRows, transaksi, kasKeluar, tunggakan, reportSettings] = await getOrSetFinanceCache(`report-page:${cacheScope}:${fund??'all'}`, () => Promise.all([
     db.prepare(`
       SELECT
         s.id as siswa_id, s.nama_lengkap, s.nisn, s.status AS siswa_status, s.tahun_masuk,
@@ -82,100 +83,18 @@ async function LaporanDataFetcher({ cacheScope }: { cacheScope: string }) {
       LEFT JOIN fin_dspt d ON d.siswa_id = s.id
       ORDER BY s.nama_lengkap ASC
     `).all<DsptRow>(),
-    db.prepare(`
-      SELECT * FROM (
-      SELECT
-        t.id,
-        t.nomor_kuitansi,
-        t.siswa_id,
-        s.nama_lengkap,
-        s.nisn,
-        s.status AS siswa_status,
-        s.tahun_masuk,
-        COALESCE(k.tingkat || '-' || k.nomor_kelas || ' ' || k.kelompok, (SELECT rk.kelas_nama FROM riwayat_kelas rk WHERE rk.siswa_id=s.id ORDER BY rk.created_at DESC LIMIT 1), '-') as kelas,
-        t.kategori,
-        t.metode_bayar,
-        t.jumlah_total,
-        t.is_void,
-        t.void_alasan,
-        t.created_at AS created_at,
-        u.name as nama_input,
-        GROUP_CONCAT(d.ref_type || ':' || d.jumlah, ', ') as rincian
-      FROM fin_transaksi t
-      JOIN siswa s ON s.id = t.siswa_id
-      LEFT JOIN kelas k ON k.id = COALESCE(s.kelas_id, s.kelas_id_sebelum_keluar)
-      LEFT JOIN user u ON u.id = t.input_oleh
-      LEFT JOIN fin_transaksi_detail d ON d.transaksi_id = t.id
-      GROUP BY t.id
-
-      UNION ALL
-
-      SELECT
-        'dspt-balance-' || d.id, NULL, s.id, s.nama_lengkap, s.nisn, s.status, s.tahun_masuk,
-        COALESCE(k.tingkat || '-' || k.nomor_kelas || ' ' || k.kelompok, (SELECT rk.kelas_nama FROM riwayat_kelas rk WHERE rk.siswa_id=s.id ORDER BY rk.created_at DESC LIMIT 1), '-'),
-        'dspt', 'tunai',
-        d.total_dibayar - COALESCE((SELECT SUM(td.jumlah) FROM fin_transaksi_detail td JOIN fin_transaksi tx ON tx.id=td.transaksi_id WHERE td.ref_type='dspt' AND td.ref_id=d.id AND tx.is_void=0),0),
-        0, NULL, COALESCE(d.updated_at,d.created_at), 'Sistem', 'Saldo DSPT tanpa rincian transaksi'
-      FROM fin_dspt d
-      JOIN siswa s ON s.id=d.siswa_id
-      LEFT JOIN kelas k ON k.id=COALESCE(s.kelas_id,s.kelas_id_sebelum_keluar)
-      WHERE d.total_dibayar - COALESCE((SELECT SUM(td.jumlah) FROM fin_transaksi_detail td JOIN fin_transaksi tx ON tx.id=td.transaksi_id WHERE td.ref_type='dspt' AND td.ref_id=d.id AND tx.is_void=0),0) > 0
-
-      UNION ALL
-
-      SELECT
-        'spp-balance-' || sp.id, NULL, s.id, s.nama_lengkap, s.nisn, s.status, s.tahun_masuk,
-        COALESCE(k.tingkat || '-' || k.nomor_kelas || ' ' || k.kelompok, (SELECT rk.kelas_nama FROM riwayat_kelas rk WHERE rk.siswa_id=s.id ORDER BY rk.created_at DESC LIMIT 1), '-'),
-        'spp', 'tunai',
-        sp.total_dibayar - COALESCE((SELECT SUM(td.jumlah) FROM fin_transaksi_detail td JOIN fin_transaksi tx ON tx.id=td.transaksi_id WHERE td.ref_type='spp_saldo_awal' AND td.ref_id=sp.id AND tx.is_void=0),0),
-        0, NULL, COALESCE(sp.updated_at,sp.created_at), 'Sistem', 'Saldo SPP tanpa rincian transaksi'
-      FROM fin_spp_saldo_awal sp
-      JOIN siswa s ON s.id=sp.siswa_id
-      LEFT JOIN kelas k ON k.id=COALESCE(s.kelas_id,s.kelas_id_sebelum_keluar)
-      WHERE sp.total_dibayar - COALESCE((SELECT SUM(td.jumlah) FROM fin_transaksi_detail td JOIN fin_transaksi tx ON tx.id=td.transaksi_id WHERE td.ref_type='spp_saldo_awal' AND td.ref_id=sp.id AND tx.is_void=0),0) > 0
-
-      UNION ALL
-
-      SELECT
-        e.id,
-        NULL as nomor_kuitansi,
-        '' as siswa_id,
-        CASE WHEN e.counterparty <> '' THEN e.counterparty ELSE 'Pemasukan Manual' END as nama_lengkap,
-        NULL as nisn,
-        'aktif' as siswa_status,
-        NULL as tahun_masuk,
-        NULL as kelas,
-        'manual' as kategori,
-        e.method as metode_bayar,
-        e.amount as jumlah_total,
-        e.is_void,
-        e.void_reason as void_alasan,
-        e.created_at,
-        COALESCE(u.nama_lengkap,u.name) as nama_input,
-        c.name || ': ' || e.description as rincian
-      FROM fin_cashflow_entries e
-      JOIN fin_cashflow_categories c ON c.id=e.category_id
-      LEFT JOIN user u ON u.id=e.created_by
-      WHERE e.direction='income'
-      )
-      ORDER BY created_at DESC
-    `).all<TransaksiRow>(),
-    db.prepare(`
-      SELECT
-        e.id,
-        e.transaction_date as tanggal,
-        e.created_at,
-        e.amount as jumlah,
-        e.description as keterangan,
-        c.name as kategori,
-        e.method as metode,
-        COALESCE(u.nama_lengkap,u.name) as nama_input
-      FROM fin_cashflow_entries e
-      JOIN fin_cashflow_categories c ON c.id=e.category_id
-      LEFT JOIN user u ON u.id = e.created_by
-      WHERE e.direction='expense' AND e.is_void=0
-      ORDER BY e.transaction_date DESC, e.created_at DESC
-    `).all<KasKeluarRow>(),
+    db.prepare(`${cashLedgerSql(fund)}
+      SELECT id,proof_number AS nomor_kuitansi,student_id AS siswa_id,COALESCE(student_name,counterparty) AS nama_lengkap,
+        student_nisn AS nisn,student_status AS siswa_status,angkatan AS tahun_masuk,student_class AS kelas,source AS kategori,
+        method AS metode_bayar,amount AS jumlah_total,status='void' AS is_void,void_reason AS void_alasan,
+        CASE WHEN origin='manual' THEN transaction_date || substr(created_at,11) ELSE created_at END AS created_at,recorder_name AS nama_input,description AS rincian
+      FROM ledger WHERE direction='income' ORDER BY transaction_date DESC,created_at DESC`)
+      .bind(...(fund?[fund]:[])).all<TransaksiRow>(),
+    db.prepare(`${cashLedgerSql(fund)}
+      SELECT id,transaction_date AS tanggal,created_at,amount AS jumlah,description AS keterangan,
+        category_name AS kategori,method AS metode,recorder_name AS nama_input
+      FROM ledger WHERE direction='expense' AND status='active' ORDER BY transaction_date DESC,created_at DESC`)
+      .bind(...(fund?[fund]:[])).all<KasKeluarRow>(),
     db.prepare(`
       SELECT * FROM (
         SELECT
@@ -230,6 +149,7 @@ async function LaporanDataFetcher({ cacheScope }: { cacheScope: string }) {
     <LaporanClient
       dsptRows={dsptRows.results ?? []}
       transaksi={transaksi.results ?? []}
+      fund={fund}
       kasKeluar={kasKeluar.results ?? []}
       tunggakan={tunggakan.results ?? []}
       reportSettings={reportSettings}
@@ -237,7 +157,9 @@ async function LaporanDataFetcher({ cacheScope }: { cacheScope: string }) {
   )
 }
 
-export default async function LaporanPage() {
+export default async function LaporanPage({ searchParams }:{searchParams?:Promise<{fund?:string}>}) {
+  const params=await searchParams
+  const fund=isKomiteFundScope(params?.fund)&&params.fund!=='all'?params.fund:undefined
   const session = await getSession()
   if (!session?.user) redirect('/login')
   const db = await getDB()
@@ -251,7 +173,7 @@ export default async function LaporanPage() {
         description="Ringkasan dan rincian pemasukan, pengeluaran, serta tunggakan sesuai periode dan filter"
       />
       <Suspense fallback={<PageLoading text="Memuat laporan keuangan..." />}>
-        <LaporanDataFetcher cacheScope={session.user.id} />
+        <LaporanDataFetcher fund={fund} cacheScope={session.user.id} />
       </Suspense>
     </div>
   )

@@ -1,3 +1,4 @@
+import { cashLedgerSql, isKomiteFundScope } from '@/lib/komite-funds'
 import type { KomiteReportSettings, OpeningBalanceMode } from '@/lib/komite-report-settings'
 
 export type KomiteReportScope = 'all' | 'active_students'
@@ -5,6 +6,7 @@ export type KomiteExcelLayout = 'four_sheets' | 'single_sheet' | 'summary_bku'
 
 export interface KomiteReportRequest {
   period: string
+  fund?: string
   scope: KomiteReportScope
   openingBalance: { mode: OpeningBalanceMode; amount?: number }
   signatures: {
@@ -23,6 +25,7 @@ export interface KomiteLedgerSourceRow {
   transactionDate: string
   createdAt: string
   description: string
+  fundSource?: string
   proofNumber: string | null
   amount: number
 }
@@ -36,6 +39,7 @@ export interface KomiteLedgerRow extends KomiteLedgerSourceRow {
 export interface KomiteFinancialReport {
   period: string
   periodLabel: string
+  fund?: string
   scope: KomiteReportScope
   openingBalance: number
   totalIncome: number
@@ -55,6 +59,7 @@ export function parseKomiteReportRequest(value: unknown): KomiteReportRequest {
   const input = value as Partial<KomiteReportRequest> | null
   if (!input || !isValidReportPeriod(String(input.period || ''))) throw new Error('Periode laporan tidak valid.')
   if (!['all','active_students'].includes(String(input.scope))) throw new Error('Cakupan laporan tidak valid.')
+  if (input.fund !== undefined && !isKomiteFundScope(input.fund)) throw new Error('Sumber dana tidak valid.')
   const mode = input.openingBalance?.mode
   if (!mode || !['cumulative','manual','stored'].includes(mode)) throw new Error('Sumber saldo awal tidak valid.')
   if (!input.signatures || typeof input.signatures.enabled !== 'boolean') throw new Error('Pengaturan tanda tangan tidak valid.')
@@ -62,7 +67,7 @@ export function parseKomiteReportRequest(value: unknown): KomiteReportRequest {
   if (excelLayout !== undefined && !['four_sheets','single_sheet','summary_bku'].includes(excelLayout)) throw new Error('Layout Excel tidak valid.')
   const cleanName = (name: unknown) => String(name || '').trim().slice(0,120)
   return {
-    period: String(input.period), scope: input.scope as KomiteReportScope,
+    period: String(input.period), fund: input.fund, scope: input.scope as KomiteReportScope,
     openingBalance: { mode, amount: input.openingBalance?.amount },
     signatures: {
       enabled: input.signatures.enabled,
@@ -90,6 +95,7 @@ export function reportPeriodLabel(period: string) {
 
 export function buildReportFromRows(params: {
   period: string
+  fund?: string
   scope: KomiteReportScope
   openingBalance: number
   rows: KomiteLedgerSourceRow[]
@@ -113,6 +119,7 @@ export function buildReportFromRows(params: {
     period: params.period,
     periodLabel: reportPeriodLabel(params.period),
     scope: params.scope,
+    fund: params.fund,
     openingBalance: params.openingBalance,
     totalIncome,
     totalExpense,
@@ -124,39 +131,6 @@ export function buildReportFromRows(params: {
   }
 }
 
-function ledgerSql(scope: KomiteReportScope) {
-  const studentScope = scope === 'active_students' ? "AND s.status='aktif'" : ''
-  return `
-    WITH ledger AS (
-      SELECT 'student-' || t.id id, 'student' origin, 'income' direction,
-        substr(t.created_at,1,10) transaction_date, t.created_at created_at,
-        ('Pembayaran ' || upper(t.kategori) || ' - ' || s.nama_lengkap) description,
-        t.nomor_kuitansi proof_number, t.jumlah_total amount
-      FROM fin_transaksi t JOIN siswa s ON s.id=t.siswa_id
-      WHERE t.kategori IN ('dspt','spp') AND t.is_void=0 ${studentScope}
-      UNION ALL
-      SELECT 'legacy-dspt-' || d.id, 'legacy', 'income', substr(COALESCE(d.updated_at,d.created_at),1,10),
-        COALESCE(d.updated_at,d.created_at), 'Saldo DSPT tanpa rincian transaksi - ' || s.nama_lengkap, NULL,
-        d.total_dibayar-COALESCE(r.total_recorded,0)
-      FROM fin_dspt d JOIN siswa s ON s.id=d.siswa_id
-      LEFT JOIN (SELECT td.ref_id,SUM(td.jumlah) total_recorded FROM fin_transaksi_detail td JOIN fin_transaksi t ON t.id=td.transaksi_id WHERE td.ref_type='dspt' AND t.is_void=0 GROUP BY td.ref_id) r ON r.ref_id=d.id
-      WHERE d.total_dibayar-COALESCE(r.total_recorded,0)>0 ${studentScope}
-      UNION ALL
-      SELECT 'legacy-spp-' || sp.id, 'legacy', 'income', substr(COALESCE(sp.updated_at,sp.created_at),1,10),
-        COALESCE(sp.updated_at,sp.created_at), 'Saldo SPP tanpa rincian transaksi - ' || s.nama_lengkap, NULL,
-        sp.total_dibayar-COALESCE(r.total_recorded,0)
-      FROM fin_spp_saldo_awal sp JOIN siswa s ON s.id=sp.siswa_id
-      LEFT JOIN (SELECT td.ref_id,SUM(td.jumlah) total_recorded FROM fin_transaksi_detail td JOIN fin_transaksi t ON t.id=td.transaksi_id WHERE td.ref_type='spp_saldo_awal' AND t.is_void=0 GROUP BY td.ref_id) r ON r.ref_id=sp.id
-      WHERE sp.total_dibayar-COALESCE(r.total_recorded,0)>0 ${studentScope}
-      UNION ALL
-      SELECT e.id, 'manual', e.direction, e.transaction_date, e.created_at,
-        trim(c.name || CASE WHEN e.counterparty<>'' THEN ' - ' || e.counterparty ELSE '' END || ': ' || e.description),
-        e.proof_number, e.amount
-      FROM fin_cashflow_entries e JOIN fin_cashflow_categories c ON c.id=e.category_id
-      WHERE e.is_void=0
-    )`
-}
-
 export async function getKomiteFinancialReport(
   db: D1Database,
   request: KomiteReportRequest,
@@ -165,30 +139,40 @@ export async function getKomiteFinancialReport(
   const { start, next } = periodBounds(request.period)
   if (!['all', 'active_students'].includes(request.scope)) throw new Error('Cakupan laporan tidak valid.')
   if (!['cumulative','manual','stored'].includes(request.openingBalance.mode)) throw new Error('Sumber saldo awal tidak valid.')
-  const result = await db.prepare(`${ledgerSql(request.scope)} SELECT * FROM ledger WHERE transaction_date>=? AND transaction_date<? ORDER BY transaction_date,created_at,id`)
-    .bind(start, next).all<any>()
+  if (request.fund !== undefined && !isKomiteFundScope(request.fund)) throw new Error('Sumber dana tidak valid.')
+  const fund = request.fund && request.fund!=='all' ? request.fund : undefined
+  const binds = fund ? [fund] : []
+  const criteria = "status='active'" + (request.scope==='active_students' ? " AND (student_status='aktif' OR student_id IS NULL)" : '')
+  const result = await db.prepare(`${cashLedgerSql(fund)} SELECT * FROM ledger WHERE ${criteria} AND transaction_date>=? AND transaction_date<? ORDER BY transaction_date,created_at,id`)
+    .bind(...binds,start,next).all<any>()
   let openingBalance: number
   if (request.openingBalance.mode === 'manual') {
     const amount = Number(request.openingBalance.amount)
     if (!Number.isSafeInteger(amount)) throw new Error('Saldo awal manual wajib berupa bilangan rupiah.')
     openingBalance = amount
   } else if (request.openingBalance.mode === 'stored') {
-    const stored = await db.prepare('SELECT amount FROM fin_monthly_opening_balances WHERE period=?').bind(request.period).first<{ amount: number }>()
+    const stored = await (fund
+      ? db.prepare('SELECT amount FROM fin_komite_opening_balances WHERE period=? AND source=?').bind(request.period,fund)
+      : db.prepare('SELECT amount FROM fin_monthly_opening_balances WHERE period=?').bind(request.period)).first<{ amount: number }>()
     if (!stored) throw new Error(`Saldo awal tersimpan untuk ${reportPeriodLabel(request.period)} belum diatur.`)
     openingBalance = Number(stored.amount)
   } else {
-    const prior = await db.prepare(`${ledgerSql(request.scope)} SELECT COALESCE(SUM(CASE WHEN direction='income' THEN amount ELSE -amount END),0) balance FROM ledger WHERE transaction_date<?`)
-      .bind(start).first<{ balance: number }>()
+    const prior = await db.prepare(`${cashLedgerSql(fund)} SELECT COALESCE(SUM(CASE WHEN direction='income' THEN amount ELSE -amount END),0) balance FROM ledger WHERE ${criteria} AND transaction_date<?`)
+      .bind(...binds,start).first<{ balance: number }>()
     openingBalance = Number(prior?.balance || 0)
   }
   const rows: KomiteLedgerSourceRow[] = (result.results ?? []).map(row => ({
     id: String(row.id), origin: row.origin, direction: row.direction,
     transactionDate: String(row.transaction_date), createdAt: String(row.created_at || row.transaction_date),
-    description: String(row.description || '-'), proofNumber: row.proof_number ? String(row.proof_number) : null,
+    description: row.origin==='student' && row.proof_number ? `Pembayaran ${String(row.source).toUpperCase()} - ${row.student_name}`
+      : row.origin==='manual' ? `${row.category_name}${row.counterparty ? ' - '+row.counterparty : ''}: ${row.description}`
+      : `${row.description} - ${row.student_name}`, proofNumber: row.proof_number ? String(row.proof_number) : null,
+    fundSource: String(row.fund_source ?? 'unmapped'),
     amount: Number(row.amount || 0),
   }))
   return buildReportFromRows({
     period: request.period,
+    fund: request.fund,
     scope: request.scope,
     openingBalance,
     rows,

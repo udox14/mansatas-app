@@ -1,3 +1,4 @@
+import { isKomiteFundScope } from '@/lib/komite-funds'
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/utils/auth/server'
@@ -12,12 +13,14 @@ import { getKomiteReportSettings } from '@/lib/komite-report-settings'
 export const dynamic = 'force-dynamic'
 export const metadata = { title: 'Arus Kas | Keuangan MANSATAS' }
 
-async function KasKeluarDataFetcher({ permissions }: { permissions: { create: boolean; update: boolean; delete: boolean } }) {
-  const [data, reportSettings] = await Promise.all([getCashflowPage({ page: 1, pageSize: 20 }),getKomiteReportSettings()])
-  return <KasKeluarClient initialData={data} permissions={permissions} proofNumberMode={reportSettings.proofNumberMode} />
+async function KasKeluarDataFetcher({ permissions, fund, entry }: { fund?:string; entry?:string; permissions: { create: boolean; update: boolean; delete: boolean } }) {
+  const [data, reportSettings] = await Promise.all([getCashflowPage({ page: 1, pageSize: 20, angkatan:fund, entryId:entry }),getKomiteReportSettings()])
+  return <KasKeluarClient initialData={data} initialFund={fund} initialEntry={entry} permissions={permissions} proofNumberMode={reportSettings.proofNumberMode} />
 }
 
-export default async function KasKeluarPage() {
+export default async function KasKeluarPage({searchParams}:{searchParams?:Promise<{fund?:string;entry?:string}>}) {
+  const params = await searchParams
+  const fund = isKomiteFundScope(params?.fund) ? params.fund : undefined
   const session = await getSession()
   if (!session?.user) redirect('/login')
   const db = await getDB()
@@ -36,7 +39,7 @@ export default async function KasKeluarPage() {
         description="Pemasukan DSPT, SPP, pemasukan lain, dan pengeluaran dalam satu tempat"
       />
       <Suspense fallback={<PageLoading text="Memuat arus kas..." />}>
-        <KasKeluarDataFetcher permissions={{ create: canCreate, update: canUpdate, delete: canDelete }} />
+        <KasKeluarDataFetcher fund={fund} entry={params?.entry} permissions={{ create: canCreate, update: canUpdate, delete: canDelete }} />
       </Suspense>
     </div>
   )

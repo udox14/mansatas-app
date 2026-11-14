@@ -1,3 +1,5 @@
+import { listKomiteFundOptions } from '@/lib/komite-funds'
+import { FundSettingsCard } from './fund-settings-card'
 import { redirect } from 'next/navigation'
 import { PageHeader } from '@/components/layout/page-header'
 import { checkFeatureAccess, checkFeatureCrudAccess } from '@/lib/features'
@@ -22,13 +24,15 @@ export default async function PengaturanKomitePage() {
   const allowed = await checkFeatureAccess(db, session.user.id, 'keuangan-pengaturan')
   if (!allowed) redirect('/dashboard')
 
-  const [settings, categories, canUpdateCategories, reportSettings, openingBalances, dsptSettings] = await Promise.all([
+  const [settings, categories, canUpdateCategories, reportSettings, openingBalances, dsptSettings, funds, overdrafts] = await Promise.all([
     getKomitePaymentSettings(),
     db.prepare('SELECT id,direction,name,sort_order,is_active,is_system FROM fin_cashflow_categories ORDER BY direction,sort_order,name').all<any>(),
     checkFeatureCrudAccess(db, session.user.id, 'keuangan-pengaturan', 'update'),
     getKomiteReportSettings(),
     db.prepare('SELECT period,amount,note FROM fin_monthly_opening_balances ORDER BY period DESC LIMIT 1').all<{ period: string; amount: number; note: string | null }>(),
     getDsptSettings(),
+    listKomiteFundOptions(db),
+    db.prepare('SELECT source,allow_negative FROM fin_komite_fund_settings').all<{source:string;allow_negative:number}>(),
   ])
 
   return (
@@ -39,6 +43,7 @@ export default async function PengaturanKomitePage() {
       />
       <PengaturanKomiteClient initialSettings={settings} canUpdate={canUpdateCategories} />
       <DsptSettingsCard initial={dsptSettings} />
+      <FundSettingsCard years={funds.years} overdrafts={overdrafts.results} canUpdate={canUpdateCategories}/>
       <ReportSettingsCard initialSettings={reportSettings} latestBalance={openingBalances.results?.[0]} />
       <CashflowCategoryManager canUpdate={canUpdateCategories} initialCategories={(categories.results ?? []).map(row => ({
         id: row.id, direction: row.direction, name: row.name, sortOrder: Number(row.sort_order || 0),
