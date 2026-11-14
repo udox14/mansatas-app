@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -21,7 +22,7 @@ import {
   setNamedKomiteSubmitterAction, submitKomiteAction,
   setKomiteReviewerSettingAction, setKomiteActivityReportAction,
 } from './actions'
-import { FundAllocationFields, FundSourceOptions, fundSelectClass } from '@/components/dashboard/komite-fund-fields'
+import { FundAllocationFields, FundSourceSelect } from '@/components/dashboard/komite-fund-fields'
 import { komiteFundLabel, type BudgetPosition } from '@/lib/komite-funds'
 import { formatRupiah } from '@/lib/utils'
 import { todayWIB } from '@/lib/time'
@@ -187,11 +188,11 @@ export function PengajuanKomiteClient(props: Props) {
             }}><Trash2 className="mr-2 h-4 w-4" />Hapus Pengajuan</Button>}
           </> : null} />
       ) : <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <div className="mb-3 flex flex-wrap gap-3">
+            <div className="space-y-2"><Label htmlFor="spb-filter-fund">Sumber dana</Label><FundSourceSelect id="spb-filter-fund" value={fundFilter} onValueChange={setFundFilter} years={years} report /></div>
+            {activeTab==='approved'&&<div className="flex h-9 items-center gap-2 self-end"><Checkbox id="spb-pending-only" checked={pendingOnly} onCheckedChange={value=>setPendingOnly(value===true)}/><Label htmlFor="spb-pending-only" className="font-normal">Menunggu pencairan</Label></div>}
+        </div>
         <div className="overflow-x-auto pb-1">
-          <div className="mb-2 flex flex-wrap gap-2">
-            <label className="text-sm">Sumber dana<select className={fundSelectClass} value={fundFilter} onChange={e=>setFundFilter(e.target.value)}><FundSourceOptions years={years} report/></select></label>
-            {activeTab==='approved'&&<label className="flex items-center gap-2 self-end text-sm"><input type="checkbox" checked={pendingOnly} onChange={e=>setPendingOnly(e.target.checked)}/>Menunggu pencairan</label>}
-          </div>
           <TabsList className="h-auto min-w-max justify-start">
             <TabsTrigger value="mine">Pengajuan Saya <Count value={own.length} /></TabsTrigger>
             {canSeeReviewerTabs && <TabsTrigger value="review">Perlu Direview <Count value={props.reviewCount} alert={props.reviewCount > 0} /></TabsTrigger>}
@@ -552,6 +553,7 @@ function SpbFunds({ item, options, historicalCash, pending, onRun }: {
     <Dialog open={Boolean(operation)} onOpenChange={open=>!open&&setOperation('')}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"><DialogHeader><DialogTitle>{choices.find(([value])=>value===operation)?.[1]}</DialogTitle></DialogHeader>
         <form className="space-y-3" action={form=>onRun(async()=>{
+          if (form.get('cash_id')==='none') form.delete('cash_id')
           const result=await (operation==='pay' ? recordKomiteRealization(form) : operation==='map' ? mapHistoricalKomiteSpb(form) : changeKomiteSpbAction(form))
           if (result.success) setOperation('')
           return result
@@ -559,17 +561,20 @@ function SpbFunds({ item, options, historicalCash, pending, onRun }: {
           <input type="hidden" name="id" value={item.id}/><input type="hidden" name="operation" value={operation}/>
           {operation==='pay' ? <>
             <Label htmlFor="spb-date">Tanggal bayar</Label><Input id="spb-date" name="date" required type="date" defaultValue={todayWIB()}/>
-            <Label htmlFor="spb-method">Metode</Label><select name="method" id="spb-method" className="block rounded border p-2"><option value="tunai">Tunai</option><option value="transfer">Transfer</option></select>
+            <Label htmlFor="spb-method">Metode</Label><SpbMethodSelect id="spb-method" defaultValue="tunai"/>
             <Label htmlFor="spb-proof">Bukti pembayaran</Label><Input id="spb-proof" name="proof" required type="file" accept="image/*,application/pdf"/>
           </> : <><Label htmlFor="spb-fund-reason">Alasan</Label><Input id="spb-fund-reason" name="reason" required minLength={3} maxLength={300}/></>}
           {operation==='map' && <>
             <Label htmlFor="spb-cash-id">Transaksi Arus Kas yang sudah dibayar</Label>
-            <select id="spb-cash-id" name="cash_id" className="block w-full rounded border bg-background p-2 text-sm">
-              <option value="">{item.realisasi_status==='sudah'?'Belum dicatat di Arus Kas':'Belum dibayar'}</option>
-              {historicalCash.filter(row=>row.amount===Number(item.nominal)).map(row=><option key={row.id} value={row.id}>{row.transaction_date} · {row.proof_number||row.id} · {row.description}</option>)}
-            </select>
+            <Select name="cash_id" defaultValue="none">
+              <SelectTrigger id="spb-cash-id"><SelectValue/></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">{item.realisasi_status==='sudah'?'Belum dicatat di Arus Kas':'Belum dibayar'}</SelectItem>
+                {historicalCash.filter(row=>row.amount===Number(item.nominal)).map(row=><SelectItem key={row.id} value={row.id}>{row.transaction_date} · {row.proof_number||row.id} · {row.description}</SelectItem>)}
+              </SelectContent>
+            </Select>
             {item.realisasi_status==='sudah' && !item.realisasi_tanggal && <label className="text-sm">Tanggal bayar jika belum tercatat<Input name="date" type="date"/></label>}
-            {item.realisasi_status==='sudah' && !item.realisasi_metode && <label className="text-sm">Metode bayar jika belum tercatat<select name="method" className={fundSelectClass}><option value="">Pilih metode</option><option value="tunai">Tunai</option><option value="transfer">Transfer</option></select></label>}
+            {item.realisasi_status==='sudah' && !item.realisasi_metode && <div className="space-y-2"><Label htmlFor="spb-map-method">Metode bayar jika belum tercatat</Label><SpbMethodSelect id="spb-map-method"/></div>}
             <FundAllocationFields years={options.years} positions={options.historicalPositions} amount={Number(item.nominal)}/>
           </>}
           <Button disabled={pending} type="submit">Simpan</Button>
@@ -577,4 +582,11 @@ function SpbFunds({ item, options, historicalCash, pending, onRun }: {
       </DialogContent>
     </Dialog>
   </>
+}
+
+function SpbMethodSelect({id,defaultValue}:{id:string;defaultValue?:string}) {
+  return <Select name="method" defaultValue={defaultValue}>
+    <SelectTrigger id={id}><SelectValue placeholder="Pilih metode"/></SelectTrigger>
+    <SelectContent><SelectItem value="tunai">Tunai</SelectItem><SelectItem value="transfer">Transfer</SelectItem></SelectContent>
+  </Select>
 }

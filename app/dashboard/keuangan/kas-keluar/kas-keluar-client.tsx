@@ -1,5 +1,7 @@
 'use client'
 
+import { CohortCards } from '@/components/dashboard/cohort-cards'
+import { cashCohortMetric } from '@/lib/komite-cohorts'
 import { useMemo, useState, useTransition } from 'react'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { ArrowDownRight, ArrowUpRight, Eye, FileText, Filter, Pencil, Plus, RefreshCcw, Search, TrendingDown, TrendingUp, XCircle } from 'lucide-react'
@@ -13,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatRupiah } from '@/lib/utils'
 import { formatDateWIB, todayWIB } from '@/lib/time'
 import type { CashDirection, CashflowCategory, CashflowEntry, CashflowFilters, CashflowPageData, CashMethod } from '@/lib/cashflow'
-import { FundSourceOptions, fundSelectClass } from '@/components/dashboard/komite-fund-fields'
+import { BudgetPositionSelect, FundSourceSelect } from '@/components/dashboard/komite-fund-fields'
 import { komiteFundLabel } from '@/lib/komite-funds'
 import { CashflowPrintDialog } from './cashflow-print-dialog'
 import { createCashflowEntry, mapHistoricalCashflow, getCashflowPage, updateCashflowEntry, voidCashflowEntry } from './actions'
@@ -85,8 +87,23 @@ export function KasKeluarClient({ initialData, permissions, proofNumberMode, ini
   const totalPages = Math.max(1,Math.ceil(data.totalRows / Number(filters.pageSize || 20)))
 
   return <div className="space-y-4 pb-10">
+    <CohortCards activeYears={data.activeYears} years={data.angkatan} value={filters.angkatan??'all'} cashScopes disabled={isPending}
+      metrics={Object.fromEntries(['all',...data.activeYears.map(String)].map(scope=>{
+        const totals=data.cohortTotals[scope]
+        return [scope,cashCohortMetric(totals?.income??0,totals?.expense??0)]
+      }))}
+      onChange={scope=>{
+        const angkatan=scope==='all'?undefined:scope
+        const next={...filters,angkatan,page:1}
+        setFilters(next)
+        setDraftFilters(current=>({...current,angkatan,page:1}))
+        startTransition(async()=>{
+          try { setData(await getCashflowPage(next)) }
+          catch { setFilters(filters);setDraftFilters(current=>({...current,angkatan:filters.angkatan}));setMessage('Gagal memuat arus kas. Silakan coba lagi.') }
+        })
+      }}/>
     {filters.entryId&&<Button variant="outline" onClick={()=>load({...filters,entryId:undefined})}>Tampilkan semua transaksi</Button>}
-    <div className="grid gap-3 md:grid-cols-3"><StatCard label="Total Pemasukan Keseluruhan" value={data.summary.totalIncome} icon={TrendingUp} tone="emerald" note="DSPT + SPP siswa aktif + manual"/><StatCard label="Pemasukan dari Modul Ini" value={data.summary.manualIncome} icon={ArrowUpRight} tone="blue" note="Pemasukan manual aktif"/><StatCard label="Total Pengeluaran" value={data.summary.totalExpense} icon={TrendingDown} tone="rose" note="Pengeluaran aktif"/></div>
+    <div className="grid gap-3 md:grid-cols-3"><StatCard label="Pemasukan Sesuai Filter" value={data.summary.totalIncome} icon={TrendingUp} tone="emerald" note="DSPT, SPP, dan pemasukan manual"/><StatCard label="Pemasukan dari Modul Ini" value={data.summary.manualIncome} icon={ArrowUpRight} tone="blue" note="Pemasukan manual aktif"/><StatCard label="Total Pengeluaran" value={data.summary.totalExpense} icon={TrendingDown} tone="rose" note="Pengeluaran aktif"/></div>
     <section className="rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900">
       <CashflowPrintDialog filters={filters} data={data}/><div className="mb-3 flex items-center gap-2 text-sm font-semibold"><Filter className="h-4 w-4"/> Filter Arus Kas <span className="text-xs font-normal text-slate-400">Default: sepanjang waktu</span></div>
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
@@ -98,7 +115,7 @@ export function KasKeluarClient({ initialData, permissions, proofNumberMode, ini
         <Select value={draftFilters.recorderId || 'all'} onValueChange={v => setDraftFilters(f => ({...f,recorderId:v === 'all' ? undefined : v}))}><SelectTrigger><SelectValue placeholder="Pencatat"/></SelectTrigger><SelectContent><SelectItem value="all">Semua Pencatat</SelectItem>{data.recorders.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}</SelectContent></Select>
         <Select value={draftFilters.status || 'active'} onValueChange={v => setDraftFilters(f => ({...f,status:v as any}))}><SelectTrigger><SelectValue placeholder="Status"/></SelectTrigger><SelectContent><SelectItem value="active">Aktif</SelectItem><SelectItem value="void">Dibatalkan</SelectItem><SelectItem value="all">Semua Status</SelectItem></SelectContent></Select>
         <Select value={draftFilters.studentScope || 'all'} onValueChange={v=>setDraftFilters(f=>({...f,studentScope:v==='active_students'?'active_students':'all'}))}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="all">Semua status siswa</SelectItem><SelectItem value="active_students">Siswa aktif</SelectItem></SelectContent></Select>
-        <Select value={draftFilters.angkatan || 'all'} onValueChange={v => setDraftFilters(f => ({...f,angkatan:v === 'all' ? undefined : v}))}><SelectTrigger><SelectValue placeholder="Angkatan"/></SelectTrigger><SelectContent><SelectItem value="all">Semua Angkatan</SelectItem><SelectItem value="general">Kas Umum</SelectItem><SelectItem value="unmapped">Belum Dipetakan</SelectItem>{data.angkatan.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}</SelectContent></Select>
+
         <Select value={draftFilters.kelasId || 'all'} onValueChange={v => setDraftFilters(f => ({...f,kelasId:v === 'all' ? undefined : v}))}><SelectTrigger><SelectValue placeholder="Kelas"/></SelectTrigger><SelectContent><SelectItem value="all">Semua Kelas</SelectItem>{data.classes.map(k => <SelectItem key={k.id} value={k.id}>{k.label}</SelectItem>)}</SelectContent></Select>
         <div className="relative sm:col-span-2"><Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400"/><Input className="pl-9" placeholder="Cari sumber, penerima, keterangan..." value={draftFilters.search || ''} onChange={e => setDraftFilters(f => ({...f,search:e.target.value || undefined}))}/></div>
       </div>
@@ -115,10 +132,11 @@ export function KasKeluarClient({ initialData, permissions, proofNumberMode, ini
     <Dialog open={formOpen} onOpenChange={setFormOpen}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl"><DialogHeader><DialogTitle>{editing ? 'Edit Transaksi' : form.direction === 'income' ? 'Catat Pemasukan' : 'Catat Pengeluaran'}</DialogTitle></DialogHeader><form onSubmit={saveEntry} className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="cash-fund">Sumber dana</Label>
-          <select id="cash-fund" required className={fundSelectClass} value={form.fundSource} onChange={e=>setForm({...form,fundSource:e.target.value,groupId:''})}><FundSourceOptions years={data.angkatan}/></select>
+          <FundSourceSelect id="cash-fund" required years={data.angkatan} value={form.fundSource} onValueChange={fundSource=>setForm({...form,fundSource,groupId:''})} />
           {form.direction==='expense' && Number(form.fundSource)>=2026 && <><Label htmlFor="cash-pos">Pos RAPBM</Label>
-            <select id="cash-pos" required className={fundSelectClass} value={form.groupId} onChange={e=>setForm({...form,groupId:e.target.value})}>
-            <option value="">Pilih pos RAPBM</option>{(historical ? data.historicalPositions : data.positions)?.filter(p=>p.cohort===Number(form.fundSource)).map(p=><option key={p.group_id} value={p.group_id}>{p.account} · {p.label}</option>)}</select></>}
+            <BudgetPositionSelect id="cash-pos" value={form.groupId}
+              positions={((historical ? data.historicalPositions : data.positions) ?? []).filter(p=>p.cohort===Number(form.fundSource))}
+              onValueChange={groupId=>setForm({...form,groupId})} /></>}
           {historical && <><Label htmlFor="cash-map-reason">Alasan pemetaan</Label><Input id="cash-map-reason" required minLength={3} maxLength={300} value={form.reason} onChange={e=>setForm({...form,reason:e.target.value})}/></>}
         </div>
         <fieldset className="contents" disabled={historical}>

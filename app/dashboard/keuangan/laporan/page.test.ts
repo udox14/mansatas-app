@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 // Execute the actual page SQL: mocks of D1 cannot detect invalid compound SELECTs.
 const page = readFileSync(new URL('./page.tsx', import.meta.url), 'utf8')
-const queries = [...page.matchAll(/db\.prepare\(`([\s\S]*?)`\)/g)].map(match => match[1].replace('${cashLedgerSql(fund)}',cashLedgerSql()))
+const queries = [...page.matchAll(/db\.prepare\(`([\s\S]*?)`\)/g)].map(match => match[1].replace('${cashLedgerSql()}',cashLedgerSql()))
 
 describe('Laporan Keuangan page queries', () => {
   let db: DatabaseSync

@@ -87,13 +87,37 @@ describe('optimized cashflow query', () => {
       { key: 'dspt', label: 'DSPT', total: 100, count: 1 },
       { key: 'manual', label: 'Manual', total: 50, count: 1 },
     ])
-    expect(executedSql).toHaveLength(8)
+    expect(result.activeYears).toEqual([2026])
+    expect(result.cohortTotals).toMatchObject({all:{income:150,expense:40},'2026':{income:100,expense:0},unmapped:{income:50,expense:40}})
+    expect(executedSql).toHaveLength(10)
     expect((await getCashflowPage({angkatan:'2026'})).summary).toEqual({totalIncome:100,manualIncome:0,totalExpense:0})
     const unmapped=await getCashflowPrintRows({angkatan:'unmapped'},true)
     expect(unmapped).toMatchObject({income:50,expense:40})
     expect(unmapped.entries.map(row=>row.id)).toEqual(['i1','e1'])
     expect(executedSql.some(sql => sql.includes('filtered AS MATERIALIZED'))).toBe(true)
   })
+  it('menampilkan tiga angkatan aktif terbaru dan mempertahankan nominal antarkartu', async () => {
+    const {getCashflowPage}=await import('./actions')
+    db.exec(`
+      INSERT INTO siswa (id,nama_lengkap,status,kelas_id,tahun_masuk) VALUES
+        ('s2','Siswa 2025','aktif','k1',2025),('s3','Siswa 2024','aktif','k1',2024),('s4','Siswa 2023','aktif','k1',2023),
+        ('s5','Siswa keluar','keluar','k1',2027);
+      INSERT INTO fin_komite_spb_cash_parts (cashflow_id,source,amount) VALUES ('e1','2026',25),('e1','2025',15);
+    `)
+    const first=await getCashflowPage({direction:'expense',angkatan:'2026'})
+    expect(first.activeYears).toEqual([2026,2025,2024])
+    expect(first.entries[0]?.amount).toBe(25)
+    expect(first.cohortTotals).toEqual({all:{income:0,expense:40},'2026':{income:0,expense:25},'2025':{income:0,expense:15}})
+    const second=await getCashflowPage({direction:'expense',angkatan:'2025'})
+    expect(second.entries[0]?.amount).toBe(15)
+    expect(second.cohortTotals).toEqual(first.cohortTotals)
+    db.exec("UPDATE siswa SET status='lulus' WHERE id='s3'")
+    const afterGraduation=await getCashflowPage({direction:'expense',angkatan:'2024'})
+    expect(afterGraduation.activeYears).toEqual([2026,2025,2023])
+    expect(afterGraduation.angkatan).toContain(2024)
+    expect(afterGraduation.entries).toEqual([])
+  })
+
   it('mencetak seluruh hasil filter, termasuk lebih dari satu halaman dan kondisi kosong', async () => {
     const {getCashflowPage,getCashflowPrintRows}=await import('./actions')
     db.exec(`WITH RECURSIVE counter(i) AS (VALUES(1) UNION ALL SELECT i+1 FROM counter WHERE i<25)

@@ -1,4 +1,5 @@
-import { FundSourceOptions } from '@/components/dashboard/komite-fund-fields'
+import { DashboardCohortCards } from './cohort-cards'
+import { cashCohortMetric, listActiveKomiteCohorts } from '@/lib/komite-cohorts'
 import { isKomiteFundScope, listKomiteFundOptions } from '@/lib/komite-funds'
 import Link from 'next/link'
 import {
@@ -14,6 +15,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import {
   canAccessFinanceFeature,
   loadBendaharaDashboardData,
+  loadBendaharaCashPosition,
   type DashboardSection,
   type LegacyArrearsSummary,
   type QueueSummary,
@@ -58,7 +60,24 @@ export async function BendaharaDashboard({ userId, isGuruPiket, dashboardVisibil
   const show = (id: string) => dashboardVisibility?.[id] !== false
   const db=await getDB()
   const source=isKomiteFundScope(fund)?fund:'all'
-  const [data, options]=await Promise.all([loadBendaharaDashboardData({ db, userId, period, fund:source, allowedFeatures }),listKomiteFundOptions(db)])
+  const [data, options, activeYears]=await Promise.all([
+    loadBendaharaDashboardData({db,userId,period,fund:source,allowedFeatures}),
+    listKomiteFundOptions(db),
+    listActiveKomiteCohorts(db),
+  ])
+  const metrics = Object.fromEntries(await Promise.all(
+    ['all',...activeYears.map(String)].map(async scope=>{
+      const position = scope===source ? data.cashPosition : show('cash_position')&&data.cashPosition
+        ? await loadBendaharaCashPosition(db,data.period,scope==='all'?undefined:scope).then(
+          result=>({status:'ready' as const,data:result}),()=>null)
+        : null
+      if (position?.status!=='ready') return [scope,undefined] as const
+      const {totalIncome,totalExpense,endingBalance}=position.data
+      return [scope,cashCohortMetric(totalIncome,totalExpense,endingBalance,'Saldo akhir')] as const
+    })
+  ))
+  const studentQuery=/^\d{4}$/.test(source)?`?angkatan=${source}`:''
+
   const fundQuery=source==='all' ? '' : `?fund=${source}`
   const visibleShortcuts = shortcuts.filter(item => canAccessFinanceFeature(allowedFeatures, item.feature))
   const queueCards = [
@@ -79,11 +98,14 @@ export async function BendaharaDashboard({ userId, isGuruPiket, dashboardVisibil
           <form action="/dashboard" method="get" className="flex flex-wrap items-center gap-2">
             <label htmlFor="dashboard-period" className="sr-only">Periode dashboard</label>
             <input id="dashboard-period" name="period" type="month" defaultValue={data.period} className="h-10 rounded-xl border border-white/20 bg-white/10 px-3 text-sm font-medium text-white [color-scheme:dark] outline-none focus:border-white/50" />
-            <select name="fund" aria-label="Sumber dana" defaultValue={source} className="h-10 rounded-md border bg-background px-2 text-foreground"><FundSourceOptions years={options.years} report/></select>
+            <input type="hidden" name="fund" value={source} />
             <Button type="submit" variant="secondary" className="h-10 bg-white px-3 text-sm font-semibold text-emerald-900 hover:bg-emerald-50">Tampilkan</Button>
           </form>
         </CardContent>
       </Card>
+
+      {show('cash_position')&&data.cashPosition&&<DashboardCohortCards activeYears={activeYears} years={options.years}
+        value={source} period={data.period} cashScopes metrics={metrics}/>}
 
       {show('cash_position') && data.cashPosition && (
         <section aria-labelledby="cash-position-title" className="space-y-3">
@@ -108,10 +130,10 @@ export async function BendaharaDashboard({ userId, isGuruPiket, dashboardVisibil
 
       {show('stat_keuangan') && (data.dspt || data.legacySpp || data.inactiveArrears) && (
         <section aria-labelledby="collection-title" className="space-y-3">
-          <SectionHeading id="collection-title" title="Kesehatan Tagihan" description="Capaian pembayaran dan sisa kewajiban siswa" href="/dashboard/keuangan/dspt" />
+          <SectionHeading id="collection-title" title="Kesehatan Tagihan" description="Capaian pembayaran dan sisa kewajiban siswa" href={`/dashboard/keuangan/dspt${studentQuery}`} />
           <div className="grid gap-3 lg:grid-cols-3">
-            {data.dspt && (data.dspt.status === 'ready' ? <CollectionCard title="DSPT siswa aktif" data={data.dspt.data} href="/dashboard/keuangan/dspt" /> : <UnavailableCard />)}
-            {data.legacySpp && (data.legacySpp.status === 'ready' ? <ArrearsCard title="Tunggakan SPP lama" data={data.legacySpp.data} href="/dashboard/keuangan/dspt" /> : <UnavailableCard />)}
+            {data.dspt && (data.dspt.status === 'ready' ? <CollectionCard title="DSPT siswa aktif" data={data.dspt.data} href={`/dashboard/keuangan/dspt${studentQuery}`} /> : <UnavailableCard />)}
+            {data.legacySpp && (data.legacySpp.status === 'ready' ? <ArrearsCard title="Tunggakan SPP lama" data={data.legacySpp.data} href={`/dashboard/keuangan/dspt${studentQuery}`} /> : <UnavailableCard />)}
             {data.inactiveArrears && (data.inactiveArrears.status === 'ready' ? <ArrearsCard title="Siswa nonaktif" data={data.inactiveArrears.data} href="/dashboard/keuangan/dspt/nonaktif" warning /> : <UnavailableCard />)}
           </div>
         </section>
@@ -122,7 +144,8 @@ export async function BendaharaDashboard({ userId, isGuruPiket, dashboardVisibil
           <SectionHeading id="shortcut-title" title="Modul Keuangan Komite" description="Akses cepat sesuai kewenangan akun Anda" />
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {visibleShortcuts.map(({ feature, href, label, desc, icon: Icon, tone }) => (
-              <Link key={feature} href={href} className="group block">
+              <Link key={feature} href={['keuangan-laporan','keuangan-kas-keluar'].includes(feature) ? href+fundQuery
+                : ['keuangan-transaksi','keuangan-dspt'].includes(feature) ? href+studentQuery : href} className="group block">
                 <Card className="flex min-h-20 items-center gap-3 border-slate-200 bg-white p-3.5 transition hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-slate-700">
                   <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tones[tone]}`}><Icon className="h-5 w-5" /></span>
                   <span className="min-w-0 flex-1"><span className="block text-sm font-semibold text-slate-800 dark:text-slate-100">{label}</span><span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">{desc}</span></span>

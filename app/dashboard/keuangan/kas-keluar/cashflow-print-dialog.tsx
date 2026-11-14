@@ -2,6 +2,9 @@
 
 import { useLayoutEffect, useRef, useState } from 'react'
 import { useReactToPrint } from 'react-to-print'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -56,10 +59,16 @@ export function CashflowPrintDialog({filters,data}:{filters:CashflowFilters;data
     <Dialog>
       <DialogTrigger asChild><Button type="button" variant="outline" className="mb-3">Cetak / Simpan PDF</Button></DialogTrigger>
       <DialogContent><DialogHeader><DialogTitle>Cetak Arus Kas</DialogTitle></DialogHeader>
-        <label className="space-y-1 text-sm">Judul<Input maxLength={120} value={title} onChange={e=>setTitle(e.target.value)}/></label>
-        <label className="space-y-1 text-sm">Isi laporan<select className="block w-full rounded border p-2" value={detailed?'detail':'summary'} onChange={e=>setDetailed(e.target.value==='detail')}><option value="detail">Rincian</option><option value="summary">Ringkasan</option></select></label>
-        <label className="space-y-1 text-sm">Orientasi A4<select className="block w-full rounded border p-2" value={landscape?'landscape':'portrait'} onChange={e=>setLandscape(e.target.value==='landscape')}><option value="portrait">Potret</option><option value="landscape">Lanskap</option></select></label>
-        <label className="flex gap-2 text-sm"><input type="checkbox" checked={signature} onChange={e=>setSignature(e.target.checked)}/>Sertakan tanda tangan Bendahara</label>
+        <div className="space-y-2"><Label htmlFor="cash-print-title">Judul</Label><Input id="cash-print-title" maxLength={120} value={title} onChange={e=>setTitle(e.target.value)}/></div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-2"><Label htmlFor="cash-print-content">Isi laporan</Label>
+            <Select value={detailed?'detail':'summary'} onValueChange={value=>setDetailed(value==='detail')}><SelectTrigger id="cash-print-content"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="detail">Rincian</SelectItem><SelectItem value="summary">Ringkasan</SelectItem></SelectContent></Select>
+          </div>
+          <div className="space-y-2"><Label htmlFor="cash-print-orientation">Orientasi A4</Label>
+            <Select value={landscape?'landscape':'portrait'} onValueChange={value=>setLandscape(value==='landscape')}><SelectTrigger id="cash-print-orientation"><SelectValue/></SelectTrigger><SelectContent><SelectItem value="portrait">Potret</SelectItem><SelectItem value="landscape">Lanskap</SelectItem></SelectContent></Select>
+          </div>
+        </div>
+        <div className="flex items-center gap-2"><Checkbox id="cash-print-signature" checked={signature} onCheckedChange={value=>setSignature(value===true)}/><Label htmlFor="cash-print-signature" className="font-normal">Sertakan tanda tangan Bendahara</Label></div>
         <p className="text-sm text-muted-foreground">{breakdown}</p>
         {message&&<p role="alert">{message}</p>}
         <Button disabled={pending} onClick={()=>{setPending(true);setMessage('');print()}}>Buka dialog cetak</Button>

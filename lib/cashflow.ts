@@ -92,6 +92,8 @@ export interface CashflowPageData {
   recorders: Array<{ id: string; name: string }>
   classes: Array<{ id: string; label: string }>
   angkatan: number[]
+  activeYears: number[]
+  cohortTotals: Record<string, {income:number;expense:number}>
   historicalPositions?: import('@/lib/komite-funds').BudgetPosition[]
   positions?: import('@/lib/komite-funds').BudgetPosition[]
 }

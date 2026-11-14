@@ -1,5 +1,6 @@
 'use client'
 
+import { CohortCards } from '@/components/dashboard/cohort-cards'
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Printer, Search } from 'lucide-react'
@@ -51,16 +52,16 @@ function formatTanggal(dateString: string) {
 
 export function TransaksiClient({
   initialData,
-  tahunAjaranAktif,
+  tahunAjaranAktif, activeYears, initialYear,
 }: {
   initialData: TransaksiRow[]
-  tahunAjaranAktif: string
+  tahunAjaranAktif: string; activeYears: number[]; initialYear?: string
 }) {
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [kategori, setKategori] = useState('semua')
   const [status, setStatus] = useState('aktif')
-  const [angkatan, setAngkatan] = useState('semua')
+  const [angkatan, setAngkatan] = useState(initialYear ?? 'semua')
   const [metodeBayar, setMetodeBayar] = useState('semua')
   const [tanggalAwal, setTanggalAwal] = useState('')
   const [tanggalAkhir, setTanggalAkhir] = useState('')
@@ -73,8 +74,7 @@ export function TransaksiClient({
     return unique.sort((a, b) => b - a)
   }, [initialData])
 
-  const filtered = useMemo(() => {
-    reset()
+  const matchingRows = useMemo(() => {
     const term = search.trim().toLowerCase()
     return initialData.filter(row => {
       const matchSearch = !term
@@ -85,16 +85,25 @@ export function TransaksiClient({
       const matchStatus = status === 'semua'
         || (status === 'aktif' && !row.is_void)
         || (status === 'void' && !!row.is_void)
-      const matchAngkatan = angkatan === 'semua' || String(row.tahun_masuk ?? '') === angkatan
       const matchMetode = metodeBayar === 'semua'
         || (metodeBayar === 'tunai' ? row.metode_bayar === 'tunai' : row.metode_bayar === 'transfer' || row.metode_bayar === 'qris')
       const tanggal = dateInputWIB(row.created_at)
       const matchTanggal = (!tanggalAwal || tanggal >= tanggalAwal) && (!tanggalAkhir || tanggal <= tanggalAkhir)
-      return matchSearch && matchKategori && matchStatus && matchAngkatan && matchMetode && matchTanggal
+      return matchSearch && matchKategori && matchStatus && matchMetode && matchTanggal
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialData, search, kategori, status, angkatan, metodeBayar, tanggalAwal, tanggalAkhir])
+  }, [initialData, search, kategori, status, metodeBayar, tanggalAwal, tanggalAkhir])
 
+  const filtered = useMemo(() => {
+    reset()
+    return angkatan==='semua' ? matchingRows : matchingRows.filter(row=>String(row.tahun_masuk)===angkatan)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[matchingRows,angkatan])
+  const cohortMetrics = Object.fromEntries(['all',...activeYears.map(String)].map(scope=>{
+    const rows=matchingRows.filter(row=>!row.is_void && (scope==='all'||String(row.tahun_masuk)===scope))
+    return [scope,{label:'Total pembayaran sah',value:formatRupiah(rows.reduce((sum,row)=>sum+row.jumlah_total,0)),
+      details:[{label:'Transaksi sah',value:rows.length.toLocaleString('id-ID')}]}]
+  }))
   const paginated = paginate(filtered)
   const totalAktif = filtered
     .filter(row => !row.is_void)
@@ -127,6 +136,8 @@ export function TransaksiClient({
 
   return (
     <div className="space-y-3 pb-8">
+      <CohortCards activeYears={activeYears} years={angkatanOptions} metrics={cohortMetrics}
+        value={angkatan==='semua'?'all':angkatan} onChange={scope=>setAngkatan(scope==='all'?'semua':scope)}/>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 dark:border-slate-800 dark:bg-slate-900">
           <p className="text-[11px] text-slate-500 dark:text-slate-400">Transaksi Tampil</p>
@@ -193,15 +204,7 @@ export function TransaksiClient({
               className="h-8 w-36 text-xs"
             />
           </div>
-          <Select value={angkatan} onValueChange={setAngkatan}>
-            <SelectTrigger className="h-8 w-40 rounded-md text-xs"><SelectValue placeholder="Angkatan" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="semua">Semua Angkatan</SelectItem>
-              {angkatanOptions.map(tahun => (
-                <SelectItem key={tahun} value={String(tahun)}>Angkatan {tahun}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+
           <Select value={metodeBayar} onValueChange={setMetodeBayar}>
             <SelectTrigger className="h-8 w-36 rounded-md text-xs"><SelectValue placeholder="Metode" /></SelectTrigger>
             <SelectContent>

@@ -357,7 +357,7 @@ export const APP_MODULES: ModuleItem[] = [
     summary: 'Laporan arus kas komprehensif, rekonsiliasi saldo berjalan, dan jurnal harian.',
     description: 'Menyatukan arus kas masuk (DSPT, SPP, donasi) dan arus kas keluar (operasional, honor, sarpras) ke dalam satu buku kas yang diaudit secara realtime.',
     roles: ['bendahara_komite', 'super_admin', 'ketua_komite', 'anggota_komite', 'kepsek'],
-    keyFeatures: ['Saldo kas tunai vs bank', 'Jurnal, potensi, dan saldo per sumber dana', 'BKU per angkatan dan gabungan', 'Cetak dan simpan PDF sesuai filter', 'Pemetaan histori dan izin saldo minus per sumber'],
+    keyFeatures: ['Saldo kas tunai vs bank', 'Kartu ringkasan interaktif untuk Semua Angkatan dan tiga angkatan aktif di Dashboard Bendahara, DSPT, Riwayat Pembayaran, Arus Kas, dan Laporan. Cakupan lainnya tersedia di dropdown', 'BKU per angkatan dan gabungan', 'Cetak dan simpan PDF sesuai filter', 'Pemetaan histori dan izin saldo minus per sumber'],
     inputs: ['Filter rentang tanggal', 'Kategori transaksi'],
     outputs: ['Laporan Arus Kas resmi', 'Posisi saldo akhir madrasah'],
   },

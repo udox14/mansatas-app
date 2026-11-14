@@ -4,6 +4,8 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { AlertCircle, ChevronDown, Download, FileSpreadsheet, Loader2, Search, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -66,11 +68,16 @@ export function RapbmClient({data,budget}:{data:RapbmPageData;budget:BudgetData}
   return <div className="space-y-4">
     <div className="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-end sm:justify-between">
       <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
-        <label className="space-y-1.5 text-sm">Angkatan<select className="block h-9 rounded border bg-background px-2" value={cohortFilter} onChange={e=>{
-          setCohortFilter(e.target.value)
-          const version=versions.find(v=>e.target.value==='all'||budget.associations.some(row=>row.id===v.id&&row.cohort===Number(e.target.value)))
-          if(version) navigate(version.year,version.id)
-        }}><option value="all">Semua Angkatan</option>{cohorts.map(year=><option key={year} value={year}>{year}</option>)}</select></label>
+        <div className="space-y-1.5"><Label htmlFor="rapbm-cohort">Angkatan</Label>
+          <Select value={cohortFilter} onValueChange={cohort=>{
+            setCohortFilter(cohort)
+            const version=versions.find(v=>cohort==='all'||budget.associations.some(row=>row.id===v.id&&row.cohort===Number(cohort)))
+            if(version) navigate(version.year,version.id)
+          }}>
+            <SelectTrigger id="rapbm-cohort" className="w-full sm:w-48"><SelectValue/></SelectTrigger>
+            <SelectContent><SelectItem value="all">Semua Angkatan</SelectItem>{cohorts.map(year=><SelectItem key={year} value={String(year)}>Angkatan {year}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
         <div className="space-y-1.5"><Label htmlFor="rapbm-year">Tahun anggaran</Label>
           <Select value={selected?String(selected.year):''} disabled={pending||!years.length} onValueChange={year=>{const candidates=filteredVersions.filter(v=>v.year===Number(year));const version=candidates.find(v=>v.status==='published')??candidates[0];navigate(Number(year),version?.id)}}>
             <SelectTrigger id="rapbm-year" className="w-full sm:w-36"><SelectValue placeholder="Pilih tahun" /></SelectTrigger><SelectContent>{years.map(year=><SelectItem key={year} value={String(year)}>{year}</SelectItem>)}</SelectContent>
@@ -198,19 +205,26 @@ function OperationalBudget({version,ready,budget,canManage}:{version:string;read
     start(async()=>{const result=await action();setMessage(result.error??result.success??'');if(result.success)router.refresh()})
   }
   if (!budget.positions.length && (!canManage||!ready)) return null
-  return <section className="space-y-3 rounded-lg border p-4">
-    <h2 className="font-semibold">Pagu Komite {association?.cohort ? `Angkatan ${association.cohort}` : ''}</h2>
+  return <Card>
+    <CardHeader className="pb-3"><CardTitle className="text-base">Pagu Komite {association?.cohort ? `Angkatan ${association.cohort}` : ''}</CardTitle></CardHeader>
+    <CardContent className="space-y-3">
     {budget.positions.length ? <>
       {association?.carry_forward!==null && <p className="text-sm text-muted-foreground">Sisa dari versi sebelumnya {formatRupiah(association?.carry_forward??0)}{association?.revision_reason ? ` · ${association.revision_reason}` : ''}</p>}
-      {budget.positions.map(position=><details className="rounded border p-2 text-sm" key={position.group_id}>
-        <summary>{position.account} · {position.label} · Sisa {formatRupiah(position.available)}</summary>
+      <Accordion type="multiple" className="space-y-2">
+      {budget.positions.map(position=><AccordionItem value={position.group_id} key={position.group_id}>
+        <AccordionTrigger className="gap-3 text-left text-sm">
+          <span>{position.account} · {position.label}<span className="ml-2 text-muted-foreground">Sisa {formatRupiah(position.available)}</span></span>
+        </AccordionTrigger>
+        <AccordionContent className="space-y-2 text-sm">
         <p>Pagu {formatRupiah(position.amount)} · Terkunci {formatRupiah(position.locked)} · Realisasi {formatRupiah(position.realized)}</p>
         {budget.history.filter(row=>row.group_id===position.group_id).map(row=><p key={row.id} className="py-1">
           <a className="underline" href={row.pengajuan_id ? `/dashboard/komite/pengajuan?id=${row.pengajuan_id}` : `/dashboard/keuangan/kas-keluar?fund=${cohort}&entry=${row.cashflow_id}`}>{row.description} {row.proof}</a> · {row.created_at.slice(0,10)} · {formatRupiah(row.amount)} · {row.state==='locked'?'Terkunci':row.state==='realized'?'Realisasi':'Dilepas'}
         </p>)}
-      </details>)}
+        </AccordionContent>
+      </AccordionItem>)}
+      </Accordion>
       {canManage&&association?.enabled===0&&<div className="space-y-2">
-        <label className="flex gap-2 text-sm"><input type="checkbox" checked={reconciled} onChange={e=>setReconciled(e.target.checked)}/>Histori SPB dan Arus Kas sudah dipetakan dan saldo sudah direkonsiliasi.</label>
+        <div className="flex items-start gap-2"><Checkbox id="rapbm-reconciled" checked={reconciled} onCheckedChange={value=>setReconciled(value===true)}/><Label htmlFor="rapbm-reconciled" className="font-normal leading-5">Histori SPB dan Arus Kas sudah dipetakan dan saldo sudah direkonsiliasi.</Label></div>
         <Button disabled={!reconciled||pending} onClick={()=>submit(()=>activateKomiteRapbm(version,reconciled))}>Aktifkan pagu</Button>
       </div>}
     </> : <form className="space-y-3" action={form=>submit(()=>configureKomiteRapbm(form))}>
@@ -226,5 +240,6 @@ function OperationalBudget({version,ready,budget,canManage}:{version:string;read
       <Button disabled={pending}>{prior?'Terbitkan revisi pagu':'Konfirmasi pagu untuk pemetaan'}</Button>
     </form>}
     {message&&<p role="status" className="text-sm">{message}</p>}
-  </section>
+    </CardContent>
+  </Card>
 }

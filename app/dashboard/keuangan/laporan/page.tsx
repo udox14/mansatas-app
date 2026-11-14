@@ -1,3 +1,4 @@
+import { listActiveKomiteCohorts } from '@/lib/komite-cohorts'
 import { cashLedgerSql, isKomiteFundScope } from '@/lib/komite-funds'
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
@@ -74,7 +75,7 @@ type TunggakanRow = {
 
 async function LaporanDataFetcher({ cacheScope,fund }: { cacheScope: string; fund?:string }) {
   const db = await getDB()
-  const [dsptRows, transaksi, kasKeluar, tunggakan, reportSettings] = await getOrSetFinanceCache(`report-page:${cacheScope}:${fund??'all'}`, () => Promise.all([
+  const [dsptRows, transaksi, kasKeluar, tunggakan, reportSettings, activeYears, cashParts] = await getOrSetFinanceCache(`report-page:${cacheScope}`, () => Promise.all([
     db.prepare(`
       SELECT
         s.id as siswa_id, s.nama_lengkap, s.nisn, s.status AS siswa_status, s.tahun_masuk,
@@ -83,18 +84,18 @@ async function LaporanDataFetcher({ cacheScope,fund }: { cacheScope: string; fun
       LEFT JOIN fin_dspt d ON d.siswa_id = s.id
       ORDER BY s.nama_lengkap ASC
     `).all<DsptRow>(),
-    db.prepare(`${cashLedgerSql(fund)}
+    db.prepare(`${cashLedgerSql()}
       SELECT id,proof_number AS nomor_kuitansi,student_id AS siswa_id,COALESCE(student_name,counterparty) AS nama_lengkap,
         student_nisn AS nisn,student_status AS siswa_status,angkatan AS tahun_masuk,student_class AS kelas,source AS kategori,
         method AS metode_bayar,amount AS jumlah_total,status='void' AS is_void,void_reason AS void_alasan,
         CASE WHEN origin='manual' THEN transaction_date || substr(created_at,11) ELSE created_at END AS created_at,recorder_name AS nama_input,description AS rincian
       FROM ledger WHERE direction='income' ORDER BY transaction_date DESC,created_at DESC`)
-      .bind(...(fund?[fund]:[])).all<TransaksiRow>(),
-    db.prepare(`${cashLedgerSql(fund)}
+      .all<TransaksiRow>(),
+    db.prepare(`${cashLedgerSql()}
       SELECT id,transaction_date AS tanggal,created_at,amount AS jumlah,description AS keterangan,
         category_name AS kategori,method AS metode,recorder_name AS nama_input
       FROM ledger WHERE direction='expense' AND status='active' ORDER BY transaction_date DESC,created_at DESC`)
-      .bind(...(fund?[fund]:[])).all<KasKeluarRow>(),
+      .all<KasKeluarRow>(),
     db.prepare(`
       SELECT * FROM (
         SELECT
@@ -143,6 +144,8 @@ async function LaporanDataFetcher({ cacheScope,fund }: { cacheScope: string; fun
       ORDER BY sisa DESC, nama_lengkap ASC
     `).all<TunggakanRow>(),
     getKomiteReportSettings(),
+    listActiveKomiteCohorts(db),
+    db.prepare('SELECT id,source,amount FROM fin_komite_cash_parts').all<{id:string;source:string;amount:number}>(),
   ]))
 
   return (
@@ -150,6 +153,8 @@ async function LaporanDataFetcher({ cacheScope,fund }: { cacheScope: string; fun
       dsptRows={dsptRows.results ?? []}
       transaksi={transaksi.results ?? []}
       fund={fund}
+      activeYears={activeYears}
+      cashParts={cashParts.results}
       kasKeluar={kasKeluar.results ?? []}
       tunggakan={tunggakan.results ?? []}
       reportSettings={reportSettings}

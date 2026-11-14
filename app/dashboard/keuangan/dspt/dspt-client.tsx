@@ -25,6 +25,7 @@ import {
 } from '../actions'
 import type { StudentFinanceScope } from '../actions'
 import { DataPagination, usePagination } from '@/components/ui/data-pagination'
+import { CohortCards } from '@/components/dashboard/cohort-cards'
 import { FinanceExportExcelDialog, type FinanceExportRow } from '../components/export-excel-dialog'
 import { filterBillingRows, mergeBillingRows, type BillingRow } from './billing-list'
 
@@ -70,6 +71,7 @@ interface PaymentProofSubmission {
   id: string
   siswa_id: string
   dspt_id: string
+  tahun_masuk?: number
   metode_bayar: string
   bank_tujuan?: string | null
   jumlah: number
@@ -128,29 +130,32 @@ async function downloadDsptTemplate(scope: StudentFinanceScope, angkatan?: numbe
   XLSX.writeFile(wb, `template_dspt${suffix}.xlsx`)
 }
 
-export function DsptClient({ initialData, initialSppData, angkatanList: initialAngkatanList, studentScope }: {
+export function DsptClient({ initialData, initialSppData, angkatanList: initialAngkatanList, studentScope, activeYears, historicalYears = [] }: {
   initialData: DsptRow[]
   initialSppData: SppTunggakanRow[]
   angkatanList?: number[]
+  activeYears?: number[]
+  historicalYears?: number[]
   studentScope: StudentFinanceScope
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
-  const [search, setSearch] = useState('')
-  const [filterJenis, setFilterJenis] = useState<'semua' | 'DSPT' | 'SPP'>('semua')
-  const [filterStatus, setFilterStatus] = useState('semua')
-  const [filterMetode, setFilterMetode] = useState('semua')
+  const [search, setSearch] = useState(searchParams.get('q') ?? '')
+  const [filterJenis, setFilterJenis] = useState<'semua' | 'DSPT' | 'SPP'>(()=>{ const kind=searchParams.get('jenis'); return kind==='DSPT'||kind==='SPP'?kind:'semua' })
+  const [filterStatus, setFilterStatus] = useState(searchParams.get('status') ?? 'semua')
+  const [filterMetode, setFilterMetode] = useState(searchParams.get('metode') ?? 'semua')
   const [filterAngkatan, setFilterAngkatan] = useState(searchParams.get('angkatan') ?? 'semua')
-  const [filterKelas, setFilterKelas] = useState('semua')
-  const [filterBulan, setFilterBulan] = useState('semua')
+  const [filterKelas, setFilterKelas] = useState(searchParams.get('kelas') ?? 'semua')
+  const [filterBulan, setFilterBulan] = useState(searchParams.get('bulan') ?? 'semua')
   const [msg, setMsg] = useState('')
 
   // ── Data state ──────────────────────────────────────────────────────────────
   const [data, setData] = useState<DsptRow[]>(initialData.map(row => ({ ...row, source: 'DSPT' })))
   useEffect(() => { setData(initialData) }, [initialData])
   const combinedData = useMemo(() => mergeBillingRows(data as Omit<BillingRow, 'source'>[], initialSppData), [data, initialSppData])
-  const [pendingPayments, setPendingPayments] = useState<PaymentProofSubmission[]>([])
+  const [allPendingPayments, setPendingPayments] = useState<PaymentProofSubmission[]>([])
+  const pendingPayments=allPendingPayments.filter(row=>filterAngkatan==='semua'||String(row.tahun_masuk)===filterAngkatan)
   const [proofHistory, setProofHistory] = useState<PaymentProofSubmission[]>([])
   const [proofModal, setProofModal] = useState<PaymentProofSubmission | null>(null)
   const [pendingModalOpen, setPendingModalOpen] = useState(false)
@@ -242,14 +247,22 @@ export function DsptClient({ initialData, initialSppData, angkatanList: initialA
     return [...set].sort((a, b) => b.localeCompare(a))
   }, [combinedData])
 
+  const matchingRows = useMemo(() => filterBillingRows(combinedData, {
+    jenis: filterJenis, search, siswaStatus: 'semua', status: filterStatus,
+    metode: filterMetode, angkatan: 'semua', kelas: filterKelas, bulan: filterBulan,
+  }), [combinedData, search, filterJenis, filterStatus, filterMetode, filterKelas, filterBulan])
   const filtered = useMemo(() => {
     reset()
-    return filterBillingRows(combinedData, {
-      jenis: filterJenis, search, siswaStatus: 'semua', status: filterStatus,
-      metode: filterMetode, angkatan: filterAngkatan, kelas: filterKelas, bulan: filterBulan,
-    })
+    return filterAngkatan === 'semua' ? matchingRows : matchingRows.filter(row=>String(row.tahun_masuk)===filterAngkatan)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [combinedData, search, filterJenis, filterStatus, filterMetode, filterAngkatan, filterKelas, filterBulan])
+  }, [matchingRows, filterAngkatan])
+  const cohortMetrics = Object.fromEntries(['all', ...(activeYears ?? []).map(String)].map(scope => {
+    const rows = matchingRows.filter(row => row.source==='DSPT' && row.status!=='tidak_ada' && (scope==='all'||String(row.tahun_masuk)===scope))
+    const target = rows.reduce((sum,row)=>sum+(row.nominal_target??0)-(row.total_diskon??0),0)
+    const paid = rows.reduce((sum,row)=>sum+(row.total_dibayar??0),0)
+    return [scope,{label:'Sisa tagihan DSPT',value:formatRupiah(target-paid),
+      details:[{label:'Target bersih',value:formatRupiah(target)},{label:'Dibayar',value:formatRupiah(paid)}]}]
+  }))
 
   const filteredProofHistory = useMemo(() => {
     const term = proofSearch.trim().toLowerCase()
@@ -257,14 +270,15 @@ export function DsptClient({ initialData, initialSppData, angkatanList: initialA
       const matchSearch = !term
         || row.nama_lengkap.toLowerCase().includes(term)
         || (row.nisn ?? '').toLowerCase().includes(term)
+      const matchAngkatan = filterAngkatan==='semua'||String(row.tahun_masuk)===filterAngkatan
       const matchStatus = proofStatus === 'semua' || row.status === proofStatus
       const matchMetode = proofMetode === 'semua'
         || (proofMetode === 'tunai'
           ? row.metode_bayar === 'tunai'
           : row.metode_bayar === 'transfer' || row.metode_bayar === 'qris')
-      return matchSearch && matchStatus && matchMetode
+      return matchSearch && matchStatus && matchMetode && matchAngkatan
     })
-  }, [proofHistory, proofMetode, proofSearch, proofStatus])
+  }, [proofHistory, proofMetode, proofSearch, proofStatus, filterAngkatan])
 
   const paginated = paginate(filtered)
   const withDspt = filtered.filter(r => r.source === 'DSPT' && r.status !== 'tidak_ada')
@@ -475,6 +489,14 @@ export function DsptClient({ initialData, initialSppData, angkatanList: initialA
 
   return (
     <div className="space-y-3 pb-8">
+      {activeYears && <CohortCards activeYears={activeYears} years={[...new Set([...angkatanList,...historicalYears])].sort((a,b)=>b-a)} metrics={cohortMetrics}
+        value={filterAngkatan==='semua'?'all':filterAngkatan} onChange={scope=>{
+          if (scope!=='all' && !angkatanList.includes(Number(scope)) && historicalYears.includes(Number(scope))) {
+            const params=new URLSearchParams({angkatan:scope,jenis:filterJenis,status:filterStatus,metode:filterMetode,kelas:filterKelas,bulan:filterBulan,q:search})
+            router.push(`/dashboard/keuangan/dspt/nonaktif?${params}`)
+          } else setFilterAngkatan(scope==='all'?'semua':scope)
+        }}/>}
+
       {/* Toolbar */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-3 flex flex-wrap gap-2">
         <div className="relative flex-1 min-w-[180px]">
@@ -500,13 +522,13 @@ export function DsptClient({ initialData, initialSppData, angkatanList: initialA
             <SelectItem value="tidak_ada">Belum Diinput</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={filterAngkatan} onValueChange={setFilterAngkatan}>
+        {!activeYears && <Select value={filterAngkatan} onValueChange={setFilterAngkatan}>
           <SelectTrigger className="h-8 w-32 text-xs rounded-md"><SelectValue placeholder="Angkatan" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="semua">Semua Angkatan</SelectItem>
             {angkatanList.map(y => <SelectItem key={y} value={String(y)}>Angkatan {y}</SelectItem>)}
           </SelectContent>
-        </Select>
+        </Select>}
         <Select value={filterKelas} onValueChange={setFilterKelas}>
           <SelectTrigger className="h-8 w-28 text-xs rounded-md"><SelectValue placeholder="Kelas" /></SelectTrigger>
           <SelectContent>

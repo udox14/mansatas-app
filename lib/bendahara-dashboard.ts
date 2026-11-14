@@ -176,7 +176,7 @@ function toQueue(row: any): QueueSummary {
   return { count: number(row?.count), amount: number(row?.amount), oldestAt: row?.oldest_at || null }
 }
 
-async function loadCashPosition(db: D1Database, period: string, fund?:string): Promise<CashPosition> {
+export async function loadBendaharaCashPosition(db: D1Database, period: string, fund?:string): Promise<CashPosition> {
   const report = await getKomiteFinancialReport(db, {
     period,
     scope: 'all', fund,
@@ -219,7 +219,7 @@ export async function loadBendaharaDashboardData(input: {
   const allowed = (featureId: string) => canAccessFinanceFeature(allowedFeatures, featureId)
 
   const cashPromise = allowed('keuangan-laporan')
-    ? settleDashboardSection('posisi kas', loadCashPosition(db, period,fund))
+    ? settleDashboardSection('posisi kas', loadBendaharaCashPosition(db, period,fund))
     : Promise.resolve(null)
   const dsptPromise = allowed('keuangan-dspt')
     ? settleDashboardSection('ringkasan DSPT', withCohort(DSPT_COLLECTION_SQL+cohort).first<any>().then(toCollection))

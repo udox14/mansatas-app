@@ -28,6 +28,8 @@ import { dateInputWIB, formatDateTimeWIB, formatDateWIB, todayWIB } from '@/lib/
 import type { KomiteReportSettings } from '@/lib/komite-report-settings'
 import { useRouter } from 'next/navigation'
 import { komiteFundLabel } from '@/lib/komite-funds'
+import { CohortCards } from '@/components/dashboard/cohort-cards'
+import { cashCohortMetric } from '@/lib/komite-cohorts'
 import { OfficialReportDialog } from './official-report-dialog'
 import {
   SiswaStatusFilter,
@@ -108,6 +110,8 @@ interface TunggakanRow {
 type MateriKey = 'ringkasan' | 'arusKas' | 'angkatan' | 'tunggakan'
 
 interface LaporanClientProps {
+  activeYears:number[]
+  cashParts:{id:string;source:string;amount:number}[]
   fund?:string
   dsptRows: DsptRow[]
   transaksi: TransaksiRow[]
@@ -161,7 +165,7 @@ function sumBy<T>(rows: T[], picker: (row: T) => number) {
   return rows.reduce((sum, row) => sum + picker(row), 0)
 }
 
-export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan, reportSettings, fund }: LaporanClientProps) {
+export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan, reportSettings, fund, activeYears, cashParts }: LaporanClientProps) {
   const printRef = useRef<HTMLElement>(null)
   const [tanggalAwal, setTanggalAwal] = useState(firstDayOfMonthInput())
   const [tanggalAkhir, setTanggalAkhir] = useState(todayInput())
@@ -184,7 +188,7 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan, repor
     tunggakan: true,
   })
 
-  const transaksiPeriode = useMemo(() => {
+  const matchingIncome = useMemo(() => {
     const term = search.trim().toLowerCase()
     return transaksi.filter(row => {
       const tanggal = dateOnly(row.created_at)
@@ -203,7 +207,7 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan, repor
     })
   }, [transaksi, tanggalAwal, tanggalAkhir, kategori, filterSiswaStatus, metodeBayar, search])
 
-  const kasKeluarPeriode = useMemo(() => {
+  const matchingExpense = useMemo(() => {
     return kasKeluar.filter(row => {
       const matchTanggal = row.tanggal >= tanggalAwal && row.tanggal <= tanggalAkhir
       const matchMetode = metodeBayar === 'semua'
@@ -257,20 +261,38 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan, repor
     return [...groups.values()].sort((a, b) => b.tahun_masuk - a.tahun_masuk)
   }, [dsptRows, filterSiswaStatus])
 
-  const transaksiAktif = transaksiPeriode.filter(row => !row.is_void)
+  const partsById = useMemo(() => {
+    const map = new Map<string, Map<string,number>>()
+    for (const part of cashParts) {
+      const scopes=map.get(part.id) ?? new Map<string,number>()
+      scopes.set(part.source,part.amount)
+      map.set(part.id,scopes)
+    }
+    return map
+  },[cashParts])
+  const scopedAmount = (id:string, amount:number, scope:string) => scope==='semua'||scope==='all' ? amount : partsById.get(id)?.get(scope)
+  const transaksiPeriode = matchingIncome.flatMap(row=>{
+    const amount=scopedAmount(row.id,row.jumlah_total,printAngkatan)
+    return amount===undefined ? [] : [{...row,jumlah_total:amount}]
+  })
+  const transaksiAktif = transaksiPeriode.filter(row=>!row.is_void)
+  const kasKeluarPeriode = matchingExpense.flatMap(row=>{
+    const amount=scopedAmount(row.id,row.jumlah,printAngkatan)
+    return amount===undefined ? [] : [{...row,jumlah:amount}]
+  })
   const pemasukan = sumBy(transaksiAktif, row => row.jumlah_total)
   const pengeluaran = sumBy(kasKeluarPeriode, row => row.jumlah)
   const saldo = pemasukan - pengeluaran
-  const totalTunggakan = sumBy(tunggakanFiltered, row => row.sisa)
-
-  const angkatanOptions = [...new Set(dsptRows.map(row=>row.tahun_masuk).filter(year=>year>=2000&&year<=2199))].sort((a,b)=>b-a)
-  const rekapAngkatanPrint = printAngkatan === 'semua'
-    ? rekapAngkatan
-    : rekapAngkatan.filter(r => r.tahun_masuk === Number(printAngkatan))
+  const cohortMetrics = Object.fromEntries(['all',...activeYears.map(String)].map(scope=>[scope,cashCohortMetric(
+    sumBy(matchingIncome.filter(row=>!row.is_void),row=>scopedAmount(row.id,row.jumlah_total,scope)??0),
+    sumBy(matchingExpense,row=>scopedAmount(row.id,row.jumlah,scope)??0),
+  )]))
+  const angkatanOptions = [...new Set([...dsptRows.map(row=>row.tahun_masuk), ...cashParts.map(row=>Number(row.source))])]
+    .filter(year=>year>=2000&&year<=2199).sort((a,b)=>b-a)
+  const rekapAngkatanPrint = printAngkatan === 'semua' ? rekapAngkatan : rekapAngkatan.filter(r => r.tahun_masuk === Number(printAngkatan))
   const transaksiPrint = transaksiAktif
-  const tunggakanPrint = printAngkatan === 'semua'
-    ? tunggakanFiltered
-    : tunggakanFiltered.filter(r => r.tahun_masuk === Number(printAngkatan))
+  const tunggakanPrint = printAngkatan === 'semua' ? tunggakanFiltered : tunggakanFiltered.filter(r => r.tahun_masuk === Number(printAngkatan))
+  const totalTunggakan = sumBy(tunggakanPrint,row=>row.sisa)
   const pemasukanPrint = sumBy(transaksiPrint, row => row.jumlah_total)
   const totalTunggakanPrint = sumBy(tunggakanPrint, row => row.sisa)
   const saldoPrint = pemasukanPrint - pengeluaran
@@ -388,10 +410,12 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan, repor
       `}</style>
 
       <section className="no-print space-y-3">
+        <CohortCards activeYears={activeYears} years={angkatanOptions} metrics={cohortMetrics} cashScopes
+          value={printAngkatan==='semua'?'all':printAngkatan} onChange={scope=>setPrintAngkatan(scope==='all'?'semua':scope)}/>
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
           <SummaryCard label="Pemasukan Periode" value={formatRupiah(pemasukan)} icon={ArrowUpRight} tone="emerald" />
-          <SummaryCard label="Kas Keluar Umum" value={formatRupiah(pengeluaran)} icon={ArrowDownRight} tone="rose" />
-          <SummaryCard label="Saldo Setelah Kas Umum" value={formatRupiah(saldo)} icon={BarChart3} tone={saldo >= 0 ? 'blue' : 'rose'} />
+          <SummaryCard label="Pengeluaran Periode" value={formatRupiah(pengeluaran)} icon={ArrowDownRight} tone="rose" />
+          <SummaryCard label="Selisih Kas Periode" value={formatRupiah(saldo)} icon={BarChart3} tone={saldo >= 0 ? 'blue' : 'rose'} />
           <SummaryCard label="Total Tunggakan" value={formatRupiah(totalTunggakan)} icon={AlertTriangle} tone="amber" />
         </div>
 
@@ -504,16 +528,7 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan, repor
                       </Select>
                     </div>
                     <div>
-                      <label className="mb-1 block text-[11px] font-semibold text-slate-500">Filter Angkatan</label>
-                      <Select value={printAngkatan} onValueChange={setPrintAngkatan}>
-                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="semua">Semua Angkatan</SelectItem><SelectItem value="general">Kas Umum</SelectItem><SelectItem value="unmapped">Belum Dipetakan</SelectItem>
-                          {angkatanOptions.map(tahun => (
-                            <SelectItem key={tahun} value={String(tahun)}>Angkatan {tahun}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <p className="text-xs text-muted-foreground">{printAngkatan==='semua'?'Semua Angkatan':komiteFundLabel(printAngkatan)}</p>
                     </div>
                     <div>
                       <label className="mb-1 block text-[11px] font-semibold text-slate-500">Kolom Tanda Tangan</label>
@@ -551,12 +566,6 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan, repor
       </section>
 
       <section className="no-print flex justify-end">
-        <label className="flex items-center gap-2 text-sm">Sumber dana
-          <select className="rounded-md border bg-background p-2" value={printAngkatan} onChange={e=>setPrintAngkatan(e.target.value)}>
-            <option value="semua">Semua Angkatan</option>{angkatanOptions.map(year=><option key={year} value={year}>Angkatan {year}</option>)}
-            <option value="general">Kas Umum</option><option value="unmapped">Belum Dipetakan</option>
-          </select>
-        </label>
         <OfficialReportDialog settings={reportSettings} years={angkatanOptions} initialFund={printAngkatan==='semua' ? undefined : printAngkatan} key={printAngkatan} />
       </section>
 
@@ -621,7 +630,7 @@ export function LaporanClient({ dsptRows, transaksi, kasKeluar, tunggakan, repor
               <div className="grid grid-cols-4 gap-2">
                 <PrintMetric label="Pemasukan" value={formatRupiah(pemasukanPrint)} />
                 <PrintMetric label="Pengeluaran" value={formatRupiah(pengeluaran)} />
-                <PrintMetric label="Saldo Setelah Kas Umum" value={formatRupiah(saldoPrint)} />
+                <PrintMetric label="Selisih Kas Periode" value={formatRupiah(saldoPrint)} />
                 <PrintMetric label="Tunggakan" value={formatRupiah(totalTunggakanPrint)} />
               </div>
             </PrintSection>

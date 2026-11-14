@@ -1,3 +1,4 @@
+import { listActiveKomiteCohorts } from '@/lib/komite-cohorts'
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/utils/auth/server'
@@ -30,9 +31,9 @@ interface TransaksiRow {
   is_synthetic?: number
 }
 
-async function TransaksiDataFetcher({ cacheScope }: { cacheScope: string }) {
+async function TransaksiDataFetcher({ cacheScope, initialYear }: { cacheScope: string; initialYear?: string }) {
   const db = await getDB()
-  const [transaksi, taAktif] = await getOrSetFinanceCache(`transaction-history:${cacheScope}`, () => Promise.all([
+  const [transaksi, taAktif, activeYears] = await getOrSetFinanceCache(`transaction-history:${cacheScope}`, () => Promise.all([
     db.prepare(`
     WITH recorded_saldo_awal AS (
       SELECT d.ref_id, SUM(CASE WHEN t.is_void = 0 THEN d.jumlah ELSE 0 END) AS total_recorded
@@ -99,12 +100,15 @@ async function TransaksiDataFetcher({ cacheScope }: { cacheScope: string }) {
     ORDER BY created_at DESC
   `).all<TransaksiRow>(),
     db.prepare('SELECT nama FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<{ nama: string | null }>(),
+    listActiveKomiteCohorts(db),
   ]))
 
-  return <TransaksiClient initialData={transaksi.results ?? []} tahunAjaranAktif={taAktif?.nama ?? '-'} />
+  return <TransaksiClient initialYear={initialYear} activeYears={activeYears} initialData={transaksi.results ?? []} tahunAjaranAktif={taAktif?.nama ?? '-'} />
 }
 
-export default async function TransaksiPage() {
+export default async function TransaksiPage({searchParams}:{searchParams?:Promise<{angkatan?:string}>}) {
+  const year=(await searchParams)?.angkatan
+  const initialYear=year&&/^(20|21)\d{2}$/.test(year)?year:undefined
   const session = await getSession()
   if (!session?.user) redirect('/login')
   const db = await getDB()
@@ -118,7 +122,7 @@ export default async function TransaksiPage() {
         description="Semua transaksi keuangan lintas siswa, terbaru ditampilkan paling atas"
       />
       <Suspense fallback={<PageLoading text="Memuat riwayat transaksi..." />}>
-        <TransaksiDataFetcher cacheScope={session.user.id} />
+        <TransaksiDataFetcher initialYear={initialYear} cacheScope={session.user.id} />
       </Suspense>
     </div>
   )

@@ -23,6 +23,8 @@ import { getOrSetFinanceCache, invalidateFinanceCache } from '@/lib/finance-cach
 
 import { cashLedgerSql, checkKomiteCash, checkKomiteWrite, isKomiteFundScope, komiteCashError, listKomiteFundOptions, parseFundAllocations, validateKomiteFundSources } from '@/lib/komite-funds'
 
+import { listActiveKomiteCohorts } from '@/lib/komite-cohorts'
+
 const FEATURE_ID = 'keuangan-kas-keluar'
 
 async function requireCashflow(action: CrudAction) {
@@ -139,13 +141,25 @@ export async function getCashflowPage(filters: CashflowFilters = {}): Promise<Ca
       )) expense_categories_json
     FROM filtered`
 
-    const [rowsResult, aggregate, categoriesResult, recordersResult, classesResult, fundOptions] = await Promise.all([
+    const base = ledgerWhere({...f,angkatan:undefined})
+    const [rowsResult, aggregate, categoriesResult, recordersResult, classesResult, fundOptions, activeYears, cohortTotals] = await Promise.all([
       db.prepare(`${ledgerCte} SELECT * FROM ledger WHERE ${where} ORDER BY transaction_date DESC, created_at DESC LIMIT ? OFFSET ?`).bind(...params,f.pageSize,offset).all<any>(),
       db.prepare(analyticsSql).bind(...params).first<any>(),
       db.prepare('SELECT id,direction,name,sort_order,is_active,is_system FROM fin_cashflow_categories ORDER BY direction,sort_order,name').all<any>(),
       db.prepare(`SELECT DISTINCT u.id, COALESCE(u.nama_lengkap,u.name,'-') name FROM "user" u WHERE EXISTS (SELECT 1 FROM fin_transaksi t WHERE t.input_oleh=u.id) OR EXISTS (SELECT 1 FROM fin_cashflow_entries e WHERE e.created_by=u.id) ORDER BY name`).all<any>(),
       db.prepare(`SELECT id, trim(tingkat || '-' || nomor_kelas || CASE WHEN kelompok IS NOT NULL AND kelompok<>'' THEN ' ' || kelompok ELSE '' END) label FROM kelas ORDER BY tingkat,nomor_kelas,kelompok`).all<any>(),
       listKomiteFundOptions(db),
+      listActiveKomiteCohorts(db),
+      db.prepare(`${base.ledgerCte}, matching AS MATERIALIZED (
+        SELECT id,amount,direction FROM ledger WHERE (${base.where}) AND status='active'
+      ), scoped AS (
+        SELECT 'all' scope,amount,direction FROM matching
+        UNION ALL
+        SELECT p.source,p.amount,m.direction FROM matching m JOIN fin_komite_cash_parts p ON p.id=m.id
+      )
+      SELECT scope,SUM(CASE WHEN direction='income' THEN amount ELSE 0 END) income,
+        SUM(CASE WHEN direction='expense' THEN amount ELSE 0 END) expense FROM scoped GROUP BY scope`)
+        .bind(...base.params).all<{scope:string;income:number;expense:number}>(),
     ])
     const row = aggregate ?? {}
     const summary = { totalIncome: number(row.total_income), manualIncome: number(row.manual_income), totalExpense: number(row.total_expense) }
@@ -160,6 +174,7 @@ export async function getCashflowPage(filters: CashflowFilters = {}): Promise<Ca
       entries: (rowsResult.results ?? []).map(toEntry), totalRows: number(row.total_rows), summary, analytics,
       categories: (categoriesResult.results ?? []).map((item: any): CashflowCategory => ({ id: item.id, direction: item.direction, name: item.name, sortOrder: number(item.sort_order), isActive: item.is_active === 1, isSystem: item.is_system === 1 })),
       recorders: recordersResult.results ?? [], classes: classesResult.results ?? [],
+      activeYears, cohortTotals:Object.fromEntries(cohortTotals.results.map(row=>[row.scope,{income:row.income,expense:row.expense}])),
       angkatan: fundOptions.years, positions: fundOptions.positions, historicalPositions:fundOptions.historicalPositions,
     }
   })

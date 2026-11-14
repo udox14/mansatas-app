@@ -1,3 +1,4 @@
+import { listActiveKomiteCohorts } from '@/lib/komite-cohorts'
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { getSession } from '@/utils/auth/server'
@@ -14,12 +15,20 @@ export const dynamic = 'force-dynamic'
 export const metadata = { title: 'DSPT & SPP | Keuangan MANSATAS' }
 
 async function DsptDataFetcher() {
-  const result = await loadBillingPageData('active')
+  const db=await getDB()
+  const [result,activeYears,historicalYears] = await Promise.all([
+    loadBillingPageData('active'),
+    listActiveKomiteCohorts(db),
+    db.prepare(`SELECT DISTINCT tahun_masuk AS year FROM siswa WHERE status NOT IN ('aktif','dihapus')
+      AND tahun_masuk BETWEEN 2000 AND 2199 ORDER BY year DESC`).all<{year:number}>(),
+  ])
   return (
     <DsptClient
       initialData={result.data}
       initialSppData={result.sppData}
       angkatanList={result.angkatanList}
+      activeYears={activeYears}
+      historicalYears={historicalYears.results.map(row=>row.year)}
       studentScope="active"
     />
   )
