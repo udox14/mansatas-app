@@ -636,7 +636,7 @@ export function MonitoringKedisiplinanClient({
                           )}
                         </div>
 
-                        {/* Poin TA ini */}
+                        {/* Poin hasil filter */}
                         <div className="text-right shrink-0 hidden sm:block">
                           <p className="text-[9px] text-slate-400 dark:text-slate-500 uppercase font-medium" title="Poin catatan terbit dalam hasil filter">Poin hasil filter</p>
                           <p className="text-base font-black text-rose-600">{group.totalPoin}</p>
@@ -825,8 +825,8 @@ export function MonitoringKedisiplinanClient({
                     <SelectItem value="oldest">Terlama (Tanggal Kasus)</SelectItem>
                     <SelectItem value="case_desc">Terbanyak Kasus</SelectItem>
                     <SelectItem value="case_asc">Tersedikit Kasus</SelectItem>
-                    <SelectItem value="point_desc">Terbanyak Poin (TA ini)</SelectItem>
-                    <SelectItem value="point_asc">Tersedikit Poin (TA ini)</SelectItem>
+                    <SelectItem value="point_desc">Poin hasil filter tertinggi</SelectItem>
+                    <SelectItem value="point_asc">Poin hasil filter terendah</SelectItem>
                     <SelectItem value="lifetime_desc">Poin Seumur Terbesar</SelectItem>
                   </SelectContent>
                 </Select>
