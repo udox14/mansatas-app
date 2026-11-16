@@ -31,6 +31,8 @@ import type { SanksiConfig } from '@/lib/sanksi-service'
 import { cn } from '@/lib/utils'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 import { todayWIB } from '@/lib/time'
+import { ALL_DISCIPLINE_PERIODS, DisciplinePeriodSelect } from '@/components/dashboard/discipline-period-select'
+import { summarizeDisciplinePoints, type DisciplineHistoryRecord } from '@/lib/discipline-history'
 
 // ── Sanksi helpers ──────────────────────────────────────────
 function getSanksiForPoin(poin: number, sanksiList: SanksiConfig[]): SanksiConfig | null {
@@ -141,11 +143,12 @@ function ProgressBar({ value, label }: { value: number; label: string }) {
 
 // ─── Modal Detail Kasus per Siswa ──────────────────────────────
 function DetailKasusModal({
-  group, lifetimePoin, sanksiList, isSuperAdmin, currentUser, isPending,
+  group, lifetimePoin, taAktifId, sanksiList, isSuperAdmin, currentUser, isPending,
   onEdit, onHapus, onClose
 }: {
-  group: { siswa: any; kasus: any[]; totalPoin: number; siswaId: string } | null
+  group: { siswa: DisciplineHistoryRecord['siswa']; kasus: DisciplineHistoryRecord[]; siswaId: string } | null
   lifetimePoin: Record<string, number>
+  taAktifId?: string
   sanksiList: SanksiConfig[]
   isSuperAdmin: boolean
   currentUser: any
@@ -187,12 +190,14 @@ function DetailKasusModal({
           {/* Stats */}
           <div className="grid grid-cols-3 gap-2 mt-3">
             <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-2.5 text-center">
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wide">Kasus (TA ini)</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wide">Kasus semua periode</p>
               <p className="text-xl font-black text-slate-700 dark:text-slate-300 dark:text-slate-200">{group.kasus.length}</p>
+              {taAktifId && <p className="text-[10px] text-slate-500">{group.kasus.filter(row => row.tahun_ajaran_id === taAktifId).length} di semester aktif</p>}
             </div>
             <div className="bg-rose-50 dark:bg-rose-900/20 rounded-lg p-2.5 text-center">
               <p className="text-[10px] text-rose-500 font-medium uppercase tracking-wide">Poin Seumur</p>
               <p className="text-xl font-black text-rose-600">{totalPoinLifetime}</p>
+              <p className="text-[10px] text-rose-500">Dari catatan terbit</p>
             </div>
             <div className={cn('rounded-lg p-2.5 text-center border', badgeStyle)}>
               <p className="text-[10px] font-medium uppercase tracking-wide opacity-70">Sanksi</p>
@@ -221,6 +226,9 @@ function DetailKasusModal({
                     <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
                       {formatTanggalDisplay(k.tanggal)}
                       {k.jam_input ? ` • ${k.jam_input}` : ''}
+                      {' · '}{k.periode}
+                      {k.publication_status === 'pending' && ' · Menunggu verifikasi'}
+                      {k.publication_status === 'rejected' && ' · Tidak diterbitkan'}
                     </p>
                     {k.keterangan && (
                       <p className="text-[11px] italic text-slate-500 dark:text-slate-400 mt-1.5 bg-slate-50 dark:bg-slate-800 px-2 py-1.5 rounded-lg border border-slate-100 dark:border-slate-800 dark:border-slate-700">
@@ -271,14 +279,13 @@ function DetailKasusModal({
 
 // ─── Main Component ──────────────────────────────────────────
 export function KedisiplinanClient({
-  currentUser, kasusList, masterList, taAktifId, sanksiList = [], lifetimePoin = {}, tingkatList = [], reviewableRecordIds = [], clarifications = [], initialTab = 'riwayat', showTabNavigation = true
+  currentUser, kasusList: allKasus, masterList, taAktifId, sanksiList = [], tingkatList = [], reviewableRecordIds = [], clarifications = [], initialTab = 'riwayat', showTabNavigation = true
 }: {
   currentUser: { id: string, role: string, roles?: string[], nama: string }
-  kasusList: any[]
+  kasusList: DisciplineHistoryRecord[]
   masterList: any[]
   taAktifId?: string
   sanksiList?: SanksiConfig[]
-  lifetimePoin?: Record<string, number>
   tingkatList?: string[]
   reviewableRecordIds?: string[]
   clarifications?: any[]
@@ -292,11 +299,12 @@ export function KedisiplinanClient({
   const canReviewAny = userRoles.some(role => ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk', 'wali_kelas'].includes(role))
   const reviewableSet = useMemo(() => new Set(reviewableRecordIds), [reviewableRecordIds])
 
-  const [allKasus, setAllKasus] = useState(kasusList)
+  const lifetimePoin = useMemo(() => summarizeDisciplinePoints(allKasus), [allKasus])
   const [isPending, setIsPending] = useState(false)
 
   // Filter & pagination
   const [search, setSearch] = useState('')
+  const [filterPeriod, setFilterPeriod] = useState(ALL_DISCIPLINE_PERIODS)
   const [filterTingkat, setFilterTingkat] = useState('ALL')
   const [filterLevel, setFilterLevel] = useState('ALL')
   const [filterPublication, setFilterPublication] = useState('ALL')
@@ -306,7 +314,9 @@ export function KedisiplinanClient({
   // Modal states
   const [isFormModalOpen, setIsFormModalOpen] = useState(false)
   const [editKasusData, setEditKasusData] = useState<any>(null)
-  const [detailGroup, setDetailGroup] = useState<{ siswa: any; kasus: any[]; totalPoin: number; siswaId: string } | null>(null)
+  const [detailStudentId, setDetailStudentId] = useState<string | null>(null)
+  const detailRecords = detailStudentId ? allKasus.filter(row => row.siswa_id === detailStudentId) : []
+  const detailGroup = detailRecords.length ? { siswa: detailRecords[0].siswa, kasus: detailRecords, siswaId: detailRecords[0].siswa_id } : null
 
   // Master
   const [searchMaster, setSearchMaster] = useState('')
@@ -336,7 +346,7 @@ export function KedisiplinanClient({
   }, [allKasus, tingkatList])
 
   const filteredKasus = useMemo(() => {
-    let result = [...allKasus]
+    let result = allKasus.filter(row => filterPeriod === ALL_DISCIPLINE_PERIODS || row.tahun_ajaran_id === filterPeriod)
     if (search) {
       const q = search.toLowerCase()
       result = result.filter(k =>
@@ -357,7 +367,7 @@ export function KedisiplinanClient({
     }
     result.sort((a, b) => getTanggalTimestamp(b.tanggal) - getTanggalTimestamp(a.tanggal))
     return result
-  }, [allKasus, search, filterTingkat, filterLevel, filterPublication, sanksiList, lifetimePoin])
+  }, [allKasus, search, filterPeriod, filterTingkat, filterLevel, filterPublication, sanksiList, lifetimePoin])
 
   const totalPages = Math.max(1, Math.ceil(filteredKasus.length / pageSize))
   const safePage = Math.min(page, totalPages)
@@ -371,18 +381,6 @@ export function KedisiplinanClient({
     setIsPending(true)
     const res = await hapusPelanggaran(id)
     if (res.error) alert(res.error)
-    else {
-      setAllKasus(prev => prev.filter((k: any) => k.id !== id))
-      // Update detailGroup jika sedang terbuka
-      if (detailGroup) {
-        const newKasus = detailGroup.kasus.filter(k => k.id !== id)
-        if (newKasus.length === 0) setDetailGroup(null)
-        else {
-          const removedPoin = detailGroup.kasus.find(k => k.id === id)?.master_pelanggaran?.poin || 0
-          setDetailGroup({ ...detailGroup, kasus: newKasus, totalPoin: detailGroup.totalPoin - removedPoin, siswaId: detailGroup.siswaId })
-        }
-      }
-    }
     setIsPending(false)
   }
 
@@ -401,7 +399,6 @@ export function KedisiplinanClient({
     const result = await reviewPelanggaran(id, decision, note)
     if (result.error) alert(result.error)
     else {
-      setAllKasus(prev => prev.map(row => row.id === id ? { ...row, publication_status: decision, review_note: note || null } : row))
       alert(result.success)
     }
     setIsPending(false)
@@ -742,6 +739,7 @@ export function KedisiplinanClient({
 
               {/* Filter row */}
               <div className="flex gap-2 flex-wrap">
+                <DisciplinePeriodSelect records={allKasus} activeId={taAktifId} value={filterPeriod} onChange={value => { setFilterPeriod(value); resetPage() }} />
                 <Select value={filterTingkat} onValueChange={v => { setFilterTingkat(v); resetPage() }}>
                   <SelectTrigger className="h-7 text-xs rounded flex-1 min-w-[90px]"><SelectValue placeholder="Tingkat" /></SelectTrigger>
                   <SelectContent>
@@ -780,6 +778,7 @@ export function KedisiplinanClient({
                   </SelectContent>
                 </Select>
               </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Poin seumur hidup dijumlahkan dari catatan terbit di semua periode. Klik nama siswa untuk melihat rinciannya.</p>
             </div>
 
             {/* LIST */}
@@ -810,9 +809,9 @@ export function KedisiplinanClient({
                         {/* Info */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-sm font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate group-hover:text-rose-700 dark:group-hover:text-rose-400 transition-colors">
+                            <button type="button" onClick={() => setDetailStudentId(kasus.siswa_id)} className="text-left text-sm font-bold text-slate-800 dark:text-slate-100 hover:underline" title="Buka riwayat siswa">
                               {kasus.siswa.nama_lengkap}
-                            </p>
+                            </button>
                             <span className={cn('text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full border', badgeStyle)}>
                               {sanksi?.nama || 'Baik'}
                             </span>
@@ -828,6 +827,7 @@ export function KedisiplinanClient({
                           <p className="text-[11px] text-slate-400 dark:text-slate-500">
                             Kelas {kelas} · {formatTanggalDisplay(kasus.tanggal, { day: 'numeric', month: 'short', year: 'numeric' })}{kasus.jam_input ? ` • ${kasus.jam_input}` : ''}
                           </p>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">{kasus.periode}</p>
                           <p className="text-xs font-semibold text-rose-700 dark:text-rose-400 truncate mt-0.5">
                             {kasus.master_pelanggaran?.nama_pelanggaran}
                           </p>
@@ -841,7 +841,7 @@ export function KedisiplinanClient({
 
                         {/* Poin Lifetime */}
                         <div className="text-right shrink-0">
-                          <p className="text-[9px] text-slate-400 dark:text-slate-500 uppercase font-medium">Seumur</p>
+                          <p className="text-[9px] text-slate-400 dark:text-slate-500 uppercase font-medium" title="Jumlah poin dari catatan terbit di semua periode">Poin seumur</p>
                           <p className="text-base font-black text-rose-700">{lt}</p>
                         </div>
 
@@ -1060,13 +1060,14 @@ export function KedisiplinanClient({
         <DetailKasusModal
           group={detailGroup}
           lifetimePoin={lifetimePoin}
+          taAktifId={taAktifId}
           sanksiList={sanksiList}
           isSuperAdmin={isSuperAdmin}
           currentUser={currentUser}
           isPending={isPending}
           onEdit={(k) => { setEditKasusData(k); setIsFormModalOpen(true) }}
           onHapus={handleHapusKasus}
-          onClose={() => setDetailGroup(null)}
+          onClose={() => setDetailStudentId(null)}
         />
 
         {/* Modal: Master kamus */}

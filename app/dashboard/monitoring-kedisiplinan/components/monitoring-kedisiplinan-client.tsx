@@ -23,6 +23,8 @@ import type { SanksiConfig } from '@/lib/sanksi-service'
 import { cn } from '@/lib/utils'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 import { todayWIB } from '@/lib/time'
+import { ALL_DISCIPLINE_PERIODS, DisciplinePeriodSelect } from '@/components/dashboard/discipline-period-select'
+import { summarizeDisciplinePoints, type DisciplineHistoryRecord } from '@/lib/discipline-history'
 
 // ── Sanksi helpers ──────────────────────────────────────────
 function getSanksiForPoin(poin: number, sanksiList: SanksiConfig[]): SanksiConfig | null {
@@ -117,14 +119,14 @@ function formatTanggalDisplay(raw: string | null | undefined) {
 function getLatestKasusDate(kasus: any[]) {
   return Math.max(0, ...kasus.map(k => getTanggalTimestamp(k.tanggal)))
 }
-
 // ─── Modal Detail Kasus per Siswa ──────────────────────────────
 function DetailKasusModal({
-  group, lifetimePoin, sanksiList, isSuperAdmin, currentUser, isPending,
+  group, lifetimePoin, taAktifId, sanksiList, isSuperAdmin, currentUser, isPending,
   onEdit, onHapus, onClose
 }: {
-  group: { siswa: any; kasus: any[]; totalPoin: number; siswaId: string } | null
+  group: { siswa: DisciplineHistoryRecord['siswa']; kasus: DisciplineHistoryRecord[]; siswaId: string } | null
   lifetimePoin: Record<string, number>
+  taAktifId?: string
   sanksiList: SanksiConfig[]
   isSuperAdmin: boolean
   currentUser: any
@@ -134,7 +136,7 @@ function DetailKasusModal({
   onClose: () => void
 }) {
   if (!group) return null
-  const totalPoinLifetime = lifetimePoin[group.siswaId] ?? group.totalPoin
+  const totalPoinLifetime = lifetimePoin[group.siswaId] ?? 0
   const sanksi = getSanksiForPoin(totalPoinLifetime, sanksiList)
   const badgeStyle = sanksi ? getSanksiStyle(sanksi.urutan) : AMAN_STYLE
   const kelas = group.siswa.kelas
@@ -166,12 +168,14 @@ function DetailKasusModal({
           {/* Stats */}
           <div className="grid grid-cols-3 gap-2 mt-3">
             <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-2.5 text-center">
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wide">Kasus (TA ini)</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wide">Kasus semua periode</p>
               <p className="text-xl font-black text-slate-700 dark:text-slate-300 dark:text-slate-200">{group.kasus.length}</p>
+              {taAktifId && <p className="text-[10px] text-slate-500">{group.kasus.filter(row => row.tahun_ajaran_id === taAktifId).length} di semester aktif</p>}
             </div>
             <div className="bg-rose-50 dark:bg-rose-900/20 rounded-lg p-2.5 text-center">
               <p className="text-[10px] text-rose-500 font-medium uppercase tracking-wide">Poin Seumur</p>
               <p className="text-xl font-black text-rose-600">{totalPoinLifetime}</p>
+              <p className="text-[10px] text-rose-500">Dari catatan terbit</p>
             </div>
             <div className={cn('rounded-lg p-2.5 text-center border', badgeStyle)}>
               <p className="text-[10px] font-medium uppercase tracking-wide opacity-70">Sanksi</p>
@@ -198,7 +202,9 @@ function DetailKasusModal({
                       {k.master_pelanggaran?.nama_pelanggaran}
                     </p>
                     <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
-                      {formatTanggalDisplay(k.tanggal)}
+                      {formatTanggalDisplay(k.tanggal)} · {k.periode}
+                      {k.publication_status === 'pending' && ' · Menunggu verifikasi'}
+                      {k.publication_status === 'rejected' && ' · Tidak diterbitkan'}
                     </p>
                     {k.keterangan && (
                       <p className="text-[11px] italic text-slate-500 dark:text-slate-400 mt-1.5 bg-slate-50 dark:bg-slate-800 px-2 py-1.5 rounded-lg border border-slate-100 dark:border-slate-800 dark:border-slate-700">
@@ -249,14 +255,13 @@ function DetailKasusModal({
 
 // ─── Main Component ──────────────────────────────────────────
 export function MonitoringKedisiplinanClient({
-  currentUser, kasusList, masterList, taAktifId, sanksiList = [], lifetimePoin = {}, tingkatList = []
+  currentUser, kasusList: allKasus, masterList, taAktifId, sanksiList = [], tingkatList = []
 }: {
   currentUser: { id: string, role: string, roles?: string[], nama: string }
-  kasusList: any[]
+  kasusList: DisciplineHistoryRecord[]
   masterList: any[]
   taAktifId?: string
   sanksiList?: SanksiConfig[]
-  lifetimePoin?: Record<string, number>
   tingkatList?: string[]
 }) {
   const userRoles = currentUser.roles?.length ? currentUser.roles : [currentUser.role]
@@ -264,11 +269,13 @@ export function MonitoringKedisiplinanClient({
   const canInput = userRoles.some(role => ['super_admin', 'admin_tu', 'wakamad', 'guru_bk', 'guru_piket', 'resepsionis', 'satpam', 'guru'].includes(role))
   const canManageMaster = false
 
-  const [allKasus, setAllKasus] = useState(kasusList)
+  const lifetimePoin = useMemo(() => summarizeDisciplinePoints(allKasus), [allKasus])
   const [isPending, setIsPending] = useState(false)
 
   // Filter & pagination
   const [search, setSearch] = useState('')
+  const defaultPeriod = taAktifId ?? ALL_DISCIPLINE_PERIODS
+  const [filterPeriod, setFilterPeriod] = useState(defaultPeriod)
   const [filterTingkat, setFilterTingkat] = useState('ALL')
   const [filterLevel, setFilterLevel] = useState('ALL')
   const [filterKategori, setFilterKategori] = useState('ALL')
@@ -285,7 +292,9 @@ export function MonitoringKedisiplinanClient({
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
   const [isFormModalOpen, setIsFormModalOpen] = useState(false)
   const [editKasusData, setEditKasusData] = useState<any>(null)
-  const [detailGroup, setDetailGroup] = useState<{ siswa: any; kasus: any[]; totalPoin: number; siswaId: string } | null>(null)
+  const [detailStudentId, setDetailStudentId] = useState<string | null>(null)
+  const detailRecords = detailStudentId ? allKasus.filter(row => row.siswa_id === detailStudentId) : []
+  const detailGroup = detailRecords.length ? { siswa: detailRecords[0].siswa, kasus: detailRecords, siswaId: detailRecords[0].siswa_id } : null
 
   // Master
   const [searchMaster, setSearchMaster] = useState('')
@@ -295,6 +304,7 @@ export function MonitoringKedisiplinanClient({
 
   const activeFilterCount = useMemo(() => {
     let count = 0
+    if (filterPeriod !== defaultPeriod) count++
     if (filterTingkat !== 'ALL') count++
     if (filterLevel !== 'ALL') count++
     if (filterKategori !== 'ALL') count++
@@ -305,7 +315,7 @@ export function MonitoringKedisiplinanClient({
     if (minPoin) count++
     if (sortMode !== 'latest') count++
     return count
-  }, [filterTingkat, filterLevel, filterKategori, filterPelanggaran, tglMulai, tglSelesai, minKasus, minPoin, sortMode])
+  }, [filterPeriod, defaultPeriod, filterTingkat, filterLevel, filterKategori, filterPelanggaran, tglMulai, tglSelesai, minKasus, minPoin, sortMode])
 
   // ── Group kasus per siswa ─────────────────────────────────
   const kategoriOptions = useMemo(() => {
@@ -320,7 +330,7 @@ export function MonitoringKedisiplinanClient({
   }, [allKasus, masterList])
 
   const filteredKasus = useMemo(() => {
-    let result = [...allKasus]
+    let result = allKasus.filter(row => filterPeriod === ALL_DISCIPLINE_PERIODS || row.tahun_ajaran_id === filterPeriod)
     if (search) {
       const q = search.toLowerCase()
       result = result.filter(k =>
@@ -336,7 +346,7 @@ export function MonitoringKedisiplinanClient({
     if (tglMulai) result = result.filter(k => getTanggalTimestamp(k.tanggal) >= getTanggalTimestamp(tglMulai))
     if (tglSelesai) result = result.filter(k => getTanggalTimestamp(k.tanggal) <= getTanggalTimestamp(tglSelesai))
     return result
-  }, [allKasus, search, filterTingkat, filterKategori, filterPelanggaran, tglMulai, tglSelesai])
+  }, [allKasus, search, filterPeriod, filterTingkat, filterKategori, filterPelanggaran, tglMulai, tglSelesai])
 
   const grouped = useMemo(() => {
     const map = new Map<string, { siswa: any; kasus: any[]; totalPoin: number; siswaId: string }>()
@@ -344,7 +354,7 @@ export function MonitoringKedisiplinanClient({
       if (!map.has(k.siswa_id)) map.set(k.siswa_id, { siswa: k.siswa, kasus: [], totalPoin: 0, siswaId: k.siswa_id })
       const entry = map.get(k.siswa_id)!
       entry.kasus.push(k)
-      entry.totalPoin += k.master_pelanggaran?.poin || 0
+      if (k.publication_status === 'published') entry.totalPoin += k.master_pelanggaran.poin
     }
     return Array.from(map.values())
   }, [filteredKasus])
@@ -363,7 +373,7 @@ export function MonitoringKedisiplinanClient({
     let result = grouped
     if (filterLevel !== 'ALL') {
       result = result.filter(g => {
-        const lt = lifetimePoin[g.siswaId] ?? g.totalPoin
+        const lt = lifetimePoin[g.siswaId] ?? 0
         const sanksi = getSanksiForPoin(lt, sanksiList)
         if (filterLevel === 'baik') return !sanksi
         return sanksi?.id === filterLevel
@@ -377,8 +387,8 @@ export function MonitoringKedisiplinanClient({
     if (minPoin && Number.isFinite(minPoinValue)) result = result.filter(g => g.totalPoin >= minPoinValue)
 
     result = [...result].sort((a, b) => {
-      const lifetimeA = lifetimePoin[a.siswaId] ?? a.totalPoin
-      const lifetimeB = lifetimePoin[b.siswaId] ?? b.totalPoin
+      const lifetimeA = lifetimePoin[a.siswaId] ?? 0
+      const lifetimeB = lifetimePoin[b.siswaId] ?? 0
       if (sortMode === 'oldest') return getLatestKasusDate(a.kasus) - getLatestKasusDate(b.kasus)
       if (sortMode === 'case_desc') return b.kasus.length - a.kasus.length || b.totalPoin - a.totalPoin
       if (sortMode === 'case_asc') return a.kasus.length - b.kasus.length || b.totalPoin - a.totalPoin
@@ -398,6 +408,7 @@ export function MonitoringKedisiplinanClient({
   const resetFilters = () => {
     setSearch('')
     setFilterTingkat('ALL')
+    setFilterPeriod(defaultPeriod)
     setFilterLevel('ALL')
     setFilterKategori('ALL')
     setFilterPelanggaran('ALL')
@@ -415,18 +426,6 @@ export function MonitoringKedisiplinanClient({
     setIsPending(true)
     const res = await hapusPelanggaran(id)
     if (res.error) alert(res.error)
-    else {
-      setAllKasus(prev => prev.filter((k: any) => k.id !== id))
-      // Update detailGroup jika sedang terbuka
-      if (detailGroup) {
-        const newKasus = detailGroup.kasus.filter(k => k.id !== id)
-        if (newKasus.length === 0) setDetailGroup(null)
-        else {
-          const removedPoin = detailGroup.kasus.find(k => k.id === id)?.master_pelanggaran?.poin || 0
-          setDetailGroup({ ...detailGroup, kasus: newKasus, totalPoin: detailGroup.totalPoin - removedPoin, siswaId: detailGroup.siswaId })
-        }
-      }
-    }
     setIsPending(false)
   }
 
@@ -571,6 +570,8 @@ export function MonitoringKedisiplinanClient({
                 )}
               </div>
 
+              <DisciplinePeriodSelect records={allKasus} activeId={taAktifId} value={filterPeriod} onChange={value => { setFilterPeriod(value); resetPage() }} />
+
               {/* Status summary line */}
               <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 px-1 pt-0.5">
                 <span>
@@ -594,7 +595,7 @@ export function MonitoringKedisiplinanClient({
               <>
                 <div className="space-y-2">
                   {pagedGroups.map(group => {
-                    const lt = lifetimePoin[group.siswaId] ?? group.totalPoin
+                    const lt = lifetimePoin[group.siswaId] ?? 0
                     const sanksi = getSanksiForPoin(lt, sanksiList)
                     const badgeStyle = sanksi ? getSanksiStyle(sanksi.urutan) : AMAN_STYLE
                     const kelas = group.siswa.kelas
@@ -608,7 +609,7 @@ export function MonitoringKedisiplinanClient({
                       <button
                         key={group.siswaId}
                         type="button"
-                        onClick={() => setDetailGroup(group)}
+                        onClick={() => setDetailStudentId(group.siswaId)}
                         className="w-full bg-surface border border-surface rounded-xl px-4 py-3 flex items-center gap-3 hover:border-rose-200 dark:hover:border-rose-800 hover:bg-rose-50/20 dark:hover:bg-rose-900/10 transition-all text-left group"
                       >
                         {/* Avatar */}
@@ -625,7 +626,7 @@ export function MonitoringKedisiplinanClient({
                             </span>
                           </div>
                           <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
-                            Kelas {kelas} · <span className="font-semibold">{group.kasus.length} kasus</span>
+                            Kelas {kelas} · <span className="font-semibold">{group.kasus.length} kasus dalam hasil filter</span>
                           </p>
                           {latestKasus && (
                             <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
@@ -637,13 +638,13 @@ export function MonitoringKedisiplinanClient({
 
                         {/* Poin TA ini */}
                         <div className="text-right shrink-0 hidden sm:block">
-                          <p className="text-[9px] text-slate-400 dark:text-slate-500 uppercase font-medium">Poin (TA)</p>
+                          <p className="text-[9px] text-slate-400 dark:text-slate-500 uppercase font-medium" title="Poin catatan terbit dalam hasil filter">Poin hasil filter</p>
                           <p className="text-base font-black text-rose-600">{group.totalPoin}</p>
                         </div>
 
                         {/* Poin Lifetime */}
                         <div className="text-right shrink-0">
-                          <p className="text-[9px] text-slate-400 dark:text-slate-500 uppercase font-medium">Seumur</p>
+                          <p className="text-[9px] text-slate-400 dark:text-slate-500 uppercase font-medium" title="Poin catatan terbit di semua periode">Poin seumur</p>
                           <p className="text-base font-black text-rose-700">{lt}</p>
                         </div>
 
@@ -982,13 +983,14 @@ export function MonitoringKedisiplinanClient({
         <DetailKasusModal
           group={detailGroup}
           lifetimePoin={lifetimePoin}
+          taAktifId={taAktifId}
           sanksiList={sanksiList}
           isSuperAdmin={isSuperAdmin}
           currentUser={currentUser}
           isPending={isPending}
           onEdit={(k) => { setEditKasusData(k); setIsFormModalOpen(true) }}
           onHapus={handleHapusKasus}
-          onClose={() => setDetailGroup(null)}
+          onClose={() => setDetailStudentId(null)}
         />
 
         {/* Modal: Master kamus */}

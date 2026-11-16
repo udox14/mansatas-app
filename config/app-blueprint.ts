@@ -205,7 +205,7 @@ export const APP_MODULES: ModuleItem[] = [
     keyFeatures: [
       'Pencarian cepat nama/NISN',
       'Profil komprehensif siswa & buku induk digital dengan navigasi tab responsif',
-      'Tata Tertib menampilkan riwayat periode aktif dari modul Kedisiplinan, dengan poin seumur hidup dari catatan terbit',
+      'Tata Tertib menampilkan pelanggaran lintas tahun dengan label semester, jumlah kasus periode aktif, dan poin seumur hidup dari catatan terbit',
       'Menu aksi terpadu responsif (Edit biodata, Cetak Full Report, Insight Verifikasi, Mutasi, Tandai Keluar)',
       'Kehadiran Full Report menghitung status akhir per hari setelah KBM dengan koreksi wali dan perizinan; seluruh riwayat mengikuti kelas dan jadwal tiap semester, arsip bulanan ditampilkan terpisah',
       'Cetak Full Report dioptimalkan hitam putih: teks dan garis tabel hitam, latar putih, gambar grayscale, serta margin A4 konsisten di setiap halaman',
@@ -260,7 +260,7 @@ export const APP_MODULES: ModuleItem[] = [
     summary: 'Pusat pencatatan, pemantauan, analitik, dan tindak lanjut pelanggaran tata tertib siswa.',
     description: 'Menyatukan pencatatan riwayat pelanggaran dan pemantauan siswa per kelas, akumulasi poin serta radar risiko, analitik kedisiplinan, pengelolaan kamus pelanggaran, dan klarifikasi orang tua.',
     roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'guru_bk', 'guru_piket', 'resepsionis', 'satpam', 'guru_ppl', 'wali_kelas'],
-    keyFeatures: ['Riwayat periode aktif yang sama di Tata Tertib pada Detail Siswa', 'Input, edit, dan impor menetapkan tahun ajaran serta semester dari tanggal kejadian', 'Monitoring pelanggar dengan filter lanjutan', 'Analitik dan radar risiko siswa', 'Kamus jenis serta poin pelanggaran', 'Klarifikasi orang tua dan tindak lanjut'],
+    keyFeatures: ['Riwayat lintas tahun dengan filter semester dan detail riwayat lengkap per siswa', 'Input, edit, dan impor menetapkan tahun ajaran serta semester dari tanggal kejadian', 'Monitoring pelanggar dimulai dari semester aktif dan dapat difilter lintas periode', 'Poin seumur hidup dihitung dari seluruh catatan terbit', 'Analitik dan radar risiko siswa', 'Kamus jenis serta poin pelanggaran', 'Klarifikasi orang tua dan tindak lanjut'],
     inputs: ['Input kejadian pelanggaran', 'Siswa terlibat', 'Bukti/keterangan'],
     outputs: ['Surat Peringatan resmi', 'Notifikasi level pelanggaran ke portal ortu'],
   },

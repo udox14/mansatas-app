@@ -1,13 +1,13 @@
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 import { expect, it } from 'vitest'
-import { getActiveDisciplineYear, loadDisciplineHistory, loadPublishedDisciplineTotals } from './discipline-history'
+import { formatDisciplineHistoryRow, getActiveDisciplineYear, loadDisciplineHistory, loadPublishedDisciplineTotals, summarizeDisciplinePoints } from './discipline-history'
 
-it('shares active history while retaining lifetime points only for published records', async () => {
+it('shares cross-year history, separates active counts, and keeps lifetime points consistent', async () => {
   const sqlite = new DatabaseSync(':memory:')
   try {
     sqlite.exec(`
-      CREATE TABLE tahun_ajaran (id, nama, is_active);
-      INSERT INTO tahun_ajaran VALUES ('past', '2025/2026', 0), ('current', '2026/2027', 1);
+      CREATE TABLE tahun_ajaran (id, nama, semester, is_active);
+      INSERT INTO tahun_ajaran VALUES ('past', '2025/2026', 2, 0), ('current', '2026/2027', 1, 1);
       CREATE TABLE siswa (id, nama_lengkap, foto_url, kelas_id);
       INSERT INTO siswa VALUES ('a', 'Siswa A', NULL, NULL), ('b', 'Siswa B', NULL, NULL);
       CREATE TABLE kelas (id, tingkat, nomor_kelas, kelompok);
@@ -23,7 +23,7 @@ it('shares active history while retaining lifetime points only for published rec
         id, siswa_id, tahun_ajaran_id, tanggal, master_pelanggaran_id, publication_status,
         nama_pelanggaran_snapshot, kategori_snapshot, poin_snapshot
       ) VALUES
-        ('old-year', 'a', 'past', '2026-11-02', 'master', 'published', NULL, NULL, 4),
+        ('old-year', 'a', 'past', '2026-06-30', 'legacy-master', 'published', 'Catatan lama', NULL, 4),
         ('recorded', 'a', 'current', '2026-10-28', 'master', 'published', 'Nama saat dicatat', 'Ringan', 8),
         ('pending', 'a', 'current', '2026-10-29', 'master', 'pending', NULL, NULL, 20),
         ('rejected', 'a', 'current', '2026-10-30', 'master', 'rejected', NULL, NULL, 10),
@@ -43,11 +43,16 @@ it('shares active history while retaining lifetime points only for published rec
 
     const active = await getActiveDisciplineYear(db)
     expect(active).toMatchObject({ id: 'current' })
-    const moduleHistory = await loadDisciplineHistory(db, active!.id)
-    const detailHistory = await loadDisciplineHistory(db, active!.id, 'a')
+    const moduleHistory = await loadDisciplineHistory(db)
+    const detailHistory = await loadDisciplineHistory(db, { studentId: 'a' })
     expect(detailHistory).toEqual(moduleHistory.filter(row => row.siswa_id === 'a'))
-    expect(detailHistory.map(row => row.id)).toEqual(['rejected', 'pending', 'recorded'])
+    expect(detailHistory.map(row => row.id)).toEqual(['rejected', 'pending', 'recorded', 'old-year'])
+    expect((await loadDisciplineHistory(db, { yearId: active!.id, studentId: 'a' })).map(row => row.id))
+      .toEqual(['rejected', 'pending', 'recorded'])
     expect(detailHistory[2]).toMatchObject({ nama_pelanggaran: 'Nama saat dicatat', kategori: 'Ringan', poin: 8 })
+    const formatted = detailHistory.map(formatDisciplineHistoryRow)
+    expect(formatted[3]).toMatchObject({ periode: 'TA 2025/2026 · Semester 2', master_pelanggaran: { nama_pelanggaran: 'Catatan lama', poin: 4 } })
+    expect(summarizeDisciplinePoints(moduleHistory.map(formatDisciplineHistoryRow))).toEqual({ a: 12, b: 40 })
     expect(await loadPublishedDisciplineTotals(db)).toEqual({ a: 12, b: 40 })
     expect(await loadPublishedDisciplineTotals(db, 'a')).toEqual({ a: 12 })
   } finally {

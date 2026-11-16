@@ -9,7 +9,7 @@ import { loadSanksiList } from '@/lib/sanksi-service'
 import { getUserRoles } from '@/lib/features'
 import { ensureRiwayatKelasSnapshotColumns } from '@/lib/riwayat-kelas'
 import { getStudentNotes } from '@/lib/student-notes'
-import { getActiveDisciplineYear, loadDisciplineHistory, loadPublishedDisciplineTotals } from '@/lib/discipline-history'
+import { formatDisciplineHistoryRow, formatDisciplinePeriod, getActiveDisciplineYear, loadDisciplineHistory, loadPublishedDisciplineTotals } from '@/lib/discipline-history'
 import { ensureParentDisciplineSchema } from '@/lib/parent-discipline'
 
 export const metadata = { title: 'Buku Induk Siswa - MANSATAS' }
@@ -120,10 +120,10 @@ export default async function DetailSiswaPage({
       const tahun = await getActiveDisciplineYear(db)
       await ensureParentDisciplineSchema(db)
       const [pelanggaran, totals] = await Promise.all([
-        tahun ? loadDisciplineHistory(db, tahun.id, id) : [],
+        loadDisciplineHistory(db, { studentId: id }),
         loadPublishedDisciplineTotals(db, id),
       ])
-      return { tahun: tahun?.nama ?? null, pelanggaran, totalPoin: totals[id] ?? 0 }
+      return { tahun, pelanggaran, totalPoin: totals[id] ?? 0 }
     })(),
 
     db.prepare(`
@@ -236,22 +236,7 @@ export default async function DetailSiswaPage({
     ),
   }))
 
-  const formattedPelanggaran = disiplin.pelanggaran.map(row => ({
-    id: row.id,
-    tanggal: row.tanggal,
-    jam_input: row.jam_input ?? '',
-    keterangan: row.keterangan,
-    foto_url: row.foto_url,
-    master_pelanggaran_id: row.master_pelanggaran_id,
-    diinput_oleh: row.diinput_oleh,
-    publication_status: row.publication_status,
-    master_pelanggaran: {
-      nama_pelanggaran: row.nama_pelanggaran,
-      kategori: row.kategori,
-      poin: row.poin,
-    },
-    pelapor: { nama_lengkap: row.pelapor_nama },
-  }))
+  const formattedPelanggaran = disiplin.pelanggaran.map(formatDisciplineHistoryRow)
   const studentNotes = await getStudentNotes(db, user.id, id, userRoles)
 
   return (
@@ -264,7 +249,10 @@ export default async function DetailSiswaPage({
         siswa={siswaWithNilai}
         riwayatKelas={formattedRiwayatKelas}
         pelanggaran={formattedPelanggaran}
-        tahunDisiplin={disiplin.tahun}
+        periodeDisiplin={disiplin.tahun ? {
+          label: formatDisciplinePeriod(disiplin.tahun.nama, disiplin.tahun.semester),
+          jumlah: formattedPelanggaran.filter(row => row.tahun_ajaran_id === disiplin.tahun?.id).length,
+        } : null}
         totalPoin={disiplin.totalPoin}
         izinKeluar={izinKeluar.results || []}
         izinKelas={formattedIzinKelas}

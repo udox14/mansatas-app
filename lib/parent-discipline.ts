@@ -84,11 +84,16 @@ export async function ensureParentDisciplineSchema(db: D1Database) {
 }
 
 export async function canReviewDisciplineRecord(db: D1Database, userId: string, siswaId: string) {
-  const row = await db.prepare(`
-    SELECT 1 AS allowed
+  return (await listReviewableDisciplineStudents(db, userId, [siswaId])).length > 0
+}
+
+export async function listReviewableDisciplineStudents(db: D1Database, userId: string, studentIds: string[]) {
+  if (!studentIds.length) return []
+  const { results } = await db.prepare(`
+    SELECT s.id
     FROM siswa s
     LEFT JOIN kelas k ON k.id = s.kelas_id
-    WHERE s.id = ? AND (
+    WHERE s.id IN (SELECT value FROM json_each(?)) AND (
       EXISTS (
         SELECT 1 FROM user_roles ur
         WHERE ur.user_id = ? AND ur.role IN ('super_admin','admin_tu','kepsek','wakamad')
@@ -103,9 +108,9 @@ export async function canReviewDisciplineRecord(db: D1Database, userId: string, 
         JOIN tahun_ajaran ta ON ta.id = kb.tahun_ajaran_id AND ta.is_active = 1
         WHERE kb.kelas_id = s.kelas_id AND kb.guru_bk_id = ?
       )
-    ) LIMIT 1
-  `).bind(siswaId, userId, userId, userId, userId).first<{ allowed: number }>()
-  return Boolean(row)
+    )
+  `).bind(JSON.stringify(studentIds), userId, userId, userId, userId).all<{ id: string }>()
+  return results.map(row => row.id)
 }
 
 export async function getParentDisciplineData(db: D1Database, siswaId: string, tahunAjaranId: string) {

@@ -10,8 +10,8 @@ import { PageLoading } from '@/components/layout/page-loading'
 import { KedisiplinanClient } from './components/kedisiplinan-client'
 import { PageHeader } from '@/components/layout/page-header'
 import { loadSanksiList, type SanksiConfig } from '@/lib/sanksi-service'
-import { canReviewDisciplineRecord, ensureParentDisciplineSchema } from '@/lib/parent-discipline'
-import { getActiveDisciplineYear, loadDisciplineHistory, loadPublishedDisciplineTotals } from '@/lib/discipline-history'
+import { listReviewableDisciplineStudents, ensureParentDisciplineSchema } from '@/lib/parent-discipline'
+import { formatDisciplineHistoryRow, formatDisciplinePeriod, getActiveDisciplineYear, loadDisciplineHistory } from '@/lib/discipline-history'
 import { AnalitikKedisiplinanClient } from './components/analitik-client'
 import { MonitoringKedisiplinanClient } from '../monitoring-kedisiplinan/components/monitoring-kedisiplinan-client'
 import { getAnalitikKedisiplinan } from './actions'
@@ -28,18 +28,17 @@ const TABS: { id: KedisiplinanTab; label: string; icon: typeof ClipboardList }[]
   { id: 'klarifikasi', label: 'Klarifikasi Ortu', icon: MessageSquareText },
 ]
 
-async function KedisiplinanDataFetcher({ currentUser, taAktifId, sanksiList, lifetimePoin, initialTab }: {
+async function KedisiplinanDataFetcher({ currentUser, taAktifId, sanksiList, initialTab }: {
   currentUser: any
-  taAktifId: string
+  taAktifId?: string
   sanksiList: SanksiConfig[]
-  lifetimePoin: Record<string, number>
   initialTab: 'riwayat' | 'kamus' | 'klarifikasi'
 }) {
   const db = await getDB()
   await ensureParentDisciplineSchema(db)
 
   const [kasus, masterResult, tingkatResult, clarificationResult] = await Promise.all([
-    loadDisciplineHistory(db, taAktifId),
+    loadDisciplineHistory(db),
     db.prepare(`SELECT id, kategori, nama_pelanggaran, poin FROM master_pelanggaran ORDER BY poin ASC`).all<any>(),
     db.prepare(`SELECT DISTINCT tingkat FROM kelas WHERE tingkat IS NOT NULL`).all<{ tingkat: string | number }>(),
     db.prepare(`
@@ -51,24 +50,14 @@ async function KedisiplinanDataFetcher({ currentUser, taAktifId, sanksiList, lif
     `).all<any>(),
   ])
 
-  const formattedKasus = kasus.map(p => ({
-    id: p.id, tanggal: p.tanggal, jam_input: p.jam_input ?? '', keterangan: p.keterangan, foto_url: p.foto_url,
-    publication_status: p.publication_status || 'published', review_note: p.review_note, reviewed_at: p.reviewed_at,
-    siswa_id: p.siswa_id, master_pelanggaran_id: p.master_pelanggaran_id, diinput_oleh: p.diinput_oleh,
-    siswa: { nama_lengkap: p.siswa_nama, foto_url: p.siswa_foto ?? null, kelas: p.tingkat ? { tingkat: p.tingkat, nomor_kelas: p.nomor_kelas, kelompok: p.kelompok } : null },
-    master_pelanggaran: { nama_pelanggaran: p.nama_pelanggaran, kategori: p.kategori, poin: p.poin },
-    pelapor: { nama_lengkap: p.pelapor_nama }
-  }))
+  const formattedKasus = kasus.map(formatDisciplineHistoryRow)
 
   const tingkatList = (tingkatResult.results || []).map(row => String(row.tingkat))
-  const reviewableStudentIds = new Set<string>()
   const studentIds = Array.from(new Set([
-    ...kasus.map(row => row.siswa_id),
+    ...kasus.filter(row => row.publication_status === 'pending').map(row => row.siswa_id),
     ...(clarificationResult.results || []).map((row: any) => String(row.siswa_id)),
   ]))
-  await Promise.all(studentIds.map(async siswaId => {
-    if (await canReviewDisciplineRecord(db, currentUser.id, siswaId)) reviewableStudentIds.add(siswaId)
-  }))
+  const reviewableStudentIds = new Set(await listReviewableDisciplineStudents(db, currentUser.id, studentIds))
   const reviewableRecordIds = formattedKasus.filter(row => reviewableStudentIds.has(row.siswa_id)).map(row => row.id)
   const clarifications = (clarificationResult.results || []).filter((row: any) => reviewableStudentIds.has(String(row.siswa_id)))
 
@@ -78,7 +67,6 @@ async function KedisiplinanDataFetcher({ currentUser, taAktifId, sanksiList, lif
     masterList={masterResult.results || []}
     taAktifId={taAktifId}
     sanksiList={sanksiList}
-    lifetimePoin={lifetimePoin}
     tingkatList={tingkatList}
     reviewableRecordIds={reviewableRecordIds}
     clarifications={clarifications}
@@ -89,84 +77,31 @@ async function KedisiplinanDataFetcher({ currentUser, taAktifId, sanksiList, lif
 
 async function KedisiplinanFetcher({ currentUser, taAktifId, initialTab }: {
   currentUser: any
-  taAktifId: string
+  taAktifId?: string
   initialTab: 'riwayat' | 'kamus' | 'klarifikasi'
 }) {
   const db = await getDB()
-  await ensureParentDisciplineSchema(db)
-  const [sanksiList, lifetimePoin] = await Promise.all([
-    loadSanksiList(db),
-    loadPublishedDisciplineTotals(db),
-  ])
-  return <KedisiplinanDataFetcher currentUser={currentUser} taAktifId={taAktifId} sanksiList={sanksiList} lifetimePoin={lifetimePoin} initialTab={initialTab} />
+  const sanksiList = await loadSanksiList(db)
+  return <KedisiplinanDataFetcher currentUser={currentUser} taAktifId={taAktifId} sanksiList={sanksiList} initialTab={initialTab} />
 }
 
-async function MonitoringDataFetcher({ currentUser, taAktifId, sanksiList, lifetimePoin }: {
-  currentUser: any
-  taAktifId: string
-  sanksiList: SanksiConfig[]
-  lifetimePoin: Record<string, number>
-}) {
+async function MonitoringFetcher({ currentUser, taAktifId }: { currentUser: any; taAktifId?: string }) {
   const db = await getDB()
-  const [kasusResult, masterResult, tingkatResult] = await Promise.all([
-    db.prepare(`
-      SELECT sp.id, sp.tanggal, sp.jam_input, sp.keterangan, sp.foto_url, sp.siswa_id, sp.master_pelanggaran_id, sp.diinput_oleh,
-        s.nama_lengkap as siswa_nama, s.foto_url as siswa_foto, k.tingkat, k.nomor_kelas, k.kelompok,
-        COALESCE(sp.nama_pelanggaran_snapshot, mp.nama_pelanggaran) AS nama_pelanggaran,
-        COALESCE(sp.kategori_snapshot, mp.kategori) AS kategori,
-        COALESCE(sp.poin_snapshot, mp.poin) AS poin, u.nama_lengkap as pelapor_nama
-      FROM siswa_pelanggaran sp
-      JOIN siswa s ON sp.siswa_id = s.id
-      LEFT JOIN kelas k ON s.kelas_id = k.id
-      JOIN master_pelanggaran mp ON sp.master_pelanggaran_id = mp.id
-      LEFT JOIN "user" u ON sp.diinput_oleh = u.id
-      WHERE sp.tahun_ajaran_id = ?
-      ORDER BY sp.tanggal DESC, sp.created_at DESC
-    `).bind(taAktifId).all<any>(),
-    db.prepare(`SELECT id, kategori, nama_pelanggaran, poin FROM master_pelanggaran ORDER BY poin ASC`).all<any>(),
-    db.prepare(`SELECT DISTINCT tingkat FROM kelas WHERE tingkat IS NOT NULL`).all<{ tingkat: string | number }>(),
+  await ensureParentDisciplineSchema(db)
+  const [kasus, masterResult, tingkatResult, sanksiList] = await Promise.all([
+    loadDisciplineHistory(db),
+    db.prepare('SELECT id, kategori, nama_pelanggaran, poin FROM master_pelanggaran ORDER BY poin ASC').all<any>(),
+    db.prepare('SELECT DISTINCT tingkat FROM kelas WHERE tingkat IS NOT NULL').all<{ tingkat: string | number }>(),
+    loadSanksiList(db),
   ])
-
-  const formattedKasus = (kasusResult.results || []).map((p: any) => ({
-    id: p.id,
-    tanggal: p.tanggal,
-    jam_input: p.jam_input ?? '',
-    keterangan: p.keterangan,
-    foto_url: p.foto_url,
-    siswa_id: p.siswa_id,
-    master_pelanggaran_id: p.master_pelanggaran_id,
-    diinput_oleh: p.diinput_oleh,
-    siswa: { nama_lengkap: p.siswa_nama, foto_url: p.siswa_foto ?? null, kelas: p.tingkat ? { tingkat: p.tingkat, nomor_kelas: p.nomor_kelas, kelompok: p.kelompok } : null },
-    master_pelanggaran: { nama_pelanggaran: p.nama_pelanggaran, kategori: p.kategori, poin: p.poin },
-    pelapor: { nama_lengkap: p.pelapor_nama },
-  }))
-  const tingkatList = (tingkatResult.results || []).map(row => String(row.tingkat))
-
   return <MonitoringKedisiplinanClient
     currentUser={currentUser}
-    kasusList={formattedKasus}
-    masterList={masterResult.results || []}
+    kasusList={kasus.map(formatDisciplineHistoryRow)}
+    masterList={masterResult.results}
     taAktifId={taAktifId}
     sanksiList={sanksiList}
-    lifetimePoin={lifetimePoin}
-    tingkatList={tingkatList}
+    tingkatList={tingkatResult.results.map(row => String(row.tingkat))}
   />
-}
-
-async function MonitoringFetcher({ currentUser, taAktifId }: { currentUser: any; taAktifId: string }) {
-  const db = await getDB()
-  const [sanksiList, lifetimePoinRes] = await Promise.all([
-    loadSanksiList(db),
-    db.prepare(`
-      SELECT sp.siswa_id, SUM(mp.poin) as total_poin
-      FROM siswa_pelanggaran sp
-      JOIN master_pelanggaran mp ON sp.master_pelanggaran_id = mp.id
-      GROUP BY sp.siswa_id
-    `).all<any>(),
-  ])
-  const lifetimePoin: Record<string, number> = {}
-  for (const row of (lifetimePoinRes.results || [])) lifetimePoin[row.siswa_id] = row.total_poin
-  return <MonitoringDataFetcher currentUser={currentUser} taAktifId={taAktifId} sanksiList={sanksiList} lifetimePoin={lifetimePoin} />
 }
 
 async function AnalitikFetcher({ taAktifId, isAdmin }: { taAktifId: string; isAdmin: boolean }) {
@@ -198,7 +133,7 @@ export default async function KedisiplinanPage({
   const isAdmin = ['super_admin', 'admin_tu', 'kepsek'].includes(role)
   const innerDisciplineTab = activeTab === 'kamus' || activeTab === 'klarifikasi' ? activeTab : 'riwayat'
   const taAktif = await getActiveDisciplineYear(db)
-  if (!taAktif) return (
+  if (!taAktif && activeTab === 'analitik') return (
     <div className="p-8 text-center text-rose-500 font-bold bg-rose-50 rounded-xl m-8">
       Tahun Ajaran aktif belum diatur oleh Admin. Hubungi Tata Usaha.
     </div>
@@ -212,7 +147,7 @@ export default async function KedisiplinanPage({
       >
         <div className="flex items-center gap-1.5 text-[12px] text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-800 px-2.5 py-1 rounded-md bg-slate-50 dark:bg-slate-800/60 dark:border-slate-700">
           <CalendarDays className="h-3.5 w-3.5" />
-          <span>TA: <strong className="text-slate-800 dark:text-slate-200 dark:text-slate-100 font-semibold">{taAktif.nama}</strong></span>
+          <span>Periode aktif <strong className="text-slate-800 dark:text-slate-200 dark:text-slate-100 font-semibold">{taAktif ? formatDisciplinePeriod(taAktif.nama, taAktif.semester) : 'belum diatur'}</strong></span>
         </div>
       </PageHeader>
 
@@ -237,15 +172,15 @@ export default async function KedisiplinanPage({
 
         {activeTab === 'monitoring' ? (
           <Suspense fallback={<PageLoading text="Memuat monitoring pelanggar..." />}>
-            <MonitoringFetcher currentUser={currentUser} taAktifId={taAktif.id} />
+            <MonitoringFetcher currentUser={currentUser} taAktifId={taAktif?.id} />
           </Suspense>
         ) : activeTab === 'analitik' ? (
           <Suspense fallback={<PageLoading text="Memuat analitik kedisiplinan..." />}>
-            <AnalitikFetcher taAktifId={taAktif.id} isAdmin={isAdmin} />
+            {taAktif && <AnalitikFetcher taAktifId={taAktif.id} isAdmin={isAdmin} />}
           </Suspense>
         ) : (
           <Suspense fallback={<PageLoading text="Memuat data kedisiplinan..." />}>
-            <KedisiplinanFetcher currentUser={currentUser} taAktifId={taAktif.id} initialTab={innerDisciplineTab} />
+            <KedisiplinanFetcher currentUser={currentUser} taAktifId={taAktif?.id} initialTab={innerDisciplineTab} />
           </Suspense>
         )}
       </div>

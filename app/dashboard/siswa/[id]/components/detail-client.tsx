@@ -27,6 +27,7 @@ import { RekapAbsensiTab } from './rekap-absensi-tab'
 import { formatNamaKelas } from '@/lib/utils'
 import { formatTimeWIB, formatTanggalIndoSafe } from '@/lib/time'
 import type { SanksiConfig } from '@/lib/sanksi-service'
+import type { DisciplineHistoryRecord } from '@/lib/discipline-history'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 import { StudentNoteTimeline } from '@/components/student-notes/student-note-timeline'
 import type { StudentNote } from '@/lib/student-note-shared'
@@ -68,10 +69,10 @@ function formatDisciplineDate(tanggal: unknown) {
 }
 
 export function DetailSiswaClient({
-  siswa, riwayatKelas, pelanggaran, tahunDisiplin, totalPoin, izinKeluar, izinKelas, keteranganWaliKelas, keuangan, kelasList, currentUser, sanksiList, initialTab = 'biodata', studentNotes = []
+  siswa, riwayatKelas, pelanggaran, periodeDisiplin, totalPoin, izinKeluar, izinKelas, keteranganWaliKelas, keuangan, kelasList, currentUser, sanksiList, initialTab = 'biodata', studentNotes = []
 }: {
-  siswa: any, riwayatKelas: any[], pelanggaran: any[], izinKeluar: any[], izinKelas: any[], keteranganWaliKelas: any[]
-  tahunDisiplin: string | null
+  siswa: any, riwayatKelas: any[], pelanggaran: DisciplineHistoryRecord[], izinKeluar: any[], izinKelas: any[], keteranganWaliKelas: any[]
+  periodeDisiplin: { label: string; jumlah: number } | null
   totalPoin: number
   keuangan?: { dspt: any | null; sppSaldoAwal: any | null; transaksi: any[] }
   kelasList?: any[],
@@ -628,31 +629,33 @@ export function DetailSiswaClient({
                   </div>
                 )}
                 <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
-                  {tahunDisiplin && `${pelanggaran.length} kasus tercatat · TA ${tahunDisiplin}`}
+                  Poin dihitung dari catatan terbit di semua periode.
                 </p>
+                <p className="text-xs font-medium text-slate-600 dark:text-slate-300">{pelanggaran.length} kasus sepanjang riwayat</p>
+                {periodeDisiplin && <p className="text-xs text-slate-500 dark:text-slate-400">{periodeDisiplin.jumlah} kasus di periode aktif ({periodeDisiplin.label})</p>}
               </div>
             </div>
 
             <div className="bg-surface rounded-lg border border-surface md:col-span-2 overflow-hidden flex flex-col h-80">
               <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 px-3 py-2.5 border-b bg-surface-2 flex items-center gap-2">
-                <History className="h-5 w-5 text-slate-500 dark:text-slate-400 dark:text-slate-500"/> Riwayat Pelanggaran Tercatat
+                <History className="h-5 w-5 text-slate-500 dark:text-slate-400 dark:text-slate-500"/> Riwayat Semua Tahun Ajaran
               </h3>
               <ScrollArea className="flex-1">
                 {pelanggaran.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-slate-400 dark:text-slate-500 p-8">
                     <CheckCircle2 className="h-12 w-12 text-emerald-200 mb-2" />
-                    <p>{tahunDisiplin ? 'Belum ada catatan pelanggaran pada periode aktif.' : 'Tahun ajaran aktif belum diatur.'}</p>
+                    <p>Belum ada catatan pelanggaran.</p>
                   </div>
                 ) : (
                   <div className="divide-y divide-slate-100">
                     {pelanggaran.map(p => (
                       <div key={p.id} className="p-4 hover:bg-surface-2 transition-colors flex gap-4">
                         <div className="shrink-0 flex flex-col items-center justify-center h-12 w-12 bg-rose-100 rounded-2xl text-rose-600 font-black border border-rose-200 shadow-sm">
-                          +{p.master_pelanggaran?.poin ?? p.poin ?? 0}
+                          +{p.master_pelanggaran.poin}
                         </div>
                         <div className="flex-1">
-                          <h4 className="font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 text-sm">{p.master_pelanggaran?.nama_pelanggaran || p.nama_pelanggaran || 'Pelanggaran tidak tersedia'}</h4>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{formatDisciplineDate(p.tanggal)}</p>
+                          <h4 className="font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 text-sm">{p.master_pelanggaran.nama_pelanggaran}</h4>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{formatDisciplineDate(p.tanggal)} · {p.periode}</p>
                           {p.publication_status !== 'published' && (
                             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                               {p.publication_status === 'pending' ? 'Menunggu verifikasi' : 'Publikasi ditolak'}
