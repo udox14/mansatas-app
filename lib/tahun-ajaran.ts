@@ -3,6 +3,14 @@ export function normalizeTahunAjaran(nama: string | null | undefined) {
   return clean || '-'
 }
 
+export function academicPeriodDates(nama: string, semester: number): { startDate: string | null; endDate: string | null } {
+  const match = nama.match(/(\d{4})\s*\/\s*(\d{4})/)
+  if (!match) return { startDate: null, endDate: null }
+  return semester === 1
+    ? { startDate: `${match[1]}-07-01`, endDate: `${match[1]}-12-31` }
+    : { startDate: `${match[2]}-01-01`, endDate: `${match[2]}-06-30` }
+}
+
 export function getNextTahunAjaran(nama: string | null | undefined) {
   const clean = normalizeTahunAjaran(nama)
   const match = clean.match(/(\d{4})\s*\/\s*(\d{4})/)

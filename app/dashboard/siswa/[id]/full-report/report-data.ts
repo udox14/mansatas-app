@@ -3,6 +3,9 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { createSignedMediaUrl } from '@/lib/media-security'
 import { getFinalAttendanceForClass } from '@/lib/wali-kelas-attendance'
 import { summarizeKelasBinaanAttendance } from '@/lib/kelas-binaan-attendance'
+import { academicPeriodDates } from '@/lib/tahun-ajaran'
+
+export { academicPeriodDates } from '@/lib/tahun-ajaran'
 
 export const FULL_REPORT_ROLES = ['super_admin', 'kepsek', 'wakamad', 'admin_tu', 'guru_bk'] as const
 
@@ -105,14 +108,6 @@ function parseObject(value: unknown): Record<string, unknown> {
   } catch {
     return {}
   }
-}
-
-export function academicPeriodDates(nama: string, semester: number): { startDate: string | null; endDate: string | null } {
-  const match = nama.match(/(\d{4})\s*\/\s*(\d{4})/)
-  if (!match) return { startDate: null, endDate: null }
-  return semester === 1
-    ? { startDate: `${match[1]}-07-01`, endDate: `${match[1]}-12-31` }
-    : { startDate: `${match[2]}-01-01`, endDate: `${match[2]}-06-30` }
 }
 
 function dateClause(column: string, period: ReportPeriod | null) {

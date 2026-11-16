@@ -11,6 +11,7 @@ import { KedisiplinanClient } from './components/kedisiplinan-client'
 import { PageHeader } from '@/components/layout/page-header'
 import { loadSanksiList, type SanksiConfig } from '@/lib/sanksi-service'
 import { canReviewDisciplineRecord, ensureParentDisciplineSchema } from '@/lib/parent-discipline'
+import { getActiveDisciplineYear, loadDisciplineHistory, loadPublishedDisciplineTotals } from '@/lib/discipline-history'
 import { AnalitikKedisiplinanClient } from './components/analitik-client'
 import { MonitoringKedisiplinanClient } from '../monitoring-kedisiplinan/components/monitoring-kedisiplinan-client'
 import { getAnalitikKedisiplinan } from './actions'
@@ -37,22 +38,8 @@ async function KedisiplinanDataFetcher({ currentUser, taAktifId, sanksiList, lif
   const db = await getDB()
   await ensureParentDisciplineSchema(db)
 
-  const [kasusResult, masterResult, tingkatResult, clarificationResult] = await Promise.all([
-    db.prepare(`
-      SELECT sp.id, sp.tanggal, sp.jam_input, sp.keterangan, sp.foto_url, sp.siswa_id, sp.master_pelanggaran_id, sp.diinput_oleh,
-        sp.publication_status, sp.review_note, sp.reviewed_at,
-        s.nama_lengkap as siswa_nama, s.foto_url as siswa_foto, k.tingkat, k.nomor_kelas, k.kelompok,
-        COALESCE(sp.nama_pelanggaran_snapshot, mp.nama_pelanggaran) AS nama_pelanggaran,
-        COALESCE(sp.kategori_snapshot, mp.kategori) AS kategori,
-        COALESCE(sp.poin_snapshot, mp.poin) AS poin, u.nama_lengkap as pelapor_nama
-      FROM siswa_pelanggaran sp
-      JOIN siswa s ON sp.siswa_id = s.id
-      LEFT JOIN kelas k ON s.kelas_id = k.id
-      JOIN master_pelanggaran mp ON sp.master_pelanggaran_id = mp.id
-      LEFT JOIN "user" u ON sp.diinput_oleh = u.id
-      WHERE sp.tahun_ajaran_id = ?
-      ORDER BY sp.tanggal DESC, sp.created_at DESC
-    `).bind(taAktifId).all<any>(),
+  const [kasus, masterResult, tingkatResult, clarificationResult] = await Promise.all([
+    loadDisciplineHistory(db, taAktifId),
     db.prepare(`SELECT id, kategori, nama_pelanggaran, poin FROM master_pelanggaran ORDER BY poin ASC`).all<any>(),
     db.prepare(`SELECT DISTINCT tingkat FROM kelas WHERE tingkat IS NOT NULL`).all<{ tingkat: string | number }>(),
     db.prepare(`
@@ -64,7 +51,7 @@ async function KedisiplinanDataFetcher({ currentUser, taAktifId, sanksiList, lif
     `).all<any>(),
   ])
 
-  const formattedKasus = (kasusResult.results || []).map((p: any) => ({
+  const formattedKasus = kasus.map(p => ({
     id: p.id, tanggal: p.tanggal, jam_input: p.jam_input ?? '', keterangan: p.keterangan, foto_url: p.foto_url,
     publication_status: p.publication_status || 'published', review_note: p.review_note, reviewed_at: p.reviewed_at,
     siswa_id: p.siswa_id, master_pelanggaran_id: p.master_pelanggaran_id, diinput_oleh: p.diinput_oleh,
@@ -76,7 +63,7 @@ async function KedisiplinanDataFetcher({ currentUser, taAktifId, sanksiList, lif
   const tingkatList = (tingkatResult.results || []).map(row => String(row.tingkat))
   const reviewableStudentIds = new Set<string>()
   const studentIds = Array.from(new Set([
-    ...(kasusResult.results || []).map((row: any) => String(row.siswa_id)),
+    ...kasus.map(row => row.siswa_id),
     ...(clarificationResult.results || []).map((row: any) => String(row.siswa_id)),
   ]))
   await Promise.all(studentIds.map(async siswaId => {
@@ -107,18 +94,10 @@ async function KedisiplinanFetcher({ currentUser, taAktifId, initialTab }: {
 }) {
   const db = await getDB()
   await ensureParentDisciplineSchema(db)
-  const [sanksiList, lifetimePoinRes] = await Promise.all([
+  const [sanksiList, lifetimePoin] = await Promise.all([
     loadSanksiList(db),
-    db.prepare(`
-      SELECT sp.siswa_id, SUM(COALESCE(sp.poin_snapshot, mp.poin, 0)) as total_poin
-      FROM siswa_pelanggaran sp
-      LEFT JOIN master_pelanggaran mp ON sp.master_pelanggaran_id = mp.id
-      WHERE sp.publication_status = 'published'
-      GROUP BY sp.siswa_id
-    `).all<any>(),
+    loadPublishedDisciplineTotals(db),
   ])
-  const lifetimePoin: Record<string, number> = {}
-  for (const r of (lifetimePoinRes.results || [])) lifetimePoin[r.siswa_id] = r.total_poin
   return <KedisiplinanDataFetcher currentUser={currentUser} taAktifId={taAktifId} sanksiList={sanksiList} lifetimePoin={lifetimePoin} initialTab={initialTab} />
 }
 
@@ -218,7 +197,7 @@ export default async function KedisiplinanPage({
   const currentUser = { id: user.id, role, roles, nama: (user as any).nama_lengkap ?? user.name ?? '' }
   const isAdmin = ['super_admin', 'admin_tu', 'kepsek'].includes(role)
   const innerDisciplineTab = activeTab === 'kamus' || activeTab === 'klarifikasi' ? activeTab : 'riwayat'
-  const taAktif = await db.prepare('SELECT id, nama FROM tahun_ajaran WHERE is_active = 1').first<any>()
+  const taAktif = await getActiveDisciplineYear(db)
   if (!taAktif) return (
     <div className="p-8 text-center text-rose-500 font-bold bg-rose-50 rounded-xl m-8">
       Tahun Ajaran aktif belum diatur oleh Admin. Hubungi Tata Usaha.

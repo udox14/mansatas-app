@@ -155,7 +155,7 @@ function DetailKasusModal({
   onClose: () => void
 }) {
   if (!group) return null
-  const totalPoinLifetime = lifetimePoin[group.siswaId] ?? group.totalPoin
+  const totalPoinLifetime = lifetimePoin[group.siswaId] ?? 0
   const sanksi = getSanksiForPoin(totalPoinLifetime, sanksiList)
   const badgeStyle = sanksi ? getSanksiStyle(sanksi.urutan) : AMAN_STYLE
   const kelas = group.siswa.kelas
@@ -349,7 +349,7 @@ export function KedisiplinanClient({
     if (filterPublication !== 'ALL') result = result.filter(k => (k.publication_status || 'published') === filterPublication)
     if (filterLevel !== 'ALL') {
       result = result.filter(k => {
-        const lt = lifetimePoin[k.siswa_id] ?? (k.master_pelanggaran?.poin || 0)
+        const lt = lifetimePoin[k.siswa_id] ?? 0
         const sanksi = getSanksiForPoin(lt, sanksiList)
         if (filterLevel === 'baik') return !sanksi
         return sanksi?.id === filterLevel
@@ -792,7 +792,7 @@ export function KedisiplinanClient({
               <>
                 <div className="space-y-2">
                   {pagedKasus.map(kasus => {
-                    const lt = lifetimePoin[kasus.siswa_id] ?? (kasus.master_pelanggaran?.poin || 0)
+                    const lt = lifetimePoin[kasus.siswa_id] ?? 0
                     const sanksi = getSanksiForPoin(lt, sanksiList)
                     const badgeStyle = sanksi ? getSanksiStyle(sanksi.urutan) : AMAN_STYLE
                     const kelas = kasus.siswa.kelas

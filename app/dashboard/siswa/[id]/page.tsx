@@ -9,6 +9,8 @@ import { loadSanksiList } from '@/lib/sanksi-service'
 import { getUserRoles } from '@/lib/features'
 import { ensureRiwayatKelasSnapshotColumns } from '@/lib/riwayat-kelas'
 import { getStudentNotes } from '@/lib/student-notes'
+import { getActiveDisciplineYear, loadDisciplineHistory, loadPublishedDisciplineTotals } from '@/lib/discipline-history'
+import { ensureParentDisciplineSchema } from '@/lib/parent-discipline'
 
 export const metadata = { title: 'Buku Induk Siswa - MANSATAS' }
 export const dynamic = 'force-dynamic'
@@ -86,7 +88,7 @@ export default async function DetailSiswaPage({
 
   const [
     riwayatKelas,
-    pelanggaran,
+    disiplin,
     izinKeluar,
     izinKelas,
     keteranganWaliKelas,
@@ -114,15 +116,15 @@ export default async function DetailSiswaPage({
       WHERE rk.siswa_id = ? ORDER BY rk.created_at DESC
     `).bind(id).all<any>(),
 
-    db.prepare(`
-      SELECT sp.id, sp.tanggal, sp.jam_input, sp.keterangan, sp.foto_url, sp.master_pelanggaran_id, sp.diinput_oleh,
-        mp.nama_pelanggaran, mp.poin, mp.kategori,
-        u.nama_lengkap as pelapor_nama
-      FROM siswa_pelanggaran sp
-      JOIN master_pelanggaran mp ON sp.master_pelanggaran_id = mp.id
-      LEFT JOIN "user" u ON sp.diinput_oleh = u.id
-      WHERE sp.siswa_id = ? ORDER BY sp.tanggal DESC
-    `).bind(id).all<any>(),
+    (async () => {
+      const tahun = await getActiveDisciplineYear(db)
+      await ensureParentDisciplineSchema(db)
+      const [pelanggaran, totals] = await Promise.all([
+        tahun ? loadDisciplineHistory(db, tahun.id, id) : [],
+        loadPublishedDisciplineTotals(db, id),
+      ])
+      return { tahun: tahun?.nama ?? null, pelanggaran, totalPoin: totals[id] ?? 0 }
+    })(),
 
     db.prepare(`
       SELECT ik.id, ik.waktu_keluar, ik.waktu_kembali, ik.status, ik.keterangan,
@@ -234,7 +236,7 @@ export default async function DetailSiswaPage({
     ),
   }))
 
-  const formattedPelanggaran = (pelanggaran.results || []).map((row: any) => ({
+  const formattedPelanggaran = disiplin.pelanggaran.map(row => ({
     id: row.id,
     tanggal: row.tanggal,
     jam_input: row.jam_input ?? '',
@@ -242,6 +244,7 @@ export default async function DetailSiswaPage({
     foto_url: row.foto_url,
     master_pelanggaran_id: row.master_pelanggaran_id,
     diinput_oleh: row.diinput_oleh,
+    publication_status: row.publication_status,
     master_pelanggaran: {
       nama_pelanggaran: row.nama_pelanggaran,
       kategori: row.kategori,
@@ -261,6 +264,8 @@ export default async function DetailSiswaPage({
         siswa={siswaWithNilai}
         riwayatKelas={formattedRiwayatKelas}
         pelanggaran={formattedPelanggaran}
+        tahunDisiplin={disiplin.tahun}
+        totalPoin={disiplin.totalPoin}
         izinKeluar={izinKeluar.results || []}
         izinKelas={formattedIzinKelas}
         keteranganWaliKelas={keteranganWaliKelas.results || []}

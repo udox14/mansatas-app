@@ -68,9 +68,11 @@ function formatDisciplineDate(tanggal: unknown) {
 }
 
 export function DetailSiswaClient({
-  siswa, riwayatKelas, pelanggaran, izinKeluar, izinKelas, keteranganWaliKelas, keuangan, kelasList, currentUser, sanksiList, initialTab = 'biodata', studentNotes = []
+  siswa, riwayatKelas, pelanggaran, tahunDisiplin, totalPoin, izinKeluar, izinKelas, keteranganWaliKelas, keuangan, kelasList, currentUser, sanksiList, initialTab = 'biodata', studentNotes = []
 }: {
   siswa: any, riwayatKelas: any[], pelanggaran: any[], izinKeluar: any[], izinKelas: any[], keteranganWaliKelas: any[]
+  tahunDisiplin: string | null
+  totalPoin: number
   keuangan?: { dspt: any | null; sppSaldoAwal: any | null; transaksi: any[] }
   kelasList?: any[],
   currentUser: any
@@ -93,11 +95,6 @@ export function DetailSiswaClient({
   // State untuk Accordion Akademik (Otomatis buka kelas saat ini, atau kelas 10 jika belum ada)
   const [openAccordion, setOpenAccordion] = useState<number | null>(siswa.kelas?.tingkat || 10)
   const toggleAccordion = (val: number) => setOpenAccordion(prev => prev === val ? null : val)
-
-  // 1. Kalkulasi Total Poin Pelanggaran & Credit Score
-  const totalPoin = useMemo(() => {
-    return pelanggaran.reduce((acc, curr) => acc + (curr.poin || curr.master_pelanggaran?.poin || 0), 0)
-  }, [pelanggaran])
 
   const activeSanksi = useMemo(() => {
     if (!sanksiList || sanksiList.length === 0) return null
@@ -601,7 +598,7 @@ export function DetailSiswaClient({
               <div className="flex flex-col items-center justify-center h-24 w-24 rounded-full border-4
                 border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/30">
                 <span className="text-3xl font-black text-rose-600 dark:text-rose-400 leading-none">{totalPoin}</span>
-                <span className="text-[9px] text-rose-400 dark:text-rose-600 font-bold uppercase tracking-wide mt-0.5">poin</span>
+                <span className="text-[9px] text-rose-400 dark:text-rose-600 font-bold uppercase tracking-wide mt-0.5">poin seumur</span>
               </div>
 
               <div>
@@ -631,7 +628,7 @@ export function DetailSiswaClient({
                   </div>
                 )}
                 <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
-                  {pelanggaran.length} kasus tercatat
+                  {tahunDisiplin && `${pelanggaran.length} kasus tercatat · TA ${tahunDisiplin}`}
                 </p>
               </div>
             </div>
@@ -644,7 +641,7 @@ export function DetailSiswaClient({
                 {pelanggaran.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-slate-400 dark:text-slate-500 p-8">
                     <CheckCircle2 className="h-12 w-12 text-emerald-200 mb-2" />
-                    <p>Belum ada catatan pelanggaran.</p>
+                    <p>{tahunDisiplin ? 'Belum ada catatan pelanggaran pada periode aktif.' : 'Tahun ajaran aktif belum diatur.'}</p>
                   </div>
                 ) : (
                   <div className="divide-y divide-slate-100">
@@ -656,6 +653,11 @@ export function DetailSiswaClient({
                         <div className="flex-1">
                           <h4 className="font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100 text-sm">{p.master_pelanggaran?.nama_pelanggaran || p.nama_pelanggaran || 'Pelanggaran tidak tersedia'}</h4>
                           <p className="text-xs text-slate-500 dark:text-slate-400 dark:text-slate-500 mt-0.5">{formatDisciplineDate(p.tanggal)}</p>
+                          {p.publication_status !== 'published' && (
+                            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                              {p.publication_status === 'pending' ? 'Menunggu verifikasi' : 'Publikasi ditolak'}
+                            </p>
+                          )}
                           {p.keterangan && <p className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-300 dark:text-slate-600 italic mt-1.5 bg-surface-3 p-2 rounded-lg">"{p.keterangan}"</p>}
                           <div className="flex items-center gap-2 mt-2">
                             <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Pelapor: {getDisciplineReporterLabel(p, currentUser)}</span>

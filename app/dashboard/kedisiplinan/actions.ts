@@ -33,6 +33,7 @@ import {
   type DisciplinePublicationStatus,
 } from '@/lib/parent-discipline'
 import { logActivity } from '@/lib/activity-log'
+import { ensureDisciplineImportSignature, loadDisciplinePeriods, resolveDisciplinePeriod } from '@/lib/discipline-period'
 
 const INPUT_PELANGGARAN_ROLES = ['super_admin', 'admin_tu', 'wakamad', 'guru_bk', 'guru_piket', 'resepsionis', 'satpam', 'guru']
 const MANAGE_KEDISIPLINAN_ROLES = ['super_admin', 'wakamad', 'guru_bk']
@@ -90,6 +91,7 @@ export type ImportPelanggaranCommitPayload = {
 function revalidateKedisiplinanPaths() {
   revalidatePath('/dashboard/kedisiplinan')
   revalidatePath('/dashboard/monitoring-kedisiplinan')
+  revalidatePath('/dashboard/siswa/[id]', 'page')
   revalidatePath('/portal-ortu')
 }
 
@@ -170,15 +172,6 @@ function isNotFutureDate(dateStr: string) {
   return !!dateStr && dateStr <= todayWIB()
 }
 
-function chooseNonFutureDate(year: number, month: number, day: number, swappedMonth?: number, swappedDay?: number) {
-  const primary = formatValidDateParts(year, month, day)
-  const swapped = swappedMonth && swappedDay ? formatValidDateParts(year, swappedMonth, swappedDay) : ''
-
-  if (isNotFutureDate(primary)) return primary
-  if (isNotFutureDate(swapped)) return swapped
-  return ''
-}
-
 function normalizeImportedDate(raw: unknown) {
   if (raw instanceof Date && !Number.isNaN(raw.getTime())) {
     const y = raw.getFullYear()
@@ -207,12 +200,17 @@ function normalizeImportedDate(raw: unknown) {
     const year = Number(iso[1])
     const middle = Number(iso[2])
     const last = Number(iso[3])
-    return chooseNonFutureDate(year, middle, last, last, middle)
+    const normalized = formatValidDateParts(year, middle, last)
+    return isNotFutureDate(normalized) ? normalized : ''
   }
 
   const slash = dateOnly.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/)
   if (slash) {
-    return chooseNonFutureDate(Number(slash[3]), Number(slash[2]), Number(slash[1]), Number(slash[1]), Number(slash[2]))
+    const year = Number(slash[3])
+    const day = Number(slash[1])
+    const month = Number(slash[2])
+    const normalized = formatValidDateParts(year, month, day) || formatValidDateParts(year, day, month)
+    return isNotFutureDate(normalized) ? normalized : ''
   }
 
   const parsed = new Date(dateOnly)
@@ -416,11 +414,6 @@ export async function simpanPelanggaran(prevState: any, formData: FormData) {
   const canInput = await hasAnyRole(db, user.id, INPUT_PELANGGARAN_ROLES)
   if (!canInput) return { error: 'Anda tidak memiliki hak untuk menginput pelanggaran.', success: null }
 
-  const ta = await db
-    .prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1')
-    .first<any>()
-  if (!ta) return { error: 'Tahun Ajaran aktif belum diatur sistem.', success: null }
-
   const id = formData.get('id') as string | null
   const siswa_id = formData.get('siswa_id') as string
   const master_pelanggaran_id = formData.get('master_pelanggaran_id') as string
@@ -439,6 +432,8 @@ export async function simpanPelanggaran(prevState: any, formData: FormData) {
   if (!tanggal) {
     return { error: 'Tanggal pelanggaran tidak valid.', success: null }
   }
+  const { period, error: periodError } = resolveDisciplinePeriod(await loadDisciplinePeriods(db), tanggal)
+  if (!period) return { error: periodError, success: null }
 
   const file = formData.get('foto') as File | null
   let foto_url = formData.get('existing_foto_url') as string | null
@@ -473,7 +468,7 @@ export async function simpanPelanggaran(prevState: any, formData: FormData) {
     jam_input,
     keterangan,
     foto_url,
-    tahun_ajaran_id: ta.id,
+    tahun_ajaran_id: period.id,
     diinput_oleh: user.id,
     nama_pelanggaran_snapshot: masterSnapshot.nama_pelanggaran,
     kategori_snapshot: masterSnapshot.kategori,
@@ -824,7 +819,7 @@ export async function previewImportPelanggaranMassal(dataExcel: ImportPelanggara
   if (!Array.isArray(dataExcel) || dataExcel.length === 0) return { error: 'File Excel kosong atau tidak terbaca.' }
   if (dataExcel.length > 1000) return { error: 'Maksimal 1000 baris per import agar proses review tetap ringan.' }
 
-  const [siswaRes, masterRes] = await Promise.all([
+  const [siswaRes, masterRes, periods] = await Promise.all([
     db.prepare(`
       SELECT s.id, s.nama_lengkap, s.status, s.nisn, k.tingkat, k.nomor_kelas, k.kelompok
       FROM siswa s
@@ -836,6 +831,7 @@ export async function previewImportPelanggaranMassal(dataExcel: ImportPelanggara
       FROM master_pelanggaran
       ORDER BY nama_pelanggaran ASC
     `).all<any>(),
+    loadDisciplinePeriods(db),
   ])
 
   const siswaByExact = new Map<string, any[]>()
@@ -865,9 +861,14 @@ export async function previewImportPelanggaranMassal(dataExcel: ImportPelanggara
     masterByExact.set(key, current)
   }
 
-  const allRows = dataExcel.map((item, index) =>
-    buildPreviewRow(item, index, siswaByExact, masterByExact, siswaIndexed, masterIndexed)
-  )
+  const allRows = dataExcel.map((item, index) => {
+    const row = buildPreviewRow(item, index, siswaByExact, masterByExact, siswaIndexed, masterIndexed)
+    if (row.tanggal_input) {
+      const { error } = resolveDisciplinePeriod(periods, row.tanggal_input)
+      if (error) row.blockingReasons.push(error)
+    }
+    return row
+  })
   const summary = buildImportSummary(allRows)
   const reviewRows = allRows.filter(row =>
     row.blockingReasons.length > 0 || !row.selectedSiswaId || !row.selectedMasterId
@@ -886,10 +887,7 @@ export async function commitImportPelanggaranMassal(payload: ImportPelanggaranCo
   const rows = Array.isArray(payload?.rows) ? payload.rows : []
   if (!rows.length) return { error: 'Tidak ada data siap import.' }
 
-  const ta = await db.prepare('SELECT id FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<any>()
-  if (!ta) return { error: 'Tahun Ajaran aktif belum diatur sistem.' }
-
-  const [siswaRes, masterRes] = await Promise.all([
+  const [siswaRes, masterRes, periods] = await Promise.all([
     db.prepare(`
       SELECT s.id, s.nama_lengkap, s.status, s.nisn, k.tingkat, k.nomor_kelas, k.kelompok
       FROM siswa s
@@ -901,6 +899,7 @@ export async function commitImportPelanggaranMassal(payload: ImportPelanggaranCo
       FROM master_pelanggaran
       ORDER BY nama_pelanggaran ASC
     `).all<any>(),
+    loadDisciplinePeriods(db),
   ])
 
   const siswaByExact = new Map<string, any[]>()
@@ -954,6 +953,11 @@ export async function commitImportPelanggaranMassal(payload: ImportPelanggaranCo
       skipped.push(`baris ${previewRow.rowNumber}`)
       continue
     }
+    const { period, error } = resolveDisciplinePeriod(periods, tanggal)
+    if (!period) {
+      skipped.push(`baris ${previewRow.rowNumber}: ${error}`)
+      continue
+    }
     const siswaValid = siswaList.some((s: any) => s.id === selectedSiswaId)
     const selectedMaster = masterList.find((m: any) => m.id === selectedMasterId)
     if (!siswaValid || !selectedMaster) {
@@ -963,7 +967,7 @@ export async function commitImportPelanggaranMassal(payload: ImportPelanggaranCo
 
     const createdAt = `${tanggal} ${jam}:00`
     const sourceSignature = buildImportSourceSignature({
-      tahunAjaranId: ta.id,
+      tahunAjaranId: period.id,
       siswaId: selectedSiswaId,
       masterId: selectedMasterId,
       tanggal,
@@ -977,7 +981,7 @@ export async function commitImportPelanggaranMassal(payload: ImportPelanggaranCo
           source_signature, keterangan, foto_url, diinput_oleh, created_at, updated_at,
           nama_pelanggaran_snapshot, kategori_snapshot, poin_snapshot, publication_status, reviewed_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(source_signature) DO UPDATE SET
+        ON CONFLICT(source_signature) WHERE source_signature IS NOT NULL DO UPDATE SET
           siswa_id = excluded.siswa_id,
           master_pelanggaran_id = excluded.master_pelanggaran_id,
           tanggal = excluded.tanggal,
@@ -996,7 +1000,7 @@ export async function commitImportPelanggaranMassal(payload: ImportPelanggaranCo
         crypto.randomUUID().replace(/-/g, ''),
         selectedSiswaId,
         selectedMasterId,
-        ta.id,
+        period.id,
         tanggal,
         jam,
         sourceSignature,
@@ -1015,7 +1019,8 @@ export async function commitImportPelanggaranMassal(payload: ImportPelanggaranCo
     successCount++
   }
 
-  if (!stmts.length) return { error: 'Tidak ada baris valid yang bisa diimport.' }
+  if (!stmts.length) return { error: `Tidak ada baris valid yang bisa diimport. ${skipped.slice(0, 8).join(', ')}` }
+  await ensureDisciplineImportSignature(db)
   for (let i = 0; i < stmts.length; i += 100) await db.batch(stmts.slice(i, i + 100))
 
   revalidateKedisiplinanPaths()
