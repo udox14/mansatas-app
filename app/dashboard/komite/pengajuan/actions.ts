@@ -237,7 +237,6 @@ export async function getKomiteDashboardData() {
   const items = visible.map(row => ({
     ...row,
     tahun_anggaran: row.tahun_anggaran || defaultTahunAnggaran(),
-    kode_rkas_program: row.kode_rkas_program || '-',
     rincian: details.filter(detail => detail.pengajuan_id === row.id),
     versions: versions.filter(v => v.pengajuan_id === row.id).map(version => ({
       ...version,
@@ -325,7 +324,6 @@ export async function saveKomiteDraftAction(formData: FormData) {
   const judul = cleanText(formData.get('judul'), 180)
   const uraian = cleanMultiline(formData.get('uraian'), 4000)
   const tahunAnggaran = cleanText(formData.get('tahun_anggaran'), 30) || defaultTahunAnggaran()
-  const kodeRkasProgram = cleanText(formData.get('kode_rkas_program'), 220) || '-'
   const parsedDetails = parseRincian(formData, { uraian, nominal: parseNominal(formData.get('nominal')) })
   if ('error' in parsedDetails) return { error: parsedDetails.error }
   const nominal = parsedDetails.total
@@ -363,14 +361,14 @@ export async function saveKomiteDraftAction(formData: FormData) {
     const statements = []
     if (!existing) {
       statements.push(db.prepare(`INSERT INTO komite_pengajuan
-        (id,judul,uraian,nominal,pengaju_id,status,current_version,tahun_anggaran,kode_rkas_program,workflow_version)
-        VALUES (?,?,?,?,?,'draft',?,?,?,2)`)
-        .bind(pengajuanId, judul, uraian, nominal, user.id, versionNumber, tahunAnggaran, kodeRkasProgram))
+        (id,judul,uraian,nominal,pengaju_id,status,current_version,tahun_anggaran,workflow_version)
+        VALUES (?,?,?,?,?,'draft',?,?,2)`)
+        .bind(pengajuanId, judul, uraian, nominal, user.id, versionNumber, tahunAnggaran))
     } else {
       statements.push(db.prepare(`UPDATE komite_pengajuan
-        SET judul=?,uraian=?,nominal=?,tahun_anggaran=?,kode_rkas_program=?,current_version=?,updated_at=datetime('now')
+        SET judul=?,uraian=?,nominal=?,tahun_anggaran=?,current_version=?,updated_at=datetime('now')
         WHERE id=?`)
-        .bind(judul, uraian, nominal, tahunAnggaran, kodeRkasProgram, versionNumber, pengajuanId))
+        .bind(judul, uraian, nominal, tahunAnggaran, versionNumber, pengajuanId))
     }
     statements.push(...detailStatements(db, pengajuanId, parsedDetails.rows))
     if (!version) statements.push(db.prepare(`INSERT INTO komite_pengajuan_versions (id,pengajuan_id,version_number,created_by) VALUES (?,?,?,?)`)
@@ -475,7 +473,6 @@ export async function reviewKomiteAction(formData: FormData) {
   let nomorSpb = row.nomor_spb
   let penerima = row.penerima_pembayaran
   let tahunAnggaran = row.tahun_anggaran || defaultTahunAnggaran()
-  let kodeRkasProgram = row.kode_rkas_program || '-'
   let detailRows: RincianInput[] | null = null
   let nominal = Number(row.nominal || 0)
   let allocations: FundAllocation[] | null = null
@@ -486,7 +483,6 @@ export async function reviewKomiteAction(formData: FormData) {
     }
     penerima = cleanText(formData.get('penerima_pembayaran'), 180)
     tahunAnggaran = cleanText(formData.get('tahun_anggaran'), 30) || defaultTahunAnggaran()
-    kodeRkasProgram = cleanText(formData.get('kode_rkas_program'), 220) || '-'
     const parsedDetails = parseRincian(formData, { uraian: row.uraian, penerima, nominal: row.nominal })
     if ('error' in parsedDetails) return { error: parsedDetails.error }
     detailRows = parsedDetails.rows
@@ -529,7 +525,7 @@ export async function reviewKomiteAction(formData: FormData) {
         .bind(crypto.randomUUID(),id,allocation.source,allocation.groupId,allocation.amount,user.id,reviewId)),
       ...(nextStatus === 'disetujui' ? [db.prepare(`UPDATE fin_komite_allocations SET state='locked'
         WHERE pengajuan_id=? AND state='review' AND EXISTS(SELECT 1 FROM komite_pengajuan_reviews WHERE id=?)`).bind(id,reviewId)] : []),
-      db.prepare(`UPDATE komite_pengajuan SET status=?,nomor_spb=?,penerima_pembayaran=?,nominal=?,tahun_anggaran=?,kode_rkas_program=?,
+      db.prepare(`UPDATE komite_pengajuan SET status=?,nomor_spb=?,penerima_pembayaran=?,nominal=?,tahun_anggaran=?,
         ketua_delegate_id=CASE WHEN ?='bendahara' AND ?='setujui' THEN NULL ELSE ketua_delegate_id END,
         ketua_delegated_by=CASE WHEN ?='bendahara' AND ?='setujui' THEN NULL ELSE ketua_delegated_by END,
         ketua_delegated_at=CASE WHEN ?='bendahara' AND ?='setujui' THEN NULL ELSE ketua_delegated_at END,
@@ -538,7 +534,7 @@ export async function reviewKomiteAction(formData: FormData) {
         rejected_at=CASE WHEN ?='ditolak' THEN datetime('now') ELSE rejected_at END,
         chairman_id_snapshot=COALESCE(?,chairman_id_snapshot),chairman_name_snapshot=COALESCE(?,chairman_name_snapshot),
         updated_at=datetime('now') WHERE id=? AND status=? AND EXISTS (SELECT 1 FROM komite_pengajuan_reviews WHERE id=?)`)
-        .bind(nextStatus,nomorSpb || null,penerima || null,nominal,tahunAnggaran,kodeRkasProgram,
+        .bind(nextStatus,nomorSpb || null,penerima || null,nominal,tahunAnggaran,
           permission.stage,action,permission.stage,action,permission.stage,action,nextStatus,nextStatus,permission.stage,nextStatus,chairman?.id || null,chairman?.name || null,id,row.status,reviewId),
     ]
     if (detailRows) statements.push(...detailStatements(db, id, detailRows, reviewId))
@@ -765,6 +761,10 @@ export async function mapHistoricalKomiteSpb(formData: FormData) {
   try {
     const allocations = parseFundAllocations(JSON.parse(String(formData.get('fund_allocations') ?? 'null')),row.nominal)
     await validateKomiteFundSources(db,allocations)
+    const {historicalPositions}=await listKomiteFundOptions(db)
+    const invalidPosition=allocations.find(part=>part.groupId && !historicalPositions.some(position=>
+      position.group_id===part.groupId && position.cohort===Number(part.source)))
+    if (invalidPosition) return {error:`Pos RAPBM Angkatan ${invalidPosition.source} belum tersedia. Konfirmasi pagu di menu RAPBM terlebih dahulu.`}
     const state = linkedId ? 'realized' : 'locked'
     await db.batch([
       db.prepare(`UPDATE komite_pengajuan SET updated_at=strftime('%Y-%m-%d %H:%M:%f','now')

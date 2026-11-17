@@ -86,6 +86,8 @@ export async function configureKomiteRapbm(formData: FormData) {
   } catch { return {error:'Pagu atau versi sudah berubah. Muat ulang RAPBM dan periksa kembali.'} }
   invalidateFinanceCache()
   revalidatePath('/dashboard/keuangan/rapbm')
+  revalidatePath('/dashboard/komite/pengajuan')
+  revalidatePath('/dashboard/keuangan/kas-keluar')
   return {success:prior?'Revisi pagu aktif.':'Pagu siap dipakai untuk pemetaan historis.'}
 }
 

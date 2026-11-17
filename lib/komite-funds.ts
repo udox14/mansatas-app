@@ -34,7 +34,8 @@ export async function validateKomiteFundSources(db: D1Database, allocations: Fun
   if (!years.length) return
   const missing=await db.prepare(`SELECT src.value source FROM json_each(?) src WHERE
     NOT EXISTS(SELECT 1 FROM siswa WHERE tahun_masuk=CAST(src.value AS INTEGER))
-    AND NOT EXISTS(SELECT 1 FROM fin_komite_rapbm_versions WHERE cohort=CAST(src.value AS INTEGER)) LIMIT 1`)
+    AND NOT EXISTS(SELECT 1 FROM fin_komite_rapbm_versions WHERE cohort=CAST(src.value AS INTEGER))
+    AND NOT EXISTS(SELECT 1 FROM fin_rapbm_versions WHERE komite_cohort=CAST(src.value AS INTEGER) AND status='published') LIMIT 1`)
     .bind(JSON.stringify(years)).first<{source:string}>()
   if(missing) throw new Error(`${komiteFundLabel(missing.source)} belum tersedia sebagai sumber dana.`)
 }
@@ -42,7 +43,9 @@ export async function validateKomiteFundSources(db: D1Database, allocations: Fun
 export async function listKomiteFundOptions(db: D1Database) {
   const [years, positions, historicalPositions] = await db.batch([
     db.prepare(`SELECT tahun_masuk AS year FROM siswa WHERE tahun_masuk BETWEEN 2000 AND 2199
-      UNION SELECT cohort FROM fin_komite_rapbm_versions ORDER BY year DESC`),
+      UNION SELECT cohort FROM fin_komite_rapbm_versions
+      UNION SELECT komite_cohort FROM fin_rapbm_versions WHERE status='published' AND komite_cohort IS NOT NULL
+      ORDER BY year DESC`),
     db.prepare('SELECT group_id,cohort,label,account,available FROM fin_komite_budget_balances WHERE active=1 ORDER BY cohort DESC,label,account'),
     db.prepare('SELECT group_id,cohort,label,account,available FROM fin_komite_budget_balances WHERE active=1 OR enabled=0 ORDER BY cohort DESC,label,account'),
   ])

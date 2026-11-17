@@ -183,6 +183,27 @@ describe('Komite approval workflow server actions', () => {
     state.userId='principal'
     expect(await approve()).toHaveProperty('success')
   })
+  it('offers a published cohort and maps its historical SPB after position confirmation', async () => {
+    state.roles=['super_admin']
+    sqlite.exec(`UPDATE fin_komite_allocations SET state='locked';
+      UPDATE komite_pengajuan SET status='disetujui',komite_pre_migration=1;
+      UPDATE fin_komite_allocations SET state='released';
+      INSERT INTO fin_rapbm_years(year) VALUES(2026);
+      INSERT INTO fin_rapbm_versions(id,year,version,title,institution,sheet,income_totals_json,expense_totals_json,notes_json,original_filename,r2_key,source_sha256,created_by_name,komite_cohort)
+      VALUES('rapbm',2026,1,'RAPBM','MAN','Sheet','{}','{}','[]','RAPBM.xlsx','source','hash','Bendahara',2026);
+      INSERT INTO fin_rapbm_groups(id,version_id,section,sort_order,label,account,source_ref)
+      VALUES('pos','rapbm','expense',1,'Kegiatan','521111','A1');
+      UPDATE fin_rapbm_versions SET status='published' WHERE id='rapbm';`)
+    expect((await getKomiteDashboardData()).fundOptions).toMatchObject({years:[2026,2025],historicalPositions:[]})
+    const form=new FormData()
+    form.set('id','p1');form.set('reason','Sesuai SPB lama')
+    form.set('fund_allocations',JSON.stringify([{source:'2026',groupId:'pos',amount:100000}]))
+    expect(await mapHistoricalKomiteSpb(form)).toMatchObject({error:expect.stringContaining('Konfirmasi pagu')})
+    sqlite.exec(`INSERT INTO fin_komite_rapbm_versions(version_id,cohort,activated_by,enabled) VALUES('rapbm',2026,'chair',0);
+      INSERT INTO fin_komite_budget_positions(group_id,amount) VALUES('pos',100000);`)
+    expect((await getKomiteDashboardData()).fundOptions).toMatchObject({positions:[],historicalPositions:[{group_id:'pos',cohort:2026}]})
+    expect(await mapHistoricalKomiteSpb(form)).toHaveProperty('success')
+  })
   it('maps a historical SPB to existing cash without duplicating the transaction',async()=>{
     sqlite.exec(`UPDATE fin_komite_allocations SET state='locked';
       UPDATE komite_pengajuan SET status='disetujui',komite_pre_migration=1;

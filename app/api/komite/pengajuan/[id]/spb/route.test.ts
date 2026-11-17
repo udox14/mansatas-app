@@ -23,7 +23,8 @@ vi.mock('@/utils/db-server', () => ({ getDB: async () => ({ prepare(sql: string)
     realisasi_metode: state.realized ? 'Transfer' : null, realisasi_petugas: state.realized ? 'Bendahara Pembayar' : null } },
   async all() { return { results: sql.includes('komite_pengajuan_reviews') ? state.stages.map(stage => ({
     stage, workflow_version: state.flow, actor_name: stage, actor_role: stage, created_at: state.approvedAt, is_super_admin_bypass: 0,
-  })) : [{ urutan: 1, uraian: 'Kegiatan', penerima_penyedia: 'Penyedia', jumlah: 100000 }] } } }
+  })) : sql.includes('fin_komite_allocations') ? [{ source:'2026',amount:100000,account:'521111',label:'Kegiatan' }]
+    : [{ urutan: 1, uraian: 'Kegiatan', penerima_penyedia: 'Penyedia', jumlah: 100000 }] } } }
 } }) }))
 
 beforeEach(() => {
@@ -49,6 +50,8 @@ describe('Komite SPB approval requirements and signatories', () => {
     expect(html).toContain('Mengetahui,')
     expect(html).toContain('Menyetujui,')
     expect(html).toContain('Bukti Tanda Terima/Realisasi')
+    expect(html).toContain('Angkatan 2026 · 521111 · Kegiatan')
+    expect(html).not.toContain('RKAS')
     expect(html).not.toContain('DRAFT')
     expect(html).toContain('Tunai / Transfer: ................................')
     expect(html).not.toContain('BELUM DIREALISASIKAN')

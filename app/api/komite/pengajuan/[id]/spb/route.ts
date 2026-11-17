@@ -1,4 +1,5 @@
 import puppeteer from '@cloudflare/puppeteer'
+import { komiteFundLabel } from '@/lib/komite-funds'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { getCurrentUser } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
@@ -53,13 +54,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!(await canViewKomitePengajuan(db,user.id,row,roles))) return new Response('Forbidden',{ status:403 })
   const { env } = await getCloudflareContext({ async: true })
 
-  const [reviewRows, detailRows, delegatedChairman] = await Promise.all([
+  const [reviewRows, detailRows, delegatedChairman, allocations] = await Promise.all([
     db.prepare(`SELECT * FROM komite_pengajuan_reviews
       WHERE pengajuan_id=? AND version_number=? AND action='setujui' ORDER BY workflow_version,created_at`).bind(id,row.current_version).all<any>(),
     db.prepare(`SELECT * FROM komite_pengajuan_rincian WHERE pengajuan_id=? ORDER BY urutan`).bind(id).all<any>(),
     row.ketua_delegated_by
       ? db.prepare(`SELECT COALESCE(nama_lengkap,name,email) AS name FROM "user" WHERE id=?`).bind(row.ketua_delegated_by).first<any>()
       : Promise.resolve(null),
+    db.prepare(`SELECT a.source,a.amount,g.account,g.label
+      FROM fin_komite_allocations a LEFT JOIN fin_rapbm_groups g ON g.id=a.group_id
+      WHERE a.pengajuan_id=? AND a.state IN ('locked','realized') ORDER BY a.created_at,a.id`)
+      .bind(id).all<{source:string;amount:number;account:string|null;label:string|null}>(),
   ])
   const latest = new Map<string,any>()
   for (const review of reviewRows.results || []) latest.set(review.stage,review)
@@ -157,7 +162,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       <tr><td>Dari</td><td>:</td><td>Ketua Komite Sekolah</td></tr>
       <tr><td>Kepada</td><td>:</td><td>Bendahara Komite Sekolah</td></tr>
       <tr><td>Tahun Anggaran</td><td>:</td><td>${esc(row.tahun_anggaran || '-')}</td></tr>
-      <tr><td>Kode RKAS/Program</td><td>:</td><td>${esc(row.kode_rkas_program || '-')}</td></tr>
+      <tr><td>Sumber Dana / Pos RAPBM</td><td>:</td><td>${allocations.results.length
+        ? allocations.results.map(part=>esc([komiteFundLabel(part.source),part.account,part.label,
+          `Rp ${Number(part.amount).toLocaleString('id-ID')}`].filter(Boolean).join(' · '))).join('<br>')
+        : 'Belum dipetakan'}</td></tr>
     </table>
     <p class="intro">Harap dibayarkan sejumlah uang kepada penerima di bawah ini sesuai dengan perincian kebutuhan berikut:</p>
     <table class="items">

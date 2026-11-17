@@ -311,7 +311,7 @@ function DataList({ items, onOpen, renderReport }: { items: Item[]; onOpen: (id:
           {renderReport && <TableHead className="text-xs">Laporan kegiatan</TableHead>}<TableHead className="text-xs">Diperbarui</TableHead><TableHead className="w-12" />
         </TableRow></TableHeader>
         <TableBody>{items.map(item => <TableRow key={item.id} role="button" tabIndex={0} className="cursor-pointer transition-colors hover:bg-slate-50 focus-visible:bg-blue-50 focus-visible:outline-none dark:hover:bg-slate-800/60 dark:focus-visible:bg-blue-950/30" onClick={() => onOpen(item.id)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') onOpen(item.id) }}>
-          <TableCell><p className="line-clamp-1 text-sm font-semibold">{item.judul}</p><p className="mt-0.5 line-clamp-1 text-xs text-slate-500">{item.kode_rkas_program || item.uraian}</p></TableCell>
+          <TableCell><p className="line-clamp-1 text-sm font-semibold">{item.judul}</p><p className="mt-0.5 line-clamp-1 text-xs text-slate-500">{item.uraian}</p></TableCell>
           <TableCell className="max-w-[180px] truncate text-sm">{item.pengaju_name}</TableCell>
           <TableCell className="whitespace-nowrap text-sm font-semibold">{money(item.nominal)}</TableCell>
           <TableCell><Status status={item.status} /></TableCell>
@@ -348,7 +348,6 @@ function DetailPage({ item, mode, onBack, actions, reportControls }: { item: Ite
     <div className="grid gap-3 sm:grid-cols-2">
       <InfoBlock label="Tahun Anggaran" value={item.tahun_anggaran || '-'} />
       <InfoBlock label="Sumber dana" value={detailFundingLabel(item)} />
-      <InfoBlock label="Kode RKAS/Program" value={item.kode_rkas_program || '-'} />
     </div>
     {item.workflow_version !== 2 && item.ketua_delegate_id && <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200"><p className="text-xs font-semibold uppercase tracking-wide">Delegasi Review Ketua Komite</p><p className="mt-1 text-sm">Ditugaskan kepada <strong>{item.ketua_delegate_name || 'Anggota Komite'}</strong>. Persetujuan pada SPB tetap atas nama Ketua Komite.</p></div>}
     <div><p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Uraian</p><p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-700 dark:text-slate-200">{item.uraian}</p></div>
@@ -472,7 +471,6 @@ function DraftDialog({ open, item, pending, message, onClose, onSubmit }: { open
       <div className="space-y-1.5"><Label htmlFor="judul">Judul kegiatan</Label><Input id="judul" name="judul" maxLength={180} defaultValue={item?.judul || ''} required /></div>
       <div className="space-y-1.5"><Label htmlFor="tahun_anggaran">Tahun Anggaran</Label><Input id="tahun_anggaran" name="tahun_anggaran" maxLength={30} defaultValue={item?.tahun_anggaran || defaultTahunAnggaran()} required /></div>
     </div>
-    <div className="space-y-1.5"><Label htmlFor="kode_rkas_program">Kode RKAS/Program (opsional)</Label><Input id="kode_rkas_program" name="kode_rkas_program" maxLength={220} defaultValue={item?.kode_rkas_program === '-' ? '' : item?.kode_rkas_program || ''} placeholder="Contoh: 3.2.1 (Pengembangan Sarana & Prasarana Pembelajaran)" /></div>
     <div className="space-y-1.5"><Label htmlFor="uraian">Uraian umum</Label><Textarea id="uraian" name="uraian" maxLength={4000} rows={4} defaultValue={item?.uraian || ''} required /></div>
     <DetailRowsEditor rows={rows} setRows={setRows} />
     <div className="space-y-1.5"><Label htmlFor="files">Dokumen PDF {needsFiles ? '' : '(kosongkan bila tidak diganti)'}</Label><Input id="files" name="files" type="file" accept="application/pdf,.pdf" multiple required={needsFiles} onChange={e => setTotal(Array.from(e.target.files || []).reduce((sum, file) => sum + file.size, 0))} /><div className="flex justify-between gap-2 text-xs"><span className="text-slate-500">Maksimal 10 PDF, request total 6 MB.</span><span className={total > MAX_TOTAL ? 'font-semibold text-rose-600' : 'text-slate-500'}>{size(total)} / 6 MB</span></div></div>
@@ -520,7 +518,6 @@ function ReviewDialog({ fundOptions, value, nextNomorSpb, pending, onClose, onSu
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5"><Label htmlFor="review_tahun_anggaran">Tahun Anggaran</Label><Input id="review_tahun_anggaran" name="tahun_anggaran" defaultValue={value.item.tahun_anggaran || defaultTahunAnggaran()} maxLength={30} required /></div>
-        <div className="space-y-1.5"><Label htmlFor="review_kode_rkas_program">Kode RKAS/Program</Label><Input id="review_kode_rkas_program" name="kode_rkas_program" defaultValue={value.item.kode_rkas_program || ''} maxLength={220} required /></div>
       </div>
       <FundAllocationFields years={fundOptions.years} positions={fundOptions.positions} amount={detailTotal(rows)} />
       <DetailRowsEditor rows={rows} setRows={setRows} />
@@ -542,6 +539,7 @@ function SpbFunds({ item, options, historicalCash, pending, onRun }: {
   onRun:(task:()=>Promise<{success?:string;error?:string}>)=>void
 }) {
   const [operation,setOperation]=useState('')
+  const [fundError,setFundError]=useState('')
   if (item.komite_cancelled_at) return <p className="text-sm">SPB dibatalkan. {item.komite_cancel_reason}</p>
   const needsMapping = !item.fundAllocations?.length
   const choices = item.status==='menunggu_ketua' ? [['return','Kembalikan ke Bendahara']]
@@ -549,15 +547,21 @@ function SpbFunds({ item, options, historicalCash, pending, onRun }: {
     : item.realisasi_status==='sudah' ? [['reverse','Koreksi pencairan']]
     : [['pay','Catat pencairan'],['cancel','Batalkan SPB']]
   return <>
-    {choices.map(([value,label])=><Button key={value} type="button" variant="outline" onClick={()=>setOperation(value)}>{label}</Button>)}
+    {choices.map(([value,label])=><Button key={value} type="button" variant="outline" onClick={()=>{setFundError('');setOperation(value)}}>{label}</Button>)}
     <Dialog open={Boolean(operation)} onOpenChange={open=>!open&&setOperation('')}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl"><DialogHeader><DialogTitle>{choices.find(([value])=>value===operation)?.[1]}</DialogTitle></DialogHeader>
-        <form className="space-y-3" action={form=>onRun(async()=>{
+        <form className="space-y-3" onSubmit={event=>{
+          event.preventDefault()
+          const form=new FormData(event.currentTarget)
           if (form.get('cash_id')==='none') form.delete('cash_id')
-          const result=await (operation==='pay' ? recordKomiteRealization(form) : operation==='map' ? mapHistoricalKomiteSpb(form) : changeKomiteSpbAction(form))
-          if (result.success) setOperation('')
-          return result
-        })}>
+          setFundError('')
+          onRun(async()=>{
+            const result=await (operation==='pay' ? recordKomiteRealization(form) : operation==='map' ? mapHistoricalKomiteSpb(form) : changeKomiteSpbAction(form))
+            if (result.success) setOperation('')
+            else if (result.error) setFundError(result.error)
+            return result
+          })
+        }}>
           <input type="hidden" name="id" value={item.id}/><input type="hidden" name="operation" value={operation}/>
           {operation==='pay' ? <>
             <Label htmlFor="spb-date">Tanggal bayar</Label><Input id="spb-date" name="date" required type="date" defaultValue={todayWIB()}/>
@@ -575,8 +579,9 @@ function SpbFunds({ item, options, historicalCash, pending, onRun }: {
             </Select>
             {item.realisasi_status==='sudah' && !item.realisasi_tanggal && <label className="text-sm">Tanggal bayar jika belum tercatat<Input name="date" type="date"/></label>}
             {item.realisasi_status==='sudah' && !item.realisasi_metode && <div className="space-y-2"><Label htmlFor="spb-map-method">Metode bayar jika belum tercatat</Label><SpbMethodSelect id="spb-map-method"/></div>}
-            <FundAllocationFields years={options.years} positions={options.historicalPositions} amount={Number(item.nominal)}/>
+            <FundAllocationFields historical years={options.years} positions={options.historicalPositions} amount={Number(item.nominal)}/>
           </>}
+          {fundError && <p role="alert" className="text-sm text-destructive">{fundError}</p>}
           <Button disabled={pending} type="submit">Simpan</Button>
         </form>
       </DialogContent>
