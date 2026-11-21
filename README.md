@@ -25,6 +25,3 @@ Sistem Informasi Manajemen Terpadu untuk MAN 1 Tasikmalaya.
 - R2: `mansatas-storage`
 - KV: `NEXT_INC_CACHE_KV`
 
-## Default Login
-
-Password default pegawai: `mansatas2026`
