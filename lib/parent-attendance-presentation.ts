@@ -66,3 +66,121 @@ export function summarizeParentAttendanceDays(days: FinalAttendanceDetail[]) {
   summary.attendanceRate = summary.completedDays ? Math.round(summary.hadir/summary.completedDays*100) : null
   return {summary,monthly:[...monthly.values()].sort((a,b)=>a.month.localeCompare(b.month))}
 }
+
+export interface ParentCalendarDetailSummary {
+  phaseBadge: string | null
+  sessionProgressLabel: string | null
+  pendingLabel: string | null
+  summaryText: string
+  changeNote: string | null
+  emptyDetailsNote: string | null
+}
+
+/** Formats daily attendance details into plain-language badges and scannable copy for parents. */
+export function formatParentCalendarDetail(
+  day: FinalAttendanceDetail | null | undefined,
+  holiday?: { reason?: string | null } | null,
+): ParentCalendarDetailSummary {
+  if (holiday) {
+    return {
+      phaseBadge: 'Hari libur',
+      sessionProgressLabel: null,
+      pendingLabel: null,
+      summaryText: `Hari libur madrasah${holiday.reason ? `: ${holiday.reason}` : ''}. Tidak dihitung sebagai hari masuk maupun absen.`,
+      changeNote: null,
+      emptyDetailsNote: null,
+    }
+  }
+  if (!day) {
+    return {
+      phaseBadge: null,
+      sessionProgressLabel: null,
+      pendingLabel: null,
+      summaryText: 'Tidak ada jadwal pelajaran tercatat pada tanggal ini.',
+      changeNote: null,
+      emptyDetailsNote: null,
+    }
+  }
+
+  const isPastDayOrEnded =
+    day.tanggal < todayWIB() || Boolean(day.kbm_end_at && Date.parse(day.kbm_end_at) <= Date.now())
+  const phaseBadge =
+    day.total_blok === 0 && !day.is_daily_final
+      ? null
+      : day.is_daily_final
+        ? 'Rekap selesai'
+        : isPastDayOrEnded
+          ? 'Menunggu rekap harian'
+          : day.kbm_end_at
+            ? `Sementara · selesai ${new Date(day.kbm_end_at).toLocaleTimeString('id-ID', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit' })} WIB`
+            : 'Rekap sementara'
+
+  const sessionProgressLabel =
+    day.total_blok > 0 ? `${day.submitted_blok}/${day.total_blok} jam tercatat` : null
+  const pendingLabel =
+    day.pending_blok > 0 ? `${day.pending_blok} jam belum diisi guru` : null
+
+  const isWaliCorrected =
+    day.sumber_status === 'koreksi_wali_kelas' || day.sumber_status === 'wali_kelas'
+  const isOfficialOverride =
+    Boolean(day.approved_correction) ||
+    isWaliCorrected ||
+    day.sumber_status === 'perizinan_sekolah' ||
+    day.sumber_status === 'perizinan_siswa'
+
+  let summaryText = 'Status kehadiran hari ini sedang ditinjau oleh sekolah.'
+  let changeNote: string | null = null
+  let emptyDetailsNote: string | null = 'Belum ada catatan per mata pelajaran.'
+
+  if (['PARSIAL', 'PERLU_KONFIRMASI_WALI'].includes(day.status_akhir)) {
+    summaryText = 'Catatan kehadiran hari ini perlu dikonfirmasi oleh wali kelas.'
+  } else if (!day.is_daily_final) {
+    if (day.total_blok === 0) {
+      summaryText = 'Tidak ada jadwal pelajaran aktif pada tanggal ini.'
+      emptyDetailsNote = null
+    } else if (day.submitted_blok === 0) {
+      summaryText = 'Guru belum mengisi daftar hadir pada tanggal ini.'
+      emptyDetailsNote = null
+    } else {
+      summaryText =
+        'Catatan jam yang sudah diisi dapat dilihat di bawah. Status harian ditetapkan setelah pelajaran selesai.'
+    }
+  } else if (day.approved_correction) {
+    summaryText = 'Status harian mengikuti penyesuaian yang disetujui madrasah.'
+  } else if (isWaliCorrected) {
+    summaryText = 'Status harian mengikuti penyesuaian dari wali kelas.'
+  } else if (day.sumber_status === 'perizinan_sekolah') {
+    summaryText = 'Anak mengikuti kegiatan resmi sekolah dan dihitung Hadir.'
+  } else if (day.sumber_status === 'perizinan_siswa') {
+    summaryText =
+      day.status_akhir === 'SAKIT'
+        ? 'Tercatat Sakit sesuai pemberitahuan resmi ke sekolah.'
+        : 'Izin resmi ke sekolah tercatat dan dihitung Hadir.'
+  } else if (day.status_akhir === 'HADIR') {
+    summaryText =
+      day.pending_blok > 0
+        ? 'Semua jam pelajaran yang sudah diisi guru tercatat Hadir (tanpa catatan sakit, izin, atau alfa).'
+        : 'Hadir penuh pada seluruh jam pelajaran tanpa catatan sakit, izin, atau alfa.'
+    emptyDetailsNote = null
+  } else if (day.status_akhir === 'SAKIT') {
+    summaryText = 'Tercatat Sakit pada jam pelajaran hari ini.'
+  } else if (day.status_akhir === 'IZIN') {
+    summaryText = 'Tercatat Izin pada jam pelajaran hari ini.'
+  } else if (day.status_akhir === 'ALFA') {
+    summaryText =
+      'Terdapat jam pelajaran tanpa keterangan (Alfa). Hal ini belum tentu berarti anak tidak masuk seharian.'
+  }
+
+  if (day.pending_blok > 0 && day.is_daily_final && !isOfficialOverride) {
+    changeNote = `Rekap masih dapat berubah jika guru mengisi ${day.pending_blok} jam tersisa.`
+  }
+
+  return {
+    phaseBadge,
+    sessionProgressLabel,
+    pendingLabel,
+    summaryText,
+    changeNote,
+    emptyDetailsNote,
+  }
+}

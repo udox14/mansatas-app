@@ -3,10 +3,12 @@
 import { useState } from 'react'
 import {
   BookOpenText,
+  Brain,
   CalendarBlank,
   ChatText,
   Gear,
   House,
+  IdentificationCard,
   List,
   Question,
   SignOut,
@@ -30,7 +32,9 @@ const BASE_PRIMARY_ITEMS = [
 ]
 
 const SECONDARY_ITEMS = [
+  { id: 'biodata', label: 'Biodata Siswa', description: 'Data pribadi, domisili, dan orang tua', Icon: IdentificationCard },
   { id: 'nilai', label: 'Akademik', description: 'Nilai rapor dan rincian mata pelajaran', Icon: Student },
+  { id: 'psikotes', label: 'Hasil Psikotes', description: 'Skor IQ, bakat, minat, dan kepribadian', Icon: Brain },
   { id: 'keuangan', label: 'Keuangan', description: 'Tagihan, pembayaran, dan kuitansi', Icon: Wallet },
   { id: 'saran', label: 'Kotak Saran', description: 'Sampaikan masukan kepada madrasah', Icon: ChatText },
   { id: 'dokumentasi', label: 'Dokumentasi', description: 'Panduan penggunaan portal', Icon: BookOpenText },
@@ -39,11 +43,13 @@ const SECONDARY_ITEMS = [
 export function MobileBottomNav({
   activeTab,
   onChange,
+  onPrefetch,
   onStartTour,
   disciplineEnabled,
 }: {
   activeTab: string
   onChange: (id: string) => void
+  onPrefetch?: (id: string) => void
   onStartTour: () => void
   disciplineEnabled: boolean
 }) {
@@ -72,6 +78,9 @@ export function MobileBottomNav({
                 key={id}
                 type="button"
                 aria-current={isActive ? 'page' : undefined}
+                onMouseEnter={() => onPrefetch?.(id)}
+                onFocus={() => onPrefetch?.(id)}
+                onTouchStart={() => onPrefetch?.(id)}
                 onClick={() => onChange(id)}
                 className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-[#C2522D] focus-visible:ring-offset-2 ${
                   isActive ? 'bg-[#F2F0EC] text-[#C2522D]' : 'text-[#6B6B63]'
@@ -105,7 +114,7 @@ export function MobileBottomNav({
         >
           <SheetHeader className="pr-10 text-left">
             <SheetTitle className="text-xl font-medium tracking-[-0.02em] text-[#1A1A18]">Menu orang tua</SheetTitle>
-            <SheetDescription className="text-sm leading-6 text-[#6B6B63]">
+            <SheetDescription className="sr-only">
               Layanan tambahan dan pengaturan portal.
             </SheetDescription>
           </SheetHeader>
@@ -117,6 +126,9 @@ export function MobileBottomNav({
                 <button
                   key={id}
                   type="button"
+                  onMouseEnter={() => onPrefetch?.(id)}
+                  onFocus={() => onPrefetch?.(id)}
+                  onTouchStart={() => onPrefetch?.(id)}
                   onClick={() => chooseSecondary(id)}
                   className={`flex min-h-16 w-full items-center gap-3 rounded-xl border p-3 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[#C2522D] focus-visible:ring-offset-2 ${
                     isActive

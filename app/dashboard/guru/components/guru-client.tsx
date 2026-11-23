@@ -798,49 +798,54 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES, masterJab
 
       <div className="space-y-3">
         {/* TOOLBAR */}
-        <div className="bg-surface border border-surface rounded-lg p-3 flex flex-wrap gap-2 items-center">
-          <div className="relative flex-1 min-w-0" style={{ minWidth: '140px' }}>
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
-            <Input placeholder="Cari nama atau email..." className="pl-8 h-8 text-sm rounded-md" value={searchTerm} onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1) }} />
+        <div className="bg-surface border border-surface rounded-lg p-3 space-y-2 xl:space-y-0 xl:flex xl:flex-wrap xl:items-center xl:gap-2">
+          <div className="flex items-center gap-2 min-w-0 xl:flex-1">
+            <div className="relative flex-1 min-w-0">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+              <Input placeholder="Cari nama atau email..." className="pl-8 h-8 text-sm rounded-md" value={searchTerm} onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1) }} />
+            </div>
+
+            {/* View toggle */}
+            <div className="flex bg-surface-2 border border-surface p-0.5 rounded-lg shrink-0">
+              <button onClick={() => { setViewMode('table'); setCurrentPage(1) }} className={`h-7 px-2.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${viewMode === 'table' ? 'bg-surface text-slate-800 dark:text-slate-200 dark:text-slate-100 shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-400'}`}>
+                <List className="h-3.5 w-3.5" /><span className="hidden sm:inline">Tabel</span>
+              </button>
+              <button onClick={() => { setViewMode('gallery'); setCurrentPage(1) }} className={`h-7 px-2.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${viewMode === 'gallery' ? 'bg-surface text-slate-800 dark:text-slate-200 dark:text-slate-100 shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-400'}`}>
+                <LayoutGrid className="h-3.5 w-3.5" /><span className="hidden sm:inline">Foto</span>
+              </button>
+            </div>
           </div>
 
-          {/* View toggle */}
-          <div className="flex bg-surface-2 border border-surface p-0.5 rounded-lg shrink-0">
-            <button onClick={() => { setViewMode('table'); setCurrentPage(1) }} className={`h-7 px-2.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${viewMode === 'table' ? 'bg-surface text-slate-800 dark:text-slate-200 dark:text-slate-100 shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-400'}`}>
-              <List className="h-3.5 w-3.5" /><span className="hidden sm:inline">Tabel</span>
-            </button>
-            <button onClick={() => { setViewMode('gallery'); setCurrentPage(1) }} className={`h-7 px-2.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${viewMode === 'gallery' ? 'bg-surface text-slate-800 dark:text-slate-200 dark:text-slate-100 shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-400'}`}>
-              <LayoutGrid className="h-3.5 w-3.5" /><span className="hidden sm:inline">Foto</span>
-            </button>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+            <Select value={filterRole} onValueChange={val => { setFilterRole(val); setCurrentPage(1) }}>
+              <SelectTrigger className="h-8 w-full sm:w-40 text-xs rounded-md"><SelectValue placeholder="Semua Role" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Semua Role</SelectItem>
+                {masterRoles.map((r: MasterRoleType) => <SelectItem key={r.value} value={r.value}>{r.label}{r.is_custom ? ' ★' : ''}</SelectItem>)}
+              </SelectContent>
+            </Select>
+
+            <Select value={exportScope} onValueChange={(val: 'filtered' | 'all') => setExportScope(val)}>
+              <SelectTrigger className="h-8 w-full sm:w-40 text-xs rounded-md"><SelectValue placeholder="Mode Export" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="filtered">Data Terfilter</SelectItem>
+                <SelectItem value="all">Semua Data</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
-          <Select value={filterRole} onValueChange={val => { setFilterRole(val); setCurrentPage(1) }}>
-            <SelectTrigger className="h-8 w-36 sm:w-40 text-xs rounded-md shrink-0"><SelectValue placeholder="Semua Role" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">Semua Role</SelectItem>
-              {masterRoles.map((r: MasterRoleType) => <SelectItem key={r.value} value={r.value}>{r.label}{r.is_custom ? ' ★' : ''}</SelectItem>)}
-            </SelectContent>
-          </Select>
-
-          <Select value={exportScope} onValueChange={(val: 'filtered' | 'all') => setExportScope(val)}>
-            <SelectTrigger className="h-8 w-36 sm:w-40 text-xs rounded-md shrink-0"><SelectValue placeholder="Mode Export" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="filtered">Data Terfilter</SelectItem>
-              <SelectItem value="all">Semua Data</SelectItem>
-            </SelectContent>
-          </Select>
-          <div className="flex gap-2 ml-auto">
-            <Button variant="outline" size="sm" className="h-8 text-xs rounded-md" onClick={handleExportExcel}>
-              <FileSpreadsheet className="h-3.5 w-3.5 mr-1" /> Excel
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center xl:ml-auto">
+            <Button variant="outline" size="sm" className="h-8 w-full sm:w-auto justify-center text-xs rounded-md" onClick={handleExportExcel}>
+              <FileSpreadsheet className="h-3.5 w-3.5 mr-1 shrink-0" /> Excel
             </Button>
-            <Button variant="outline" size="sm" className="h-8 text-xs rounded-md" onClick={handleExportPdf}>
-              <FileText className="h-3.5 w-3.5 mr-1" /> PDF
+            <Button variant="outline" size="sm" className="h-8 w-full sm:w-auto justify-center text-xs rounded-md" onClick={handleExportPdf}>
+              <FileText className="h-3.5 w-3.5 mr-1 shrink-0" /> PDF
             </Button>
             {/* Import Dialog */}
             <Dialog>
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8 text-xs rounded-md">
-                  <FileSpreadsheet className="h-3.5 w-3.5 mr-1" /> Import
+                <Button variant="outline" size="sm" className="h-8 w-full sm:w-auto justify-center text-xs rounded-md">
+                  <FileSpreadsheet className="h-3.5 w-3.5 mr-1 shrink-0" /> Import
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-lg rounded-xl">
@@ -871,8 +876,8 @@ export function GuruClient({ initialData, masterRoles = DEFAULT_ROLES, masterJab
             {/* Tambah Manual */}
             <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
               <DialogTrigger asChild>
-                <Button size="sm" className="h-8 text-xs rounded-md bg-emerald-600 hover:bg-emerald-700 text-white">
-                  <UserPlus className="h-3.5 w-3.5 mr-1" /> Tambah
+                <Button size="sm" className="h-8 w-full sm:w-auto justify-center text-xs rounded-md bg-emerald-600 hover:bg-emerald-700 text-white">
+                  <UserPlus className="h-3.5 w-3.5 mr-1 shrink-0" /> Tambah
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-md rounded-xl">

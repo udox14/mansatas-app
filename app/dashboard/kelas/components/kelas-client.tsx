@@ -204,12 +204,12 @@ export function KelasClient({
       />
 
       {/* TOOLBAR */}
-      <div className="bg-surface border border-surface rounded-lg p-3 flex flex-wrap gap-2 items-center">
+      <div className="bg-surface border border-surface rounded-lg p-3 space-y-2 xl:space-y-0 xl:flex xl:flex-wrap xl:gap-2 xl:items-center">
         <Select
           value={selectedTahunAjaranId}
           onValueChange={value => router.push(`/dashboard/kelas?ta=${value}`)}
         >
-          <SelectTrigger className="h-8 w-full text-xs rounded-md shrink-0 sm:w-60">
+          <SelectTrigger className="h-8 w-full text-xs rounded-md shrink-0 xl:w-60">
             <SelectValue placeholder="Tahun ajaran" />
           </SelectTrigger>
           <SelectContent>
@@ -220,29 +220,31 @@ export function KelasClient({
             ))}
           </SelectContent>
         </Select>
-        <div className="relative flex-1 min-w-0" style={{ minWidth: '140px' }}>
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
-          <Input placeholder="Cari kelas atau wali..." className="pl-8 h-8 text-sm rounded-md" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+        <div className="flex items-center gap-2 min-w-0 xl:flex-1">
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+            <Input placeholder="Cari kelas atau wali..." className="pl-8 h-8 text-sm rounded-md" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+          </div>
+          <Select value={filterTingkat} onValueChange={setFilterTingkat}>
+            <SelectTrigger className="h-8 w-28 sm:w-32 text-xs rounded-md shrink-0"><SelectValue placeholder="Tingkat" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Semua">Semua</SelectItem>
+              {tingkatOptions.map(tingkat => (
+                <SelectItem key={tingkat} value={String(tingkat)}>Kelas {tingkat}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-        <Select value={filterTingkat} onValueChange={setFilterTingkat}>
-          <SelectTrigger className="h-8 w-32 text-xs rounded-md shrink-0"><SelectValue placeholder="Tingkat" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="Semua">Semua</SelectItem>
-            {tingkatOptions.map(tingkat => (
-              <SelectItem key={tingkat} value={String(tingkat)}>Kelas {tingkat}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {!isHistoricalView && <div className="flex items-center gap-1.5 rounded-md border border-surface bg-surface-2 px-2 py-1">
-          <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Nonaktif mulai</span>
+        {!isHistoricalView && <div className="flex items-center justify-between sm:justify-start gap-2 w-full sm:w-auto rounded-md border border-surface bg-surface-2 px-2.5 py-1">
+          <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 shrink-0">Nonaktif mulai</span>
           <Input
             type="date"
             value={kbmTanggalMulai}
             onChange={e => setKbmTanggalMulai(e.target.value)}
-            className="h-6 w-32 border-0 bg-transparent p-0 text-xs shadow-none focus-visible:ring-0"
+            className="h-6 w-36 sm:w-32 border-0 bg-transparent p-0 text-xs shadow-none focus-visible:ring-0"
           />
         </div>}
-        <div className="flex gap-2 ml-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full xl:w-auto xl:ml-auto [&>button]:flex-1 [&>button]:min-w-[calc(50%-0.25rem)] [&>button]:justify-center sm:[&>button]:flex-initial sm:[&>button]:min-w-0">
           {hasKelas12 && !isHistoricalView && (
             <Button
               type="button"
@@ -255,8 +257,8 @@ export function KelasClient({
               )}
             >
               {isUpdatingTingkat12
-                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                : kelas12SemuaNonaktif ? <PlayCircle className="h-3.5 w-3.5" /> : <PauseCircle className="h-3.5 w-3.5" />}
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                : kelas12SemuaNonaktif ? <PlayCircle className="h-3.5 w-3.5 shrink-0" /> : <PauseCircle className="h-3.5 w-3.5 shrink-0" />}
               {kelas12SemuaNonaktif ? 'Aktifkan Kelas 12' : 'Nonaktifkan Kelas 12'}
             </Button>
           )}

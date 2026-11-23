@@ -559,6 +559,14 @@ export const MENU_ITEMS: MenuItem[] = [
     desc: 'Membaca dan memantau masukan, saran, atau keluhan dari orang tua siswa'
   },
   {
+    id: 'monitoring-login-ortu',
+    title: 'Monitoring Login Ortu',
+    href: '/dashboard/monitoring-login-ortu',
+    icon: UserCheck,
+    roles: ['super_admin', 'admin_tu', 'kepsek', 'wakamad', 'wali_kelas', 'guru_bk'],
+    desc: 'Melacak siswa yang orang tuanya sudah atau belum login ke Portal Orang Tua beserta waktu terakhir login dan aktif'
+  },
+  {
     id: 'portal-ortu',
     title: 'Portal Orang Tua',
     href: '/portal-ortu',
@@ -578,7 +586,7 @@ export const DEFAULT_SIDEBAR_GROUPS: SidebarGroupConfig[] = [
   { id: 'kesiswaan-bk', label: 'Kesiswaan & BK', items: ['kelas-binaan', 'keterangan-absensi', 'jadwal-piket', 'izin', 'kedisiplinan', 'sp', 'bk', 'psikotes', 'tka', 'penerimaan-pt'] },
   { id: 'administrasi-hr', label: 'Administrasi & HR', items: ['cuti-guru', 'tpg-dokumen', 'documentation', 'surat', 'rapat', 'kelola-ppl', 'buku-tamu'] },
   { id: 'keuangan', label: 'Komite', items: ['komite-pengajuan', 'keuangan-rapbm', 'keuangan-daftar-ulang', 'keuangan-transaksi', 'keuangan-dspt', 'keuangan-dspt-nonaktif', 'keuangan-export', 'keuangan-kas-keluar', 'keuangan-laporan', 'keuangan-pengaturan'] },
-  { id: 'sistem', label: 'Sistem', items: ['settings', 'log-aktivitas', 'settings-notifications', 'settings-mobile-app', 'settings-fitur', 'pengumuman-ortu', 'kotak-saran-ortu'] },
+  { id: 'sistem', label: 'Sistem', items: ['settings', 'log-aktivitas', 'settings-notifications', 'settings-mobile-app', 'settings-fitur', 'pengumuman-ortu', 'kotak-saran-ortu', 'monitoring-login-ortu'] },
 ]
 
 export const SIDEBAR_ROOT_ITEM_IDS = ['dashboard'] as const

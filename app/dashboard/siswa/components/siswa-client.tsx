@@ -239,9 +239,9 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
           <div className="bg-surface border border-surface rounded-lg p-3 space-y-2">
 
             {/* Baris 1: Search + view toggle + aksi */}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {/* Search — flex-1, makan sisa ruang */}
-              <div className="relative flex-1 min-w-0">
+              <div className="relative flex-1 min-w-[160px]">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
                 <Input
                   placeholder="Cari nama / NISN..."
@@ -279,7 +279,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
 
               {/* Action buttons */}
               {(canExport || canFullEdit) && (
-                <div className="flex items-center gap-1.5 shrink-0">
+                <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto sm:ml-auto [&>button]:flex-1 [&>button]:justify-center sm:[&>button]:flex-initial">
                   {canExport && (
                     <ExportModalSiswa
                       allRows={initialData}
@@ -300,10 +300,10 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
               )}
             </div>
 
-            {/* Baris 2: Filter kelas + angkatan + status */}
-            <div className="flex items-center gap-2 flex-wrap">
+            {/* Baris 2: Filter kelas + tingkat + angkatan + status */}
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap sm:items-center gap-2">
               <Select value={filterKelas} onValueChange={v => { setFilterKelas(v); setCurrentPage(1) }}>
-                <SelectTrigger className="h-8 flex-1 min-w-[140px] text-xs rounded-lg">
+                <SelectTrigger className="h-8 w-full sm:flex-1 sm:min-w-[150px] px-2.5 text-xs rounded-lg">
                   <SelectValue placeholder="Semua Kelas" />
                 </SelectTrigger>
                 <SelectContent className="max-h-72">
@@ -317,7 +317,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                 </SelectContent>
               </Select>
               <Select value={filterTingkat} onValueChange={v => { setFilterTingkat(v); setCurrentPage(1) }}>
-                <SelectTrigger className="h-8 w-28 text-xs rounded-lg shrink-0">
+                <SelectTrigger className="h-8 w-full sm:w-36 px-2.5 text-xs rounded-lg">
                   <SelectValue placeholder="Tingkat" />
                 </SelectTrigger>
                 <SelectContent>
@@ -328,7 +328,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                 </SelectContent>
               </Select>
               <Select value={filterAngkatan} onValueChange={v => { setFilterAngkatan(v); setCurrentPage(1) }}>
-                <SelectTrigger className="h-8 w-32 text-xs rounded-lg shrink-0">
+                <SelectTrigger className="h-8 w-full sm:w-40 px-2.5 text-xs rounded-lg">
                   <SelectValue placeholder="Angkatan" />
                 </SelectTrigger>
                 <SelectContent>
@@ -339,7 +339,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                 </SelectContent>
               </Select>
               <Select value={filterStatus} onValueChange={v => { setFilterStatus(v); setCurrentPage(1) }}>
-                <SelectTrigger className="h-8 w-28 text-xs rounded-lg shrink-0">
+                <SelectTrigger className="h-8 w-full sm:w-32 px-2.5 text-xs rounded-lg">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -643,6 +643,7 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                       <tr className="bg-surface-2 border-b border-surface-2">
                         <th className="text-left px-4 py-2.5 font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Nama</th>
                         <th className="text-left px-3 py-2.5 font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">NISN</th>
+                        <th className="text-left px-3 py-2.5 font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Kelas Terakhir</th>
                         <th className="text-left px-3 py-2.5 font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Tanggal Keluar</th>
                         <th className="text-left px-3 py-2.5 font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Alasan</th>
                         <th className="text-left px-3 py-2.5 font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide text-[10px]">Keterangan</th>
@@ -660,6 +661,15 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                             </div>
                           </td>
                           <td className="px-3 py-2.5 font-mono text-slate-500 dark:text-slate-400">{s.nisn}</td>
+                          <td className="px-3 py-2.5">
+                            {s.kelas_terakhir ? (
+                              <span className="text-xs font-medium text-slate-600 dark:text-slate-300 bg-surface-3 px-2 py-0.5 rounded border border-surface whitespace-nowrap">
+                                {s.kelas_terakhir}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 dark:text-slate-500">—</span>
+                            )}
+                          </td>
                           <td className="px-3 py-2.5 whitespace-nowrap">
                             {s.tanggal_keluar ? (
                               <div className="flex items-center gap-1 text-rose-600">
@@ -691,8 +701,15 @@ export function SiswaClient({ initialData, kelasList, currentUser }: { initialDa
                       <AvatarSiswa fotoUrl={s.foto_url} nama={s.nama_lengkap || ''} size="lg" className="bg-rose-100 border-rose-200 text-rose-600 font-bold" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 dark:text-slate-100 truncate">{s.nama_lengkap}</p>
-                        <p className="text-[11px] text-slate-400 dark:text-slate-500">{s.nisn}</p>
-                        <div className="flex items-center gap-1 mt-0.5">
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          <span className="text-[11px] text-slate-400 dark:text-slate-500 font-mono">{s.nisn}</span>
+                          {s.kelas_terakhir && (
+                            <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-300 bg-surface-3 px-1.5 py-0.5 rounded border border-surface">
+                              {s.kelas_terakhir}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 mt-1 flex-wrap">
                           {s.alasan_keluar && (
                             <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-rose-50 text-rose-700 border-rose-200">
                               {s.alasan_keluar}

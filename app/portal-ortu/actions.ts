@@ -1,7 +1,5 @@
 'use server'
 
-import { summarizeParentAttendanceDays } from '@/lib/parent-attendance-presentation'
-
 import { getDB } from '@/utils/db-server'
 import { getAppSession } from '@/utils/auth/server'
 import { revalidatePath } from 'next/cache'
@@ -10,11 +8,23 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { uploadPaymentProof } from '@/utils/r2'
 import { ensureParentSuggestionTable, normalizeParentSuggestionCategory } from '@/lib/parent-suggestions'
 import { getKomitePaymentSettings, selectKomitePaymentSettings } from '@/lib/komite-payment-settings'
-import { getFinalAttendanceForStudent } from '@/lib/wali-kelas-attendance'
-import { getKalenderEventsForRange, kalenderDateStatusFromEvents, enumerateDateStrings } from '@/lib/kalender-pendidikan'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
 import { emitConfiguredNotification, getStudentNotificationContext } from '@/lib/notification-engine'
 import { ensureParentPortalEnhancementSchema } from '@/lib/parent-portal-schema'
+import {
+  ensureParentCommunicationTables,
+  ensurePaymentSubmissionTable,
+  isDsptZeroUninput,
+  loadParentAttendanceForYear,
+  loadParentDokumentasiTabData,
+  loadParentJadwalTabData,
+  loadParentKedisiplinanTabData,
+  loadParentKehadiranTabData,
+  loadParentKeuanganTabData,
+  loadParentNilaiTabData,
+  loadParentPsikotesTabData,
+  loadParentSaranTabData,
+} from '@/lib/portal-ortu-loaders'
 import {
   fingerprintParentTkaSelection,
   getParentTkaSelection,
@@ -32,56 +42,6 @@ import {
 type SummonResponse = 'hadir' | 'reschedule'
 const SEMESTER_NILAI_COLUMNS = ['nilai_smt1', 'nilai_smt2', 'nilai_smt3', 'nilai_smt4', 'nilai_smt5', 'nilai_smt6'] as const
 
-async function ensureParentCommunicationTables(db: D1Database) {
-  await db.prepare(`
-    CREATE TABLE IF NOT EXISTS parent_notifications (
-      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      siswa_id TEXT NOT NULL REFERENCES siswa(id) ON DELETE CASCADE,
-      type TEXT NOT NULL,
-      title TEXT NOT NULL,
-      message TEXT NOT NULL,
-      source_ref TEXT,
-      level TEXT NOT NULL DEFAULT 'info',
-      is_read INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      UNIQUE(siswa_id, type, source_ref)
-    )
-  `).run()
-
-  await db.prepare(`
-    CREATE TABLE IF NOT EXISTS parent_summons (
-      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      siswa_id TEXT NOT NULL REFERENCES siswa(id) ON DELETE CASCADE,
-      source_ref TEXT,
-      reason TEXT NOT NULL,
-      event_date TEXT,
-      event_time TEXT,
-      location TEXT,
-      note TEXT,
-      status TEXT NOT NULL DEFAULT 'terkirim',
-      parent_response TEXT,
-      parent_response_note TEXT,
-      parent_responded_at TEXT,
-      created_by TEXT REFERENCES "user"(id),
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      UNIQUE(siswa_id, source_ref)
-    )
-  `).run()
-
-  await db.prepare(`
-    CREATE TABLE IF NOT EXISTS parent_thread_notes (
-      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      siswa_id TEXT NOT NULL REFERENCES siswa(id) ON DELETE CASCADE,
-      actor_type TEXT NOT NULL,
-      actor_id TEXT,
-      note_type TEXT NOT NULL DEFAULT 'tindak_lanjut',
-      content TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )
-  `).run()
-}
-
 async function requireParentSession() {
   const session = await getAppSession()
   if (!session || session.kind !== 'parent') throw new Error('Unauthorized')
@@ -92,61 +52,58 @@ function generateId() {
   return crypto.randomUUID()
 }
 
-function academicYearRange(nama: string, semester: number) {
-  const years = String(nama || '').match(/(\d{4})\D+(\d{4})/)
-  if (!years) return null
-  const firstYear = Number(years[1])
-  const secondYear = Number(years[2])
-  return Number(semester) === 1
-    ? { startDate: `${firstYear}-07-01`, endDate: `${firstYear}-12-31` }
-    : { startDate: `${secondYear}-01-01`, endDate: `${secondYear}-06-30` }
-}
-
-function summarizeParentAttendance(statuses: any[]) { return summarizeParentAttendanceDays(statuses) }
-
 export async function getParentAttendanceByAcademicYear(tahunAjaranId: string) {
   const session = await requireParentSession()
   const db = await getDB()
-  const ta = await db.prepare(`
-    SELECT id, nama, semester, is_active
-    FROM tahun_ajaran
-    WHERE id = ?
-    LIMIT 1
-  `).bind(tahunAjaranId).first<any>()
-  if (!ta) return { error: 'Tahun ajaran tidak ditemukan.' }
+  return loadParentAttendanceForYear(db, session.user.siswa_id, tahunAjaranId)
+}
 
-  const range = academicYearRange(ta.nama, Number(ta.semester))
-  if (!range) return { error: 'Rentang tahun ajaran belum dapat ditentukan.' }
+export async function getParentJadwalTabData() {
+  const session = await requireParentSession()
+  const db = await getDB()
+  return loadParentJadwalTabData(db, session.user.siswa_id)
+}
 
-  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
-  const endDate = range.endDate > today ? today : range.endDate
-  const result = endDate >= range.startDate
-    ? await getFinalAttendanceForStudent(db, session.user.siswa_id, range.startDate, endDate, { tahunAjaranId: ta.id })
-    : null
-  const statuses = result?.statuses || []
-  const aggregates = summarizeParentAttendance(statuses)
-  const events = endDate >= range.startDate ? await getKalenderEventsForRange(db, range.startDate, endDate) : []
-  const siswaKelas = await db.prepare(`
-    SELECT k.id AS kelas_id, k.tingkat
-    FROM siswa s
-    LEFT JOIN kelas k ON k.id = s.kelas_id
-    WHERE s.id = ?
-  `).bind(session.user.siswa_id).first<{ kelas_id: string | null; tingkat: number | null }>()
-  const calendarScope = siswaKelas?.kelas_id
-    ? { kelasId: siswaKelas.kelas_id, tingkat: Number(siswaKelas.tingkat) }
-    : null
-  const calendarExceptions = endDate >= range.startDate ? enumerateDateStrings(range.startDate, endDate)
-    .map(tanggal => kalenderDateStatusFromEvents(tanggal, events, calendarScope))
-    .filter(day => !day.isEffective)
-    .map(day => ({ tanggal: day.tanggal, label: 'Hari libur', reason: day.reason })) : []
+export async function getParentKehadiranTabData() {
+  const session = await requireParentSession()
+  const db = await getDB()
+  return loadParentKehadiranTabData(db, session.user.siswa_id)
+}
 
-  return {
-    tahunAjaran: { id: ta.id, nama: ta.nama, semester: Number(ta.semester), isActive: Number(ta.is_active) === 1 },
-    range: { startDate: range.startDate, endDate },
-    ...aggregates,
-    calendarDays: statuses,
-    calendarExceptions,
-  }
+export async function getParentKedisiplinanTabData() {
+  const session = await requireParentSession()
+  const db = await getDB()
+  return loadParentKedisiplinanTabData(db, session.user.siswa_id)
+}
+
+export async function getParentNilaiTabData() {
+  const session = await requireParentSession()
+  const db = await getDB()
+  return loadParentNilaiTabData(db, session.user.siswa_id)
+}
+
+export async function getParentPsikotesTabData() {
+  const session = await requireParentSession()
+  const db = await getDB()
+  return loadParentPsikotesTabData(db, session.user.siswa_id)
+}
+
+export async function getParentKeuanganTabData() {
+  const session = await requireParentSession()
+  const db = await getDB()
+  return loadParentKeuanganTabData(db, session.user.siswa_id)
+}
+
+export async function getParentSaranTabData() {
+  const session = await requireParentSession()
+  const db = await getDB()
+  return loadParentSaranTabData(db, session.user.siswa_id)
+}
+
+export async function getParentDokumentasiTabData() {
+  await requireParentSession()
+  const db = await getDB()
+  return loadParentDokumentasiTabData(db)
 }
 
 export async function getParentDisciplineByAcademicYear(tahunAjaranId: string) {
@@ -221,43 +178,6 @@ export async function submitDisciplineClarification(recordId: string, message: s
   revalidatePath('/portal-ortu')
   revalidatePath('/dashboard/kedisiplinan')
   return { success: 'Klarifikasi berhasil dikirim.', id }
-}
-
-function isDsptZeroUninput(
-  tahunMasuk: number | string | null | undefined,
-  nominal: number | null | undefined,
-  totalDibayar: number | null | undefined,
-  totalDiskon: number | null | undefined,
-) {
-  return Number(tahunMasuk || 0) >= 2026
-    && Number(nominal || 0) === 0
-    && Number(totalDibayar || 0) === 0
-    && Number(totalDiskon || 0) === 0
-}
-
-async function ensurePaymentSubmissionTable(db: D1Database) {
-  await db.prepare(`
-    CREATE TABLE IF NOT EXISTS fin_payment_submissions (
-      id TEXT PRIMARY KEY,
-      siswa_id TEXT NOT NULL REFERENCES siswa(id),
-      dspt_id TEXT NOT NULL REFERENCES fin_dspt(id),
-      kategori TEXT NOT NULL DEFAULT 'dspt',
-      metode_bayar TEXT NOT NULL DEFAULT 'transfer',
-      jumlah INTEGER NOT NULL DEFAULT 0,
-      status TEXT NOT NULL DEFAULT 'belum_upload',
-      bank_tujuan TEXT,
-      bukti_url TEXT,
-      bukti_uploaded_at TEXT,
-      confirmed_by TEXT REFERENCES "user"(id),
-      confirmed_at TEXT,
-      rejected_by TEXT REFERENCES "user"(id),
-      rejected_at TEXT,
-      reject_reason TEXT,
-      transaksi_id TEXT REFERENCES fin_transaksi(id),
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )
-  `).run()
 }
 
 export async function createParentDsptPaymentSubmission(payload: {
@@ -625,11 +545,12 @@ export async function changeOwnParentPassword(payload: {
   const { env } = await getCloudflareContext({ async: true })
   const auth = createAuth(env.DB)
 
-  // Verifikasi password lama via sign-in parent
+  // Verifikasi password lama via sign-in parent (verifyOnly agar tidak membuat sesi baru / mencatat login ulang)
   try {
     await auth.api.signInParent({
       body: { nisn: session.user.nisn, password: currentPassword },
       asResponse: false,
+      verifyOnly: true,
     })
   } catch {
     return { error: 'Password saat ini salah.' }

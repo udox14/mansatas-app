@@ -237,7 +237,8 @@ export function ExportModalSiswa({
     <Dialog open={open} onOpenChange={openDialog}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 border-surface rounded-md px-2.5">
-          <FileSpreadsheet className="h-3.5 w-3.5 shrink-0" />
+          <Download className="h-3.5 w-3.5 shrink-0" />
+          <span className="sm:hidden">Export</span>
           <span className="hidden sm:inline">Export Siswa</span>
         </Button>
       </DialogTrigger>

@@ -3,175 +3,47 @@ import { redirect } from 'next/navigation'
 import { getAppSession } from '@/utils/auth/server'
 import { getDB } from '@/utils/db-server'
 import { PortalOrtuClient } from './components/portal-ortu-client'
-import { findSlotException, getKalenderDateStatus, getKbmExceptionsForDate } from '@/lib/kalender-pendidikan'
-import { ensureParentSuggestionTable } from '@/lib/parent-suggestions'
-import { getKomitePaymentSettings, selectKomitePaymentSettings } from '@/lib/komite-payment-settings'
-import { getDocumentationArticles } from '@/lib/documentation'
 import { getFinalAttendanceForStudent } from '@/lib/wali-kelas-attendance'
-import { getParentAttendanceByAcademicYear } from './actions'
 import { ensureSchemaOnce } from '@/lib/schema-guard'
+import { touchParentLastSeen } from '@/lib/parent-login-tracking'
 import { ensureParentPortalEnhancementSchema } from '@/lib/parent-portal-schema'
 import {
   fingerprintParentTkaSelection,
   getParentTkaSelection,
   isParentTkaSelectionComplete,
 } from '@/lib/parent-tka'
-import { sanitizeParentAgenda, parentSessionAttendance } from '@/lib/parent-schedule'
-import { ensureParentDisciplineSchema, getParentDisciplineData, getParentDisciplineSettings } from '@/lib/parent-discipline'
+import { ensureParentDisciplineSchema, getParentDisciplineSettings } from '@/lib/parent-discipline'
+import {
+  computeFinanceSummaryFields,
+  ensureParentCommunicationTables,
+  ensurePaymentSubmissionTable,
+  getTodayWeekContextWIB,
+  loadParentDokumentasiTabData,
+  loadParentJadwalTabData,
+  loadParentKedisiplinanTabData,
+  loadParentKehadiranTabData,
+  loadParentKeuanganTabData,
+  loadParentNilaiTabData,
+  loadParentPsikotesTabData,
+  loadParentSaranTabData,
+} from '@/lib/portal-ortu-loaders'
 
 export const dynamic = 'force-dynamic'
 
-function rupiah(v: number) {
-  return new Intl.NumberFormat('id-ID').format(v || 0)
-}
-
-function isDsptZeroUninput(
-  tahunMasuk: number | string | null | undefined,
-  nominal: number | null | undefined,
-  totalDibayar: number | null | undefined,
-  totalDiskon: number | null | undefined,
-) {
-  return Number(tahunMasuk || 0) >= 2026
-    && Number(nominal || 0) === 0
-    && Number(totalDibayar || 0) === 0
-    && Number(totalDiskon || 0) === 0
-}
-
-function getDsptStatus(
-  tahunMasuk: number | string | null | undefined,
-  dspt: any,
-): 'belum_bayar' | 'nyicil' | 'lunas' | 'tidak_ada' {
-  if (!dspt) return 'tidak_ada'
-  const target = Number(dspt.nominal_target || 0)
-  const bayar = Number(dspt.total_dibayar || 0)
-  const diskon = Number(dspt.total_diskon || 0)
-  if (isDsptZeroUninput(tahunMasuk, target, bayar, diskon)) return 'tidak_ada'
-  if (target - bayar - diskon <= 0) return 'lunas'
-  if (bayar > 0) return 'nyicil'
-  return 'belum_bayar'
-}
-
-type SlotJam = { id: number; mulai: string; selesai: string }
-type PolaJam = { hari: number[]; slots: SlotJam[] }
-type TodayAbsensiRow = {
-  penugasan_id: string
-  jam_ke_mulai: number | null
-  jam_ke_selesai: number | null
-  status: string
-  catatan: string | null
-}
-type TodayIzinRow = {
-  jam_pelajaran: string | number | null
-  alasan: string
-  keterangan: string | null
-}
-type GuruTidakHadir = {
-  status: 'SAKIT' | 'IZIN'
-  keterangan: string | null
-}
-const DAY_LABEL: Record<number, string> = {
-  1: 'Senin',
-  2: 'Selasa',
-  3: 'Rabu',
-  4: 'Kamis',
-  5: 'Jumat',
-  6: 'Sabtu',
-}
-
-function shiftDate(date: string, days: number) {
-  const value = new Date(`${date}T12:00:00Z`)
-  value.setUTCDate(value.getUTCDate() + days)
-  return value.toISOString().slice(0, 10)
-}
-
-function parseIzinJam(raw: TodayIzinRow['jam_pelajaran']) {
-  if (raw === null || raw === undefined || raw === '') return []
-  try {
-    const parsed = JSON.parse(String(raw))
-    return (Array.isArray(parsed) ? parsed : [parsed])
-      .map(Number)
-      .filter(value => Number.isInteger(value) && value > 0)
-  } catch {
-    const value = Number(raw)
-    return Number.isInteger(value) && value > 0 ? [value] : []
-  }
-}
-
-function summarizeAttendanceRows(rows: any[]) { return summarizeParentAttendanceDays(rows).summary }
-
-async function ensureParentCommunicationTables(db: D1Database) {
-  await db.prepare(`
-    CREATE TABLE IF NOT EXISTS parent_notifications (
-      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      siswa_id TEXT NOT NULL REFERENCES siswa(id) ON DELETE CASCADE,
-      type TEXT NOT NULL,
-      title TEXT NOT NULL,
-      message TEXT NOT NULL,
-      source_ref TEXT,
-      level TEXT NOT NULL DEFAULT 'info',
-      is_read INTEGER NOT NULL DEFAULT 0,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      UNIQUE(siswa_id, type, source_ref)
-    )
-  `).run()
-
-  await db.prepare(`
-    CREATE TABLE IF NOT EXISTS parent_summons (
-      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      siswa_id TEXT NOT NULL REFERENCES siswa(id) ON DELETE CASCADE,
-      source_ref TEXT,
-      reason TEXT NOT NULL,
-      event_date TEXT,
-      event_time TEXT,
-      location TEXT,
-      note TEXT,
-      status TEXT NOT NULL DEFAULT 'terkirim',
-      parent_response TEXT,
-      parent_response_note TEXT,
-      parent_responded_at TEXT,
-      created_by TEXT REFERENCES "user"(id),
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-      UNIQUE(siswa_id, source_ref)
-    )
-  `).run()
-
-  await db.prepare(`
-    CREATE TABLE IF NOT EXISTS parent_thread_notes (
-      id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
-      siswa_id TEXT NOT NULL REFERENCES siswa(id) ON DELETE CASCADE,
-      actor_type TEXT NOT NULL,
-      actor_id TEXT,
-      note_type TEXT NOT NULL DEFAULT 'tindak_lanjut',
-      content TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )
-  `).run()
-}
-
-async function ensurePaymentSubmissionTable(db: D1Database) {
-  await db.prepare(`
-    CREATE TABLE IF NOT EXISTS fin_payment_submissions (
-      id TEXT PRIMARY KEY,
-      siswa_id TEXT NOT NULL REFERENCES siswa(id),
-      dspt_id TEXT NOT NULL REFERENCES fin_dspt(id),
-      kategori TEXT NOT NULL DEFAULT 'dspt' CHECK(kategori IN ('dspt')),
-      metode_bayar TEXT NOT NULL DEFAULT 'transfer' CHECK(metode_bayar IN ('transfer', 'qris')),
-      jumlah INTEGER NOT NULL DEFAULT 0,
-      status TEXT NOT NULL DEFAULT 'belum_upload' CHECK(status IN ('belum_upload', 'menunggu_konfirmasi', 'terkonfirmasi', 'ditolak')),
-      bukti_url TEXT,
-      bukti_uploaded_at TEXT,
-      confirmed_by TEXT REFERENCES "user"(id),
-      confirmed_at TEXT,
-      rejected_by TEXT REFERENCES "user"(id),
-      rejected_at TEXT,
-      reject_reason TEXT,
-      transaksi_id TEXT REFERENCES fin_transaksi(id),
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )
-  `).run()
-}
+const ALWAYS_READY_TABS = ['beranda', 'biodata', 'notifications', 'account'] as const
+const ALLOWED_PORTAL_TABS = new Set([
+  'beranda',
+  'biodata',
+  'notifications',
+  'jadwal',
+  'kehadiran',
+  'nilai',
+  'psikotes',
+  'keuangan',
+  'saran',
+  'dokumentasi',
+  'account',
+])
 
 async function seedParentCommunication(db: D1Database, siswaId: string) {
   const bkRows = await db.prepare(`
@@ -222,22 +94,6 @@ async function seedParentCommunication(db: D1Database, siswaId: string) {
   }
 }
 
-function parseJamPelajaran(raw: string | null | undefined): Map<number, Map<number, SlotJam>> {
-  const byDay = new Map<number, Map<number, SlotJam>>()
-  if (!raw) return byDay
-  try {
-    const patterns = JSON.parse(raw) as PolaJam[]
-    for (const p of patterns || []) {
-      for (const d of p.hari || []) {
-        if (!byDay.has(d)) byDay.set(d, new Map<number, SlotJam>())
-        const dayMap = byDay.get(d)!
-        for (const s of p.slots || []) dayMap.set(Number(s.id), s)
-      }
-    }
-  } catch {}
-  return byDay
-}
-
 export default async function PortalOrtuPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const requestedTab = (await searchParams).tab
   const session = await getAppSession()
@@ -246,10 +102,10 @@ export default async function PortalOrtuPage({ searchParams }: { searchParams: P
 
   const siswaId = session.user.siswa_id
   const db = await getDB()
+  await touchParentLastSeen(db, siswaId).catch(() => undefined)
   await ensureSchemaOnce('parent-communication', () => ensureParentCommunicationTables(db))
   await ensureParentPortalEnhancementSchema(db)
-  await ensureParentDisciplineSchema(db)
-  await ensureSchemaOnce('fin-payment-submissions', () => ensurePaymentSubmissionTable(db))
+  await ensurePaymentSubmissionTable(db)
   await ensureSchemaOnce('parent-announcements', async () => {
     await db.prepare(`
       CREATE TABLE IF NOT EXISTS parent_announcements (
@@ -277,43 +133,50 @@ export default async function PortalOrtuPage({ searchParams }: { searchParams: P
       )
     `).run()
   })
-  await ensureParentSuggestionTable(db)
+
   const disciplineSettings = await getParentDisciplineSettings()
+  if (disciplineSettings.enabled) {
+    await ensureParentDisciplineSchema(db)
+  }
   await seedParentCommunication(db, siswaId)
 
+  const initialPortalTab = requestedTab === 'kedisiplinan'
+    ? (disciplineSettings.enabled ? 'kedisiplinan' : 'beranda')
+    : (requestedTab && ALLOWED_PORTAL_TABS.has(requestedTab) ? requestedTab : 'beranda')
+
   const profil = await db.prepare(`
-    SELECT s.id, s.nisn, s.nama_lengkap, s.status, s.foto_url, s.kelas_id, s.tahun_masuk, s.nomor_whatsapp, k.tingkat, k.nomor_kelas, k.kelompok, k.wali_kelas_id
+    SELECT
+      s.id, s.nisn, s.nis_lokal, s.nama_lengkap, s.jenis_kelamin, s.status, s.foto_url,
+      s.kelas_id, s.tahun_masuk, s.minat_jurusan, s.nik, s.tempat_lahir, s.tanggal_lahir,
+      s.agama, s.jumlah_saudara, s.anak_ke, s.status_anak, s.asal_sekolah,
+      s.tempat_tinggal, s.asrama, s.kamar, s.alamat_lengkap, s.rt, s.rw,
+      s.desa_kelurahan, s.kecamatan, s.kabupaten_kota, s.provinsi, s.kode_pos,
+      s.nomor_whatsapp, s.nomor_kk,
+      s.nama_ayah, s.nik_ayah, s.tempat_lahir_ayah, s.tanggal_lahir_ayah,
+      s.status_ayah, s.pendidikan_ayah, s.pekerjaan_ayah, s.penghasilan_ayah,
+      s.nama_ibu, s.nik_ibu, s.tempat_lahir_ibu, s.tanggal_lahir_ibu,
+      s.status_ibu, s.pendidikan_ibu, s.pekerjaan_ibu, s.penghasilan_ibu,
+      k.tingkat, k.nomor_kelas, k.kelompok, k.wali_kelas_id
     FROM siswa s
     LEFT JOIN kelas k ON k.id = s.kelas_id
     WHERE s.id = ?
   `).bind(siswaId).first<any>()
   if (!profil) redirect('/portal-ortu/login')
 
-  const todayRaw = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date())
-  const todayDayMap = new Date(`${todayRaw}T00:00:00`).getDay()
-  const todayDay = todayDayMap === 0 ? 7 : todayDayMap
-  const weekStart = shiftDate(todayRaw, 1 - todayDay)
-  const weekEnd = shiftDate(weekStart, 5)
+  const { todayRaw, weekStart, weekEnd } = getTodayWeekContextWIB()
 
   const [
     pengumumanRows,
-    attendanceYears,
-    nilaiRekap,
-    disiplinRekap,
-    disiplinTerakhir,
-    sanksiConfig,
-    dspt,
-    sppSaldoAwal,
-    transaksiTerbaru,
-    paymentSubmissions,
-    parentSuggestions,
     waliKelasRow,
     notifications,
     summons,
     notes,
     taAktif,
-    komitePaymentSettings,
-    documentationArticles,
+    dspt,
+    sppSaldoAwal,
+    disiplinRekap,
+    disiplinTerakhir,
+    sanksiConfig,
   ] = await Promise.all([
     db.prepare(`
       SELECT pa.id, pa.title, pa.body, pa.publish_at, u.nama_lengkap AS pengirim
@@ -338,65 +201,6 @@ export default async function PortalOrtuPage({ searchParams }: { searchParams: P
       ORDER BY publish_at DESC
       LIMIT 5
     `).bind(profil.kelas_id || null, profil.kelas_id || null, Number(profil.tingkat || 0)).all<any>(),
-    db.prepare(`
-      SELECT id, nama, semester, is_active
-      FROM tahun_ajaran
-      ORDER BY nama DESC, semester DESC
-    `).all<any>(),
-    db.prepare(`
-      SELECT nilai_smt1, nilai_smt2, nilai_smt3, nilai_smt4, nilai_smt5, nilai_smt6
-      FROM rekap_nilai_akademik
-      WHERE siswa_id = ?
-      LIMIT 1
-    `).bind(siswaId).first<any>(),
-    db.prepare(`
-      SELECT COUNT(sp.id) AS total_kasus, COALESCE(SUM(COALESCE(sp.poin_snapshot, mp.poin, 0)), 0) AS total_poin
-      FROM siswa_pelanggaran sp
-      LEFT JOIN master_pelanggaran mp ON mp.id = sp.master_pelanggaran_id
-      WHERE sp.siswa_id = ? AND sp.publication_status = 'published'
-    `).bind(siswaId).first<any>(),
-    db.prepare(`
-      SELECT MAX(sp.tanggal) AS tanggal_terakhir
-      FROM siswa_pelanggaran sp
-      WHERE sp.siswa_id = ? AND sp.publication_status = 'published'
-    `).bind(siswaId).all<any>(),
-    db.prepare(`SELECT nama, poin_minimal FROM sanksi_config ORDER BY poin_minimal DESC`).all<any>(),
-    db.prepare(`
-      SELECT nominal_target, total_dibayar, total_diskon, status
-      FROM fin_dspt
-      WHERE siswa_id = ?
-      LIMIT 1
-    `).bind(siswaId).first<any>(),
-    db.prepare(`
-      SELECT jumlah, total_dibayar, status
-      FROM fin_spp_saldo_awal
-      WHERE siswa_id = ?
-      LIMIT 1
-    `).bind(siswaId).first<any>(),
-    db.prepare(`
-      SELECT t.id, t.nomor_kuitansi, t.kategori, t.metode_bayar, t.jumlah_total, t.created_at,
-             u.nama_lengkap AS nama_input
-      FROM fin_transaksi t
-      LEFT JOIN "user" u ON u.id = t.input_oleh
-      WHERE t.siswa_id = ? AND t.is_void = 0
-      ORDER BY t.created_at DESC
-      LIMIT 6
-    `).bind(siswaId).all<any>(),
-    db.prepare(`
-      SELECT id, siswa_id, dspt_id, kategori, metode_bayar, jumlah, status,
-             bukti_url, bukti_uploaded_at, reject_reason, transaksi_id, created_at, updated_at
-      FROM fin_payment_submissions
-      WHERE siswa_id = ? AND kategori = 'dspt'
-      ORDER BY datetime(created_at) DESC
-      LIMIT 20
-    `).bind(siswaId).all<any>(),
-    db.prepare(`
-      SELECT id, category, title, message, is_anonymous, status, read_at, handled_at, created_at, updated_at
-      FROM parent_suggestions
-      WHERE siswa_id = ?
-      ORDER BY datetime(created_at) DESC
-      LIMIT 20
-    `).bind(siswaId).all<any>(),
     db.prepare(`
       SELECT u.id, u.nama_lengkap,
              COALESCE(u.nomor_whatsapp, s.nomor_whatsapp) AS nomor_kontak
@@ -452,63 +256,128 @@ export default async function PortalOrtuPage({ searchParams }: { searchParams: P
       LIMIT 12
     `).bind(siswaId).all<any>(),
     db.prepare('SELECT id, jam_pelajaran FROM tahun_ajaran WHERE is_active = 1 LIMIT 1').first<any>(),
-    getKomitePaymentSettings(),
-    getDocumentationArticles(db, { audience: 'parent' }),
+    db.prepare(`
+      SELECT nominal_target, total_dibayar, total_diskon, status
+      FROM fin_dspt
+      WHERE siswa_id = ?
+      LIMIT 1
+    `).bind(siswaId).first<any>(),
+    db.prepare(`
+      SELECT jumlah, total_dibayar, status
+      FROM fin_spp_saldo_awal
+      WHERE siswa_id = ?
+      LIMIT 1
+    `).bind(siswaId).first<any>(),
+    disciplineSettings.enabled
+      ? db.prepare(`
+          SELECT COUNT(sp.id) AS total_kasus, COALESCE(SUM(COALESCE(sp.poin_snapshot, mp.poin, 0)), 0) AS total_poin
+          FROM siswa_pelanggaran sp
+          LEFT JOIN master_pelanggaran mp ON mp.id = sp.master_pelanggaran_id
+          WHERE sp.siswa_id = ? AND sp.publication_status = 'published'
+        `).bind(siswaId).first<any>()
+      : Promise.resolve({ total_kasus: 0, total_poin: 0 }),
+    disciplineSettings.enabled
+      ? db.prepare(`
+          SELECT MAX(sp.tanggal) AS tanggal_terakhir
+          FROM siswa_pelanggaran sp
+          WHERE sp.siswa_id = ? AND sp.publication_status = 'published'
+        `).bind(siswaId).all<any>()
+      : Promise.resolve({ results: [] as any[] }),
+    disciplineSettings.enabled
+      ? db.prepare(`SELECT nama, poin_minimal FROM sanksi_config ORDER BY poin_minimal DESC`).all<any>()
+      : Promise.resolve({ results: [] as any[] }),
   ])
 
-  const disciplineInitial = disciplineSettings.enabled && taAktif?.id
-    ? await getParentDisciplineData(db, siswaId, taAktif.id)
+  const financeSummary = computeFinanceSummaryFields(profil.tahun_masuk, dspt, sppSaldoAwal)
+  const hasRemainingBill = (financeSummary.dsptIsInput && financeSummary.dsptSisa > 0) || financeSummary.sppSisa > 0
+
+  const [
+    weeklyAttendanceResult,
+    pendingConfirmationRow,
+    tkaSummary,
+    kehadiranTabData,
+    kedisiplinanTabData,
+    nilaiTabData,
+    psikotesTabData,
+    keuanganTabData,
+    saranTabData,
+    dokumentasiTabData,
+  ] = await Promise.all([
+    getFinalAttendanceForStudent(
+      db,
+      siswaId,
+      weekStart,
+      todayRaw < weekEnd ? todayRaw : weekEnd,
+      { tahunAjaranId: taAktif?.id },
+    ),
+    hasRemainingBill && initialPortalTab !== 'keuangan'
+      ? db.prepare(`
+          SELECT COALESCE(SUM(jumlah), 0) AS total
+          FROM fin_payment_submissions
+          WHERE siswa_id = ? AND kategori = 'dspt' AND status = 'menunggu_konfirmasi'
+        `).bind(siswaId).first<{ total: number | null }>()
+      : Promise.resolve(null),
+    Number(profil.tingkat) === 12 && taAktif?.id
+      ? (async () => {
+          const current = await getParentTkaSelection(db, siswaId, taAktif.id)
+          const selection = current.selection
+          const fingerprint = selection ? await fingerprintParentTkaSelection(selection) : null
+          const [latestApproval, bkRows] = await Promise.all([
+            db.prepare(`
+              SELECT selection_fingerprint, approved_at
+              FROM parent_tka_approvals
+              WHERE siswa_id = ? AND tahun_ajaran_id = ?
+              ORDER BY datetime(approved_at) DESC
+              LIMIT 1
+            `).bind(siswaId, taAktif.id).first<{ selection_fingerprint: string; approved_at: string }>(),
+            profil.kelas_id
+              ? db.prepare(`
+                  SELECT DISTINCT u.id, u.nama_lengkap, u.nomor_whatsapp
+                  FROM kelas_binaan_bk kb
+                  JOIN "user" u ON u.id = kb.guru_bk_id
+                  WHERE kb.kelas_id = ? AND kb.tahun_ajaran_id = ?
+                  ORDER BY u.nama_lengkap COLLATE NOCASE
+                `).bind(profil.kelas_id, taAktif.id).all<any>()
+              : Promise.resolve({ results: [] as any[] }),
+          ])
+          return {
+            hasData: current.hasData,
+            selection,
+            isComplete: Boolean(selection && isParentTkaSelectionComplete(selection)),
+            approval: {
+              isApproved: Boolean(fingerprint && latestApproval?.selection_fingerprint === fingerprint),
+              approvedAt: fingerprint && latestApproval?.selection_fingerprint === fingerprint ? latestApproval.approved_at : null,
+              needsReapproval: Boolean(latestApproval && fingerprint && latestApproval.selection_fingerprint !== fingerprint),
+            },
+            bkContacts: bkRows.results || [],
+          }
+        })()
+      : Promise.resolve(null),
+    initialPortalTab === 'kehadiran' ? loadParentKehadiranTabData(db, siswaId) : Promise.resolve(null),
+    initialPortalTab === 'kedisiplinan' ? loadParentKedisiplinanTabData(db, siswaId, taAktif?.id) : Promise.resolve(null),
+    initialPortalTab === 'nilai' ? loadParentNilaiTabData(db, siswaId) : Promise.resolve(null),
+    initialPortalTab === 'psikotes' ? loadParentPsikotesTabData(db, siswaId) : Promise.resolve(null),
+    initialPortalTab === 'keuangan'
+      ? loadParentKeuanganTabData(db, siswaId, { tingkat: profil.tingkat, tahunMasuk: profil.tahun_masuk })
+      : Promise.resolve(null),
+    initialPortalTab === 'saran' ? loadParentSaranTabData(db, siswaId) : Promise.resolve(null),
+    initialPortalTab === 'dokumentasi' ? loadParentDokumentasiTabData(db) : Promise.resolve(null),
+  ])
+
+  const weeklyAttendanceSummary = summarizeParentAttendanceDays(weeklyAttendanceResult?.statuses || []).summary
+  const todayAttendance = weeklyAttendanceResult?.statuses.find(day => day.tanggal === todayRaw) || null
+
+  const jadwalTabData = initialPortalTab === 'jadwal'
+    ? await loadParentJadwalTabData(db, siswaId, {
+        kelasId: profil.kelas_id,
+        tingkat: profil.tingkat,
+        tahunAjaranId: taAktif?.id,
+        jamPelajaran: taAktif?.jam_pelajaran,
+        todayAttendance,
+      })
     : null
 
-  let tkaSummary: any = null
-  if (Number(profil.tingkat) === 12 && taAktif?.id) {
-    const current = await getParentTkaSelection(db, siswaId, taAktif.id)
-    const selection = current.selection
-    const fingerprint = selection ? await fingerprintParentTkaSelection(selection) : null
-    const latestApproval = await db.prepare(`
-      SELECT selection_fingerprint, approved_at
-      FROM parent_tka_approvals
-      WHERE siswa_id = ? AND tahun_ajaran_id = ?
-      ORDER BY datetime(approved_at) DESC
-      LIMIT 1
-    `).bind(siswaId, taAktif.id).first<{ selection_fingerprint: string; approved_at: string }>()
-    const bkRows = profil.kelas_id
-      ? await db.prepare(`
-          SELECT DISTINCT u.id, u.nama_lengkap, u.nomor_whatsapp
-          FROM kelas_binaan_bk kb
-          JOIN "user" u ON u.id = kb.guru_bk_id
-          WHERE kb.kelas_id = ? AND kb.tahun_ajaran_id = ?
-          ORDER BY u.nama_lengkap COLLATE NOCASE
-        `).bind(profil.kelas_id, taAktif.id).all<any>()
-      : { results: [] as any[] }
-
-    tkaSummary = {
-      hasData: current.hasData,
-      selection,
-      isComplete: Boolean(selection && isParentTkaSelectionComplete(selection)),
-      approval: {
-        isApproved: Boolean(fingerprint && latestApproval?.selection_fingerprint === fingerprint),
-        approvedAt: fingerprint && latestApproval?.selection_fingerprint === fingerprint ? latestApproval.approved_at : null,
-        needsReapproval: Boolean(latestApproval && fingerprint && latestApproval.selection_fingerprint !== fingerprint),
-      },
-      bkContacts: bkRows.results || [],
-    }
-  }
-
-  const kelasLabel = profil.tingkat
-    ? `${profil.tingkat}-${profil.nomor_kelas}${String(profil.tingkat) !== '10' && profil.kelompok ? ` ${profil.kelompok}` : ''}`
-    : '-'
-  const dsptTarget = Number(dspt?.nominal_target || 0)
-  const dsptBayar = Number(dspt?.total_dibayar || 0)
-  const dsptDiskon = Number(dspt?.total_diskon || 0)
-  const dsptSisa = Math.max(0, dsptTarget - dsptBayar - dsptDiskon)
-  const dsptStatus = getDsptStatus(profil.tahun_masuk, dspt)
-  const dsptIsInput = dsptStatus !== 'tidak_ada'
-  const dsptIsLunas = dsptStatus === 'lunas'
-  const dsptNeedsInput = dsptStatus === 'tidak_ada'
-  const sppNominal = Number(sppSaldoAwal?.jumlah || 0)
-  const sppBayar = Number(sppSaldoAwal?.total_dibayar || 0)
-  const sppSisa = Math.max(0, sppNominal - sppBayar)
+  const disciplineInitial = kedisiplinanTabData?.disciplineInitial || null
   const totalDisiplinPoin = Number(disciplineInitial?.lifetimeSummary.totalPoin ?? disiplinRekap?.total_poin ?? 0)
   const totalDisiplinKasus = Number(disciplineInitial?.lifetimeSummary.totalKasus ?? disiplinRekap?.total_kasus ?? 0)
   const activeSanksi = totalDisiplinPoin > 0
@@ -522,260 +391,16 @@ export default async function PortalOrtuPage({ searchParams }: { searchParams: P
     needsFollowUp: Boolean(activeSanksi) || totalDisiplinKasus > 0,
   }
 
-  const avgSemester = (raw: string | null | undefined) => {
-    if (!raw) return null
-    try {
-      const obj = JSON.parse(raw)
-      const nums = Object.values(obj || {}).map((x: any) => Number(x)).filter((x: number) => !Number.isNaN(x))
-      if (!nums.length) return null
-      return (nums.reduce((a: number, b: number) => a + b, 0) / nums.length).toFixed(2)
-    } catch {
-      return null
-    }
-  }
-
-  const semesters = [
-    { label: 'Semester 1', value: avgSemester(nilaiRekap?.nilai_smt1) },
-    { label: 'Semester 2', value: avgSemester(nilaiRekap?.nilai_smt2) },
-    { label: 'Semester 3', value: avgSemester(nilaiRekap?.nilai_smt3) },
-    { label: 'Semester 4', value: avgSemester(nilaiRekap?.nilai_smt4) },
-    { label: 'Semester 5', value: avgSemester(nilaiRekap?.nilai_smt5) },
-    { label: 'Semester 6', value: avgSemester(nilaiRekap?.nilai_smt6) },
-  ]
-  const semesterNumeric = semesters.map(s => s.value).filter(v => v !== null && v !== undefined && v !== '').map(Number).filter(v => !Number.isNaN(v))
-  const semesterAvg = semesterNumeric.length ? Number((semesterNumeric.reduce((a, b) => a + b, 0) / semesterNumeric.length).toFixed(1)) : null
-
-  const weeklyAttendanceResult = await getFinalAttendanceForStudent(
-    db,
-    siswaId,
-    weekStart,
-    todayRaw < weekEnd ? todayRaw : weekEnd,
-    { tahunAjaranId: taAktif?.id }
-  )
-  const weeklyAttendanceSummary = summarizeAttendanceRows(weeklyAttendanceResult?.statuses || [])
-  const activeAttendanceYear = (attendanceYears.results || []).find((item: any) => Number(item.is_active) === 1)
-    || attendanceYears.results?.[0]
-  const attendanceInitial = activeAttendanceYear
-    ? await getParentAttendanceByAcademicYear(activeAttendanceYear.id)
-    : null
-
-  const jamMap = parseJamPelajaran(taAktif?.jam_pelajaran)
-  const calendarStatus = await getKalenderDateStatus(db, todayRaw, profil.kelas_id
-    ? { kelasId: profil.kelas_id, tingkat: Number(profil.tingkat) }
-    : null)
-  const kbmExceptions = profil.kelas_id ? await getKbmExceptionsForDate(db, todayRaw) : []
-  const jadwalRows = profil.kelas_id
-    ? await db.prepare(`
-      SELECT jm.hari, jm.jam_ke, mp.nama_mapel, u.nama_lengkap AS guru_nama, pm.id AS penugasan_id
-      FROM jadwal_mengajar jm
-      JOIN penugasan_mengajar pm ON pm.id = jm.penugasan_id
-      JOIN kelas k ON pm.kelas_id = k.id
-      JOIN mata_pelajaran mp ON mp.id = pm.mapel_id
-      LEFT JOIN "user" u ON u.id = pm.guru_id
-      WHERE pm.kelas_id = ? AND pm.tahun_ajaran_id = ?
-        AND (k.kbm_nonaktif_mulai IS NULL OR k.kbm_nonaktif_mulai > ?)
-      ORDER BY jm.hari ASC, jm.jam_ke ASC
-    `).bind(profil.kelas_id, taAktif?.id || '', todayRaw).all<any>()
-    : { results: [] as any[] }
-
-  const todayPenugasanIds = Array.from(
-    new Set(
-      (jadwalRows.results || [])
-        .filter((row: any) => Number(row.hari) === todayDay)
-        .map((row: any) => row.penugasan_id)
-        .filter(Boolean)
-    )
-  )
-  const todaySubmittedSet = new Set<string>()
-  if (todayPenugasanIds.length > 0) {
-    const placeholders = todayPenugasanIds.map(() => '?').join(',')
-    const sesiRows = await db.prepare(`
-      SELECT penugasan_id
-      FROM absensi_sesi_guru
-      WHERE tanggal = ? AND penugasan_id IN (${placeholders})
-    `).bind(todayRaw, ...todayPenugasanIds).all<{ penugasan_id: string }>()
-    for (const row of sesiRows.results || []) {
-      todaySubmittedSet.add(row.penugasan_id)
-    }
-  }
-
-  const todayAbsensiRows = await db.prepare(`
-    SELECT penugasan_id, jam_ke_mulai, jam_ke_selesai, status, catatan
-    FROM absensi_siswa
-    WHERE siswa_id = ? AND tanggal = ?
-  `).bind(siswaId, todayRaw).all<TodayAbsensiRow>()
-
-  const todayIzinRows = await db.prepare(`
-    SELECT jam_pelajaran, alasan, keterangan
-    FROM izin_tidak_masuk_kelas
-    WHERE siswa_id = ? AND tanggal = ?
-    ORDER BY created_at ASC
-  `).bind(siswaId, todayRaw).all<TodayIzinRow>()
-
-  const todayAttendance = weeklyAttendanceResult?.statuses.find(day => day.tanggal === todayRaw)
-
-  const todayAbsensiMap = new Map<string, { status: string; catatan: string | null }>()
-  for (const row of todayAbsensiRows.results || []) {
-    const start = Number(row.jam_ke_mulai || 0)
-    const end = Number(row.jam_ke_selesai || start)
-    if (start > 0 && end >= start) {
-      for (let jam = start; jam <= end; jam++) {
-        todayAbsensiMap.set(`${row.penugasan_id}__${jam}`, { status: row.status, catatan: row.catatan })
-      }
-    } else {
-      todayAbsensiMap.set(`${row.penugasan_id}__all`, { status: row.status, catatan: row.catatan })
-    }
-  }
-
-  const todayIzinMap = new Map<number | 'all', Array<{alasan:string;note:string}>>()
-  for (const row of todayIzinRows.results || []) {
-    const note = [row.alasan || 'Izin', row.keterangan].filter(Boolean).join(': ')
-    const jamList = parseIzinJam(row.jam_pelajaran)
-    const keys: Array<number | 'all'> = jamList.length > 0 ? jamList : ['all']
-    for (const key of keys) {
-      if (!todayIzinMap.has(key)) todayIzinMap.set(key, [])
-      todayIzinMap.get(key)!.push({alasan:row.alasan,note})
-    }
-  }
-
-  const agendaRows = profil.kelas_id
-    ? await db.prepare(`
-        SELECT ag.penugasan_id, ag.tanggal, ag.materi, ag.foto_url, ag.status, ag.catatan_admin
-        FROM agenda_guru ag
-        JOIN penugasan_mengajar pm ON pm.id = ag.penugasan_id
-        WHERE pm.kelas_id = ? AND ag.tanggal BETWEEN ? AND ?
-      `).bind(profil.kelas_id, weekStart, weekEnd).all<any>()
-    : { results: [] as any[] }
-  const agendaMap = new Map<string, any>()
-  for (const agenda of agendaRows.results || []) {
-    agendaMap.set(`${agenda.penugasan_id}__${agenda.tanggal}`, agenda)
-  }
-
-  // Samakan sumber status dengan Monitoring Agenda: agenda/override admin
-  // mengalahkan penugasan. Keterangan hanya dibuka untuk status IZIN.
-  const guruTidakHadirMap = new Map<string, GuruTidakHadir>()
-  for (const agenda of agendaRows.results || []) {
-    if (agenda.status === 'SAKIT' || agenda.status === 'IZIN') {
-      guruTidakHadirMap.set(`${agenda.penugasan_id}__${agenda.tanggal}`, {
-        status: agenda.status,
-        keterangan: agenda.status === 'IZIN' ? agenda.catatan_admin || null : null,
-      })
-    }
-  }
-
-  const delegasiRows = profil.kelas_id
-    ? await db.prepare(`
-        SELECT dtk.penugasan_mengajar_id AS penugasan_id, dt.tanggal,
-          dt.alasan_ketidakhadiran, dt.deskripsi_ketidakhadiran
-        FROM delegasi_tugas dt
-        JOIN delegasi_tugas_kelas dtk ON dtk.delegasi_id = dt.id
-        JOIN penugasan_mengajar pm ON pm.id = dtk.penugasan_mengajar_id
-        WHERE pm.kelas_id = ?
-          AND dt.dari_user_id = pm.guru_id
-          AND dt.tanggal BETWEEN ? AND ?
-        ORDER BY dt.created_at DESC
-      `).bind(profil.kelas_id, weekStart, weekEnd).all<any>()
-    : { results: [] as any[] }
-  for (const delegasi of delegasiRows.results || []) {
-    const key = `${delegasi.penugasan_id}__${delegasi.tanggal}`
-    if (agendaMap.has(key)) continue
-    if (delegasi.alasan_ketidakhadiran === 'SAKIT' || delegasi.alasan_ketidakhadiran === 'IZIN') {
-      guruTidakHadirMap.set(key, {
-        status: delegasi.alasan_ketidakhadiran,
-        keterangan: delegasi.alasan_ketidakhadiran === 'IZIN'
-          ? delegasi.deskripsi_ketidakhadiran || null
-          : null,
-      })
-    }
-  }
-
-  const jadwalByDay = new Map<number, any[]>()
-  for (const row of (jadwalRows.results || [])) {
-    const hari = Number(row.hari)
-    if (!jadwalByDay.has(hari)) jadwalByDay.set(hari, [])
-    const jamKe = Number(row.jam_ke)
-    const slot = jamMap.get(hari)?.get(Number(row.jam_ke))
-    let absensi: ReturnType<typeof parentSessionAttendance> | null = null
-    if (hari === todayDay) {
-      const exception = findSlotException(
-        kbmExceptions,
-        { id: profil.kelas_id, tingkat: Number(profil.tingkat) },
-        jamKe
-      )
-      const absRecord = todayAbsensiMap.get(`${row.penugasan_id}__${jamKe}`) || todayAbsensiMap.get(`${row.penugasan_id}__all`)
-      const izinNotes = [
-        ...(todayIzinMap.get('all') || []),
-        ...(todayIzinMap.get(jamKe) || []),
-      ]
-      if (!calendarStatus.isEffective) {
-        absensi = { status: 'LIBUR', catatan: calendarStatus.reason || 'Hari libur', official:false }
-      } else if (exception) {
-        absensi = { status: 'KBM_EXCEPTION', catatan: exception.description || exception.judul, official:false }
-      } else {
-        absensi = parentSessionAttendance({day:todayAttendance,assignment:row.penugasan_id,jam:jamKe,raw:absRecord,
-          submitted:todaySubmittedSet.has(row.penugasan_id),permissions:izinNotes})
-      }
-    }
-
-    const dayBlocks = jadwalByDay.get(hari)!
-    const previous = dayBlocks[dayBlocks.length - 1]
-    const canMerge = previous
-      && previous.penugasan_id === row.penugasan_id
-      && Number(previous.jam_ke_selesai) + 1 === jamKe
-      && JSON.stringify(previous.absensiRows.at(-1)) === JSON.stringify(absensi)
-    if (canMerge) {
-      previous.jam_ke_selesai = jamKe
-      previous.waktu_selesai = slot?.selesai || previous.waktu_selesai
-      previous.absensiRows.push(absensi)
-    } else {
-      const agendaDate = shiftDate(weekStart, hari - 1)
-      const agendaForDate = agendaMap.get(`${row.penugasan_id}__${agendaDate}`) || null
-      const safeAgenda = sanitizeParentAgenda(agendaForDate, agendaDate, todayRaw)
-      dayBlocks.push({
-        penugasan_id: row.penugasan_id,
-        jam_ke_mulai: jamKe,
-        jam_ke_selesai: jamKe,
-        waktu_mulai: slot?.mulai || null,
-        waktu_selesai: slot?.selesai || null,
-        mapel: row.nama_mapel,
-        guru: row.guru_nama || '-',
-        absensiRows: [absensi],
-        agenda: safeAgenda,
-        guruTidakHadir: guruTidakHadirMap.get(`${row.penugasan_id}__${agendaDate}`) || null,
-        agendaDate,
-        isToday: hari === todayDay,
-      })
-    }
-  }
-
-  const attendancePriority: Record<string, number> = {
-    ALFA: 7,
-    SAKIT: 6,
-    IZIN: 5,
-    KBM_EXCEPTION: 4,
-    LIBUR: 3,
-    BELUM_ADA_DATA: 2,
-    HADIR: 1,
-  }
-  for (const blocks of jadwalByDay.values()) {
-    for (const block of blocks) {
-      block.absensi = block.absensiRows
-        .filter(Boolean)
-        .sort((a: any, b: any) => (attendancePriority[b.status] || 0) - (attendancePriority[a.status] || 0))[0] || null
-      delete block.absensiRows
-      block.waktu = block.waktu_mulai && block.waktu_selesai
-        ? `${block.waktu_mulai} - ${block.waktu_selesai}`
-        : '-'
-    }
-  }
-
+  const kelasLabel = profil.tingkat
+    ? `${profil.tingkat}-${profil.nomor_kelas}${String(profil.tingkat) !== '10' && profil.kelompok ? ` ${profil.kelompok}` : ''}`
+    : '-'
   const waliPhone = String(waliKelasRow?.nomor_kontak || '').replace(/\D/g, '')
   const waUrl = waliPhone ? `https://wa.me/${waliPhone}` : null
-  const jadwalObject = Object.fromEntries(Array.from(jadwalByDay.entries()))
+  const loadedTabs = Array.from(new Set([...ALWAYS_READY_TABS, initialPortalTab]))
 
   const data = {
-    initialPortalTab: requestedTab === 'keuangan' ? 'keuangan'
-      : requestedTab === 'kedisiplinan' && disciplineSettings.enabled ? 'kedisiplinan' : 'beranda',
+    initialPortalTab,
+    loadedTabs,
     profil,
     kelasLabel,
     waliKelasRow,
@@ -784,34 +409,27 @@ export default async function PortalOrtuPage({ searchParams }: { searchParams: P
     weeklyAttendanceSummary,
     todayAttendance,
     weekRange: { start: weekStart, end: weekEnd },
-    attendanceYears: attendanceYears.results || [],
-    attendanceInitial,
+    attendanceYears: kehadiranTabData?.attendanceYears || kedisiplinanTabData?.attendanceYears || [],
+    attendanceInitial: kehadiranTabData?.attendanceInitial || null,
     disciplineSummary,
     disciplineSettings,
     disciplineInitial,
-    semesters,
-    semesterAvg,
-    dsptTarget,
-    dsptBayar,
-    dsptDiskon,
-    dsptSisa,
-    dsptStatus,
-    dsptIsInput,
-    dsptIsLunas,
-    dsptNeedsInput,
-    paymentSubmissions,
-    parentSuggestions,
-    komitePaymentSettings: selectKomitePaymentSettings(komitePaymentSettings, profil.tingkat),
-    sppNominal,
-    sppBayar,
-    sppSisa,
-    transaksiTerbaru,
+    semesters: nilaiTabData?.semesters || [],
+    semesterAvg: nilaiTabData?.semesterAvg ?? null,
+    ...financeSummary,
+    pendingConfirmationTotal:
+      keuanganTabData?.pendingConfirmationTotal ?? Number(pendingConfirmationRow?.total || 0),
+    paymentSubmissions: keuanganTabData?.paymentSubmissions || { results: [] },
+    komitePaymentSettings: keuanganTabData?.komitePaymentSettings || null,
+    transaksiTerbaru: keuanganTabData?.transaksiTerbaru || { results: [] },
+    parentSuggestions: saranTabData?.parentSuggestions || { results: [] },
     notifications,
     summons,
     notes,
-    jadwalObject,
-    documentationArticles,
+    jadwalObject: jadwalTabData?.jadwalObject || {},
+    documentationArticles: dokumentasiTabData?.documentationArticles || [],
     tkaSummary,
+    psikotesData: psikotesTabData?.psikotesData ?? null,
   }
 
   return <PortalOrtuClient data={data} />

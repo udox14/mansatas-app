@@ -4,6 +4,7 @@
 
 import { logActivity } from '@/lib/activity-log'
 import { recordLoginAccessAudit } from '@/lib/agenda-access-audit'
+import { recordParentLogin } from '@/lib/parent-login-tracking'
 import { getReplacementSessionEnd } from '@/lib/teacher-leave-period'
 import {
   COOKIE_NAME,
@@ -430,6 +431,7 @@ export function createAuth(db: D1Database) {
       // ---- SIGN IN PARENT (NISN + password parent) ----
       async signInParent(opts: {
         body: { nisn: string; password: string }
+        verifyOnly?: boolean
         asResponse?: boolean
       }) {
         const nisn = String(opts.body.nisn || '').replace(/\D/g, '')
@@ -507,6 +509,18 @@ export function createAuth(db: D1Database) {
           throw new Error('Invalid credentials')
         }
 
+        if (opts.verifyOnly) {
+          return {
+            verified: true as const,
+            user: {
+              type: 'parent' as const,
+              siswa_id: siswa.id,
+              nisn: normalizedSiswaNisn,
+              nama_lengkap: siswa.nama_lengkap,
+            },
+          }
+        }
+
         // Guard: blokir login untuk tingkat kelas tertentu bila diaktifkan admin.
         // Dicek setelah password valid agar pesan blokir hanya muncul untuk akun sah.
         // Baca setting terpisah (try/catch) supaya error DB tidak menggagalkan login.
@@ -545,6 +559,7 @@ export function createAuth(db: D1Database) {
           `INSERT INTO parent_session (id, token, siswa_id, nisn, expiresAt, createdAt, updatedAt)
            VALUES (?, ?, ?, ?, ?, ?, ?)`
         ).bind(sessionId, token, siswa.id, String(siswa.nisn || '').replace(/\D/g, ''), expiresAt, now, now).run()
+        await recordParentLogin(db, siswa.id, now).catch(() => undefined)
 
         const setCookie = buildSetCookie(token, SESSION_MAX_AGE_SECONDS)
         const payload = {

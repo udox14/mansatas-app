@@ -9,6 +9,7 @@ import { revalidatePath } from 'next/cache'
 import { getUserRoles } from '@/lib/features'
 import { syncSiswaRiwayatKelas } from '@/lib/riwayat-kelas'
 import { createActivityDiff, logActivity } from '@/lib/activity-log'
+import { formatNamaKelas } from '@/lib/utils'
 
 const FK_FIELDS = ['kelas_id', 'wali_murid_id']
 
@@ -412,16 +413,45 @@ export async function getSiswaKeluar(search?: string) {
   }
 
   const res = await db.prepare(`
+    WITH latest_riwayat AS (
+      SELECT
+        rk.siswa_id,
+        COALESCE(rk.kelas_tingkat, k2.tingkat) AS tingkat,
+        COALESCE(rk.kelas_nomor, k2.nomor_kelas) AS nomor_kelas,
+        COALESCE(rk.kelas_kelompok, k2.kelompok) AS kelompok,
+        rk.kelas_nama,
+        ROW_NUMBER() OVER (
+          PARTITION BY rk.siswa_id
+          ORDER BY COALESCE(ta.is_active, 0) DESC, rk.created_at DESC
+        ) AS rn
+      FROM riwayat_kelas rk
+      LEFT JOIN kelas k2 ON k2.id = rk.kelas_id
+      LEFT JOIN tahun_ajaran ta ON ta.id = rk.tahun_ajaran_id
+    )
     SELECT
       s.id, s.nisn, s.nama_lengkap, s.jenis_kelamin, s.foto_url,
       s.tanggal_keluar, s.alasan_keluar, s.keterangan_keluar,
-      s.updated_at
+      s.updated_at,
+      COALESCE(k.tingkat, lr.tingkat) AS kelas_tingkat,
+      COALESCE(k.nomor_kelas, lr.nomor_kelas) AS kelas_nomor,
+      COALESCE(k.kelompok, lr.kelompok) AS kelas_kelompok,
+      lr.kelas_nama AS riwayat_kelas_nama
     FROM siswa s
+    LEFT JOIN kelas k ON k.id = COALESCE(s.kelas_id_sebelum_keluar, s.kelas_id)
+    LEFT JOIN latest_riwayat lr ON lr.siswa_id = s.id AND lr.rn = 1
     WHERE s.status = 'keluar' ${whereExtra}
     ORDER BY s.tanggal_keluar DESC, s.nama_lengkap ASC
   `).bind(...params).all<any>()
 
-  return res.results || []
+  return (res.results || []).map((row: any) => {
+    const formatted = row.kelas_tingkat && row.kelas_nomor
+      ? formatNamaKelas(row.kelas_tingkat, row.kelas_nomor, row.kelas_kelompok)
+      : null
+    return {
+      ...row,
+      kelas_terakhir: formatted && formatted !== '-' ? formatted : (row.riwayat_kelas_nama || null),
+    }
+  })
 }
 
 // Ambil data lengkap untuk export XLSX.

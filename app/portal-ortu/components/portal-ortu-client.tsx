@@ -1,15 +1,15 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { twMerge } from 'tailwind-merge'
 import {
   ArrowLeft,
   ArrowsClockwise as RefreshCw,
   Bank as Landmark,
   Bell,
   BookOpenText as BookOpenCheck,
+  Brain,
   CalendarBlank as CalendarDays,
   CalendarDots as CalendarRange,
   CaretRight as ChevronRight,
@@ -20,6 +20,7 @@ import {
   DownloadSimple as Download,
   Gear as Settings,
   House,
+  IdentificationCard,
   ImageSquare as ImageIcon,
   Megaphone,
   QrCode,
@@ -35,9 +36,14 @@ import {
   WarningOctagon as AlertOctagon,
 } from '@phosphor-icons/react'
 import { MobileBottomNav } from './mobile-bottom-nav'
+import { PortalBiodataSection } from './portal-biodata-section'
+import { PortalPsikotesSection } from './portal-psikotes-section'
+import { PortalFinanceReminderDialog } from './portal-finance-reminder-dialog'
+import { PortalPageHeader, StandardCard } from './portal-ui'
+import { PortalTabRetryCard, PortalTabSkeleton } from './portal-tab-skeleton'
 import { ScheduleTabs } from './schedule-tabs'
 import { AttendanceHelp } from './attendance-help'
-import { parentDailyLabel, parentDailyPhase, parentDailyReason, parentSessionLabel } from '@/lib/parent-attendance-presentation'
+import { formatParentCalendarDetail, parentDailyLabel, parentSessionLabel } from '@/lib/parent-attendance-presentation'
 import { ChangePasswordForm } from './change-password-form'
 import { ParentWhatsAppForm } from './parent-whatsapp-form'
 import { SummonResponseForm } from './summon-response-form'
@@ -50,6 +56,14 @@ import {
   createParentSuggestion,
   getParentAttendanceByAcademicYear,
   getParentDisciplineByAcademicYear,
+  getParentDokumentasiTabData,
+  getParentJadwalTabData,
+  getParentKedisiplinanTabData,
+  getParentKehadiranTabData,
+  getParentKeuanganTabData,
+  getParentNilaiTabData,
+  getParentPsikotesTabData,
+  getParentSaranTabData,
   getParentSemesterGrades,
   markAllParentNotificationsRead,
   markParentNotificationRead,
@@ -88,6 +102,25 @@ function attendanceMonthLabel(monthKey: string) {
     .format(new Date(year, month - 1, 1))
 }
 
+function formatDateRangeWIB(start: string | null | undefined, end: string | null | undefined) {
+  if (!start && !end) return '-'
+  if (!start) return formatDateWIB(end)
+  if (!end || start === end) return formatDateWIB(start)
+  const startMatch = String(start).match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  const endMatch = String(end).match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (startMatch && endMatch) {
+    const [, startYear, startMonth, startDay] = startMatch
+    const [, endYear, endMonth] = endMatch
+    if (startYear === endYear && startMonth === endMonth) {
+      return `${Number(startDay)}–${formatDateWIB(end)}`
+    }
+    if (startYear === endYear) {
+      return `${formatDateWIB(start, { day: 'numeric', month: 'long' })}–${formatDateWIB(end)}`
+    }
+  }
+  return `${formatDateWIB(start)}–${formatDateWIB(end)}`
+}
+
 function parentWaNumber(raw: string | null | undefined) {
   let value = String(raw || '').replace(/\D/g, '')
   if (value.startsWith('0')) value = `62${value.slice(1)}`
@@ -116,38 +149,6 @@ type SemesterDetailState = {
   error?: string
   average?: number | null
   grades?: SemesterGrade[]
-}
-
-function StandardCard({ children, className = '', ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div className={twMerge('rounded-2xl border border-[#D8D4CC] bg-white p-5', className)} {...props}>
-      {children}
-    </div>
-  )
-}
-
-function PortalPageHeader({
-  title,
-  description,
-  Icon,
-  tourId,
-}: {
-  title: string
-  description: string
-  Icon: React.ComponentType<{ className?: string }>
-  tourId?: string
-}) {
-  return (
-    <div data-tour-id={tourId} className="flex min-w-0 items-start justify-between gap-4 border-b border-[#D8D4CC] pb-5">
-      <div className="min-w-0">
-        <h1 className="text-[clamp(1.75rem,7vw,2.35rem)] font-medium leading-tight tracking-[-0.035em] text-[#1A1A18]">{title}</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6B6B63]">{description}</p>
-      </div>
-      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-[#D8D4CC] bg-[#F2F0EC] text-[#C2522D]">
-        <Icon className="h-6 w-6" />
-      </div>
-    </div>
-  )
 }
 
 async function compressPaymentProofImage(file: File, targetKb = 80): Promise<File> {
@@ -181,10 +182,36 @@ async function compressPaymentProofImage(file: File, targetKb = 80): Promise<Fil
   }
 }
 
+const LAZY_PORTAL_TABS = new Set([
+  'jadwal',
+  'kehadiran',
+  'kedisiplinan',
+  'nilai',
+  'psikotes',
+  'keuangan',
+  'saran',
+  'dokumentasi',
+])
+
 export function PortalOrtuClient({ data }: { data: any }) {
   const router = useRouter()
   const [isRefreshing, startRefreshTransition] = useTransition()
   const [activeTab, setActiveTab] = useState(data.initialPortalTab || 'beranda')
+  const hasAllDataLegacy = !Array.isArray(data.loadedTabs)
+  const [loadedTabs, setLoadedTabs] = useState<Record<string, boolean>>(() => {
+    if (hasAllDataLegacy) {
+      return Object.fromEntries(Array.from(LAZY_PORTAL_TABS).map(tab => [tab, true]))
+    }
+    const map: Record<string, boolean> = {}
+    for (const tab of data.loadedTabs) map[tab] = true
+    return map
+  })
+  const loadedTabsRef = useRef<Record<string, boolean>>(loadedTabs)
+  const [loadingTabs, setLoadingTabs] = useState<Record<string, boolean>>({})
+  const [tabErrors, setTabErrors] = useState<Record<string, string>>({})
+  const inFlightTabsRef = useRef<Record<string, Promise<void> | undefined>>({})
+  const isFirstDataSyncRef = useRef(true)
+
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [paymentStep, setPaymentStep] = useState<1 | 2 | 3>(1)
   const [paymentAmount, setPaymentAmount] = useState('')
@@ -205,6 +232,9 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const [suggestionFeedback, setSuggestionFeedback] = useState('')
   const [tourOpen, setTourOpen] = useState(false)
   const [selectedDocId, setSelectedDocId] = useState('')
+  const [jadwalState, setJadwalState] = useState<any>(() => data.jadwalObject || {})
+  const [todayAttendanceState, setTodayAttendanceState] = useState<any>(() => data.todayAttendance ?? null)
+  const [attendanceYearsState, setAttendanceYearsState] = useState<any[]>(() => data.attendanceYears || [])
   const [selectedAttendanceYearId, setSelectedAttendanceYearId] = useState(data.attendanceInitial?.tahunAjaran?.id || '')
   const [attendanceDetail, setAttendanceDetail] = useState<any>(data.attendanceInitial || null)
   const [attendanceMonth, setAttendanceMonth] = useState(() => getLatestAttendanceMonth(data.attendanceInitial))
@@ -213,6 +243,34 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const [selectedDisciplineYearId, setSelectedDisciplineYearId] = useState(data.disciplineInitial?.tahunAjaran?.id || '')
   const [disciplineDetail, setDisciplineDetail] = useState<any>(data.disciplineInitial || null)
   const [disciplineLoading, setDisciplineLoading] = useState(false)
+  const [nilaiState, setNilaiState] = useState<{ semesters: any[]; semesterAvg: number | null }>(() => ({
+    semesters: data.semesters || [],
+    semesterAvg: data.semesterAvg ?? null,
+  }))
+  const [psikotesState, setPsikotesState] = useState<any>(() => data.psikotesData ?? null)
+  const [keuanganState, setKeuanganState] = useState<any>(() =>
+    hasAllDataLegacy || data.loadedTabs?.includes('keuangan')
+      ? {
+          dsptTarget: data.dsptTarget,
+          dsptBayar: data.dsptBayar,
+          dsptDiskon: data.dsptDiskon,
+          dsptSisa: data.dsptSisa,
+          dsptStatus: data.dsptStatus,
+          dsptIsInput: data.dsptIsInput,
+          dsptIsLunas: data.dsptIsLunas,
+          dsptNeedsInput: data.dsptNeedsInput,
+          sppNominal: data.sppNominal,
+          sppBayar: data.sppBayar,
+          sppSisa: data.sppSisa,
+          pendingConfirmationTotal: data.pendingConfirmationTotal,
+          paymentSubmissions: data.paymentSubmissions,
+          transaksiTerbaru: data.transaksiTerbaru,
+          komitePaymentSettings: data.komitePaymentSettings,
+        }
+      : null,
+  )
+  const [saranState, setSaranState] = useState<any>(() => data.parentSuggestions || { results: [] })
+  const [docsState, setDocsState] = useState<any[]>(() => data.documentationArticles || [])
   const [clarificationRecordId, setClarificationRecordId] = useState('')
   const [clarificationMessage, setClarificationMessage] = useState('')
   const [clarificationBusy, setClarificationBusy] = useState(false)
@@ -236,35 +294,35 @@ export function PortalOrtuClient({ data }: { data: any }) {
     pengumumanRows,
     weeklyAttendanceSummary,
     weekRange,
-    attendanceYears,
-    attendanceInitial,
     disciplineSummary,
     disciplineSettings,
-    disciplineInitial,
-    semesters,
-    semesterAvg,
-    dsptTarget,
-    dsptBayar,
-    dsptDiskon,
-    dsptSisa,
-    dsptStatus,
-    dsptIsInput,
-    dsptIsLunas,
-    dsptNeedsInput,
-    paymentSubmissions,
-    parentSuggestions,
-    komitePaymentSettings,
-    sppNominal,
-    sppBayar,
-    sppSisa,
-    transaksiTerbaru,
     notifications,
     summons,
     notes,
-    jadwalObject,
-    documentationArticles,
     tkaSummary,
   } = data
+
+  const attendanceYears = attendanceYearsState
+  const { semesters, semesterAvg } = nilaiState
+  const jadwalObject = jadwalState
+  const todayAttendance = todayAttendanceState ?? data.todayAttendance
+  const psikotesData = psikotesState
+  const parentSuggestions = saranState
+  const documentationArticles = docsState
+  const dsptTarget = keuanganState?.dsptTarget ?? data.dsptTarget
+  const dsptBayar = keuanganState?.dsptBayar ?? data.dsptBayar
+  const dsptDiskon = keuanganState?.dsptDiskon ?? data.dsptDiskon
+  const dsptSisa = keuanganState?.dsptSisa ?? data.dsptSisa
+  const dsptStatus = keuanganState?.dsptStatus ?? data.dsptStatus
+  const dsptIsInput = keuanganState?.dsptIsInput ?? data.dsptIsInput
+  const dsptIsLunas = keuanganState?.dsptIsLunas ?? data.dsptIsLunas
+  const dsptNeedsInput = keuanganState?.dsptNeedsInput ?? data.dsptNeedsInput
+  const sppNominal = keuanganState?.sppNominal ?? data.sppNominal
+  const sppBayar = keuanganState?.sppBayar ?? data.sppBayar
+  const sppSisa = keuanganState?.sppSisa ?? data.sppSisa
+  const paymentSubmissions = keuanganState?.paymentSubmissions ?? data.paymentSubmissions
+  const komitePaymentSettings = keuanganState?.komitePaymentSettings ?? data.komitePaymentSettings
+  const transaksiTerbaru = keuanganState?.transaksiTerbaru ?? data.transaksiTerbaru
 
   const initialLetter = String(profil.nama_lengkap || 'S').slice(0, 1)
   const paymentAmountNumber = Number(paymentAmount || 0)
@@ -326,6 +384,92 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const docsRows = documentationArticles || []
   const selectedDoc = docsRows.find((article: any) => article.id === selectedDocId) || docsRows[0]
   const hasDsptBill = Boolean(dsptIsInput) && Number(dsptSisa || 0) > 0
+  const dsptRemaining = hasDsptBill ? Number(dsptSisa || 0) : 0
+  const sppRemaining = Number(sppSisa || 0) > 0 ? Number(sppSisa || 0) : 0
+  const totalSisaTagihan = dsptRemaining + sppRemaining
+  const pendingConfirmationTotal = keuanganState?.pendingConfirmationTotal !== undefined
+    ? Number(keuanganState.pendingConfirmationTotal || 0)
+    : data.pendingConfirmationTotal !== undefined
+      ? Number(data.pendingConfirmationTotal || 0)
+      : (paymentSubmissions?.results || [])
+          .filter((s: any) => s.status === 'menunggu_konfirmasi')
+          .reduce((sum: number, s: any) => sum + Number(s.jumlah || 0), 0)
+
+  const loadTabData = useCallback(async (tabId: string, force = false) => {
+    if (!LAZY_PORTAL_TABS.has(tabId)) return
+    if (tabId === 'kedisiplinan' && !disciplineEnabled) return
+    if (!force && loadedTabsRef.current[tabId]) return
+    if (!force && inFlightTabsRef.current[tabId]) return inFlightTabsRef.current[tabId]
+
+    setLoadingTabs(prev => ({ ...prev, [tabId]: true }))
+    setTabErrors(prev => {
+      if (!prev[tabId]) return prev
+      const next = { ...prev }
+      delete next[tabId]
+      return next
+    })
+
+    const task = (async () => {
+      try {
+        if (tabId === 'jadwal') {
+          const res = await getParentJadwalTabData()
+          setJadwalState(res.jadwalObject || {})
+          if (res.todayAttendance !== undefined) setTodayAttendanceState(res.todayAttendance)
+        } else if (tabId === 'kehadiran') {
+          const res = await getParentKehadiranTabData()
+          setAttendanceYearsState(res.attendanceYears || [])
+          setAttendanceDetail(res.attendanceInitial || null)
+          setAttendanceMonth(getLatestAttendanceMonth(res.attendanceInitial))
+          if (res.attendanceInitial?.tahunAjaran?.id) {
+            setSelectedAttendanceYearId(res.attendanceInitial.tahunAjaran.id)
+          }
+        } else if (tabId === 'kedisiplinan') {
+          const res = await getParentKedisiplinanTabData()
+          if ('error' in res && res.error) throw new Error(res.error)
+          setAttendanceYearsState(prev => (res.attendanceYears?.length ? res.attendanceYears : prev))
+          setDisciplineDetail(res.disciplineInitial || null)
+          if (res.disciplineInitial?.tahunAjaran?.id) {
+            setSelectedDisciplineYearId(res.disciplineInitial.tahunAjaran.id)
+          }
+        } else if (tabId === 'nilai') {
+          const res = await getParentNilaiTabData()
+          setNilaiState({ semesters: res.semesters || [], semesterAvg: res.semesterAvg ?? null })
+        } else if (tabId === 'psikotes') {
+          const res = await getParentPsikotesTabData()
+          setPsikotesState(res.psikotesData ?? null)
+        } else if (tabId === 'keuangan') {
+          const res = await getParentKeuanganTabData()
+          setKeuanganState(res)
+        } else if (tabId === 'saran') {
+          const res = await getParentSaranTabData()
+          setSaranState(res.parentSuggestions || { results: [] })
+        } else if (tabId === 'dokumentasi') {
+          const res = await getParentDokumentasiTabData()
+          setDocsState(res.documentationArticles || [])
+        }
+        loadedTabsRef.current[tabId] = true
+        setLoadedTabs(prev => ({ ...prev, [tabId]: true }))
+      } catch {
+        setTabErrors(prev => ({ ...prev, [tabId]: 'Gagal memuat data bagian ini.' }))
+      } finally {
+        delete inFlightTabsRef.current[tabId]
+        setLoadingTabs(prev => ({ ...prev, [tabId]: false }))
+      }
+    })()
+
+    inFlightTabsRef.current[tabId] = task
+    return task
+  }, [disciplineEnabled])
+
+  const prefetchTab = useCallback((tabId: string) => {
+    if (!LAZY_PORTAL_TABS.has(tabId)) return
+    void loadTabData(tabId)
+  }, [loadTabData])
+
+  const isTabReady = (tabId: string) => Boolean(loadedTabs[tabId]) && !loadingTabs[tabId]
+  const [financeReminderOpen, setFinanceReminderOpen] = useState(
+    () => totalSisaTagihan > 0 && (data.initialPortalTab || 'beranda') !== 'keuangan'
+  )
   const currentHour = currentTimeWIB().hours
   const greeting = currentHour < 4
     ? 'Selamat malam'
@@ -338,12 +482,24 @@ export function PortalOrtuClient({ data }: { data: any }) {
           : 'Selamat malam'
   const baseTourSteps: Record<string, PortalTourStep[]> = {
     beranda: [
-      { target: 'beranda-profile', title: 'Profil siswa', description: 'Bagian ini menampilkan identitas anak, kelas, dan NISN yang sedang dipantau di portal orang tua.' },
+      { target: 'beranda-profile', title: 'Profil siswa', description: 'Bagian ini menampilkan identitas anak, kelas, NISN, serta tombol cepat untuk membuka biodata lengkap siswa.' },
       { target: 'beranda-wali', title: 'Kontak wali kelas', description: 'Gunakan tombol WhatsApp di kartu ini untuk menghubungi wali kelas jika perlu koordinasi cepat.' },
       { target: 'beranda-stats', title: 'Ringkasan cepat', description: 'Angka-angka ini memberi gambaran singkat tentang kehadiran dan status pendampingan anak.' },
       { target: 'beranda-tka', title: 'Pilihan TKA', description: 'Untuk siswa kelas 12, bagian ini menampilkan pilihan TKA dan pendidikan lanjutan yang dapat ditinjau serta disetujui orang tua.' },
+      ...(totalSisaTagihan > 0 ? [{ target: 'beranda-keuangan', title: 'Informasi keuangan', description: 'Menampilkan ringkasan sisa administrasi keuangan anak. Ketuk kartu ini untuk langsung membuka menu Keuangan.' }] : []),
       { target: 'beranda-notifications', title: 'Pusat notifikasi', description: 'Buka seluruh pemberitahuan dan pemanggilan sekolah dari satu halaman yang lebih rapi.' },
       { target: 'beranda-announcements', title: 'Pengumuman sekolah', description: 'Pengumuman resmi yang ditujukan untuk orang tua dapat dibuka dari daftar ini.' },
+    ],
+    biodata: [
+      { target: 'biodata-summary', title: 'Ringkasan identitas', description: 'Menampilkan foto, nama lengkap, kelas, NISN, dan status aktif siswa.' },
+      { target: 'biodata-personal', title: 'Data pribadi', description: 'Berisi data kependudukan dan riwayat masuk madrasah siswa secara lengkap.' },
+      { target: 'biodata-domisili', title: 'Domisili & alamat', description: 'Menampilkan status tempat tinggal (pesantren atau non-pesantren) dan alamat lengkap.' },
+      { target: 'biodata-orangtua', title: 'Data keluarga & orang tua', description: 'Berisi nomor KK serta biodata ayah dan ibu yang tercatat di sekolah.' },
+    ],
+    psikotes: [
+      { target: 'psikotes-summary', title: 'Ringkasan psikotes', description: 'Menampilkan skor IQ (CFIT), tipe kepribadian MBTI, gaya belajar, dan rekomendasi jurusan.' },
+      { target: 'psikotes-charts', title: 'Profil bakat & minat', description: 'Grafik radar dan daftar skor menampilkan kekuatan bakat serta ketertarikan bidang anak.' },
+      { target: 'psikotes-kamus', title: 'Kamus istilah', description: 'Buka bagian ini untuk membaca arti kode dan istilah psikotes dengan bahasa sederhana.' },
     ],
     jadwal: [
       { target: 'jadwal-header', title: 'Jadwal pelajaran', description: 'Lihat catatan anak pada setiap sesi. Catatan sesi berbeda dengan hasil kehadiran harian.' },
@@ -355,8 +511,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
       { target: 'kehadiran-help', title: 'Cara membaca kehadiran', description: 'Buka penjelasan cara menghitung kehadiran harian dan membaca izin resmi.' },
       { target: 'kehadiran-summary', title: 'Ringkasan kehadiran', description: 'Angka ini menghitung hari dengan hasil kehadiran setelah pelajaran selesai. Hari yang belum berdata tidak dianggap Hadir atau Alfa.' },
       { target: 'kehadiran-calendar', title: 'Kalender kehadiran', description: 'Pilih tanggal untuk melihat hasil harian dan catatan setiap sesi. Satu catatan Alfa dapat membuat hasil harian Alfa.' },
-      { target: 'kehadiran-details', title: 'Rincian tanggal', description: 'Lihat alasan hasil harian, sesi yang belum diinput, izin resmi, serta koreksi wali kelas bila ada.' },
-      ...(disciplineEnabled ? [{ target: 'kehadiran-discipline', title: 'Status pendampingan', description: 'Bagian ini memberi sinyal apakah ada catatan yang perlu didampingi bersama wali kelas atau BK.' }] : []),
+      { target: 'kehadiran-details', title: 'Rincian tanggal', description: 'Lihat alasan hasil harian, jam yang belum diisi, izin resmi, serta koreksi wali kelas bila ada.' },
     ],
     kedisiplinan: [
       { target: 'discipline-summary', title: 'Ringkasan kedisiplinan', description: 'Lihat poin tahun ajaran terpilih, poin kumulatif, dan level pendampingan anak.' },
@@ -415,6 +570,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const activeTourSteps = activeTab === 'keuangan' ? financeTourSteps : (baseTourSteps[activeTab] || [])
 
   const startPortalTour = () => {
+    setFinanceReminderOpen(false)
     if (activeTab === 'keuangan' && hasDsptBill) {
       setPaymentOpen(false)
       resetPaymentWizard()
@@ -432,6 +588,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
     setTourOpen(false)
     window.history.pushState({ ...window.history.state, portalOrtuTab: id }, '')
     setActiveTab(id)
+    void loadTabData(id)
   }
 
   const returnToBeranda = () => {
@@ -439,8 +596,89 @@ export function PortalOrtuClient({ data }: { data: any }) {
   }
 
   const refreshPortal = () => {
+    const nextLoaded: Record<string, boolean> = {}
+    for (const key of Object.keys(loadedTabsRef.current)) {
+      if (!LAZY_PORTAL_TABS.has(key)) nextLoaded[key] = true
+    }
+    loadedTabsRef.current = nextLoaded
+    setLoadedTabs(nextLoaded)
     startRefreshTransition(() => router.refresh())
+    if (LAZY_PORTAL_TABS.has(activeTab)) {
+      void loadTabData(activeTab, true)
+    }
   }
+
+  useEffect(() => {
+    if (isFirstDataSyncRef.current) {
+      isFirstDataSyncRef.current = false
+      return
+    }
+    const legacyAll = !Array.isArray(data.loadedTabs)
+    const hasTab = (tab: string) => legacyAll || Boolean(data.loadedTabs?.includes(tab))
+    setTodayAttendanceState(data.todayAttendance ?? null)
+    if (hasTab('jadwal')) {
+      setJadwalState(data.jadwalObject || {})
+      loadedTabsRef.current.jadwal = true
+    }
+    if (hasTab('kehadiran')) {
+      setAttendanceYearsState(data.attendanceYears || [])
+      setAttendanceDetail(data.attendanceInitial || null)
+      setAttendanceMonth(getLatestAttendanceMonth(data.attendanceInitial))
+      if (data.attendanceInitial?.tahunAjaran?.id) {
+        setSelectedAttendanceYearId(data.attendanceInitial.tahunAjaran.id)
+      }
+      loadedTabsRef.current.kehadiran = true
+    }
+    if (hasTab('kedisiplinan')) {
+      setAttendanceYearsState(prev => (data.attendanceYears?.length ? data.attendanceYears : prev))
+      setDisciplineDetail(data.disciplineInitial || null)
+      if (data.disciplineInitial?.tahunAjaran?.id) {
+        setSelectedDisciplineYearId(data.disciplineInitial.tahunAjaran.id)
+      }
+      loadedTabsRef.current.kedisiplinan = true
+    }
+    if (hasTab('nilai')) {
+      setNilaiState({ semesters: data.semesters || [], semesterAvg: data.semesterAvg ?? null })
+      loadedTabsRef.current.nilai = true
+    }
+    if (hasTab('psikotes')) {
+      setPsikotesState(data.psikotesData ?? null)
+      loadedTabsRef.current.psikotes = true
+    }
+    if (hasTab('keuangan')) {
+      setKeuanganState({
+        dsptTarget: data.dsptTarget,
+        dsptBayar: data.dsptBayar,
+        dsptDiskon: data.dsptDiskon,
+        dsptSisa: data.dsptSisa,
+        dsptStatus: data.dsptStatus,
+        dsptIsInput: data.dsptIsInput,
+        dsptIsLunas: data.dsptIsLunas,
+        dsptNeedsInput: data.dsptNeedsInput,
+        sppNominal: data.sppNominal,
+        sppBayar: data.sppBayar,
+        sppSisa: data.sppSisa,
+        pendingConfirmationTotal: data.pendingConfirmationTotal,
+        paymentSubmissions: data.paymentSubmissions,
+        transaksiTerbaru: data.transaksiTerbaru,
+        komitePaymentSettings: data.komitePaymentSettings,
+      })
+      loadedTabsRef.current.keuangan = true
+    }
+    if (hasTab('saran')) {
+      setSaranState(data.parentSuggestions || { results: [] })
+      loadedTabsRef.current.saran = true
+    }
+    if (hasTab('dokumentasi')) {
+      setDocsState(data.documentationArticles || [])
+      loadedTabsRef.current.dokumentasi = true
+    }
+    setLoadedTabs({ ...loadedTabsRef.current })
+  }, [data])
+
+  useEffect(() => {
+    void loadTabData(activeTab)
+  }, [activeTab, loadTabData])
 
   useEffect(() => {
     window.history.replaceState({ ...window.history.state, portalOrtuTab: data.initialPortalTab || 'beranda' }, '')
@@ -524,6 +762,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
     }
     setCurrentSubmissionId(res.submissionId)
     setPaymentStep(3)
+    void loadTabData('keuangan', true)
     router.refresh()
   }
 
@@ -558,6 +797,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
       return
     }
     setPaymentMessage(res.success || 'Bukti pembayaran berhasil diupload')
+    void loadTabData('keuangan', true)
     router.refresh()
   }
 
@@ -643,6 +883,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
     setSuggestionTitle('')
     setSuggestionMessage('')
     setSuggestionFeedback(res.success || 'Terima kasih, saran Bapak/Ibu sudah kami terima.')
+    void loadTabData('saran', true)
     router.refresh()
   }
 
@@ -759,16 +1000,30 @@ export function PortalOrtuClient({ data }: { data: any }) {
               </h1>
             </div>
 
-            <dl className="col-span-2 grid min-w-0 grid-cols-2 gap-x-4 gap-y-2 border-t border-[#D8D4CC] pt-3 text-xs sm:col-span-1 sm:col-start-2 sm:max-w-md sm:text-sm">
-              <div className="min-w-0">
-                <dt className="shrink-0 text-[#6B6B63]">Kelas</dt>
-                <dd className="mt-0.5 truncate whitespace-nowrap font-semibold text-[#1A1A18]">{kelasLabel}</dd>
-              </div>
-              <div className="min-w-0">
-                <dt className="shrink-0 text-[#6B6B63]">NISN</dt>
-                <dd className="mt-0.5 truncate whitespace-nowrap font-semibold tabular-nums text-[#1A1A18]">{profil.nisn || '-'}</dd>
-              </div>
-            </dl>
+            <div className="col-span-2 flex flex-col gap-3 border-t border-[#D8D4CC] pt-3 sm:col-span-1 sm:col-start-2 sm:flex-row sm:items-end sm:justify-between">
+              <dl className="grid min-w-0 flex-1 grid-cols-2 gap-x-4 gap-y-2 text-xs sm:max-w-sm sm:text-sm">
+                <div className="min-w-0">
+                  <dt className="shrink-0 text-[#6B6B63]">Kelas</dt>
+                  <dd className="mt-0.5 truncate whitespace-nowrap font-semibold text-[#1A1A18]">{kelasLabel}</dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="shrink-0 text-[#6B6B63]">NISN</dt>
+                  <dd className="mt-0.5 truncate whitespace-nowrap font-semibold tabular-nums text-[#1A1A18]">{profil.nisn || '-'}</dd>
+                </div>
+              </dl>
+
+              <button
+                type="button"
+                onClick={() => changeTab('biodata')}
+                className="inline-flex w-full items-center justify-between gap-2 rounded-xl border border-[#D8D4CC] bg-white px-3.5 py-2 text-xs font-semibold text-[#1A1A18] transition-colors hover:border-[#C2522D]/50 hover:bg-[#FAF9F7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C2522D] sm:w-auto sm:shrink-0 sm:justify-center"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <IdentificationCard className="h-4 w-4 shrink-0 text-[#C2522D]" />
+                  <span>Biodata siswa</span>
+                </span>
+                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-[#6B6B63]" />
+              </button>
+            </div>
           </div>
         </section>
 
@@ -943,7 +1198,38 @@ export function PortalOrtuClient({ data }: { data: any }) {
           </StandardCard>
         )}
 
-        <button type="button" data-tour-id="beranda-notifications" onClick={() => changeTab('notifications')} className="order-3 w-full text-left outline-none focus-visible:ring-2 focus-visible:ring-[#C2522D] focus-visible:ring-offset-2">
+        {totalSisaTagihan > 0 && (
+          <button
+            type="button"
+            data-tour-id="beranda-keuangan"
+            onMouseEnter={() => prefetchTab('keuangan')}
+            onFocus={() => prefetchTab('keuangan')}
+            onClick={() => changeTab('keuangan')}
+            className="order-3 w-full text-left outline-none focus-visible:ring-2 focus-visible:ring-[#C2522D] focus-visible:ring-offset-2"
+          >
+            <StandardCard className="flex items-center gap-3 p-4 transition-colors hover:bg-[#FEFDFB]">
+              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#FFF1EF] text-[#C2522D]">
+                <Wallet className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-[#6B6B63]">Informasi keuangan</p>
+                <p className="mt-0.5 text-base font-black tabular-nums text-[#C2522D]">
+                  Sisa Rp {rupiah(totalSisaTagihan)}
+                </p>
+                <p className="mt-0.5 truncate text-xs text-[#6B6B63]">
+                  {dsptRemaining > 0 && sppRemaining > 0
+                    ? `DSPT Rp ${rupiah(dsptRemaining)} · Saldo SPP Rp ${rupiah(sppRemaining)}`
+                    : dsptRemaining > 0
+                      ? 'Ketuk untuk melihat rincian DSPT di menu Keuangan'
+                      : 'Ketuk untuk melihat rincian saldo SPP di menu Keuangan'}
+                </p>
+              </div>
+              <ChevronRight className="h-4 w-4 shrink-0 text-[#A7A299]" />
+            </StandardCard>
+          </button>
+        )}
+
+        <button type="button" data-tour-id="beranda-notifications" onClick={() => changeTab('notifications')} className="order-4 w-full text-left outline-none focus-visible:ring-2 focus-visible:ring-[#C2522D] focus-visible:ring-offset-2">
           <StandardCard className="flex items-center gap-3 p-4 transition-colors hover:bg-[#FEFDFB]">
             <div className="relative grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#FFF1EF] text-[#C2522D]">
               <Bell className="h-5 w-5" />
@@ -957,15 +1243,14 @@ export function PortalOrtuClient({ data }: { data: any }) {
           </StandardCard>
         </button>
 
-        <StandardCard data-tour-id="beranda-stats" className="order-4 overflow-hidden p-0">
+        <StandardCard data-tour-id="beranda-stats" className="order-5 overflow-hidden p-0">
           <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3.5">
             <div>
               <p className="text-sm font-bold text-slate-900">Rekap harian minggu ini</p>
-              <p className="mt-0.5 text-[11px] text-slate-500">Senin–Sabtu · {formatDateWIB(weekRange.start)}–{formatDateWIB(weekRange.end)}</p>
+              <p className="mt-0.5 text-[11px] text-slate-500">Senin–Sabtu · {formatDateRangeWIB(weekRange.start, weekRange.end)}</p>
             </div>
             <CalendarRange className="h-5 w-5 text-teal-700" />
           </div>
-          <p className="px-4 pt-3 text-xs leading-5 text-slate-500">Jumlah hari berdasarkan rekap setelah pelajaran selesai. Hari yang belum berdata tidak dianggap Hadir atau Alfa.</p>
           {weeklyAttendanceSummary?.belumLengkap > 0 && <p className="px-4 pt-2 text-xs text-slate-500">{weeklyAttendanceSummary.belumLengkap} hari belum memiliki hasil kehadiran harian.</p>}
           {weeklyAttendanceSummary?.perluKonfirmasi > 0 && <p className="px-4 pt-2 text-xs text-slate-500">Data pada {weeklyAttendanceSummary.perluKonfirmasi} hari perlu ditinjau oleh sekolah.</p>}
           <div className="grid grid-cols-4 divide-x divide-slate-100">
@@ -983,7 +1268,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
           </div>
         </StandardCard>
 
-        <div className="order-5 grid gap-3 sm:grid-cols-2">
+        <div className="order-6 grid gap-3 sm:grid-cols-2">
           <StandardCard data-tour-id="beranda-wali" className="flex items-center gap-3 p-4">
             <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-sky-50 text-sky-700"><ShieldAlert className="h-5 w-5" /></div>
             <div className="min-w-0 flex-1">
@@ -992,14 +1277,14 @@ export function PortalOrtuClient({ data }: { data: any }) {
             </div>
             {waUrl && <a href={waUrl} target="_blank" aria-label="Hubungi wali kelas" className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-teal-50 text-teal-700 hover:bg-teal-100"><MessageCircle className="h-4 w-4" /></a>}
           </StandardCard>
-          {disciplineEnabled && <button type="button" onClick={() => changeTab('kedisiplinan')} className="w-full text-left"><StandardCard className="flex items-center gap-3 p-4 transition-colors hover:bg-slate-50">
+          {disciplineEnabled && <button type="button" onMouseEnter={() => prefetchTab('kedisiplinan')} onFocus={() => prefetchTab('kedisiplinan')} onClick={() => changeTab('kedisiplinan')} className="w-full text-left"><StandardCard className="flex items-center gap-3 p-4 transition-colors hover:bg-slate-50">
             <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${needsDisciplineAttention ? 'bg-amber-50 text-amber-700' : 'bg-teal-50 text-teal-700'}`}><ShieldAlert className="h-5 w-5" /></div>
             <div className="min-w-0 flex-1"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Pendampingan</p><p className={`truncate text-sm font-bold ${needsDisciplineAttention ? 'text-amber-800' : 'text-teal-800'}`}>{disciplineLevelLabel}</p></div><ChevronRight className="h-4 w-4 text-slate-400" />
           </StandardCard></button>}
         </div>
 
         {/* Announcements */}
-        <div data-tour-id="beranda-announcements" className="order-6 pt-2">
+        <div data-tour-id="beranda-announcements" className="order-7 pt-2">
           <div className="flex items-center justify-between mb-3 ml-1">
             <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide">Pengumuman Sekolah</h2>
           </div>
@@ -1052,7 +1337,7 @@ export function PortalOrtuClient({ data }: { data: any }) {
 
         {/* Riwayat Respons Orang Tua */}
         {(notes.results || []).length > 0 && (
-          <div className="order-7 pt-2">
+          <div className="order-8 pt-2">
             <div className="flex items-center justify-between mb-3 ml-1">
               <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide">Riwayat Respons Anda</h2>
             </div>
@@ -1213,15 +1498,42 @@ export function PortalOrtuClient({ data }: { data: any }) {
         Icon={CalendarDays}
       />
 
-      {data.todayAttendance && <StandardCard className="space-y-2 p-4" data-tour-id="jadwal-daily-summary">
-        <h2 className="text-sm font-bold">Rekap hari ini: {parentDailyLabel(data.todayAttendance)}</h2>
-        <p className="text-xs leading-5 text-slate-500">{parentDailyPhase(data.todayAttendance)}</p>
-        <p className="text-xs leading-5 text-slate-500">{parentDailyReason(data.todayAttendance)}</p>
-        {data.todayAttendance.pending_blok > 0 && <p className="text-xs text-slate-500">{data.todayAttendance.pending_blok} sesi pelajaran belum diinput.</p>}
-        {data.todayAttendance.wali_status && <p className="text-xs leading-5">Koreksi harian wali kelas: {data.todayAttendance.wali_status.toLowerCase()}. {data.todayAttendance.keterangan_wali_kelas || 'Catatan asli setiap sesi tetap dapat dilihat di bawah.'}</p>}
-      </StandardCard>}
+      {todayAttendance && (() => {
+        const todaySummary = formatParentCalendarDetail(todayAttendance)
+        return (
+          <StandardCard className="space-y-3 p-4" data-tour-id="jadwal-daily-summary">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-bold text-[#1A1A18]">Rekap hari ini</h2>
+              <span className="inline-flex rounded-full bg-[#F2F0EC] px-2.5 py-1 text-[11px] font-bold text-[#1A1A18]">{parentDailyLabel(todayAttendance)}</span>
+            </div>
+            {(todaySummary.phaseBadge || todaySummary.sessionProgressLabel || todaySummary.pendingLabel) && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {todaySummary.phaseBadge && <span className="inline-flex items-center rounded-md border border-[#D8D4CC] bg-[#F2F0EC] px-2 py-0.5 text-[11px] font-medium text-[#1A1A18]">{todaySummary.phaseBadge}</span>}
+                {todaySummary.sessionProgressLabel && <span className="inline-flex items-center rounded-md border border-[#D8D4CC] bg-white px-2 py-0.5 text-[11px] font-medium text-[#6B6B63]">{todaySummary.sessionProgressLabel}</span>}
+                {todaySummary.pendingLabel && <span className="inline-flex items-center rounded-md border border-[#E8C5B8] bg-[#FDF6F3] px-2 py-0.5 text-[11px] font-medium text-[#9A3B1E]">{todaySummary.pendingLabel}</span>}
+              </div>
+            )}
+            <div className="rounded-xl border border-[#D8D4CC] bg-[#FAF9F7] px-3.5 py-2.5 text-xs leading-5 text-[#1A1A18]">
+              <p>{todaySummary.summaryText}</p>
+              {todaySummary.changeNote && <p className="mt-1 text-[11px] text-[#6B6B63]">{todaySummary.changeNote}</p>}
+            </div>
+            {todayAttendance.wali_status && (
+              <p className="rounded-xl border border-[#D8D4CC] bg-white px-3.5 py-2.5 text-xs leading-5 text-[#1A1A18]">
+                Penyesuaian wali kelas: <span className="font-semibold capitalize">{todayAttendance.wali_status.toLowerCase()}</span>.{' '}
+                <span className="text-[#6B6B63]">{todayAttendance.keterangan_wali_kelas || 'Catatan per jam pelajaran tetap tercantum di bawah.'}</span>
+              </p>
+            )}
+          </StandardCard>
+        )
+      })()}
       <div>
-        <ScheduleTabs jadwalByDay={jadwalObject as any} />
+        {tabErrors.jadwal ? (
+          <PortalTabRetryCard message={tabErrors.jadwal} onRetry={() => void loadTabData('jadwal', true)} />
+        ) : !isTabReady('jadwal') ? (
+          <PortalTabSkeleton variant="jadwal" />
+        ) : (
+          <ScheduleTabs jadwalByDay={jadwalObject as any} />
+        )}
       </div>
     </motion.div>
   )
@@ -1229,15 +1541,15 @@ export function PortalOrtuClient({ data }: { data: any }) {
   const renderKehadiran = () => {
     const summary = attendanceDetail?.summary || {}
     const monthly = attendanceDetail?.monthly || []
-    const statusMeta: Record<string, { label: string; className: string }> = {
-      HADIR: { label: 'Hadir', className: 'bg-[#EEF7F1] text-[#246142]' },
-      SAKIT: { label: 'Sakit', className: 'bg-amber-50 text-amber-700' },
-      IZIN: { label: 'Izin', className: 'bg-sky-50 text-sky-700' },
-      ALFA: { label: 'Alfa', className: 'bg-rose-50 text-rose-700' },
-      PARSIAL: { label: 'Data perlu ditinjau', className: 'bg-violet-50 text-violet-700' },
-      PERLU_KONFIRMASI_WALI: { label: 'Data perlu ditinjau', className: 'bg-indigo-50 text-indigo-700' },
-      BELUM_ADA_INPUT: { label: 'Belum ada catatan kehadiran', className: 'bg-slate-100 text-slate-600' },
-      BELUM_ADA_DATA: { label: 'Belum lengkap', className: 'bg-slate-100 text-slate-600' },
+    const statusMeta: Record<string, { label: string; className: string; swatchClassName: string }> = {
+      HADIR: { label: 'Hadir', className: 'bg-[#E1F3E8] text-[#1D5236] border border-[#96CCA9]', swatchClassName: 'bg-[#246142]' },
+      SAKIT: { label: 'Sakit', className: 'bg-amber-100 text-amber-900 border border-amber-300', swatchClassName: 'bg-amber-600' },
+      IZIN: { label: 'Izin', className: 'bg-sky-100 text-sky-900 border border-sky-300', swatchClassName: 'bg-sky-600' },
+      ALFA: { label: 'Alfa', className: 'bg-rose-100 text-rose-900 border border-rose-300', swatchClassName: 'bg-rose-600' },
+      PARSIAL: { label: 'Data perlu ditinjau', className: 'bg-violet-100 text-violet-900 border border-violet-300', swatchClassName: 'bg-violet-600' },
+      PERLU_KONFIRMASI_WALI: { label: 'Data perlu ditinjau', className: 'bg-indigo-100 text-indigo-900 border border-indigo-300', swatchClassName: 'bg-indigo-600' },
+      BELUM_ADA_INPUT: { label: 'Belum ada catatan kehadiran', className: 'bg-slate-100 text-slate-700 border border-slate-300', swatchClassName: 'bg-white border-2 border-slate-500' },
+      BELUM_ADA_DATA: { label: 'Belum lengkap', className: 'bg-slate-200 text-slate-800 border border-slate-400', swatchClassName: 'bg-slate-500' },
     }
     const calendarDays = attendanceDetail?.calendarDays || []
     const calendarDaysByDate = new Map<string, any>(calendarDays.map((day: any) => [String(day.tanggal), day]))
@@ -1282,22 +1594,26 @@ export function PortalOrtuClient({ data }: { data: any }) {
         />
 
         <div data-tour-id="kehadiran-help"><AttendanceHelp /></div>
-        <div className="rounded-2xl border border-[#D8D4CC] bg-white p-3">
-          <label className="relative block min-w-0">
-            <span className="sr-only">Pilih tahun ajaran dan semester</span>
-            <CalendarRange className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6B6B63]" />
-            <select value={selectedAttendanceYearId} onChange={(event) => changeAttendanceYear(event.target.value)} className="h-11 w-full appearance-none rounded-lg border border-[#D8D4CC] bg-[#F2F0EC] pl-9 pr-8 text-sm font-semibold text-[#1A1A18] outline-none transition-colors focus:border-[#C2522D] focus:ring-2 focus:ring-[#C2522D]/20">
-              {(attendanceYears || []).map((item: any) => <option key={item.id} value={item.id}>{item.nama} · Semester {item.semester}</option>)}
-            </select>
-          </label>
-        </div>
+        {attendanceYears.length > 0 && (
+          <div className="rounded-2xl border border-[#D8D4CC] bg-white p-3">
+            <label className="relative block min-w-0">
+              <span className="sr-only">Pilih tahun ajaran dan semester</span>
+              <CalendarRange className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6B6B63]" />
+              <select value={selectedAttendanceYearId} onChange={(event) => changeAttendanceYear(event.target.value)} disabled={!isTabReady('kehadiran') || attendanceLoading} className="h-11 w-full appearance-none rounded-lg border border-[#D8D4CC] bg-[#F2F0EC] pl-9 pr-8 text-sm font-semibold text-[#1A1A18] outline-none transition-colors focus:border-[#C2522D] focus:ring-2 focus:ring-[#C2522D]/20 disabled:opacity-60">
+                {(attendanceYears || []).map((item: any) => <option key={item.id} value={item.id}>{item.nama} · Semester {item.semester}</option>)}
+              </select>
+            </label>
+          </div>
+        )}
 
-        {attendanceLoading ? (
-          <div className="grid min-h-56 place-items-center rounded-2xl border border-slate-200 bg-white"><Loader2 className="h-6 w-6 animate-spin text-teal-700" /></div>
+        {tabErrors.kehadiran ? (
+          <PortalTabRetryCard message={tabErrors.kehadiran} onRetry={() => void loadTabData('kehadiran', true)} />
+        ) : (!isTabReady('kehadiran') || attendanceLoading) ? (
+          <PortalTabSkeleton variant="kehadiran" />
         ) : (
           <>
-            <div data-tour-id="kehadiran-summary" className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-              <div className="col-span-2 rounded-2xl border border-[#D8D4CC] bg-[#E8E5E0] p-5 text-[#1A1A18] sm:col-span-2">
+            <div data-tour-id="kehadiran-summary" className="grid grid-cols-3 gap-2.5 sm:grid-cols-5 sm:gap-3">
+              <div className="col-span-3 rounded-2xl border border-[#D8D4CC] bg-[#E8E5E0] p-5 text-[#1A1A18] sm:col-span-2">
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="text-xs font-semibold text-[#6B6B63]">Tingkat kehadiran</p>
@@ -1306,7 +1622,6 @@ export function PortalOrtuClient({ data }: { data: any }) {
                   <TrendingUp className="h-5 w-5 text-[#C2522D]" />
                 </div>
                 <p className="mt-4 text-xs leading-5 text-[#6B6B63]">{summary.hadir || 0} hari Hadir dari {summary.completedDays || 0} hari dengan hasil harian setelah pelajaran selesai.</p>
-                {summary.belumLengkap > 0 && <p className="mt-2 text-xs leading-5 text-[#6B6B63]">{summary.belumLengkap} hari belum memiliki hasil harian dan tidak masuk perhitungan persentase.</p>}
                 {summary.perluKonfirmasi > 0 && <p className="mt-2 text-xs leading-5 text-[#6B6B63]">Data pada {summary.perluKonfirmasi} hari perlu ditinjau oleh sekolah dan tidak masuk perhitungan persentase.</p>}
               </div>
               {[
@@ -1314,10 +1629,10 @@ export function PortalOrtuClient({ data }: { data: any }) {
                 { label: 'Izin', value: summary.izin || 0, tone: 'text-sky-700', bg: 'bg-sky-50' },
                 { label: 'Alfa', value: summary.alfa || 0, tone: 'text-rose-700', bg: 'bg-rose-50' },
               ].map((item) => (
-                <div key={item.label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div key={item.label} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
                   <div className={`grid h-8 w-8 place-items-center rounded-lg ${item.bg}`}><Clock3 className={`h-4 w-4 ${item.tone}`} /></div>
-                  <p className={`mt-4 text-2xl font-black tabular-nums ${item.tone}`}>{item.value}</p>
-                  <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">hari {item.label}</p>
+                  <p className={`mt-3 text-2xl font-black tabular-nums sm:mt-4 ${item.tone}`}>{item.value}</p>
+                  <p className="mt-1 whitespace-nowrap text-[10px] font-bold uppercase tracking-wide text-slate-400">hari {item.label}</p>
                 </div>
               ))}
             </div>
@@ -1336,10 +1651,10 @@ export function PortalOrtuClient({ data }: { data: any }) {
                         <span className="text-xs font-bold text-slate-600">{new Intl.DateTimeFormat('id-ID', { month: 'short', year: '2-digit' }).format(new Date(`${item.month}-01T00:00:00`))}</span>
                         <div className="flex h-2.5 overflow-hidden rounded-full bg-slate-100">
                           {total > 0 && <>
-                            <span className="bg-teal-500" style={{ width: `${(item.hadir / total) * 100}%` }} />
-                            <span className="bg-amber-400" style={{ width: `${(item.sakit / total) * 100}%` }} />
-                            <span className="bg-sky-400" style={{ width: `${(item.izin / total) * 100}%` }} />
-                            <span className="bg-rose-500" style={{ width: `${(item.alfa / total) * 100}%` }} />
+                            <span className="bg-[#246142]" style={{ width: `${(item.hadir / total) * 100}%` }} />
+                            <span className="bg-amber-600" style={{ width: `${(item.sakit / total) * 100}%` }} />
+                            <span className="bg-sky-600" style={{ width: `${(item.izin / total) * 100}%` }} />
+                            <span className="bg-rose-600" style={{ width: `${(item.alfa / total) * 100}%` }} />
                           </>}
                         </div>
                         <span className="text-right text-xs font-bold text-slate-500">{total}</span>
@@ -1348,8 +1663,8 @@ export function PortalOrtuClient({ data }: { data: any }) {
                   })}
                 </div>
               )}
-              <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-slate-100 pt-3 text-[10px] font-semibold text-slate-500">
-                {[['bg-teal-500', 'Hadir'], ['bg-amber-400', 'Sakit'], ['bg-sky-400', 'Izin'], ['bg-rose-500', 'Alfa']].map(([color, label]) => <span key={label} className="flex items-center gap-1.5"><i className={`h-2 w-2 rounded-full ${color}`} />{label}</span>)}
+              <div className="flex flex-wrap gap-x-4 gap-y-2 border-t border-slate-100 pt-3 text-xs font-semibold text-slate-700">
+                {[['bg-[#246142]', 'Hadir'], ['bg-amber-600', 'Sakit'], ['bg-sky-600', 'Izin'], ['bg-rose-600', 'Alfa']].map(([color, label]) => <span key={label} className="flex items-center gap-1.5"><i aria-hidden="true" className={`h-2.5 w-2.5 rounded-full shrink-0 ${color}`} />{label}</span>)}
               </div>
             </StandardCard>
 
@@ -1394,50 +1709,62 @@ export function PortalOrtuClient({ data }: { data: any }) {
                   })}
                 </div>
 
-                <div className="flex flex-wrap gap-x-3 gap-y-2 border-t border-slate-100 pt-3 text-[10px] font-semibold text-slate-500">
-                  {calendarLegend.map(status => <span key={status} className="flex items-center gap-1.5"><i className={`h-2.5 w-2.5 rounded-sm ${statusMeta[status].className.split(' ')[0]}`} />{statusMeta[status].label}</span>)}
-                  <span>Hari libur / tanpa sesi aktif: lihat rincian tanggal</span>
+                <div className="flex flex-wrap gap-x-3 gap-y-2 border-t border-slate-100 pt-3 text-xs font-semibold text-slate-700">
+                  {calendarLegend.map(status => <span key={status} className="flex items-center gap-1.5"><i aria-hidden="true" className={`h-3 w-3 rounded-sm shrink-0 ${statusMeta[status].swatchClassName}`} />{statusMeta[status].label}</span>)}
+                  <span className="text-slate-600">Hari libur / tanpa sesi aktif: lihat rincian tanggal</span>
                 </div>
               </StandardCard>
 
               <StandardCard className="space-y-3" data-tour-id="kehadiran-details">
-                {!selectedAttendanceDate ? <p className="text-sm text-slate-500">Pilih tanggal pada kalender untuk melihat keterangan.</p> : <>
-                  <div>
-                    <p className="text-sm font-bold text-slate-900">{formatDateWIB(selectedAttendanceDate)}</p>
-                    {selectedHoliday && <p className="mt-2 text-sm text-slate-500">Hari libur{selectedHoliday.reason ? `: ${selectedHoliday.reason}` : ''}. Tidak dihitung sebagai hari Hadir atau Alfa.</p>}
-                    {(() => {
-                      const status = String(selectedCalendarDay?.status_akhir || '').replace(/\s+/g, '_').toUpperCase()
-                      const meta = statusMeta[status]
-                      return meta ? <span className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ${meta.className}`}>{parentDailyLabel(selectedCalendarDay)}</span> : null
-                    })()}
-                  </div>
-                  {selectedCalendarDay && <div className="space-y-1 text-xs leading-5 text-slate-500">
-                    <p>{parentDailyPhase(selectedCalendarDay)} {selectedCalendarDay.submitted_blok}/{selectedCalendarDay.total_blok} sesi pelajaran sudah berdata.</p>
-                    {selectedCalendarDay.pending_blok > 0 && <p>{selectedCalendarDay.pending_blok} sesi pelajaran belum diinput. Rekap dapat berubah setelah data dilengkapi.</p>}
-                    <p>{parentDailyReason(selectedCalendarDay)}</p>
-                  </div>}
-                  {selectedCalendarDay?.wali_status && <p className="rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-600">Koreksi harian wali kelas: {selectedCalendarDay.wali_status.toLowerCase()}. {selectedCalendarDay.keterangan_wali_kelas}</p>}
-                  {selectedBlockDetails.length === 0 ? <p className="text-sm text-slate-500">{selectedHoliday ? 'Tidak ada catatan sesi pembelajaran pada hari libur.' : !selectedCalendarDay ? 'Tidak ada sesi pelajaran aktif yang tercatat pada tanggal ini.' : selectedCalendarDay.submitted_blok === 0 ? 'Belum ada catatan kehadiran pada sesi pelajaran.' : 'Tidak ada catatan khusus pada sesi yang sudah berdata.'}</p> : (
-                    <div className="divide-y divide-slate-100 rounded-xl border border-slate-100">
-                      {selectedBlockDetails.map((detail: any, index: number) => {
-                        const detailStatus = String(detail.status || '').replace(/\s+/g, '_').toUpperCase()
-                        const detailMeta = statusMeta[detailStatus]
-                        return <div key={`${detail.nama_mapel}-${detail.jam_ke_mulai}-${index}`} className="p-3">
-                          <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm font-bold text-slate-800">{detail.nama_mapel || 'Pelajaran'}</p><p className="mt-0.5 text-[10px] font-semibold text-slate-400">Jam ke-{detail.jam_ke_mulai}-{detail.jam_ke_selesai} · {detail.sumber === 'perizinan_siswa' ? 'Perizinan resmi' : 'Catatan asli guru'}</p></div>{detailMeta && <span className={`max-w-full rounded-full px-2 py-1 text-[10px] font-bold ${detailMeta.className}`}>{parentSessionLabel(detailStatus,detail.sumber === 'perizinan_siswa')}</span>}</div>
-                          {detail.catatan && <p className="mt-2 text-xs leading-5 text-slate-500">{detail.catatan}</p>}
-                        </div>
-                      })}
+                {!selectedAttendanceDate ? <p className="text-sm text-[#6B6B63]">Pilih tanggal pada kalender untuk melihat rinciannya.</p> : (() => {
+                  const calendarDetail = formatParentCalendarDetail(selectedCalendarDay, selectedHoliday)
+                  const dayStatusKey = String(selectedCalendarDay?.status_akhir || '').replace(/\s+/g, '_').toUpperCase()
+                  const dayStatusMeta = statusMeta[dayStatusKey]
+                  return <>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-bold text-[#1A1A18]">{formatDateWIB(selectedAttendanceDate)}</p>
+                      {selectedHoliday && !dayStatusMeta ? (
+                        <span className="inline-flex rounded-full border border-[#D8D4CC] bg-[#F2F0EC] px-2.5 py-1 text-[11px] font-bold text-[#1A1A18]">Hari libur</span>
+                      ) : dayStatusMeta ? (
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ${dayStatusMeta.className}`}>{parentDailyLabel(selectedCalendarDay)}</span>
+                      ) : null}
                     </div>
-                  )}
-                </>}
+                    {(!selectedHoliday && (calendarDetail.phaseBadge || calendarDetail.sessionProgressLabel || calendarDetail.pendingLabel)) && (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {calendarDetail.phaseBadge && <span className="inline-flex items-center rounded-md border border-[#D8D4CC] bg-[#F2F0EC] px-2 py-0.5 text-[11px] font-medium text-[#1A1A18]">{calendarDetail.phaseBadge}</span>}
+                        {calendarDetail.sessionProgressLabel && <span className="inline-flex items-center rounded-md border border-[#D8D4CC] bg-white px-2 py-0.5 text-[11px] font-medium text-[#6B6B63]">{calendarDetail.sessionProgressLabel}</span>}
+                        {calendarDetail.pendingLabel && <span className="inline-flex items-center rounded-md border border-[#E8C5B8] bg-[#FDF6F3] px-2 py-0.5 text-[11px] font-medium text-[#9A3B1E]">{calendarDetail.pendingLabel}</span>}
+                      </div>
+                    )}
+                    <div className="rounded-xl border border-[#D8D4CC] bg-[#FAF9F7] px-3.5 py-2.5 text-xs leading-5 text-[#1A1A18]">
+                      <p>{calendarDetail.summaryText}</p>
+                      {calendarDetail.changeNote && <p className="mt-1 text-[11px] text-[#6B6B63]">{calendarDetail.changeNote}</p>}
+                    </div>
+                    {selectedCalendarDay?.wali_status && (
+                      <p className="rounded-xl border border-[#D8D4CC] bg-white px-3.5 py-2.5 text-xs leading-5 text-[#1A1A18]">
+                        Penyesuaian wali kelas: <span className="font-semibold capitalize">{selectedCalendarDay.wali_status.toLowerCase()}</span>.{' '}
+                        <span className="text-[#6B6B63]">{selectedCalendarDay.keterangan_wali_kelas}</span>
+                      </p>
+                    )}
+                    {selectedBlockDetails.length === 0 ? (
+                      calendarDetail.emptyDetailsNote ? <p className="text-xs text-[#6B6B63]">{calendarDetail.emptyDetailsNote}</p> : null
+                    ) : (
+                      <div className="divide-y divide-[#D8D4CC]/60 rounded-xl border border-[#D8D4CC] bg-white">
+                        {selectedBlockDetails.map((detail: any, index: number) => {
+                          const detailStatus = String(detail.status || '').replace(/\s+/g, '_').toUpperCase()
+                          const detailMeta = statusMeta[detailStatus]
+                          const jamLabel = detail.jam_ke_mulai === detail.jam_ke_selesai ? `${detail.jam_ke_mulai}` : `${detail.jam_ke_mulai}-${detail.jam_ke_selesai}`
+                          return <div key={`${detail.nama_mapel}-${detail.jam_ke_mulai}-${index}`} className="p-3">
+                            <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-sm font-bold text-[#1A1A18]">{detail.nama_mapel || 'Pelajaran'}</p><p className="mt-0.5 text-[11px] font-medium text-[#6B6B63]">Jam ke-{jamLabel} · {detail.sumber === 'perizinan_siswa' ? 'Izin resmi sekolah' : 'Catatan guru'}</p></div>{detailMeta && <span className={`max-w-full rounded-full px-2.5 py-0.5 text-[11px] font-bold ${detailMeta.className}`}>{parentSessionLabel(detailStatus, detail.sumber === 'perizinan_siswa')}</span>}</div>
+                            {detail.catatan && <p className="mt-2 text-xs leading-5 text-[#6B6B63]">{detail.catatan}</p>}
+                          </div>
+                        })}
+                      </div>
+                    )}
+                  </>
+                })()}
               </StandardCard>
             </section>
-
-            {disciplineEnabled && <button type="button" onClick={() => changeTab('kedisiplinan')} className="w-full text-left"><StandardCard data-tour-id="kehadiran-discipline" className={`flex items-center gap-4 p-4 ${needsDisciplineAttention ? 'border-amber-200' : 'border-teal-100'}`}>
-              <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${needsDisciplineAttention ? 'bg-amber-50 text-amber-700' : 'bg-teal-50 text-teal-700'}`}><ShieldAlert className="h-5 w-5" /></div>
-              <div className="min-w-0 flex-1"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Status pendampingan</p><p className="text-sm font-bold text-slate-900">{disciplineLevelLabel}</p><p className="mt-0.5 text-xs text-slate-500">{disciplineSummary?.totalKasus || 0} catatan kedisiplinan tercatat.</p></div>
-              <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
-            </StandardCard></button>}
           </>
         )}
       </motion.div>
@@ -1454,50 +1781,58 @@ export function PortalOrtuClient({ data }: { data: any }) {
       <motion.div key="kedisiplinan" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.3 }} className="portal-tab-panel space-y-5">
         <PortalPageHeader title="Kedisiplinan" description="Pantau catatan resmi, poin, dan tindak lanjut pendampingan anak bersama sekolah." Icon={ShieldAlert} />
 
-        <section data-tour-id="discipline-summary" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {[
-            { label: 'Kasus periode', value: selected.totalKasus, tone: 'text-slate-800' },
-            { label: 'Poin periode', value: selected.totalPoin, tone: 'text-rose-700' },
-            { label: 'Poin kumulatif', value: lifetime.totalPoin, tone: 'text-amber-700' },
-            { label: 'Status', value: lifetime.levelLabel, tone: 'text-teal-700' },
-          ].map(item => <StandardCard key={item.label} className="p-4"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{item.label}</p><p className={`mt-1 text-xl font-bold ${item.tone}`}>{item.value}</p></StandardCard>)}
-        </section>
+        {tabErrors.kedisiplinan ? (
+          <PortalTabRetryCard message={tabErrors.kedisiplinan} onRetry={() => void loadTabData('kedisiplinan', true)} />
+        ) : !isTabReady('kedisiplinan') ? (
+          <PortalTabSkeleton variant="kedisiplinan" />
+        ) : (
+          <>
+            <section data-tour-id="discipline-summary" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                { label: 'Kasus periode', value: selected.totalKasus, tone: 'text-slate-800' },
+                { label: 'Poin periode', value: selected.totalPoin, tone: 'text-rose-700' },
+                { label: 'Poin kumulatif', value: lifetime.totalPoin, tone: 'text-amber-700' },
+                { label: 'Status', value: lifetime.levelLabel, tone: 'text-teal-700' },
+              ].map(item => <StandardCard key={item.label} className="p-4"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{item.label}</p><p className={`mt-1 text-xl font-bold ${item.tone}`}>{item.value}</p></StandardCard>)}
+            </section>
 
-        <StandardCard data-tour-id="discipline-year" className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div><p className="text-sm font-bold text-slate-900">Periode catatan</p><p className="mt-0.5 text-xs text-slate-500">Poin kumulatif tetap dihitung sepanjang masa sekolah.</p></div>
-          <select value={selectedDisciplineYearId} onChange={event => changeDisciplineYear(event.target.value)} disabled={disciplineLoading} className="min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-[#C2522D]">
-            {(attendanceYears || []).map((year: any) => <option key={year.id} value={year.id}>{year.nama} · Semester {year.semester}</option>)}
-          </select>
-        </StandardCard>
+            <StandardCard data-tour-id="discipline-year" className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div><p className="text-sm font-bold text-slate-900">Periode catatan</p><p className="mt-0.5 text-xs text-slate-500">Poin kumulatif tetap dihitung sepanjang masa sekolah.</p></div>
+              <select value={selectedDisciplineYearId} onChange={event => changeDisciplineYear(event.target.value)} disabled={disciplineLoading} className="min-h-11 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 outline-none focus:border-[#C2522D]">
+                {(attendanceYears || []).map((year: any) => <option key={year.id} value={year.id}>{year.nama} · Semester {year.semester}</option>)}
+              </select>
+            </StandardCard>
 
-        <section data-tour-id="discipline-records" className="space-y-3">
-          <div className="ml-1"><h2 className="text-sm font-bold text-slate-900">Riwayat pelanggaran resmi</h2><p className="mt-0.5 text-xs text-slate-500">Identitas pelapor dan bukti internal tidak ditampilkan di portal.</p></div>
-          {disciplineLoading ? (
-            <StandardCard className="grid min-h-32 place-items-center"><Loader2 className="h-5 w-5 animate-spin text-[#C2522D]" /></StandardCard>
-          ) : (detail?.records || []).length === 0 ? (
-            <StandardCard className="py-10 text-center"><ShieldAlert className="mx-auto h-9 w-9 text-teal-400" /><p className="mt-3 text-sm font-bold text-slate-700">Tidak ada catatan pada periode ini</p><p className="mt-1 text-xs text-slate-500">Semoga kebiasaan baik ini terus dipertahankan.</p></StandardCard>
-          ) : (detail.records || []).map((record: any) => {
-            const clarification: any = clarificationByRecord.get(record.id)
-            const waMessage = `Assalamu'alaikum Bapak/Ibu ${waliKelasRow?.nama_lengkap || 'Wali Kelas'}. Saya orang tua/wali dari ${profil.nama_lengkap} (${kelasLabel}) ingin mengklarifikasi catatan kedisiplinan tanggal ${formatDateWIB(record.tanggal)}: ${record.nama_pelanggaran}. Mohon arahannya.`
-            return (
-              <StandardCard key={record.id} className="p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0"><p className="text-sm font-bold text-slate-900">{record.nama_pelanggaran}</p><p className="mt-1 text-xs text-slate-500">{formatDateWIB(record.tanggal)}{record.jam_input ? ` · ${record.jam_input}` : ''} · {record.kategori || 'Tanpa kategori'}</p></div>
-                  <span className="shrink-0 rounded-full bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-700">+{Number(record.poin || 0)} poin</span>
-                </div>
-                {record.keterangan && <p className="mt-3 rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-600">{record.keterangan}</p>}
-                {clarification && <div className="mt-3 rounded-lg border border-sky-100 bg-sky-50 p-3 text-xs leading-5 text-sky-800"><p className="font-bold uppercase tracking-wide">Klarifikasi: {clarification.status}</p><p className="mt-1">{clarification.request_message}</p>{clarification.response_message && <p className="mt-2 border-t border-sky-200 pt-2"><strong>Jawaban sekolah:</strong> {clarification.response_message}</p>}</div>}
-                {!clarification && disciplineSettings?.clarificationMode === 'whatsapp' && waliPhone && <a href={`https://wa.me/${waliPhone}?text=${encodeURIComponent(waMessage)}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-teal-200 bg-teal-50 px-3 text-xs font-bold text-teal-700"><MessageCircle className="h-4 w-4" /> Klarifikasi ke wali kelas</a>}
-                {!clarification && disciplineSettings?.clarificationMode === 'form' && (
-                  <Dialog open={clarificationRecordId === record.id} onOpenChange={open => { setClarificationRecordId(open ? record.id : ''); setClarificationMessage(''); setClarificationFeedback('') }}>
-                    <DialogTrigger asChild><button type="button" className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 text-xs font-bold text-sky-700"><MessageSquareText className="h-4 w-4" /> Ajukan klarifikasi</button></DialogTrigger>
-                    <DialogContent className="portal-dialog max-w-lg rounded-2xl"><DialogHeader><DialogTitle>Klarifikasi catatan kedisiplinan</DialogTitle><DialogDescription>{record.nama_pelanggaran} · {formatDateWIB(record.tanggal)}</DialogDescription></DialogHeader><textarea value={clarificationMessage} onChange={event => setClarificationMessage(event.target.value.slice(0, 2000))} rows={6} placeholder="Jelaskan hal yang ingin diklarifikasi..." className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-400" /><div className="flex items-center justify-between text-[11px] text-slate-500"><span>{clarificationFeedback}</span><span>{clarificationMessage.length}/2000</span></div><DialogFooter><button type="button" onClick={submitClarification} disabled={clarificationBusy || !clarificationMessage.trim()} className="min-h-11 rounded-lg bg-sky-700 px-4 text-sm font-bold text-white disabled:opacity-50">{clarificationBusy ? 'Mengirim...' : 'Kirim klarifikasi'}</button></DialogFooter></DialogContent>
-                  </Dialog>
-                )}
-              </StandardCard>
-            )
-          })}
-        </section>
+            <section data-tour-id="discipline-records" className="space-y-3">
+              <div className="ml-1"><h2 className="text-sm font-bold text-slate-900">Riwayat pelanggaran resmi</h2><p className="mt-0.5 text-xs text-slate-500">Identitas pelapor dan bukti internal tidak ditampilkan di portal.</p></div>
+              {disciplineLoading ? (
+                <StandardCard className="grid min-h-32 place-items-center"><Loader2 className="h-5 w-5 animate-spin text-[#C2522D]" /></StandardCard>
+              ) : (detail?.records || []).length === 0 ? (
+                <StandardCard className="py-10 text-center"><ShieldAlert className="mx-auto h-9 w-9 text-teal-400" /><p className="mt-3 text-sm font-bold text-slate-700">Tidak ada catatan pada periode ini</p><p className="mt-1 text-xs text-slate-500">Semoga kebiasaan baik ini terus dipertahankan.</p></StandardCard>
+              ) : (detail.records || []).map((record: any) => {
+                const clarification: any = clarificationByRecord.get(record.id)
+                const waMessage = `Assalamu'alaikum Bapak/Ibu ${waliKelasRow?.nama_lengkap || 'Wali Kelas'}. Saya orang tua/wali dari ${profil.nama_lengkap} (${kelasLabel}) ingin mengklarifikasi catatan kedisiplinan tanggal ${formatDateWIB(record.tanggal)}: ${record.nama_pelanggaran}. Mohon arahannya.`
+                return (
+                  <StandardCard key={record.id} className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0"><p className="text-sm font-bold text-slate-900">{record.nama_pelanggaran}</p><p className="mt-1 text-xs text-slate-500">{formatDateWIB(record.tanggal)}{record.jam_input ? ` · ${record.jam_input}` : ''} · {record.kategori || 'Tanpa kategori'}</p></div>
+                      <span className="shrink-0 rounded-full bg-rose-50 px-2.5 py-1 text-xs font-bold text-rose-700">+{Number(record.poin || 0)} poin</span>
+                    </div>
+                    {record.keterangan && <p className="mt-3 rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-600">{record.keterangan}</p>}
+                    {clarification && <div className="mt-3 rounded-lg border border-sky-100 bg-sky-50 p-3 text-xs leading-5 text-sky-800"><p className="font-bold uppercase tracking-wide">Klarifikasi: {clarification.status}</p><p className="mt-1">{clarification.request_message}</p>{clarification.response_message && <p className="mt-2 border-t border-sky-200 pt-2"><strong>Jawaban sekolah:</strong> {clarification.response_message}</p>}</div>}
+                    {!clarification && disciplineSettings?.clarificationMode === 'whatsapp' && waliPhone && <a href={`https://wa.me/${waliPhone}?text=${encodeURIComponent(waMessage)}`} target="_blank" rel="noreferrer" className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-teal-200 bg-teal-50 px-3 text-xs font-bold text-teal-700"><MessageCircle className="h-4 w-4" /> Klarifikasi ke wali kelas</a>}
+                    {!clarification && disciplineSettings?.clarificationMode === 'form' && (
+                      <Dialog open={clarificationRecordId === record.id} onOpenChange={open => { setClarificationRecordId(open ? record.id : ''); setClarificationMessage(''); setClarificationFeedback('') }}>
+                        <DialogTrigger asChild><button type="button" className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-3 text-xs font-bold text-sky-700"><MessageSquareText className="h-4 w-4" /> Ajukan klarifikasi</button></DialogTrigger>
+                        <DialogContent className="portal-dialog max-w-lg rounded-2xl"><DialogHeader><DialogTitle>Klarifikasi catatan kedisiplinan</DialogTitle><DialogDescription>{record.nama_pelanggaran} · {formatDateWIB(record.tanggal)}</DialogDescription></DialogHeader><textarea value={clarificationMessage} onChange={event => setClarificationMessage(event.target.value.slice(0, 2000))} rows={6} placeholder="Jelaskan hal yang ingin diklarifikasi..." className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:border-sky-400" /><div className="flex items-center justify-between text-[11px] text-slate-500"><span>{clarificationFeedback}</span><span>{clarificationMessage.length}/2000</span></div><DialogFooter><button type="button" onClick={submitClarification} disabled={clarificationBusy || !clarificationMessage.trim()} className="min-h-11 rounded-lg bg-sky-700 px-4 text-sm font-bold text-white disabled:opacity-50">{clarificationBusy ? 'Mengirim...' : 'Kirim klarifikasi'}</button></DialogFooter></DialogContent>
+                      </Dialog>
+                    )}
+                  </StandardCard>
+                )
+              })}
+            </section>
+          </>
+        )}
       </motion.div>
     )
   }
@@ -1517,7 +1852,13 @@ export function PortalOrtuClient({ data }: { data: any }) {
         Icon={GraduationCap}
       />
 
-      <div data-tour-id="nilai-average" className="bg-white border border-slate-200 shadow-sm rounded-2xl p-6 text-center">
+      {tabErrors.nilai ? (
+        <PortalTabRetryCard message={tabErrors.nilai} onRetry={() => void loadTabData('nilai', true)} />
+      ) : !isTabReady('nilai') ? (
+        <PortalTabSkeleton variant="nilai" />
+      ) : (
+        <>
+          <div data-tour-id="nilai-average" className="bg-white border border-slate-200 shadow-sm rounded-2xl p-6 text-center">
         <div className="w-12 h-12 bg-indigo-50 text-indigo-500 mx-auto rounded-full flex items-center justify-center mb-4">
           <GraduationCap className="h-6 w-6" />
         </div>
@@ -1624,6 +1965,8 @@ export function PortalOrtuClient({ data }: { data: any }) {
           })}
         </div>
       </div>
+        </>
+      )}
     </motion.div>
   )
 
@@ -1694,8 +2037,12 @@ export function PortalOrtuClient({ data }: { data: any }) {
                 }}
               >
                 <DialogTrigger asChild>
-                  <button data-tour-id="keuangan-pay-button" className="h-11 w-full whitespace-nowrap rounded-lg bg-teal-700 px-4 text-sm font-bold text-white transition-colors hover:bg-teal-800">
-                    Bayar DSPT
+                  <button
+                    data-tour-id="keuangan-pay-button"
+                    disabled={!isTabReady('keuangan')}
+                    className="h-11 w-full whitespace-nowrap rounded-lg bg-teal-700 px-4 text-sm font-bold text-white transition-colors hover:bg-teal-800 disabled:cursor-wait disabled:opacity-65"
+                  >
+                    {!isTabReady('keuangan') ? 'Menyiapkan metode bayar...' : 'Bayar DSPT'}
                   </button>
                 </DialogTrigger>
                 <DialogContent className="portal-dialog max-h-[92dvh] overflow-hidden rounded-2xl border border-[#D8D4CC] bg-[#FAF9F7] p-0 sm:max-w-md">
@@ -1988,7 +2335,13 @@ export function PortalOrtuClient({ data }: { data: any }) {
         )}
       </div>
 
-      <div data-tour-id="keuangan-submissions" className="pt-2">
+      {tabErrors.keuangan ? (
+        <PortalTabRetryCard message={tabErrors.keuangan} onRetry={() => void loadTabData('keuangan', true)} />
+      ) : !isTabReady('keuangan') ? (
+        <PortalTabSkeleton variant="keuangan-detail" />
+      ) : (
+        <>
+          <div data-tour-id="keuangan-submissions" className="pt-2">
         <h2 className="text-sm font-semibold text-slate-800 uppercase tracking-wide ml-1 mb-1">Pengajuan Pembayaran DSPT</h2>
         <p className="text-xs text-slate-500 leading-5 ml-1 mb-3">
           Bukti yang sudah diupload akan diperiksa bendahara komite sebelum kuitansi diterbitkan.
@@ -2111,6 +2464,8 @@ export function PortalOrtuClient({ data }: { data: any }) {
           ))}
         </div>
       </div>
+        </>
+      )}
     </motion.div>
   )
 
@@ -2200,7 +2555,11 @@ export function PortalOrtuClient({ data }: { data: any }) {
             <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-800">Saran Saya</h2>
             <p className="mt-1 text-xs text-slate-500">Riwayat saran dan status tindak lanjut dari sekolah.</p>
           </div>
-          {suggestionRows.length === 0 ? (
+          {tabErrors.saran ? (
+            <PortalTabRetryCard message={tabErrors.saran} onRetry={() => void loadTabData('saran', true)} />
+          ) : !isTabReady('saran') ? (
+            <PortalTabSkeleton variant="saran-list" />
+          ) : suggestionRows.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-slate-200 bg-white py-8 text-center">
               <p className="text-sm text-slate-500">Belum ada saran yang dikirim.</p>
             </div>
@@ -2242,7 +2601,13 @@ export function PortalOrtuClient({ data }: { data: any }) {
         Icon={CircleHelp}
       />
 
-      {docsRows.length > 0 && (
+      {tabErrors.dokumentasi ? (
+        <PortalTabRetryCard message={tabErrors.dokumentasi} onRetry={() => void loadTabData('dokumentasi', true)} />
+      ) : !isTabReady('dokumentasi') ? (
+        <PortalTabSkeleton variant="dokumentasi" />
+      ) : (
+        <>
+          {docsRows.length > 0 && (
         <label data-tour-id="docs-list" className="grid gap-1.5 md:hidden">
           <span className="text-xs font-semibold text-[#6B6B63]">Pilih panduan</span>
           <select
@@ -2293,6 +2658,8 @@ export function PortalOrtuClient({ data }: { data: any }) {
           )}
         </StandardCard>
       </div>
+        </>
+      )}
     </motion.div>
   )
 
@@ -2406,10 +2773,12 @@ export function PortalOrtuClient({ data }: { data: any }) {
           <p className="mb-2 mt-4 px-3 text-xs font-semibold text-[#6B6B63]">Menu orang tua</p>
           {[
             { id: 'beranda', label: 'Beranda', Icon: House },
+            { id: 'biodata', label: 'Biodata Siswa', Icon: IdentificationCard },
             { id: 'jadwal', label: 'Jadwal Kelas', Icon: CalendarDays },
             { id: 'kehadiran', label: 'Kehadiran', Icon: BookOpenCheck },
             ...(disciplineEnabled ? [{ id: 'kedisiplinan', label: 'Kedisiplinan', Icon: ShieldAlert }] : []),
             { id: 'nilai', label: 'Akademik', Icon: GraduationCap },
+            { id: 'psikotes', label: 'Hasil Psikotes', Icon: Brain },
             { id: 'keuangan', label: 'Keuangan', Icon: Wallet },
             { id: 'saran', label: 'Kotak Saran', Icon: MessageSquareText },
             { id: 'dokumentasi', label: 'Dokumentasi', Icon: CircleHelp },
@@ -2418,6 +2787,8 @@ export function PortalOrtuClient({ data }: { data: any }) {
             return (
               <button
                 key={id}
+                onMouseEnter={() => prefetchTab(id)}
+                onFocus={() => prefetchTab(id)}
                 onClick={() => changeTab(id)}
                 className={`flex min-h-11 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[#C2522D] ${isActive
                     ? 'bg-white text-[#C2522D] shadow-sm'
@@ -2502,11 +2873,31 @@ export function PortalOrtuClient({ data }: { data: any }) {
         <div className="mx-auto w-full max-w-[1100px] flex-1 px-4 pb-4 pt-5 sm:px-6 sm:pt-7 lg:px-8 lg:py-8">
           <AnimatePresence mode="wait">
             {activeTab === 'beranda' && renderBeranda()}
+            {activeTab === 'biodata' && (
+              <PortalBiodataSection
+                profil={profil}
+                kelasLabel={kelasLabel}
+                onGoToSaran={() => changeTab('saran')}
+              />
+            )}
             {activeTab === 'notifications' && renderNotifications()}
             {activeTab === 'jadwal' && renderJadwal()}
             {activeTab === 'kehadiran' && renderKehadiran()}
             {activeTab === 'kedisiplinan' && disciplineEnabled && renderKedisiplinan()}
             {activeTab === 'nilai' && renderNilai()}
+            {activeTab === 'psikotes' && (
+              tabErrors.psikotes ? (
+                <PortalTabRetryCard message={tabErrors.psikotes} onRetry={() => void loadTabData('psikotes', true)} />
+              ) : !isTabReady('psikotes') ? (
+                <PortalTabSkeleton variant="psikotes" />
+              ) : (
+                <PortalPsikotesSection
+                  psikotesData={psikotesData}
+                  siswaNama={profil.nama_lengkap || '-'}
+                  kelasLabel={kelasLabel}
+                />
+              )
+            )}
             {activeTab === 'keuangan' && renderKeuangan()}
             {activeTab === 'saran' && renderSaran()}
             {activeTab === 'dokumentasi' && renderDokumentasi()}
@@ -2518,8 +2909,20 @@ export function PortalOrtuClient({ data }: { data: any }) {
       <MobileBottomNav
         activeTab={activeTab}
         onChange={changeTab}
+        onPrefetch={prefetchTab}
         onStartTour={startPortalTour}
         disciplineEnabled={disciplineEnabled}
+      />
+      <PortalFinanceReminderDialog
+        open={financeReminderOpen}
+        onOpenChange={setFinanceReminderOpen}
+        siswaNama={profil.nama_lengkap || '-'}
+        kelasLabel={kelasLabel}
+        dsptRemaining={dsptRemaining}
+        sppRemaining={sppRemaining}
+        totalSisaTagihan={totalSisaTagihan}
+        pendingConfirmationTotal={pendingConfirmationTotal}
+        onGoToKeuangan={() => changeTab('keuangan')}
       />
       <PortalTour
         open={tourOpen}

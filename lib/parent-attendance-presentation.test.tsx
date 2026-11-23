@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { AttendanceHelp } from '@/app/portal-ortu/components/attendance-help'
-import { parentDailyLabel, parentDailyPhase, parentDailyReason, parentSessionLabel, summarizeParentAttendanceDays } from './parent-attendance-presentation'
+import { formatParentCalendarDetail, parentDailyLabel, parentDailyPhase, parentDailyReason, parentSessionLabel, summarizeParentAttendanceDays } from './parent-attendance-presentation'
 import type { FinalAttendanceDetail } from './wali-kelas-attendance'
 
 function day(overrides: Partial<FinalAttendanceDetail> = {}): FinalAttendanceDetail {
@@ -60,5 +60,43 @@ describe('parent attendance presentation', () => {
     vi.setSystemTime(new Date('2026-10-03T00:00:00Z'))
     expect(parentDailyPhase({...pending,kbm_end_at:null,submitted_blok:0})).toContain('Pembelajaran selesai; belum ada')
     expect(parentDailyPhase({...pending,total_blok:0})).toContain('Tidak ada sesi pelajaran aktif')
+  })
+
+  it('formats scannable plain-language calendar details without jargon', () => {
+    const partialHadir = formatParentCalendarDetail(
+      day({ status_akhir: 'HADIR', total_blok: 4, submitted_blok: 3, pending_blok: 1 }),
+    )
+    expect(partialHadir.phaseBadge).toBe('Rekap selesai')
+    expect(partialHadir.sessionProgressLabel).toBe('3/4 jam tercatat')
+    expect(partialHadir.pendingLabel).toBe('1 jam belum diisi guru')
+    expect(partialHadir.summaryText).toContain('Semua jam pelajaran yang sudah diisi guru tercatat Hadir')
+    expect(partialHadir.changeNote).toContain('1 jam tersisa')
+    expect(partialHadir.emptyDetailsNote).toBeNull()
+    expect(JSON.stringify(partialHadir)).not.toMatch(/berdata|diinput|data dilengkapi/i)
+
+    const fullHadir = formatParentCalendarDetail(
+      day({ status_akhir: 'HADIR', total_blok: 4, submitted_blok: 4, pending_blok: 0 }),
+    )
+    expect(fullHadir.pendingLabel).toBeNull()
+    expect(fullHadir.changeNote).toBeNull()
+    expect(fullHadir.summaryText).toContain('Hadir penuh')
+
+    const alfaDetail = formatParentCalendarDetail(day({ status_akhir: 'ALFA' }))
+    expect(alfaDetail.summaryText).toContain('tanpa keterangan (Alfa)')
+    expect(alfaDetail.emptyDetailsNote).toBe('Belum ada catatan per mata pelajaran.')
+
+    const officialOverride = formatParentCalendarDetail(
+      day({ status_akhir: 'HADIR', sumber_status: 'perizinan_sekolah', pending_blok: 2 }),
+    )
+    expect(officialOverride.changeNote).toBeNull()
+    expect(officialOverride.summaryText).toContain('kegiatan resmi sekolah')
+
+    const holiday = formatParentCalendarDetail(null, { reason: 'Hari Guru' })
+    expect(holiday.phaseBadge).toBe('Hari libur')
+    expect(holiday.summaryText).toContain('Hari libur madrasah: Hari Guru')
+
+    const noSchedule = formatParentCalendarDetail(null)
+    expect(noSchedule.summaryText).toContain('Tidak ada jadwal pelajaran tercatat')
+    expect(noSchedule.emptyDetailsNote).toBeNull()
   })
 })

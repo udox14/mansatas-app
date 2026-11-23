@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { FileSpreadsheet, Download, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { FileSpreadsheet, Download, Upload, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { importSiswaMassal } from '../actions'
 
 export function ImportModalSiswa() {
@@ -119,7 +119,8 @@ export function ImportModalSiswa() {
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogTrigger asChild>
           <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5 border-surface rounded-md px-2.5">
-            <FileSpreadsheet className="h-3.5 w-3.5 shrink-0" />
+            <Upload className="h-3.5 w-3.5 shrink-0" />
+            <span className="sm:hidden">Import</span>
             <span className="hidden sm:inline">Import Siswa</span>
           </Button>
         </DialogTrigger>
