@@ -12,19 +12,19 @@ function changed(change: (ws: Record<string, any>) => void) {
 }
 
 describe('RAPBM source parser', () => {
-  it('keeps the supplied 2026 source, 17 groups and 98 expense details without recalculating it', () => {
+  it('keeps the supplied 2026 source, 17 groups and 105 expense details without recalculating it', () => {
     const doc=parseRapbm(bytes())
     expect(doc.year).toBe(2026)
     expect(doc.expenses).toHaveLength(17)
-    expect(doc.expenses.flatMap(g=>g.items)).toHaveLength(98)
+    expect(doc.expenses.flatMap(g=>g.items)).toHaveLength(105)
     expect(doc.income).toHaveLength(2)
-    expect(doc.incomeTotal.total).toBe(4538936000)
-    expect(doc.expenseTotal).toEqual({apbn:2443436000,komite:2095500000,total:4538936000})
-    const furniture=doc.expenses.flatMap(g=>g.items).find(i=>i.reference==='Sheet1!E118:J118')!
+    expect(doc.incomeTotal.total).toBe(4666436000)
+    expect(doc.expenseTotal).toEqual({apbn:2454236000,komite:2212200000,total:4666436000})
+    const furniture=doc.expenses.flatMap(g=>g.items).find(i=>i.reference==='RAPBM 2026!E124:J124')!
     expect(furniture.amounts).toEqual({apbn:115200000,komite:null,total:null})
     expect(furniture.volume).toBe('72')
-    expect(doc.notes).toContainEqual(expect.objectContaining({reference:'Sheet1!J118',source:null,calculated:115200000}))
-    expect(doc.notes).toContainEqual(expect.objectContaining({reference:'Sheet1!I63',source:36300000,calculated:93900000}))
+    expect(doc.notes).toContainEqual(expect.objectContaining({reference:'RAPBM 2026!J124',source:null,calculated:115200000}))
+    expect(doc.notes).toContainEqual(expect.objectContaining({reference:'RAPBM 2026!J66',source:101900000,calculated:189260000}))
     expect(doc.expenses.filter(g=>g.account==='521111')).toHaveLength(2)
     expect(doc.expenses.find(g=>g.order===17)?.items[0].account).toBe('522111')
     expect(doc.expenses.flatMap(g=>g.items).some(i=>i.amounts.total===0)).toBe(true)
@@ -35,7 +35,7 @@ describe('RAPBM source parser', () => {
   it('does not turn a missing income subtotal into zero',()=>{
     const doc=parseRapbm(changed(ws=>{delete ws.H12}))
     expect(doc.incomeTotal.apbn).toBeNull()
-    expect(doc.notes.some(note=>note.reference==='Sheet1!H12')).toBe(true)
+    expect(doc.notes.some(note=>note.reference==='RAPBM 2026!H12')).toBe(true)
   })
   it.each(['negative','text','error','unsafe'])('rejects unreadable %s money', kind => {
     expect(()=>parseRapbm(changed(ws=>{ ws.H23=kind==='text'?{t:'s',v:'Rp 46.440.000'}:kind==='error'?{t:'e',v:7}:{t:'n',v:kind==='negative'?-1:Number.MAX_SAFE_INTEGER+1} }))).toThrow(/nominal/)
@@ -50,10 +50,10 @@ describe('RAPBM source parser', () => {
   })
   it('filters funding sources without losing original group subtotals or zero rows in the unfiltered view', () => {
     const doc=parseRapbm(bytes())
-    expect(filterRapbmGroups(doc.expenses,'','all').flatMap(g=>g.items)).toHaveLength(98)
+    expect(filterRapbmGroups(doc.expenses,'','all').flatMap(g=>g.items)).toHaveLength(105)
     const result=filterRapbmGroups(doc.expenses,'Internet','apbn')
     expect(result[0].items).toHaveLength(1)
-    expect(result[0].amounts.total).toBe(699413000)
+    expect(result[0].amounts.total).toBe(715413000)
     expect(filterRapbmGroups(doc.expenses,'Internet','komite')).toHaveLength(0)
   })
 })

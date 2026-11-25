@@ -51,12 +51,12 @@ describe('RAPBM archive and publication',()=>{
     const imported=await importRapbm(file())
     const data=await getRapbmPageData(2026,imported.id)
     expect(data.document?.expenses).toHaveLength(17)
-    expect(data.document?.expenses.flatMap(g=>g.items)).toHaveLength(98)
+    expect(data.document?.expenses.flatMap(g=>g.items)).toHaveLength(105)
     expect(data.selected).toMatchObject({status:'draft',version:1,year:2026})
     expect(state.objects.get(String(row(imported.id).r2_key))).toEqual(new Uint8Array(Buffer.from(source.base64,'base64')))
     expect(count('activity_logs')).toBe(1)
-    expect(data.document?.notes.some(n=>n.reference==='Sheet1!I63')).toBe(true)
-    expect(data.document?.expenses.flatMap(g=>g.items).find(i=>i.reference==='Sheet1!E118:J118')?.amounts.total).toBeNull()
+    expect(data.document?.notes.some(n=>n.reference==='RAPBM 2026!J66')).toBe(true)
+    expect(data.document?.expenses.flatMap(g=>g.items).find(i=>i.reference==='RAPBM 2026!E124:J124')?.amounts.total).toBeNull()
   })
   it('publishes independent cohorts with the same fiscal year',async()=>{
     sqlite.exec(`CREATE TABLE komite_pengajuan(id TEXT PRIMARY KEY,status TEXT,nominal INTEGER);

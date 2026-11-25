@@ -12,7 +12,7 @@ describe('RAPBM server action feedback',()=>{
     expect(await importInitialRapbmAction()).toMatchObject({id:'v1',year:2026})
     const file=state.importFile.mock.calls[0][0] as File
     expect(file.name).toBe('RAPBM 2026.xlsx')
-    expect(file.size).toBe(26596)
+    expect(file.size).toBe(28142)
     expect(state.revalidate).toHaveBeenCalledWith('/dashboard/keuangan/rapbm')
   })
   it('retains readable validation feedback in production-safe action results',async()=>{
