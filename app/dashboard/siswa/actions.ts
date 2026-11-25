@@ -840,37 +840,77 @@ export async function importSiswaMassal(dataSiswa: any[]) {
 // (tetap ada dari versi original, tidak dihapus)
 // ============================================================
 
+const EDITABLE_SISWA_FIELDS = new Set([
+  'nisn', 'nis_lokal', 'nama_lengkap', 'nik', 'jenis_kelamin',
+  'tempat_lahir', 'tanggal_lahir', 'agama', 'asal_sekolah',
+  'tahun_masuk', 'minat_jurusan', 'kelas_id', 'wali_murid_id',
+  'status', 'anak_ke', 'jumlah_saudara', 'status_anak',
+  'tempat_tinggal', 'asrama', 'kamar', 'alamat_lengkap', 'rt', 'rw',
+  'desa_kelurahan', 'kecamatan', 'kabupaten_kota', 'provinsi',
+  'kode_pos', 'nomor_whatsapp', 'nomor_kk',
+  'nama_ayah', 'nik_ayah', 'status_ayah', 'pendidikan_ayah',
+  'tempat_lahir_ayah', 'tanggal_lahir_ayah', 'pekerjaan_ayah', 'penghasilan_ayah',
+  'nama_ibu', 'nik_ibu', 'status_ibu', 'pendidikan_ibu',
+  'tempat_lahir_ibu', 'tanggal_lahir_ibu', 'pekerjaan_ibu', 'penghasilan_ibu',
+])
+
+const NUMERIC_SISWA_FIELDS = ['anak_ke', 'jumlah_saudara', 'tahun_masuk'] as const
+
 // editSiswaLengkap — dipakai oleh edit-modal.tsx
 export async function editSiswaLengkap(prevState: any, formData: FormData) {
   if (!(await verifyAdminAccess())) return { error: 'Akses Ditolak: Hanya Super Admin / Admin TU.', success: null }
   const db = await getDB()
-  const id = formData.get('id') as string
+  const id = String(formData.get('id') ?? '').trim()
   if (!id) return { error: 'ID siswa tidak ditemukan', success: null }
-
-  const payload: any = Object.fromEntries(formData.entries())
-  delete payload.id
 
   const existing = await dbSelectOne<any>(db, 'siswa', { id })
   if (!existing) return { error: 'Data siswa tidak ditemukan', success: null }
 
-  // Sanitasi data
-  Object.keys(payload).forEach(key => {
-    const val = payload[key]
+  // Hanya terima kolom biodata yang diizinkan agar key internal FormData ($ACTION_*)
+  // atau field yang tidak dikirim tidak pernah menimpa kolom DB dengan null.
+  const payload: Record<string, any> = {}
+  for (const [key, rawValue] of formData.entries()) {
+    if (!EDITABLE_SISWA_FIELDS.has(key) || typeof rawValue !== 'string') continue
+    const trimmed = rawValue.trim()
     if (FK_FIELDS.includes(key)) {
-      if (!val || val === 'none' || val === 'null' || val === 'undefined') {
-        payload[key] = null
-      }
+      payload[key] = (!trimmed || trimmed === 'none' || trimmed === 'null' || trimmed === 'undefined')
+        ? null
+        : trimmed
     } else {
-      if (val === '' || val === 'undefined' || val === 'null') {
-        payload[key] = null
-      }
+      payload[key] = (!trimmed || trimmed === 'undefined' || trimmed === 'null')
+        ? null
+        : trimmed
     }
-  })
+  }
 
-  // Konversi field numerik
-  payload.anak_ke = (payload.anak_ke !== null && payload.anak_ke !== undefined && String(payload.anak_ke).trim() !== '') ? parseInt(String(payload.anak_ke)) : null
-  payload.jumlah_saudara = (payload.jumlah_saudara !== null && payload.jumlah_saudara !== undefined && String(payload.jumlah_saudara).trim() !== '') ? parseInt(String(payload.jumlah_saudara)) : null
-  payload.tahun_masuk = (payload.tahun_masuk !== null && payload.tahun_masuk !== undefined && String(payload.tahun_masuk).trim() !== '') ? parseInt(String(payload.tahun_masuk)) : null
+  if (Object.keys(payload).length === 0) {
+    return { error: 'Tidak ada perubahan data untuk disimpan.', success: null }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, 'nisn') && !payload.nisn) {
+    return { error: 'NISN wajib diisi.', success: null }
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, 'nama_lengkap') && !payload.nama_lengkap) {
+    return { error: 'Nama lengkap wajib diisi.', success: null }
+  }
+
+  // Konversi field numerik hanya jika field benar-benar dikirim di formData
+  for (const field of NUMERIC_SISWA_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(payload, field)) continue
+    const raw = payload[field]
+    if (raw === null) continue
+    if (!/^-?\d+$/.test(String(raw))) {
+      return { error: `Nilai ${field.replace(/_/g, ' ')} harus berupa angka bulat.`, success: null }
+    }
+    const parsed = Number(raw)
+    if (!Number.isSafeInteger(parsed)) {
+      return { error: `Nilai ${field.replace(/_/g, ' ')} tidak valid.`, success: null }
+    }
+    if (field === 'tahun_masuk' && (parsed < 2000 || parsed > 2099)) {
+      return { error: 'Tahun masuk (angkatan) harus antara 2000 sampai 2099.', success: null }
+    }
+    payload[field] = parsed
+  }
 
   payload.updated_at = new Date().toISOString()
 
@@ -906,7 +946,15 @@ export async function editSiswaLengkap(prevState: any, formData: FormData) {
 
   revalidatePath('/dashboard/siswa')
   revalidatePath(`/dashboard/siswa/${id}`)
-  if (payload.status && payload.status !== existing.status) revalidateFinanceStudentViews()
+  if (
+    (payload.status !== undefined && payload.status !== existing.status) ||
+    (payload.tahun_masuk !== undefined && payload.tahun_masuk !== existing.tahun_masuk) ||
+    (payload.kelas_id !== undefined && payload.kelas_id !== existing.kelas_id) ||
+    (payload.nama_lengkap !== undefined && payload.nama_lengkap !== existing.nama_lengkap)
+  ) {
+    revalidateFinanceStudentViews()
+    revalidatePath(`/dashboard/keuangan/siswa/${id}`)
+  }
   return { error: null, success: 'Biodata lengkap berhasil diperbarui!' }
 }
 
