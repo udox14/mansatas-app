@@ -20,7 +20,8 @@ import { MAPEL_PILIHAN_OPTIONS_SORTED } from '../constants'
 import { naturalSort } from '@/lib/natural-sort'
 import { cn } from '@/lib/utils'
 import { CetakRekapModal, type CetakMode } from './cetak-rekap-modal'
-import { KAMPUS_LIST, PRODI_BY_KAMPUS, RENCANA_LABEL, RENCANA_OPTIONS } from '@/lib/pendidikan-lanjutan'
+import { RENCANA_LABEL, RENCANA_OPTIONS } from '@/lib/pendidikan-lanjutan'
+import { usePendidikanLanjutanData } from '@/lib/pendidikan-lanjutan-client'
 import type { RencanaKategori } from '@/lib/pendidikan-lanjutan'
 
 interface Props {
@@ -45,6 +46,7 @@ const VIEW_BUTTONS: { key: View; label: string; icon: React.ReactNode }[] = [
 ]
 
 export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) {
+  const { kampusList, prodiByKampus } = usePendidikanLanjutanData()
   const [view, setView] = useState<View>('jumlah')
   const [kelasFilter, setKelasFilter] = useState('')
   const [mapelFilter, setMapelFilter] = useState('')
@@ -227,8 +229,8 @@ export function TabRekap({ tahunAjaranId, tahunAjaranLabel, kelasList }: Props) 
 
           {view === 'rencana' && <>
             <Combobox value={rencanaFilter} onValueChange={setRencanaFilter} options={RENCANA_OPTIONS} placeholder="Semua Rencana" searchPlaceholder="Cari rencana..." className="sm:w-56" clearable />
-            <Combobox value={kampusFilter} onValueChange={value => { setKampusFilter(value); setProdiFilter('') }} options={KAMPUS_LIST.map(k => ({ value: k.id, label: k.nama, keywords: `${k.singkatan} ${k.kota}`, description: k.kota }))} placeholder="Semua Perguruan Tinggi" searchPlaceholder="Cari perguruan tinggi..." className="sm:w-64" maxResults={60} clearable />
-            <Combobox value={prodiFilter} onValueChange={setProdiFilter} options={(kampusFilter ? PRODI_BY_KAMPUS[kampusFilter] ?? [] : []).map(p => ({ value: p.nama, label: `${p.nama} (${p.jenjang})` }))} placeholder={kampusFilter ? 'Semua Prodi' : 'Pilih kampus dahulu'} searchPlaceholder="Cari prodi..." className="sm:w-56" disabled={!kampusFilter} clearable />
+            <Combobox value={kampusFilter} onValueChange={value => { setKampusFilter(value); setProdiFilter('') }} options={kampusList.map(k => ({ value: k.id, label: k.nama, keywords: `${k.singkatan} ${k.kota}`, description: k.kota }))} placeholder="Semua Perguruan Tinggi" searchPlaceholder="Cari perguruan tinggi..." className="sm:w-64" maxResults={60} clearable />
+            <Combobox value={prodiFilter} onValueChange={setProdiFilter} options={(kampusFilter ? prodiByKampus[kampusFilter] ?? [] : []).map(p => ({ value: p.nama, label: `${p.nama} (${p.jenjang})` }))} placeholder={kampusFilter ? 'Semua Prodi' : 'Pilih kampus dahulu'} searchPlaceholder="Cari prodi..." className="sm:w-56" disabled={!kampusFilter} clearable />
           </>}
 
           <div className="relative flex-1 sm:max-w-xs">

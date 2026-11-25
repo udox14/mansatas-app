@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { getDB } from '@/utils/db-server'
-import { KAMPUS_BY_ID, PRODI_BY_KAMPUS } from '@/lib/pendidikan-lanjutan'
+import { loadPendidikanLanjutanServer } from '@/lib/pendidikan-lanjutan-server'
 import type { RencanaKategori } from '@/lib/pendidikan-lanjutan'
 import { assertStudentScope, requireActionAccess } from '@/lib/action-security'
 import { publicServerError } from '@/lib/security-log'
@@ -66,12 +66,15 @@ export async function saveRencanaPendidikanSiswa(input: unknown) {
     { slot: 1, kampusId: payload.pilihan1_kampus_id, prodi: payload.pilihan1_prodi },
     { slot: 2, kampusId: payload.pilihan2_kampus_id, prodi: payload.pilihan2_prodi },
   ] as const
+  const catalog = payload.kategori === 'KULIAH' && choices.some(choice => choice.kampusId)
+    ? await loadPendidikanLanjutanServer()
+    : null
   if (payload.kategori === 'KULIAH') {
     const filled = choices.filter(choice => choice.kampusId)
     for (const choice of filled) {
-      const kampus = KAMPUS_BY_ID.get(choice.kampusId!)
+      const kampus = catalog!.kampusById.get(choice.kampusId!)
       if (!kampus) return { error: 'Perguruan tinggi tidak valid.' }
-      const prodi = PRODI_BY_KAMPUS[choice.kampusId!] ?? []
+      const prodi = catalog!.prodiByKampus[choice.kampusId!] ?? []
       if (prodi.length && !choice.prodi) return { error: `Program studi wajib dipilih untuk ${kampus.nama}.` }
       if (choice.prodi && prodi.length && !prodi.some(item => item.nama === choice.prodi)) return { error: 'Program studi tidak valid.' }
     }
@@ -93,7 +96,7 @@ export async function saveRencanaPendidikanSiswa(input: unknown) {
   } else {
     for (const choice of choices) {
       if (!choice.kampusId) continue
-      const kampus = KAMPUS_BY_ID.get(choice.kampusId)!
+      const kampus = catalog!.kampusById.get(choice.kampusId)!
       statements.push(db.prepare(`INSERT INTO penerimaan_pt
         (siswa_id, tahun_ajaran_id, jalur, kampus_id, kampus_nama, program_studi,
          status, jenis_data, pilihan_ke, updated_at)

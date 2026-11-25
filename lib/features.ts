@@ -1,6 +1,7 @@
 // lib/features.ts
 // Resolves user access to features based on multi-role + overrides
 
+import { cache } from 'react'
 import { MENU_ITEMS } from '@/config/menu'
 import { isPlayReviewerRole, PLAY_REVIEWER_ROLE } from '@/lib/play-reviewer'
 import { logSecurityEvent } from '@/lib/security-log'
@@ -12,19 +13,29 @@ export type CrudAction = 'create' | 'read' | 'update' | 'delete'
 const REPLACEMENT_TEACHING_FEATURES = ['agenda', 'kehadiran', 'nilai-harian']
 const REPLACEMENT_WALI_FEATURES = ['kelas-binaan', 'izin', 'keterangan-absensi']
 
-async function replacementFeatures(db: D1Database, userId: string) {
+type UserAccountMeta = {
+  role?: string | null
+  akun_pengganti_cuti?: number | null
+  jabatan_struktural_id?: string | null
+}
+
+const getUserAccountMeta = cache(async (db: D1Database, userId: string): Promise<UserAccountMeta | null> => {
+  return db.prepare('SELECT * FROM "user" WHERE id = ?').bind(userId).first<UserAccountMeta>()
+})
+
+const replacementFeatures = cache(async (db: D1Database, userId: string): Promise<string[]> => {
   const scopes = await readReplacementScopes(db, userId)
   if (!scopes.length) return []
   const classes = await db.prepare('SELECT 1 FROM kelas WHERE wali_kelas_id IN (SELECT value FROM json_each(?)) LIMIT 1')
     .bind(JSON.stringify(scopes.map(row => row.guru_id))).first()
   return classes ? [...REPLACEMENT_TEACHING_FEATURES, ...REPLACEMENT_WALI_FEATURES] : REPLACEMENT_TEACHING_FEATURES
-}
+})
 
 /**
  * Get all roles for a user from user_roles table
  * Falls back to user.role column if user_roles is empty
  */
-export async function getUserRoles(db: D1Database, userId: string): Promise<string[]> {
+export const getUserRoles = cache(async (db: D1Database, userId: string): Promise<string[]> => {
   const result = await db.prepare(
     'SELECT role FROM user_roles WHERE user_id = ?'
   ).bind(userId).all<{ role: string }>()
@@ -33,25 +44,21 @@ export async function getUserRoles(db: D1Database, userId: string): Promise<stri
 
   // Fallback: jika user_roles kosong, pakai kolom user.role
   if (roles.length === 0) {
-    const user = await db.prepare(
-      'SELECT role FROM "user" WHERE id = ?'
-    ).bind(userId).first<{ role: string }>()
+    const user = await getUserAccountMeta(db, userId)
     if (user?.role) roles = [user.role]
   }
 
   // Reviewer perlu melihat cabang UI admin yang masih memakai pemeriksaan role lama.
   // Role reviewer tetap disertakan dan selalu menang pada seluruh pemeriksaan write.
   return isPlayReviewerRole(roles) ? Array.from(new Set([...roles, 'super_admin'])) : roles
-}
+})
 
 /**
  * Get the primary/display role for a user
  * Primary role = user.role column (bisa diubah admin)
  */
 export async function getPrimaryRole(db: D1Database, userId: string): Promise<string> {
-  const user = await db.prepare(
-    'SELECT role FROM "user" WHERE id = ?'
-  ).bind(userId).first<{ role: string }>()
+  const user = await getUserAccountMeta(db, userId)
   return user?.role || 'guru'
 }
 
@@ -73,10 +80,10 @@ export async function getRoleFeatures(db: D1Database, roles: string[]): Promise<
 /**
  * Get user-specific feature overrides (grant/revoke)
  */
-export async function getUserOverrides(db: D1Database, userId: string): Promise<{
+export const getUserOverrides = cache(async (db: D1Database, userId: string): Promise<{
   grants: Set<string>
   revokes: Set<string>
-}> {
+}> => {
   const result = await db.prepare(
     'SELECT feature_id, action FROM user_feature_overrides WHERE user_id = ?'
   ).bind(userId).all<{ feature_id: string; action: string }>()
@@ -90,16 +97,28 @@ export async function getUserOverrides(db: D1Database, userId: string): Promise<
   }
 
   return { grants, revokes }
+})
+
+type ResolvedAccessContext = {
+  allowedFeatures: string[]
+  roles: string[]
+  overrides: { grants: Set<string>; revokes: Set<string> }
+  delegated: string[]
 }
 
-/**
- * Resolve final set of allowed feature_ids for a user
- * Formula: (gabungan fitur dari semua role) + grants - revokes
- */
-export async function getUserAllowedFeatures(db: D1Database, userId: string): Promise<string[]> {
-  const account = await db.prepare('SELECT * FROM "user" WHERE id = ?').bind(userId).first<{ akun_pengganti_cuti?: number }>()
-  const delegated = await replacementFeatures(db, userId)
-  if (account?.akun_pengganti_cuti) return delegated
+const resolveUserAccessContext = cache(async (db: D1Database, userId: string): Promise<ResolvedAccessContext> => {
+  const [account, delegated] = await Promise.all([
+    getUserAccountMeta(db, userId),
+    replacementFeatures(db, userId),
+  ])
+  if (account?.akun_pengganti_cuti) {
+    const [roles, overrides] = await Promise.all([
+      getUserRoles(db, userId),
+      getUserOverrides(db, userId),
+    ])
+    return { allowedFeatures: delegated, roles, overrides, delegated }
+  }
+
   const [roles, overrides] = await Promise.all([
     getUserRoles(db, userId),
     getUserOverrides(db, userId),
@@ -114,15 +133,15 @@ export async function getUserAllowedFeatures(db: D1Database, userId: string): Pr
   // Sarana Prasarana is a structural assignment, not a separate role.
   let isCurriculumDeputy = false
   if (roles.includes('wakamad')) {
-    const structural = await db.prepare('SELECT jabatan_struktural_id FROM "user" WHERE id=?').bind(userId).first<{ jabatan_struktural_id: string | null }>()
-    if (isAttendanceReviewPosition(structural?.jabatan_struktural_id)) {
+    const structuralId = account?.jabatan_struktural_id ?? null
+    if (isAttendanceReviewPosition(structuralId)) {
       allowed.add('keterangan-absensi')
     }
-    isCurriculumDeputy = structural?.jabatan_struktural_id === 'jbt_waka_kurikulum'
+    isCurriculumDeputy = structuralId === 'jbt_waka_kurikulum'
     if (isCurriculumDeputy) allowed.add('monitoring-penugasan')
     if (!roles.some(r => ['super_admin', 'admin_tu', 'kepsek'].includes(r))) {
-      if (structural?.jabatan_struktural_id !== 'jbt_waka_sarpras') allowed.delete('monitoring-pramubakti')
-      if (structural?.jabatan_struktural_id !== 'jbt_waka_kurikulum') {
+      if (structuralId !== 'jbt_waka_sarpras') allowed.delete('monitoring-pramubakti')
+      if (structuralId !== 'jbt_waka_kurikulum') {
         allowed.delete('audit-akses-agenda')
         allowed.delete('monitoring-agenda')
       }
@@ -155,8 +174,18 @@ export async function getUserAllowedFeatures(db: D1Database, userId: string): Pr
 
   // Retired modules must remain inaccessible even before database cleanup,
   // including stale role grants and per-user overrides.
-  return Array.from(allowed).filter(id => id !== 'sarpras' && id !== 'whatsapp')
-}
+  const allowedFeatures = Array.from(allowed).filter(id => id !== 'sarpras' && id !== 'whatsapp')
+  return { allowedFeatures, roles, overrides, delegated }
+})
+
+/**
+ * Resolve final set of allowed feature_ids for a user
+ * Formula: (gabungan fitur dari semua role) + grants - revokes
+ */
+export const getUserAllowedFeatures = cache(async (db: D1Database, userId: string): Promise<string[]> => {
+  const ctx = await resolveUserAccessContext(db, userId)
+  return ctx.allowedFeatures
+})
 
 /**
  * Check if a user has access to a specific feature
@@ -183,12 +212,19 @@ export async function checkFeatureCrudAccess(
   featureId: string,
   action: CrudAction
 ): Promise<boolean> {
-  const hasReadAccess = await checkFeatureAccess(db, userId, featureId)
-  if (!hasReadAccess) return false
-  const roles = await getUserRoles(db, userId)
+  let ctx: ResolvedAccessContext
+  try {
+    ctx = await resolveUserAccessContext(db, userId)
+  } catch (error) {
+    logSecurityEvent('error', 'feature_access_check_failed', { userId, featureId, error })
+    return false
+  }
+
+  if (!ctx.allowedFeatures.includes(featureId)) return false
+  const { roles, overrides, delegated } = ctx
   if (action !== 'read' && isPlayReviewerRole(roles)) return false
-  if (REPLACEMENT_TEACHING_FEATURES.includes(featureId) && (await replacementFeatures(db, userId)).includes(featureId)) return true
-  if (featureId === 'keterangan-absensi' && action === 'read' && (await replacementFeatures(db, userId)).includes(featureId)) return true
+  if (REPLACEMENT_TEACHING_FEATURES.includes(featureId) && delegated.includes(featureId)) return true
+  if (featureId === 'keterangan-absensi' && action === 'read' && delegated.includes(featureId)) return true
   if (roles.length === 0) {
     logSecurityEvent('warning', 'feature_crud_role_missing', { userId, featureId, action })
     return false
@@ -204,15 +240,12 @@ export async function checkFeatureCrudAccess(
   const placeholders = roles.map(() => '?').join(',')
 
   try {
-    const [result, overrides] = await Promise.all([
-      db.prepare(`
+    const result = await db.prepare(`
       SELECT COUNT(*) as configured_count, MAX(can_read) as readable, MAX(${column}) as allowed
       FROM role_feature_permissions
       WHERE feature_id = ?
         AND role IN (${placeholders})
-    `).bind(featureId, ...roles).first(),
-      getUserOverrides(db, userId),
-    ])
+    `).bind(featureId, ...roles).first()
     const row = result as { configured_count: number; readable: number | null; allowed: number | null } | null
     const userReadGrant = overrides.grants.has(featureId) && !overrides.revokes.has(featureId)
     if (!row || row.configured_count === 0) {

@@ -98,7 +98,7 @@ export default function ParentLoginClient({
       <main className="relative w-full max-w-[360px] z-20">
         <section className="rounded-3xl border border-slate-200/60 bg-white p-6 shadow-md">
           <div className="mb-5 flex items-center justify-between gap-3 border-b border-slate-100 pb-4">
-            <Link href="/" className="flex min-w-0 items-center gap-2.5 group">
+            <Link href="/" prefetch={false} className="flex min-w-0 items-center gap-2.5 group">
               <span className="relative h-8 w-8 shrink-0 flex items-center justify-center transition-transform group-hover:scale-105 duration-300">
                 <Image src="/logokemenag.png" alt="MAN 1 Tasikmalaya" width={32} height={32} className="object-contain" priority />
               </span>
@@ -230,13 +230,13 @@ export default function ParentLoginClient({
               </Dialog>
             ) : null}
 
-            <Link href="/login" className="block text-center text-[11px] font-bold text-slate-500 transition-colors hover:text-teal-700">
+            <Link href="/login" prefetch={false} className="block text-center text-[11px] font-bold text-slate-500 transition-colors hover:text-teal-700">
               Login Pegawai / Guru
             </Link>
             <div className="flex items-center justify-center gap-3 text-[10px] text-slate-400">
-              <Link href="/privacy" className="hover:text-teal-700">Kebijakan Privasi</Link>
+              <Link href="/privacy" prefetch={false} className="hover:text-teal-700">Kebijakan Privasi</Link>
               <span aria-hidden="true">•</span>
-              <Link href="/data-deletion" className="hover:text-teal-700">Penghapusan Data</Link>
+              <Link href="/data-deletion" prefetch={false} className="hover:text-teal-700">Penghapusan Data</Link>
             </div>
           </form>
         </section>

@@ -116,6 +116,7 @@ export default async function LandingPage() {
               {session ? (
                 <Link
                   href={primaryHref}
+                  prefetch={false}
                   className="inline-flex h-12 w-full sm:w-auto items-center justify-center gap-2 rounded-xl bg-teal-700 px-6 text-sm font-extrabold text-white shadow-md shadow-teal-700/20 hover:bg-teal-800 hover:scale-[1.01] active:scale-[0.99] transition-all duration-200"
                 >
                   <PrimaryIcon className="h-4 w-4" />
@@ -127,6 +128,7 @@ export default async function LandingPage() {
                   {/* Login Pegawai */}
                   <Link
                     href="/login"
+                    prefetch={false}
                     className="inline-flex h-12 w-full sm:w-auto items-center justify-center gap-2.5 rounded-xl bg-teal-700 px-6 text-sm font-extrabold text-white shadow-md shadow-teal-700/20 hover:bg-teal-800 hover:scale-[1.01] active:scale-[0.99] transition-all duration-200"
                   >
                     <LogIn className="h-4.5 w-4.5" />
@@ -137,6 +139,7 @@ export default async function LandingPage() {
                   {/* Login Orang Tua */}
                   <Link
                     href="/portal-ortu/login"
+                    prefetch={false}
                     className="inline-flex h-12 w-full sm:w-auto items-center justify-center gap-2.5 rounded-xl bg-white border border-teal-200 px-6 text-sm font-extrabold text-teal-955 shadow-sm hover:bg-teal-50/50 hover:border-teal-400 hover:scale-[1.01] active:scale-[0.99] transition-all duration-200"
                   >
                     <UsersRound className="h-4.5 w-4.5 text-teal-700" />
@@ -281,9 +284,9 @@ export default async function LandingPage() {
       <footer className="relative z-30 shrink-0 py-2.5 sm:py-3 border-t border-slate-100 text-center text-[10px] font-bold text-slate-400">
         <span>&copy; {new Date().getFullYear()} MAN 1 Tasikmalaya.</span>
         <span className="mx-2" aria-hidden="true">•</span>
-        <Link href="/privacy" className="transition-colors hover:text-teal-700">Kebijakan Privasi</Link>
+        <Link href="/privacy" prefetch={false} className="transition-colors hover:text-teal-700">Kebijakan Privasi</Link>
         <span className="mx-2" aria-hidden="true">•</span>
-        <Link href="/data-deletion" className="transition-colors hover:text-teal-700">Penghapusan Data</Link>
+        <Link href="/data-deletion" prefetch={false} className="transition-colors hover:text-teal-700">Penghapusan Data</Link>
       </footer>
 
     </div>

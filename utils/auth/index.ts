@@ -5,6 +5,7 @@
 import { logActivity } from '@/lib/activity-log'
 import { recordLoginAccessAudit } from '@/lib/agenda-access-audit'
 import { recordParentLogin } from '@/lib/parent-login-tracking'
+import { ensureSchemaOnce } from '@/lib/schema-guard'
 import { getReplacementSessionEnd } from '@/lib/teacher-leave-period'
 import {
   COOKIE_NAME,
@@ -198,34 +199,32 @@ function normalizeDateToDdMmYyyy(value: string | null | undefined): string | nul
   return null
 }
 
-let parentSessionTableReady = false
 async function ensureParentSessionTable(db: D1Database) {
-  if (parentSessionTableReady) return
-  await db.prepare(`
-    CREATE TABLE IF NOT EXISTS parent_session (
-      id TEXT PRIMARY KEY,
-      token TEXT NOT NULL UNIQUE,
-      siswa_id TEXT NOT NULL REFERENCES siswa(id) ON DELETE CASCADE,
-      nisn TEXT NOT NULL,
-      expiresAt TEXT NOT NULL,
-      createdAt TEXT NOT NULL,
-      updatedAt TEXT NOT NULL
-    )
-  `).run()
-  parentSessionTableReady = true
+  await ensureSchemaOnce('auth-parent-session-v1', async () => {
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS parent_session (
+        id TEXT PRIMARY KEY,
+        token TEXT NOT NULL UNIQUE,
+        siswa_id TEXT NOT NULL REFERENCES siswa(id) ON DELETE CASCADE,
+        nisn TEXT NOT NULL,
+        expiresAt TEXT NOT NULL,
+        createdAt TEXT NOT NULL,
+        updatedAt TEXT NOT NULL
+      )
+    `).run()
+  })
 }
 
-let parentCredentialTableReady = false
 async function ensureParentCredentialTable(db: D1Database) {
-  if (parentCredentialTableReady) return
-  await db.prepare(`
-    CREATE TABLE IF NOT EXISTS parent_credentials (
-      siswa_id TEXT PRIMARY KEY REFERENCES siswa(id) ON DELETE CASCADE,
-      password_hash TEXT NOT NULL,
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )
-  `).run()
-  parentCredentialTableReady = true
+  await ensureSchemaOnce('auth-parent-credentials-v1', async () => {
+    await db.prepare(`
+      CREATE TABLE IF NOT EXISTS parent_credentials (
+        siswa_id TEXT PRIMARY KEY REFERENCES siswa(id) ON DELETE CASCADE,
+        password_hash TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )
+    `).run()
+  })
 }
 
 // ============================================================

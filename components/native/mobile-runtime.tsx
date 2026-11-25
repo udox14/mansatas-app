@@ -29,6 +29,7 @@ export type MobileRuntimeSettings = {
 export const MOBILE_SETTINGS_KEY = 'mansatas_mobile_runtime_settings'
 const PENDING_FCM_TOKEN_KEY = 'mansatas_pending_fcm_token'
 const CURRENT_FCM_TOKEN_KEY = 'mansatas_current_fcm_token'
+const REGISTERED_FCM_SESSION_KEY = 'mansatas_registered_fcm_fingerprint'
 
 function isLikelyFileUrl(rawUrl: string, anchor?: HTMLAnchorElement | null) {
   if (!rawUrl) return false
@@ -97,6 +98,9 @@ export async function unregisterNativePushToken() {
   }).catch(() => {})
   window.localStorage.removeItem(CURRENT_FCM_TOKEN_KEY)
   window.localStorage.removeItem(PENDING_FCM_TOKEN_KEY)
+  try {
+    window.sessionStorage.removeItem(REGISTERED_FCM_SESSION_KEY)
+  } catch {}
 }
 
 async function prepareWebPushLogout(form: HTMLFormElement) {
@@ -213,7 +217,11 @@ export function MobileRuntime({
     if (!isAndroidRequest) return
 
     let cancelled = false
-    const refreshRequirement = () => {
+    let lastCheckedAt = 0
+    const refreshRequirement = (force = false) => {
+      const now = Date.now()
+      if (!force && now - lastCheckedAt < 60_000) return
+      lastCheckedAt = now
       fetch('/api/public/mobile-access')
         .then(response => response.ok ? response.json() : null)
         .then(data => {
@@ -225,17 +233,18 @@ export function MobileRuntime({
     }
 
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') refreshRequirement()
+      if (document.visibilityState === 'visible') refreshRequirement(false)
     }
-    refreshRequirement()
-    const interval = window.setInterval(refreshRequirement, 300_000)
-    window.addEventListener('focus', refreshRequirement)
+    const handleFocus = () => refreshRequirement(false)
+    refreshRequirement(true)
+    const interval = window.setInterval(() => refreshRequirement(true), 300_000)
+    window.addEventListener('focus', handleFocus)
     document.addEventListener('visibilitychange', handleVisibilityChange)
 
     return () => {
       cancelled = true
       window.clearInterval(interval)
-      window.removeEventListener('focus', refreshRequirement)
+      window.removeEventListener('focus', handleFocus)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [isAndroidRequest])
@@ -339,25 +348,33 @@ export function MobileRuntime({
     return () => window.removeEventListener('mansatas-sw-update-available', handleSwUpdate)
   }, [])
 
-  const sessionContextSetRef = useRef<boolean>(false)
+  const sessionContextScopeRef = useRef<string | null>(null)
+  const authScope = pathname.startsWith('/portal-ortu') ? 'parent' : 'staff'
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
     if (!isAuthenticatedArea) {
-      sessionContextSetRef.current = false
+      sessionContextScopeRef.current = null
       if (pathname === '/login' || pathname.startsWith('/portal-ortu/login')) {
         navigator.serviceWorker.controller?.postMessage({ type: 'CLEAR_PRIVATE_CACHE' })
+        try {
+          window.sessionStorage.removeItem(REGISTERED_FCM_SESSION_KEY)
+        } catch {}
       }
       return
     }
 
-    if (sessionContextSetRef.current) return
+    if (sessionContextScopeRef.current === authScope) return
+
+    const sessionEndpoint = authScope === 'parent'
+      ? '/api/auth/parent/get-session'
+      : '/api/auth/get-session'
 
     let cancelled = false
-    fetch('/api/auth/get-session', { credentials: 'include', cache: 'no-store' })
+    fetch(sessionEndpoint, { credentials: 'include', cache: 'no-store' })
       .then(response => response.ok ? response.json() : null)
       .then(data => {
         if (cancelled || !data?.session?.id) return
-        sessionContextSetRef.current = true
+        sessionContextScopeRef.current = authScope
         navigator.serviceWorker.controller?.postMessage({
           type: 'SET_CACHE_CONTEXT',
           context: data.session.id,
@@ -365,7 +382,7 @@ export function MobileRuntime({
       })
       .catch(() => {})
     return () => { cancelled = true }
-  }, [isAuthenticatedArea, pathname])
+  }, [isAuthenticatedArea, authScope, pathname])
 
   // FCM baru dimulai setelah pengguna masuk. Pada aplikasi native, izin tidak lagi
   // diminta diam-diam: layar wajib izin di bawah memicu permintaan dari aksi pengguna.
@@ -380,6 +397,16 @@ export function MobileRuntime({
     let requestInFlight = false
 
     async function registerTokenWithServer(token: string, platform: string) {
+      const fingerprint = `${authScope}:${platform}:${token}`
+      try {
+        if (
+          !window.localStorage.getItem(PENDING_FCM_TOKEN_KEY)
+          && window.sessionStorage.getItem(REGISTERED_FCM_SESSION_KEY) === fingerprint
+        ) {
+          return
+        }
+      } catch {}
+
       window.localStorage.setItem(CURRENT_FCM_TOKEN_KEY, token)
       window.localStorage.setItem(PENDING_FCM_TOKEN_KEY, token)
       const response = await fetch('/api/fcm/register', {
@@ -390,6 +417,9 @@ export function MobileRuntime({
       })
       if (!response.ok) throw new Error(`FCM token register failed (${response.status})`)
       window.localStorage.removeItem(PENDING_FCM_TOKEN_KEY)
+      try {
+        window.sessionStorage.setItem(REGISTERED_FCM_SESSION_KEY, fingerprint)
+      } catch {}
     }
 
     async function initPush() {
@@ -515,7 +545,7 @@ export function MobileRuntime({
       window.removeEventListener('focus', retryPendingToken)
       listeners.forEach((listener) => listener.remove().catch(() => {}))
     }
-  }, [isAuthenticatedArea])
+  }, [isAuthenticatedArea, authScope])
 
   // Form logout portal menghapus token native dan menyerahkan endpoint browser ke server.
   useEffect(() => {

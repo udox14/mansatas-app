@@ -17,6 +17,7 @@ import { createSignedMediaUrl } from '@/lib/media-security'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { z } from 'zod'
 import { emitConfiguredNotification, getStudentNotificationContext } from '@/lib/notification-engine'
+import { syncBkParentCommunication } from '@/lib/bk-parent-sync'
 
 const bkIdSchema = z.string().trim().min(1).max(100)
 const bkCreateSchema = z.object({
@@ -342,6 +343,7 @@ export async function tambahRekamanBK(payload: unknown) {
   })
   if (result.error) return { error: result.error }
   if (involvesParentFollowup(safePayload.tindak_lanjut)) {
+    await syncBkParentCommunication(db, safePayload.siswa_id, { force: true }).catch(() => undefined)
     try {
       const student = await getStudentNotificationContext(db, safePayload.siswa_id)
       if (student) {
@@ -380,6 +382,7 @@ export async function editRekamanBK(id: string, payload: unknown) {
   const result = await dbUpdate(db, 'bk_rekaman', safePayload, { id })
   if (result.error) return { error: result.error }
   if (before && safePayload.tindak_lanjut !== undefined && involvesParentFollowup(safePayload.tindak_lanjut)) {
+    await syncBkParentCommunication(db, before.siswa_id, { force: true }).catch(() => undefined)
     try {
       const student = await getStudentNotificationContext(db, before.siswa_id)
       if (student) {

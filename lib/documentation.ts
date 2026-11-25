@@ -1,4 +1,5 @@
 import { MENU_ITEMS } from '@/config/menu'
+import { ensureSchemaOnce } from '@/lib/schema-guard'
 
 export type DocumentationAudience = 'internal' | 'parent'
 
@@ -1035,33 +1036,35 @@ export async function ensureDocumentationTables(db: D1Database) {
 let documentationSeedReady = false
 export async function ensureDocumentationSeed(db: D1Database) {
   if (documentationSeedReady) return
-  try {
-    const existing = await db.prepare('SELECT 1 FROM documentation_articles LIMIT 1').first()
-    if (existing) {
-      documentationSeedReady = true
-      return
+  await ensureSchemaOnce('documentation-seed-v1', async () => {
+    try {
+      const existing = await db.prepare('SELECT 1 FROM documentation_articles LIMIT 1').first()
+      if (existing) {
+        documentationSeedReady = true
+        return
+      }
+    } catch {
+      // Proceed if table not created yet
     }
-  } catch {
-    // Proceed if table not created yet
-  }
-  await ensureDocumentationTables(db)
-  const seeds = getSeedArticles()
-  await db.batch(seeds.map(article =>
-    db.prepare(`
-      INSERT OR IGNORE INTO documentation_articles
-        (id, audience, feature_id, title, summary, content_md, sort_order, is_published, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
-    `).bind(
-      article.id,
-      article.audience,
-      article.feature_id,
-      article.title,
-      article.summary,
-      article.content_md,
-      article.sort_order,
-      article.is_published,
-    )
-  ))
+    await ensureDocumentationTables(db)
+    const seeds = getSeedArticles()
+    await db.batch(seeds.map(article =>
+      db.prepare(`
+        INSERT OR IGNORE INTO documentation_articles
+          (id, audience, feature_id, title, summary, content_md, sort_order, is_published, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+      `).bind(
+        article.id,
+        article.audience,
+        article.feature_id,
+        article.title,
+        article.summary,
+        article.content_md,
+        article.sort_order,
+        article.is_published,
+      )
+    ))
+  })
   documentationSeedReady = true
 }
 

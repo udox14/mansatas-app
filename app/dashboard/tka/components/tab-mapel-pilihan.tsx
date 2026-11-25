@@ -7,10 +7,11 @@ import { Combobox, type ComboboxOption } from '@/components/ui/combobox'
 import { cn } from '@/lib/utils'
 import { naturalSort } from '@/lib/natural-sort'
 import {
-  KAMPUS_LIST, PRODI_BY_KAMPUS, RENCANA_OPTIONS,
-  getProdiByValue, getProdiValueByName, prodiValue,
+  RENCANA_OPTIONS,
+  findProdiByValue, findProdiValueByName, prodiValue,
 } from '@/lib/pendidikan-lanjutan'
-import type { RencanaKategori } from '@/lib/pendidikan-lanjutan'
+import { usePendidikanLanjutanData } from '@/lib/pendidikan-lanjutan-client'
+import type { Prodi, RencanaKategori } from '@/lib/pendidikan-lanjutan'
 import { MAPEL_PILIHAN_OPTIONS_SORTED } from '../constants'
 import { batchSaveMapelPilihan, getSiswaByKelasForTka, searchSiswaKelas12ForTka } from '../actions'
 import type { KelasItem, TkaMapelRow } from '../actions'
@@ -19,12 +20,6 @@ interface Props { tahunAjaranId: string; kelasList: KelasItem[] }
 type LocalRow = TkaMapelRow & { _dirty?: boolean; _version?: number }
 
 const kelasLabel = (k: KelasItem) => `${k.tingkat}-${k.nomor_kelas} ${k.kelompok}`
-const KAMPUS_OPTIONS: ComboboxOption[] = KAMPUS_LIST.map(kampus => ({
-  value: kampus.id,
-  label: kampus.nama,
-  keywords: `${kampus.singkatan} ${kampus.kota} ${kampus.provinsi} ${kampus.npsn ?? ''}`,
-  description: [kampus.singkatan, kampus.kota, kampus.jenis].filter(Boolean).join(' · '),
-}))
 
 const toSavePayload = (row: LocalRow) => ({
   siswa_id: row.siswa_id,
@@ -39,6 +34,7 @@ const toSavePayload = (row: LocalRow) => ({
 })
 
 export function TabMapelPilihan({ tahunAjaranId, kelasList }: Props) {
+  const { kampusList, kampusOptions, prodiByKampus } = usePendidikanLanjutanData()
   const [selectedKelasId, setSelectedKelasId] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [rows, setRows] = useState<LocalRow[]>([])
@@ -125,7 +121,7 @@ export function TabMapelPilihan({ tahunAjaranId, kelasList }: Props) {
     })
   }
   const setKampus = (row: LocalRow, slot: 1 | 2, kampusId: string) => {
-    const kampus = KAMPUS_LIST.find(item => item.id === kampusId)
+    const kampus = kampusList.find(item => item.id === kampusId)
     patchRow(row.siswa_id, slot === 1 ? {
       rencana_kategori: 'KULIAH', rencana_catatan: null,
       pilihan1_kampus_id: kampusId || null, pilihan1_kampus_nama: kampus?.nama ?? null, pilihan1_prodi: null,
@@ -209,8 +205,8 @@ export function TabMapelPilihan({ tahunAjaranId, kelasList }: Props) {
           <td className="px-1.5 py-2 lg:px-2"><MapelBox compact value={row.mapel_pilihan1} exclude={row.mapel_pilihan2} onChange={value => patchRow(row.siswa_id, { mapel_pilihan1: value })} /></td>
           <td className="px-1.5 py-2 lg:px-2"><MapelBox compact value={row.mapel_pilihan2} exclude={row.mapel_pilihan1} onChange={value => patchRow(row.siswa_id, { mapel_pilihan2: value })} /></td>
           <td className="px-1.5 py-2 lg:px-2"><RencanaBox compact row={row} onChange={value => setRencana(row, value)} onNote={value => patchRow(row.siswa_id, { rencana_catatan: value })} /></td>
-          <td className="px-1.5 py-2 lg:px-2">{(row.rencana_kategori ?? 'KULIAH') === 'KULIAH' && <PendidikanBox compact row={row} slot={1} onKampus={id => setKampus(row, 1, id)} onProdi={value => patchRow(row.siswa_id, { pilihan1_prodi: value })} />}</td>
-          <td className="px-1.5 py-2 lg:px-2">{(row.rencana_kategori ?? 'KULIAH') === 'KULIAH' && <PendidikanBox compact row={row} slot={2} onKampus={id => setKampus(row, 2, id)} onProdi={value => patchRow(row.siswa_id, { pilihan2_prodi: value })} />}</td>
+          <td className="px-1.5 py-2 lg:px-2">{(row.rencana_kategori ?? 'KULIAH') === 'KULIAH' && <PendidikanBox compact row={row} slot={1} kampusOptions={kampusOptions} prodiByKampus={prodiByKampus} onKampus={id => setKampus(row, 1, id)} onProdi={value => patchRow(row.siswa_id, { pilihan1_prodi: value })} />}</td>
+          <td className="px-1.5 py-2 lg:px-2">{(row.rencana_kategori ?? 'KULIAH') === 'KULIAH' && <PendidikanBox compact row={row} slot={2} kampusOptions={kampusOptions} prodiByKampus={prodiByKampus} onKampus={id => setKampus(row, 2, id)} onProdi={value => patchRow(row.siswa_id, { pilihan2_prodi: value })} />}</td>
         </tr>)}</tbody></table>
       </div>
       <div className="space-y-2 md:hidden">{rows.map((row, index) => <div key={row.siswa_id} className={cn('space-y-3 rounded-xl border p-3', row._dirty ? 'border-amber-200 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-950/10' : 'border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900')}>
@@ -218,7 +214,7 @@ export function TabMapelPilihan({ tahunAjaranId, kelasList }: Props) {
         <Labeled label="Mapel Pilihan 1"><MapelBox value={row.mapel_pilihan1} exclude={row.mapel_pilihan2} onChange={value => patchRow(row.siswa_id, { mapel_pilihan1: value })} /></Labeled>
         <Labeled label="Mapel Pilihan 2"><MapelBox value={row.mapel_pilihan2} exclude={row.mapel_pilihan1} onChange={value => patchRow(row.siswa_id, { mapel_pilihan2: value })} /></Labeled>
         <Labeled label="Rencana Setelah Lulus"><RencanaBox row={row} onChange={value => setRencana(row, value)} onNote={value => patchRow(row.siswa_id, { rencana_catatan: value })} /></Labeled>
-        {(row.rencana_kategori ?? 'KULIAH') === 'KULIAH' && <><Labeled label="Pilihan Pendidikan 1"><PendidikanBox row={row} slot={1} onKampus={id => setKampus(row, 1, id)} onProdi={value => patchRow(row.siswa_id, { pilihan1_prodi: value })} /></Labeled><Labeled label="Pilihan Pendidikan 2"><PendidikanBox row={row} slot={2} onKampus={id => setKampus(row, 2, id)} onProdi={value => patchRow(row.siswa_id, { pilihan2_prodi: value })} /></Labeled></>}
+        {(row.rencana_kategori ?? 'KULIAH') === 'KULIAH' && <><Labeled label="Pilihan Pendidikan 1"><PendidikanBox row={row} slot={1} kampusOptions={kampusOptions} prodiByKampus={prodiByKampus} onKampus={id => setKampus(row, 1, id)} onProdi={value => patchRow(row.siswa_id, { pilihan1_prodi: value })} /></Labeled><Labeled label="Pilihan Pendidikan 2"><PendidikanBox row={row} slot={2} kampusOptions={kampusOptions} prodiByKampus={prodiByKampus} onKampus={id => setKampus(row, 2, id)} onProdi={value => patchRow(row.siswa_id, { pilihan2_prodi: value })} /></Labeled></>}
       </div>)}</div>
     </>}
   </div>
@@ -240,11 +236,11 @@ function RencanaBox({ row, onChange, onNote, compact = false }: { row: LocalRow;
   const kategori = row.rencana_kategori ?? 'KULIAH'
   return <div className={compact ? 'space-y-1' : 'space-y-1.5'}><Combobox value={kategori} onValueChange={value => onChange(value as RencanaKategori)} options={RENCANA_OPTIONS} searchPlaceholder="Cari rencana..." triggerClassName={compact ? 'h-8 px-2 text-[11px]' : undefined} contentClassName={compact ? 'min-w-[250px]' : undefined} />{kategori !== 'KULIAH' && <Input value={row.rencana_catatan ?? ''} onChange={event => onNote(event.target.value)} placeholder={kategori === 'LAINNYA' ? 'Catatan wajib...' : 'Catatan opsional...'} className={compact ? 'h-8 px-2 text-[11px]' : 'h-9 text-xs'} />}</div>
 }
-function PendidikanBox({ row, slot, onKampus, onProdi, compact = false }: { row: LocalRow; slot: 1 | 2; onKampus: (value: string) => void; onProdi: (value: string | null) => void; compact?: boolean }) {
+function PendidikanBox({ row, slot, kampusOptions, prodiByKampus, onKampus, onProdi, compact = false }: { row: LocalRow; slot: 1 | 2; kampusOptions: ComboboxOption[]; prodiByKampus: Record<string, Prodi[]>; onKampus: (value: string) => void; onProdi: (value: string | null) => void; compact?: boolean }) {
   const kampusId = slot === 1 ? row.pilihan1_kampus_id : row.pilihan2_kampus_id
   const prodiName = slot === 1 ? row.pilihan1_prodi : row.pilihan2_prodi
-  const prodi = kampusId ? PRODI_BY_KAMPUS[kampusId] ?? [] : []
+  const prodi = kampusId ? prodiByKampus[kampusId] ?? [] : []
   const triggerClassName = compact ? 'h-8 px-2 text-[11px]' : undefined
   const contentClassName = compact ? cn('min-w-[360px]', slot === 2 && 'left-auto right-0') : undefined
-  return <div className={compact ? 'space-y-1' : 'space-y-1.5'}><Combobox value={kampusId ?? ''} onValueChange={onKampus} options={KAMPUS_OPTIONS} placeholder="Pilih perguruan tinggi..." searchPlaceholder="Cari nama, singkatan, kota..." clearable maxResults={60} triggerClassName={triggerClassName} contentClassName={contentClassName} /><Combobox value={kampusId ? getProdiValueByName(kampusId, prodiName) : ''} onValueChange={value => onProdi(value && kampusId ? getProdiByValue(kampusId, value)?.nama ?? null : null)} options={prodi.map(item => ({ value: prodiValue(item), label: `${item.nama} (${item.jenjang})`, keywords: item.kode }))} placeholder={!kampusId ? 'Pilih kampus dahulu' : prodi.length ? 'Pilih program studi...' : 'Prodi tidak tersedia / tidak diperlukan'} searchPlaceholder="Cari program studi..." disabled={!kampusId || !prodi.length} clearable maxResults={80} triggerClassName={triggerClassName} contentClassName={contentClassName} /></div>
+  return <div className={compact ? 'space-y-1' : 'space-y-1.5'}><Combobox value={kampusId ?? ''} onValueChange={onKampus} options={kampusOptions} placeholder="Pilih perguruan tinggi..." searchPlaceholder="Cari nama, singkatan, kota..." clearable maxResults={60} triggerClassName={triggerClassName} contentClassName={contentClassName} /><Combobox value={kampusId ? findProdiValueByName(prodiByKampus, kampusId, prodiName) : ''} onValueChange={value => onProdi(value && kampusId ? findProdiByValue(prodiByKampus, kampusId, value)?.nama ?? null : null)} options={prodi.map(item => ({ value: prodiValue(item), label: `${item.nama} (${item.jenjang})`, keywords: item.kode }))} placeholder={!kampusId ? 'Pilih kampus dahulu' : prodi.length ? 'Pilih program studi...' : 'Prodi tidak tersedia / tidak diperlukan'} searchPlaceholder="Cari program studi..." disabled={!kampusId || !prodi.length} clearable maxResults={80} triggerClassName={triggerClassName} contentClassName={contentClassName} /></div>
 }

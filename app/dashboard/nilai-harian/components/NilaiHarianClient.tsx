@@ -53,7 +53,7 @@ type AutosaveEntry = {
 }
 
 type AutosaveStatus = 'idle' | 'pending' | 'saving' | 'saved' | 'error'
-const AUTOSAVE_DELAY_MS = 1000
+const AUTOSAVE_DELAY_MS = 2500
 const AUTOSAVE_STORAGE_PREFIX = 'nilai-harian-autosave:'
 
 function LetterGradeControl({ value, onCycle, onClear, compact = false, studentName }: {
@@ -528,9 +528,9 @@ function TabInput({ penugasanId, kelas_id, kkm }: { penugasanId: string; kelas_i
             <span>
               {autosaveStatus === 'saving' && 'Menyimpan perubahan...'}
               {autosaveStatus === 'saved' && 'Semua perubahan tersimpan otomatis.'}
-              {autosaveStatus === 'pending' && 'Perubahan akan disimpan otomatis dalam 1 detik.'}
+              {autosaveStatus === 'pending' && 'Perubahan akan disimpan otomatis dalam 2,5 detik.'}
               {autosaveStatus === 'error' && `${autosaveError} Perubahan tetap aman di perangkat dan akan dicoba lagi otomatis.`}
-              {autosaveStatus === 'idle' && 'Nilai tersimpan otomatis setiap 1 detik setelah diubah.'}
+              {autosaveStatus === 'idle' && 'Nilai tersimpan otomatis setiap 2,5 detik setelah diubah.'}
             </span>
           </div>
 

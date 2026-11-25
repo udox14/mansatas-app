@@ -1,11 +1,15 @@
 // utils/auth/server.ts
 // Helper untuk mengambil session & user di Server Components / Server Actions
+// Menggunakan React.cache() agar pemanggilan berulang dalam 1 HTTP request
+// (Layout -> Page -> Action -> Guard) hanya mengeksekusi query D1 satu kali.
 
+import { cache } from 'react'
 import { headers } from 'next/headers'
-import { createAuth } from '@/utils/auth'
+import { createAuth, extractToken } from '@/utils/auth'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import type { AuthSession, AuthUser, ParentAuthSession, ParentAuthUser } from '@/utils/auth'
 import { PLAY_REVIEWER_ROLE } from '@/lib/play-reviewer'
+import { getUserRoles } from '@/lib/features'
 
 // Ambil instance auth dengan D1 binding
 async function getAuth() {
@@ -14,30 +18,35 @@ async function getAuth() {
 }
 
 // Ambil session aktif (dipakai di layout, page, actions)
-export async function getSession() {
-  const auth = await getAuth()
+export const getSession = cache(async () => {
   const headersList = await headers()
-  const session = await auth.api.getSession({ headers: headersList })
-  return session
-}
+  if (!extractToken(headersList)) return null
+  const auth = await getAuth()
+  return auth.api.getSession({ headers: headersList })
+})
 
-export async function getParentSession() {
-  const auth = await getAuth()
+export const getParentSession = cache(async () => {
   const headersList = await headers()
-  const session = await auth.api.getParentSession({ headers: headersList })
-  return session
-}
+  if (!extractToken(headersList)) return null
+  const auth = await getAuth()
+  return auth.api.getParentSession({ headers: headersList })
+})
 
 export type AppSession =
   | { kind: 'staff'; user: AuthUser; session: AuthSession }
   | { kind: 'parent'; user: ParentAuthUser; session: ParentAuthSession }
 
-export async function getAppSession(): Promise<AppSession | null> {
-  const [staff, parent] = await Promise.all([getSession(), getParentSession()])
+export const getAppSession = cache(async (): Promise<AppSession | null> => {
+  const headersList = await headers()
+  if (!extractToken(headersList)) return null
+
+  const staff = await getSession()
   if (staff?.user) return { kind: 'staff', user: staff.user, session: staff.session }
+
+  const parent = await getParentSession()
   if (parent?.user) return { kind: 'parent', user: parent.user, session: parent.session }
   return null
-}
+})
 
 // Ambil user aktif
 export async function getCurrentUser() {
@@ -45,22 +54,14 @@ export async function getCurrentUser() {
   return session?.user ?? null
 }
 
-export async function isCurrentUserPlayReviewer(): Promise<boolean> {
+export const isCurrentUserPlayReviewer = cache(async (): Promise<boolean> => {
   const session = await getSession()
   if (!session?.user) return false
+  if (session.user.role === PLAY_REVIEWER_ROLE) return true
   const { env } = await getCloudflareContext({ async: true })
-  const row = await env.DB.prepare(`
-    SELECT 1 AS is_reviewer
-    FROM "user" u
-    WHERE u.id = ? AND (
-      u.role = ? OR EXISTS (
-        SELECT 1 FROM user_roles ur WHERE ur.user_id = u.id AND ur.role = ?
-      )
-    )
-    LIMIT 1
-  `).bind(session.user.id, PLAY_REVIEWER_ROLE, PLAY_REVIEWER_ROLE).first<{ is_reviewer: number }>()
-  return row?.is_reviewer === 1
-}
+  const roles = await getUserRoles(env.DB, session.user.id)
+  return roles.includes(PLAY_REVIEWER_ROLE)
+})
 
 // Ambil user + wajib login (redirect jika tidak ada)
 export async function requireUser() {

@@ -77,7 +77,7 @@ export async function getSystemSetting(key: string, fallback = ''): Promise<stri
     'SELECT value FROM system_settings WHERE key = ?'
   ).bind(key).first<{ value: string }>()
   const value = row?.value ?? fallback
-  setMemCache(cacheKey, value, 60_000)
+  setMemCache(cacheKey, value, 300_000)
   return value
 }
 
@@ -118,7 +118,7 @@ export async function getSystemSettings<const T extends string>(
     for (const [key, fallback] of missing) {
       const value = stored.get(key) ?? fallback
       values[key] = value
-      setMemCache(`sys-setting:${key}`, value, 60_000)
+      setMemCache(`sys-setting:${key}`, value, 300_000)
     }
   }
 

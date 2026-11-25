@@ -114,13 +114,13 @@ export default function LoginClient() {
             <div className="flex items-center justify-center gap-1.5 text-[10px] text-slate-400">
               <ShieldCheck className="h-3 w-3 text-emerald-500" /> Akses khusus pegawai MAN 1 Tasikmalaya
             </div>
-            <Link href="/" className="inline-flex text-[11px] font-semibold text-slate-500 transition-colors hover:text-emerald-700">
+            <Link href="/" prefetch={false} className="inline-flex text-[11px] font-semibold text-slate-500 transition-colors hover:text-emerald-700">
               Kembali
             </Link>
             <div className="flex items-center justify-center gap-3 text-[10px] text-slate-400">
-              <Link href="/privacy" className="hover:text-emerald-700">Kebijakan Privasi</Link>
+              <Link href="/privacy" prefetch={false} className="hover:text-emerald-700">Kebijakan Privasi</Link>
               <span aria-hidden="true">•</span>
-              <Link href="/data-deletion" className="hover:text-emerald-700">Penghapusan Data</Link>
+              <Link href="/data-deletion" prefetch={false} className="hover:text-emerald-700">Penghapusan Data</Link>
             </div>
           </div>
         </div>

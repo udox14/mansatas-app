@@ -13,6 +13,7 @@ import {
   isParentTkaSelectionComplete,
 } from '@/lib/parent-tka'
 import { ensureParentDisciplineSchema, getParentDisciplineSettings } from '@/lib/parent-discipline'
+import { syncBkParentCommunication } from '@/lib/bk-parent-sync'
 import {
   computeFinanceSummaryFields,
   ensureParentCommunicationTables,
@@ -44,55 +45,6 @@ const ALLOWED_PORTAL_TABS = new Set([
   'dokumentasi',
   'account',
 ])
-
-async function seedParentCommunication(db: D1Database, siswaId: string) {
-  const bkRows = await db.prepare(`
-      SELECT r.id, r.tindak_lanjut, r.catatan_tindak_lanjut, r.updated_at, u.nama_lengkap as guru_bk_nama
-      FROM bk_rekaman r
-      LEFT JOIN "user" u ON u.id = r.guru_bk_id
-      WHERE r.siswa_id = ?
-      ORDER BY r.updated_at DESC
-      LIMIT 50
-    `).bind(siswaId).all<any>()
-
-  for (const row of (bkRows.results || [])) {
-    const tindak = String(row.tindak_lanjut || '').toLowerCase()
-    const isSummon = tindak.includes('pemanggilan orang tua')
-    const isCollab = tindak.includes('kolaborasi dengan orang tua')
-    if (!isSummon && !isCollab) continue
-
-    const type = isSummon ? 'pemanggilan' : 'kolaborasi'
-    const title = isSummon ? 'Pemanggilan orang tua' : 'Kolaborasi dengan orang tua'
-    const message = row.catatan_tindak_lanjut
-      ? String(row.catatan_tindak_lanjut)
-      : `Tindak lanjut BK: ${row.tindak_lanjut}`
-
-    await db.prepare(`
-      INSERT OR IGNORE INTO parent_notifications (siswa_id, type, title, message, source_ref, level)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).bind(
-      siswaId,
-      type,
-      title,
-      message,
-      `bk:${row.id}`,
-      isSummon ? 'critical' : 'info',
-    ).run()
-
-    if (isSummon) {
-      await db.prepare(`
-        INSERT OR IGNORE INTO parent_summons
-        (siswa_id, source_ref, reason, note, created_by, created_at, updated_at)
-        VALUES (?, ?, ?, ?, NULL, datetime('now'), datetime('now'))
-      `).bind(
-        siswaId,
-        `bk:${row.id}`,
-        'Pemanggilan orang tua oleh BK/wali kelas',
-        message,
-      ).run()
-    }
-  }
-}
 
 export default async function PortalOrtuPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   const requestedTab = (await searchParams).tab
@@ -138,7 +90,7 @@ export default async function PortalOrtuPage({ searchParams }: { searchParams: P
   if (disciplineSettings.enabled) {
     await ensureParentDisciplineSchema(db)
   }
-  await seedParentCommunication(db, siswaId)
+  await syncBkParentCommunication(db, siswaId)
 
   const initialPortalTab = requestedTab === 'kedisiplinan'
     ? (disciplineSettings.enabled ? 'kedisiplinan' : 'beranda')

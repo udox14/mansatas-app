@@ -482,7 +482,12 @@ export async function resetNotificationSetting(eventKey: string, updatedBy?: str
   return { success: true }
 }
 
-async function getQueue(): Promise<QueueBinding | null> {
+type NotificationRuntimeEnv = FcmRuntimeOptions['env'] & {
+  NOTIFICATION_QUEUE?: QueueBinding
+}
+
+async function getQueue(runtimeEnv?: NotificationRuntimeEnv): Promise<QueueBinding | null> {
+  if (runtimeEnv?.NOTIFICATION_QUEUE) return runtimeEnv.NOTIFICATION_QUEUE
   try {
     const { env } = await getCloudflareContext({ async: true })
     return ((env as unknown as { NOTIFICATION_QUEUE?: QueueBinding }).NOTIFICATION_QUEUE) || null
@@ -776,12 +781,13 @@ const FINAL_DAILY_ATTENDANCE_STATUSES = new Set(['HADIR', 'SAKIT', 'IZIN', 'ALFA
 export async function notifyParentsDailyAttendanceFinal(
   db: D1Database,
   options: { tanggal: string; penugasanId?: string; kelasId?: string; siswaIds?: string[] },
+  runtimeEnv?: NotificationRuntimeEnv,
 ) {
   // Split before preparing IN parameters; D1 permits at most 100 bound values.
   if (options.siswaIds && options.siswaIds.length > 50) {
     let notified = 0, students = 0
     for (let i = 0; i < options.siswaIds.length; i += 50) {
-      const result = await notifyParentsDailyAttendanceFinal(db, { ...options, siswaIds: options.siswaIds.slice(i, i + 50) })
+      const result = await notifyParentsDailyAttendanceFinal(db, { ...options, siswaIds: options.siswaIds.slice(i, i + 50) }, runtimeEnv)
       notified += result.notified; students += result.students
     }
     return { notified, students }
@@ -804,7 +810,7 @@ export async function notifyParentsDailyAttendanceFinal(
   if (pendingIds.length === 0) return { notified: 0, students: 0 }
   if (pendingIds.length > 50) {
     let notified = 0
-    for (let i = 0; i < pendingIds.length; i += 50) notified += (await notifyParentsDailyAttendanceFinal(db, { ...options, siswaIds: pendingIds.slice(i, i + 50) })).notified
+    for (let i = 0; i < pendingIds.length; i += 50) notified += (await notifyParentsDailyAttendanceFinal(db, { ...options, siswaIds: pendingIds.slice(i, i + 50) }, runtimeEnv)).notified
     return { notified, students: pendingIds.length }
   }
   const updateSetting = await getNotificationSetting('attendance_daily_update', db)
@@ -841,7 +847,7 @@ export async function notifyParentsDailyAttendanceFinal(
     if (!state || state.final_status !== day.status_akhir || state.final_sent_status === day.status_akhir) continue
     const update = state.final_sent_status !== null
     const result = await emitConfiguredNotification({
-      eventKey: update ? 'attendance_daily_update' : 'attendance_daily_final', sourceRef: state.final_ref!, db,
+      eventKey: update ? 'attendance_daily_update' : 'attendance_daily_final', sourceRef: state.final_ref!, db, runtimeEnv,
       delaySeconds: Math.max(0, Math.ceil((Date.parse(state.final_due_at!) - Date.now()) / 1000)),
       parentType: 'absensi_rekap', targetOverride: { kind: 'parent_students' },
       context: { siswaId: student.id, siswaIds: [student.id], nama_siswa: student.nama_lengkap,
@@ -857,10 +863,10 @@ export async function notifyParentsDailyAttendanceFinal(
 }
 
 /** Called by the existing five-minute cron. No scan of old attendance history. */
-export async function dispatchAttendanceDailyNotices(db: D1Database) {
+export async function dispatchAttendanceDailyNotices(db: D1Database, runtimeEnv?: NotificationRuntimeEnv) {
   await ensureNotificationSchema(db)
   const activation = await attendanceNoticeActivation(db)
-  await flushAttendanceNotificationOutbox(db)
+  await flushAttendanceNotificationOutbox(db, runtimeEnv)
   const today = todayWIB()
   const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
   const activationDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jakarta' }).format(new Date(activation))
@@ -880,7 +886,7 @@ export async function dispatchAttendanceDailyNotices(db: D1Database) {
     group.siswaIds.push(row.siswa_id); groups.set(key, group)
   }
   let processed = 0
-  for (const group of groups.values()) processed += (await notifyParentsDailyAttendanceFinal(db, group)).notified
+  for (const group of groups.values()) processed += (await notifyParentsDailyAttendanceFinal(db, group, runtimeEnv)).notified
 
   return { processed }
 }
@@ -1239,7 +1245,7 @@ export async function emitConfiguredNotification(input: EmitConfiguredNotificati
 
   const ids = [...new Set(expanded.ids)]
   const chunks = chunk(ids, NOTIFICATION_DIRECT_RECIPIENT_LIMIT)
-  const queue = await getQueue()
+  const queue = await getQueue(input.runtimeEnv as NotificationRuntimeEnv | undefined)
   const delaySeconds = Math.max(0, Math.floor(Number(input.delaySeconds || 0)))
   const shouldQueue = delaySeconds > 0 || chunks.length > 1 || !!input.validation
   const dispatchIds: string[] = []
@@ -1369,7 +1375,7 @@ export async function dispatchRawNotification(input: DispatchRawNotificationInpu
   const sourceRef = input.sourceRef
   const ids = [...new Set(expanded.ids)]
   const chunks = chunk(ids, NOTIFICATION_DIRECT_RECIPIENT_LIMIT)
-  const queue = await getQueue()
+  const queue = await getQueue(input.runtimeEnv as NotificationRuntimeEnv | undefined)
   const shouldQueue = chunks.length > 1
   const dispatchIds: string[] = []
   let sent = 0
@@ -2123,9 +2129,9 @@ export async function prepareAttendanceNotificationWork(db: D1Database, input: {
 }
 
 /** Bounded enqueue recovery, using a lease so submit and cron cannot fan out twice. */
-export async function flushAttendanceNotificationOutbox(db: D1Database) {
+export async function flushAttendanceNotificationOutbox(db: D1Database, runtimeEnv?: NotificationRuntimeEnv) {
   await ensureNotificationSchema(db)
-  return flushNotificationOutbox(db)
+  return flushNotificationOutbox(db, undefined, runtimeEnv?.NOTIFICATION_QUEUE)
 }
 
 export async function flushNotificationOutbox(db: D1Database, sourceRef?: string, binding?: QueueBinding) {

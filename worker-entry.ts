@@ -2,6 +2,7 @@ import { default as nextHandler } from "./.open-next/worker.js";
 import { processNotificationQueueMessage, type NotificationQueueMessage } from "@/lib/notification-engine";
 import type { FcmRuntimeEnv } from "@/lib/fcm";
 import { processDsptReminderWork } from "@/lib/dspt-reminder-queue";
+import { runScheduledReminders, type CronRuntimeEnv } from "@/lib/cron-dispatcher";
 
 interface ScheduledEvent {
   cron: string;
@@ -29,32 +30,62 @@ type NotificationWorkerEnv = CloudflareEnv & {
   }
 }
 
+const SCANNER_DOTFILE_PATTERN = /^\/\.(?!well-known(?:\/|$))/i
+const SCANNER_EXTENSION_PATTERN = /\.(?:php\d*|phtml|asp|aspx|jsp|cgi|sql|ini|conf|ya?ml|bak|old|orig|swp|env|toml|lock)$/i
+const SCANNER_PATH_PATTERN = /^(?:\/(?:wp-admin|wp-login|wp-content|wp-includes|xmlrpc|phpmyadmin|pma|adminer|cgi-bin|actuator|server-status|telescope)(?:\/|$)|\/api\/actuator(?:\/|$)|\/appsettings(?:\.[^/]+)?\.json$|\/(?:app-)?ads\.txt$)/i
+
+export function isBlockedScannerPath(pathname: string): boolean {
+  if (!pathname || pathname === '/') return false
+  return (
+    SCANNER_DOTFILE_PATTERN.test(pathname)
+    || SCANNER_EXTENSION_PATTERN.test(pathname)
+    || SCANNER_PATH_PATTERN.test(pathname)
+  )
+}
+
 const worker = nextHandler as unknown as NextWorker
 
 const entrypoint = {
-  // Main fetch handler dari Next.js (OpenNext)
-  fetch: worker.fetch,
+  // Main fetch handler dengan fast-path 404 untuk bot scanner & CSP report
+  fetch(request: Request, env: CloudflareEnv, ctx: ExecutionContext) {
+    const url = new URL(request.url)
+    const { pathname } = url
 
-  // Custom scheduled handler untuk Cron Jobs — Notifikasi Terjadwal
+    if (isBlockedScannerPath(pathname)) {
+      return new Response('Not Found', {
+        status: 404,
+        headers: {
+          'Cache-Control': 'public, max-age=3600',
+          'X-Content-Type-Options': 'nosniff',
+        },
+      })
+    }
+
+    if (pathname === '/api/security/csp-report' && request.method === 'POST') {
+      return new Response(null, {
+        status: 204,
+        headers: { 'Cache-Control': 'no-store' },
+      })
+    }
+
+    return worker.fetch(request, env, ctx)
+  },
+
+  // Custom scheduled handler — jalankan langsung in-process tanpa SELF.fetch
+  // agar tidak memicu double-invocation HTTP OpenNext + clientDisconnected.
   async scheduled(event: ScheduledEvent, env: CloudflareEnv) {
     console.info(JSON.stringify({ event: 'cron_started', cron: event.cron, scheduledAt: new Date(event.scheduledTime).toISOString() }));
 
-    const cronSecret = env.CRON_SECRET;
-    if (!cronSecret) {
-      console.error("CRON_SECRET is not configured; skipping cron dispatcher.");
-      return;
-    }
-
     try {
-      const headers = {
-        "Authorization": `Bearer ${cronSecret}`,
-        "cf-cron": "true",
-      };
-      const reminderResponse = await env.SELF.fetch("https://mansatas.internal/api/cron/reminder-jadwal", { method: "GET", headers });
+      const result = await runScheduledReminders(env as unknown as CronRuntimeEnv);
 
       console.info(JSON.stringify({
         event: 'cron_completed',
-        reminderStatus: reminderResponse.status,
+        izinAutoReturned: result.izinAutoReturned,
+        announcementsProcessed: result.announcementsProcessed,
+        automaticRemindersProcessed: result.automaticRemindersProcessed,
+        attendanceNoticesProcessed: result.attendanceNoticesProcessed,
+        photoCleanupSkipped: Boolean(result.modulePhotoCleanup.skipped),
       }));
     } catch (error: unknown) {
       console.error(JSON.stringify({

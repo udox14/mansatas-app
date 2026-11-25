@@ -1,18 +1,52 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const state = vi.hoisted(() => ({ fetch: vi.fn(), process: vi.fn() }))
+const state = vi.hoisted(() => ({
+  fetch: vi.fn(),
+  process: vi.fn(),
+  runCron: vi.fn(),
+}))
 vi.mock('./.open-next/worker.js', () => ({ default: { fetch: state.fetch } }))
 vi.mock('@/lib/notification-engine', () => ({ processNotificationQueueMessage: state.process }))
-import worker from './worker-entry'
+vi.mock('@/lib/cron-dispatcher', () => ({ runScheduledReminders: state.runCron }))
+import worker, { isBlockedScannerPath } from './worker-entry'
 
 beforeEach(() => vi.clearAllMocks())
 
-describe('notification worker after WhatsApp removal', () => {
-  it('dispatches the scheduled reminder with no WhatsApp request', async () => {
-    const fetch = vi.fn().mockResolvedValue({ status: 200 })
-    await worker.scheduled({ cron: '*/5 * * * *', scheduledTime: 1_800_000_000_000 }, { CRON_SECRET: 'test', SELF: { fetch } } as unknown as CloudflareEnv)
-    expect(fetch).toHaveBeenCalledOnce()
-    expect(fetch).toHaveBeenCalledWith('https://mansatas.internal/api/cron/reminder-jadwal', { method: 'GET', headers: { Authorization: 'Bearer test', 'cf-cron': 'true' } })
+describe('worker entrypoint optimizations and handlers', () => {
+  it('runs scheduled reminders directly in-process without SELF.fetch', async () => {
+    state.runCron.mockResolvedValueOnce({
+      success: true,
+      modulePhotoCleanup: { scanned: 0, deleted: 0, failed: 0, errors: [], skipped: true },
+      izinAutoReturned: 0,
+      announcementsProcessed: 1,
+      automaticRemindersProcessed: 2,
+      attendanceNoticesProcessed: 0,
+    })
+    const selfFetch = vi.fn()
+    const env = { DB: {}, SELF: { fetch: selfFetch } } as unknown as CloudflareEnv
+    await worker.scheduled({ cron: '*/5 * * * *', scheduledTime: 1_800_000_000_000 }, env)
+    expect(state.runCron).toHaveBeenCalledOnce()
+    expect(selfFetch).not.toHaveBeenCalled()
+  })
+
+  it('short-circuits bot scanner paths and csp-report before invoking Next.js', async () => {
+    expect(isBlockedScannerPath('/.env.production')).toBe(true)
+    expect(isBlockedScannerPath('/.git/refs/heads/main')).toBe(true)
+    expect(isBlockedScannerPath('/appsettings.Production.json')).toBe(true)
+    expect(isBlockedScannerPath('/app-ads.txt')).toBe(true)
+    expect(isBlockedScannerPath('/.well-known/assetlinks.json')).toBe(false)
+    expect(isBlockedScannerPath('/dashboard/kehadiran')).toBe(false)
+
+    const env = {} as CloudflareEnv
+    const ctx = {} as ExecutionContext
+
+    const blockedRes = await worker.fetch(new Request('https://app.mansatas.com/.env.production'), env, ctx)
+    expect(blockedRes.status).toBe(404)
+    expect(state.fetch).not.toHaveBeenCalled()
+
+    const cspRes = await worker.fetch(new Request('https://app.mansatas.com/api/security/csp-report', { method: 'POST', body: '{}' }), env, ctx)
+    expect(cspRes.status).toBe(204)
+    expect(state.fetch).not.toHaveBeenCalled()
   })
 
   it('continues acknowledging completed notifications and retrying failed deliveries', async () => {

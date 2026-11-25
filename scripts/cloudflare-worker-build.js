@@ -1,4 +1,4 @@
-const { readFileSync, rmSync, writeFileSync } = require('node:fs')
+const { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } = require('node:fs')
 const { join, resolve, sep } = require('node:path')
 const { spawnSync } = require('node:child_process')
 
@@ -47,6 +47,11 @@ function run(command, args) {
 
   if (result.status !== 0) process.exit(result.status || 1)
 }
+
+const publicDataDir = join(root, 'public', 'data')
+mkdirSync(publicDataDir, { recursive: true })
+copyFileSync(join(root, 'data', 'kampus.json'), join(publicDataDir, 'kampus.json'))
+copyFileSync(join(root, 'data', 'prodi.json'), join(publicDataDir, 'prodi.json'))
 
 run(process.execPath, [nextCli, 'build', '--webpack'])
 

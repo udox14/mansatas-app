@@ -23,15 +23,21 @@ export async function GET(
     const authorized = await authorizeMediaRequest(request, rawKey)
     if (!authorized) return new Response('Not Found', { status: 404, headers: { 'Cache-Control': 'private, no-store' } })
     const { key, policy } = authorized
+    const isPrivateProfilePhoto = key.startsWith('foto_siswa/') || key.startsWith('avatars/')
     const cacheControl = policy.visibility === 'public'
       ? policy.cacheControl
-      : 'private, no-store'
+      : isPrivateProfilePhoto
+        ? 'private, max-age=300, must-revalidate'
+        : 'private, no-store'
 
     const { env } = await getCloudflareContext({ async: true })
     const object = await env.R2.get(key)
 
     if (!object) {
-      return new Response('Not Found', { status: 404 })
+      return new Response('Not Found', {
+        status: 404,
+        headers: { 'Cache-Control': 'private, max-age=300' },
+      })
     }
 
     // Do not expose expired module evidence during the interval before the

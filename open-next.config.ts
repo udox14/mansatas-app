@@ -15,8 +15,8 @@ config.edgeExternals = [
   "next/dist/compiled/@vercel/og/yoga.wasm",
 ];
 
-// Matikan minifikasi OpenNext — bikin instrumentation hook Next.js error runtime
-// Bundle size dikecilkan via externals + serverExternalPackages di next.config.ts
+// Biarkan minify OpenNext AWS tetap false (karena minimizeServerBundle memotong file internal Next 16.4 di Windows);
+// minifikasi JS dilakukan oleh esbuild Wrangler ("minify": true di wrangler.jsonc).
 config.default.minify = false;
 
 export default config;

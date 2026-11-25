@@ -22,6 +22,7 @@ export function middleware(request: NextRequest) {
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-nonce', nonce)
 
+  const enforceCsp = String(process.env.CSP_ENFORCE) === 'true'
   const csp = [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
@@ -35,7 +36,7 @@ export function middleware(request: NextRequest) {
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
-    "report-uri /api/security/csp-report",
+    ...(enforceCsp ? [] : ["report-uri /api/security/csp-report"]),
   ].join('; ')
 
   // Next.js reads this request header to apply the nonce to framework-generated scripts.
@@ -51,12 +52,12 @@ export function middleware(request: NextRequest) {
     })
   }
   response.headers.set(
-    String(process.env.CSP_ENFORCE) === 'true' ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only',
+    enforceCsp ? 'Content-Security-Policy' : 'Content-Security-Policy-Report-Only',
     csp
   )
   return response
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|icon-|apple-touch-icon|manifest.json|sw.js).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|icon-|apple-touch-icon|manifest.json|sw.js|\\.well-known/|data/).*)'],
 }

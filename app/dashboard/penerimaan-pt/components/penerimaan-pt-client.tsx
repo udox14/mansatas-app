@@ -36,20 +36,13 @@ import { JALUR_LIST, STATUS_LIST } from '../types'
 import { cn } from '@/lib/utils'
 import { AvatarSiswa } from '@/components/ui/avatar-siswa'
 import { downloadBlobFile } from '@/lib/pdf/download'
-import {
-  KAMPUS_LIST, PRODI_BY_KAMPUS, RENCANA_OPTIONS,
-} from '@/lib/pendidikan-lanjutan'
+import { RENCANA_OPTIONS } from '@/lib/pendidikan-lanjutan'
 import type { RencanaKategori } from '@/lib/pendidikan-lanjutan'
+import { usePendidikanLanjutanData } from '@/lib/pendidikan-lanjutan-client'
 
 // ── Types ──────────────────────────────────────────────────────────────
 type Kampus = { id: string; nama: string; singkatan: string; kota: string; provinsi: string; jenis: string }
 type SiswaRow = { id: string; nama_lengkap: string; nisn: string; foto_url: string | null; tingkat: number; nomor_kelas: string; kelas_kelompok: string; jumlah_diterima: number }
-
-const KAMPUS_COMBO_OPTIONS = KAMPUS_LIST.map(k => ({
-  value: k.id, label: k.nama,
-  keywords: `${k.singkatan} ${k.kota} ${k.provinsi} ${k.npsn ?? ''}`,
-  description: [k.singkatan, k.kota, k.jenis].filter(Boolean).join(' · '),
-}))
 
 // ── Helpers dengan dynamic jalur ──────────────────────────────────────
 function getJalurColor(jalur: string, jalurList: typeof JALUR_LIST) {
@@ -81,6 +74,7 @@ function KampusAutocomplete({
   onChange: (kampus: Kampus | null) => void
   placeholder?: string
 }) {
+  const { kampusList } = usePendidikanLanjutanData()
   const [query, setQuery] = useState(value ? value.nama : '')
   const [open, setOpen] = useState(false)
   const [highlightIdx, setHighlightIdx] = useState(0)
@@ -91,12 +85,12 @@ function KampusAutocomplete({
   const filtered = useMemo(() => {
     if (query.trim().length < 2) return []
     const q = query.toLowerCase()
-    return KAMPUS_LIST.filter(k =>
+    return kampusList.filter(k =>
       k.nama.toLowerCase().includes(q) ||
       k.singkatan.toLowerCase().includes(q) ||
       k.kota.toLowerCase().includes(q)
     ).slice(0, 10)
-  }, [query])
+  }, [kampusList, query])
 
   useEffect(() => {
     setHighlightIdx(0)
@@ -236,8 +230,9 @@ function RencanaPendidikanEditor({ siswaId, taId }: { siswaId: string; taId: str
 }
 
 function PlanChoice({ label, kampusId, prodi, onKampus, onProdi }: { label: string; kampusId: string; prodi: string; onKampus: (value: string) => void; onProdi: (value: string) => void }) {
-  const list = kampusId ? PRODI_BY_KAMPUS[kampusId] ?? [] : []
-  return <div className="space-y-1.5"><p className="text-[10px] font-bold uppercase text-slate-500">{label}</p><Combobox value={kampusId} onValueChange={onKampus} options={KAMPUS_COMBO_OPTIONS} placeholder="Pilih perguruan tinggi..." searchPlaceholder="Cari kampus..." maxResults={60} clearable /><Combobox value={prodi} onValueChange={onProdi} options={list.map(item => ({ value: item.nama, label: `${item.nama} (${item.jenjang})`, keywords: item.kode }))} placeholder={!kampusId ? 'Pilih kampus dahulu' : list.length ? 'Pilih program studi...' : 'Prodi tidak tersedia / tidak diperlukan'} searchPlaceholder="Cari program studi..." disabled={!kampusId || !list.length} maxResults={80} clearable /></div>
+  const { kampusOptions, prodiByKampus } = usePendidikanLanjutanData()
+  const list = kampusId ? prodiByKampus[kampusId] ?? [] : []
+  return <div className="space-y-1.5"><p className="text-[10px] font-bold uppercase text-slate-500">{label}</p><Combobox value={kampusId} onValueChange={onKampus} options={kampusOptions} placeholder="Pilih perguruan tinggi..." searchPlaceholder="Cari kampus..." maxResults={60} clearable /><Combobox value={prodi} onValueChange={onProdi} options={list.map(item => ({ value: item.nama, label: `${item.nama} (${item.jenjang})`, keywords: item.kode }))} placeholder={!kampusId ? 'Pilih kampus dahulu' : list.length ? 'Pilih program studi...' : 'Prodi tidak tersedia / tidak diperlukan'} searchPlaceholder="Cari program studi..." disabled={!kampusId || !list.length} maxResults={80} clearable /></div>
 }
 
 function FormPenerimaan({
@@ -252,10 +247,16 @@ function FormPenerimaan({
   onClose: () => void
   dynamicJalurList: typeof JALUR_LIST
 }) {
+  const { kampusList, kampusOptions, prodiByKampus } = usePendidikanLanjutanData()
   const [jalur, setJalur] = useState<JalurPT>(editData?.jalur ?? jalurDefault ?? 'SNBP')
-  const [kampus, setKampus] = useState<Kampus | null>(
-    editData ? KAMPUS_LIST.find(k => k.id === editData.kampus_id) ?? { id: editData.kampus_id, nama: editData.kampus_nama, singkatan: '', kota: '', provinsi: '', jenis: '' } : null
+  const [kampusSelection, setKampus] = useState<Kampus | null>(
+    editData ? { id: editData.kampus_id, nama: editData.kampus_nama, singkatan: '', kota: '', provinsi: '', jenis: '' } : null
   )
+  const kampus = useMemo(() => {
+    if (!kampusSelection) return null
+    if (kampusSelection.kota) return kampusSelection
+    return kampusList.find(k => k.id === kampusSelection.id) ?? kampusSelection
+  }, [kampusList, kampusSelection])
   const [prodi, setProdi] = useState(editData?.program_studi ?? '')
   const [status, setStatus] = useState<StatusPenerimaan>(editData?.status ?? 'DITERIMA')
   const [catatan, setCatatan] = useState(editData?.catatan ?? '')
@@ -263,7 +264,7 @@ function FormPenerimaan({
 
   const handleSave = async () => {
     if (!kampus) { alert('Pilih kampus terlebih dahulu.'); return }
-    if ((PRODI_BY_KAMPUS[kampus.id] ?? []).length > 0 && !prodi) { alert('Pilih program studi terlebih dahulu.'); return }
+    if ((prodiByKampus[kampus.id] ?? []).length > 0 && !prodi) { alert('Pilih program studi terlebih dahulu.'); return }
     setIsSaving(true)
     try {
       if (editData) {
@@ -313,8 +314,8 @@ function FormPenerimaan({
         <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Perguruan Tinggi <span className="text-rose-500">*</span></label>
         <Combobox
           value={kampus?.id ?? ''}
-          onValueChange={id => { setKampus(KAMPUS_LIST.find(item => item.id === id) ?? null); setProdi('') }}
-          options={KAMPUS_COMBO_OPTIONS}
+          onValueChange={id => { setKampus(kampusList.find(item => item.id === id) ?? null); setProdi('') }}
+          options={kampusOptions}
           placeholder="Pilih perguruan tinggi / institusi..."
           searchPlaceholder="Cari nama, singkatan, kota..."
           maxResults={60}
@@ -327,10 +328,10 @@ function FormPenerimaan({
         <Combobox
           value={prodi}
           onValueChange={setProdi}
-          options={(kampus ? PRODI_BY_KAMPUS[kampus.id] ?? [] : []).map(item => ({ value: item.nama, label: `${item.nama} (${item.jenjang})`, keywords: item.kode }))}
-          placeholder={!kampus ? 'Pilih kampus dahulu' : (PRODI_BY_KAMPUS[kampus.id] ?? []).length ? 'Pilih program studi...' : 'Prodi tidak tersedia / tidak diperlukan'}
+          options={(kampus ? prodiByKampus[kampus.id] ?? [] : []).map(item => ({ value: item.nama, label: `${item.nama} (${item.jenjang})`, keywords: item.kode }))}
+          placeholder={!kampus ? 'Pilih kampus dahulu' : (prodiByKampus[kampus.id] ?? []).length ? 'Pilih program studi...' : 'Prodi tidak tersedia / tidak diperlukan'}
           searchPlaceholder="Cari program studi..."
-          disabled={!kampus || (PRODI_BY_KAMPUS[kampus.id] ?? []).length === 0}
+          disabled={!kampus || (prodiByKampus[kampus.id] ?? []).length === 0}
           maxResults={80}
           clearable
         />
@@ -1017,6 +1018,7 @@ function TabAnalitik({ taId, dynamicJalurList }: {
   taId: string
   dynamicJalurList: typeof JALUR_LIST
 }) {
+  const { kampusList } = usePendidikanLanjutanData()
   const [data, setData] = useState<Awaited<ReturnType<typeof getAnalitikPenerimaan>> | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -1108,7 +1110,7 @@ function TabAnalitik({ taId, dynamicJalurList }: {
             ) : (
               <div className="p-4 space-y-2">
                 {data.topKampus.map((k, idx) => {
-                  const kampusInfo = KAMPUS_LIST.find(x => x.id === k.kampus_id)
+                  const kampusInfo = kampusList.find(x => x.id === k.kampus_id)
                   return (
                     <div key={k.kampus_id} className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-surface-2 transition-colors">
                       <div className={cn('h-7 w-7 rounded-lg flex items-center justify-center text-xs font-black shrink-0',
@@ -1233,6 +1235,7 @@ function ImportExcelModal({
   dynamicJalurList: typeof JALUR_LIST
   onImportSuccess: () => void
 }) {
+  const { kampusList } = usePendidikanLanjutanData()
   const [file, setFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
   const [parsedData, setParsedData] = useState<any[]>([])
@@ -1332,7 +1335,7 @@ function ImportExcelModal({
       let kampusId = ''
       let kampusNama = ''
       if (kampusRaw) {
-        const found = KAMPUS_LIST.find(k => 
+        const found = kampusList.find(k => 
           k.nama.toLowerCase().includes(kampusRaw.toLowerCase()) ||
           kampusRaw.toLowerCase().includes(k.nama.toLowerCase())
         )
@@ -1375,7 +1378,7 @@ function ImportExcelModal({
           ? {
               ...row,
               kampusId,
-              kampusNama: KAMPUS_LIST.find(k => k.id === kampusId)?.nama || '',
+              kampusNama: kampusList.find(k => k.id === kampusId)?.nama || '',
             }
           : row
       )
@@ -1386,7 +1389,7 @@ function ImportExcelModal({
     const dataToImport = previewRows
       .filter(row => row.valid && kampusMapping[row.index])
       .map(row => {
-        const selectedKampus = KAMPUS_LIST.find(k => k.id === kampusMapping[row.index])
+        const selectedKampus = kampusList.find(k => k.id === kampusMapping[row.index])
         return {
           nisn: row.nisn,
           jalur: row.jalurValue as JalurPT,
@@ -1528,7 +1531,7 @@ function ImportExcelModal({
                             className="w-full rounded border bg-surface-2 p-1 text-xs"
                           >
                             <option value="">Pilih kampus</option>
-                            {KAMPUS_LIST.map(k => (
+                            {kampusList.map(k => (
                               <option key={k.id} value={k.id}>{k.nama}</option>
                             ))}
                           </select>

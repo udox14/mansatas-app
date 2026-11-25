@@ -1,6 +1,3 @@
-import kampusData from '@/data/kampus.json'
-import prodiData from '@/data/prodi.json'
-
 export type RencanaKategori =
   | 'KULIAH'
   | 'BEKERJA'
@@ -40,20 +37,16 @@ export const RENCANA_LABEL = Object.fromEntries(
   RENCANA_OPTIONS.map(option => [option.value, option.label])
 ) as Record<RencanaKategori, string>
 
-export const KAMPUS_LIST = kampusData as Kampus[]
-export const KAMPUS_BY_ID = new Map(KAMPUS_LIST.map(kampus => [kampus.id, kampus]))
-export const PRODI_BY_KAMPUS = prodiData as Record<string, Prodi[]>
-
 export function prodiValue(prodi: Prodi) {
   return `${prodi.kode}|${prodi.jenjang}|${prodi.nama}`
 }
 
-export function getProdiByValue(kampusId: string, value: string) {
-  return (PRODI_BY_KAMPUS[kampusId] ?? []).find(prodi => prodiValue(prodi) === value)
+export function findProdiByValue(prodiByKampus: Record<string, Prodi[]>, kampusId: string, value: string) {
+  return (prodiByKampus[kampusId] ?? []).find(prodi => prodiValue(prodi) === value)
 }
 
-export function getProdiValueByName(kampusId: string, name?: string | null) {
+export function findProdiValueByName(prodiByKampus: Record<string, Prodi[]>, kampusId: string, name?: string | null) {
   if (!name) return ''
-  const found = (PRODI_BY_KAMPUS[kampusId] ?? []).find(prodi => prodi.nama === name)
+  const found = (prodiByKampus[kampusId] ?? []).find(prodi => prodi.nama === name)
   return found ? prodiValue(found) : ''
 }
