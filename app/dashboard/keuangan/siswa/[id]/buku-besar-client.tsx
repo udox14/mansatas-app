@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { RupiahInput } from '@/components/ui/rupiah-input'
 import { Label } from '@/components/ui/label'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -24,16 +25,16 @@ import type { StudentFinanceScope } from '../../actions'
 import { KuitansiModal, type KuitansiData } from '../../components/kuitansi-print'
 
 const STATUS_MAP = {
-  lunas: { label: 'Lunas', icon: CheckCircle2, cls: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 dark:bg-emerald-900/30 dark:text-emerald-400' },
-  nyicil: { label: 'Nyicil', icon: Clock, cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
-  belum_bayar: { label: 'Belum Bayar', icon: XCircle, cls: 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' },
-  tidak_ada: { label: 'Belum Diinput', icon: Ban, cls: 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400' },
+  lunas: { label: 'Lunas', icon: CheckCircle2, cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' },
+  nyicil: { label: 'Nyicil', icon: Clock, cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+  belum_bayar: { label: 'Belum Bayar', icon: XCircle, cls: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300' },
+  tidak_ada: { label: 'Belum Diinput', icon: Ban, cls: 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400' },
 }
 
 export function BukuBesarClient({
   data,
-  masterItem,
-  tahunAjaranId,
+  masterItem: _masterItem,
+  tahunAjaranId: _tahunAjaranId,
   tahunAjaranNama,
   studentScope,
 }: {
@@ -57,7 +58,6 @@ export function BukuBesarClient({
   const [janjiModal, setJanjiModal] = useState<{ type: string; targetId: string } | null>(null)
   const [kuitansiData, setKuitansiData] = useState<KuitansiData | null>(null)
   const [kuitansiOpen, setKuitansiOpen] = useState(false)
-  // Bayar form state
   const [bayarForm, setBayarForm] = useState({ jumlah: '', metode: 'tunai', selectedItems: [] as string[] })
   const [diskonForm, setDiskonForm] = useState({ jumlah: '', alasan: 'anak_guru', keterangan: '' })
   const [voidAlasan, setVoidAlasan] = useState('')
@@ -107,7 +107,6 @@ export function BukuBesarClient({
     isLunas: boolean,
     namaPerugas: string = 'Bendahara Komite',
   ): KuitansiData {
-    // Hitung sisa tunggakan sesuai kategori
     const sisaTunggakan: KuitansiData['sisaTunggakan'] = []
     let targetTagihan: number | undefined
     let sisaTagihan: number | undefined
@@ -151,7 +150,7 @@ export function BukuBesarClient({
       if (dspt.status === 'tidak_ada') return
       const sisa = dspt.nominal_target - dspt.total_dibayar - dspt.total_diskon
       setKuitansiData({
-        nomorKuitansi: `REKAP-DSPT`,
+        nomorKuitansi: 'REKAP-DSPT',
         tanggal: nowWIBISO(),
         kategori: 'DSPT',
         tahunAjaran: tahunAjaranKuitansi,
@@ -237,7 +236,6 @@ export function BukuBesarClient({
 
       if (res.data?.nomorKuitansi) {
         const isLunas = (dspt.nominal_target - (dspt.total_dibayar + jumlahDibayar) - dspt.total_diskon) <= 0
-
         setKuitansiData(buildKuitansiData(
           res.data.nomorKuitansi,
           bayarModal.type,
@@ -327,54 +325,53 @@ export function BukuBesarClient({
   return (
     <div className="space-y-3 pb-8">
       {msg && (
-        <p className={`text-xs px-3 py-2 rounded-md ${msg.includes('berhasil') || msg.includes('disimpan') ? 'text-emerald-600 bg-emerald-50 dark:bg-emerald-950/50 dark:bg-emerald-900/20' : 'text-rose-600 bg-rose-50 dark:bg-rose-900/20'}`}>
+        <p role="status" className={`rounded-md px-3 py-2 text-xs ${msg.includes('berhasil') || msg.includes('disimpan') ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-300' : 'bg-rose-50 text-rose-600 dark:bg-rose-900/20'}`}>
           {msg}
         </p>
       )}
 
       <Tabs defaultValue={defaultTab} className="space-y-3">
-        <TabsList className="h-8 text-xs">
-          <TabsTrigger value="dspt" className="text-xs h-7 px-3">DSPT</TabsTrigger>
-          <TabsTrigger value="spp" className="text-xs h-7 px-3">Tunggakan SPP</TabsTrigger>
-          <TabsTrigger value="riwayat" className="text-xs h-7 px-3">Riwayat Transaksi</TabsTrigger>
+        <TabsList className="h-8 max-w-full justify-start overflow-x-auto text-xs">
+          <TabsTrigger value="dspt" className="h-7 shrink-0 px-3 text-xs">DSPT</TabsTrigger>
+          <TabsTrigger value="spp" className="h-7 shrink-0 px-3 text-xs">Tunggakan SPP</TabsTrigger>
+          <TabsTrigger value="riwayat" className="h-7 shrink-0 px-3 text-xs">Riwayat Transaksi</TabsTrigger>
         </TabsList>
 
         {/* ── TAB DSPT ── */}
-        <TabsContent value="dspt" className="space-y-3 mt-0">
+        <TabsContent value="dspt" className="mt-0 space-y-3">
           {!dspt ? (
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-8 text-center">
-              <p className="text-sm text-slate-400 mb-3">Belum ada tagihan DSPT untuk siswa ini</p>
+            <div className="rounded-lg border border-slate-200 bg-white p-8 text-center dark:border-slate-800 dark:bg-slate-900">
+              <p className="mb-3 text-sm text-slate-400">Belum ada tagihan DSPT untuk siswa ini</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {/* Summary Card */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-4">
-                <div className="flex items-start justify-between mb-4">
+              <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-0.5">Status DSPT</p>
+                    <p className="mb-0.5 text-xs text-slate-500 dark:text-slate-400">Status DSPT</p>
                     {(() => {
                       const s = STATUS_MAP[dspt.status as keyof typeof STATUS_MAP] ?? STATUS_MAP.belum_bayar
                       const Icon = s.icon
                       return (
-                        <span className={`inline-flex items-center gap-1.5 text-sm font-semibold px-2.5 py-1 rounded-full ${s.cls}`}>
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-sm font-semibold ${s.cls}`}>
                           <Icon className="h-3.5 w-3.5" />{s.label}
                         </span>
                       )
                     })()}
                   </div>
-                  <div className="flex gap-2 flex-wrap">
+                  <div className="flex flex-wrap gap-2">
                     {dsptIsInput && dsptSisa > 0 && (
-                      <Button size="sm" className="h-8 text-xs gap-1.5" onClick={() => setBayarModal({ type: 'dspt' })}>
+                      <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={() => setBayarModal({ type: 'dspt' })}>
                         <Plus className="h-3.5 w-3.5" /> Catat Bayar
                       </Button>
                     )}
                     {dsptIsInput && (
                       <>
-                        <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5"
-                          onClick={() => setDiskonModal({ type: 'dspt', targetId: dspt.id, label: 'DSPT' })}>
+                        <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs"
+                          onClick={() => { setDiskonForm({ jumlah: '', alasan: 'anak_guru', keterangan: '' }); setDiskonModal({ type: 'dspt', targetId: dspt.id, label: 'DSPT' }) }}>
                           Keringanan
                         </Button>
-                        <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5"
+                        <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs"
                           onClick={() => openKuitansiRekap('dspt')}>
                           <Printer className="h-3.5 w-3.5" /> Cetak Kuitansi
                         </Button>
@@ -387,53 +384,47 @@ export function BukuBesarClient({
                     Data DSPT siswa ini belum diinput. Isi target DSPT dari halaman daftar DSPT sebelum mencatat pembayaran atau mencetak kuitansi.
                   </div>
                 )}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                   <div>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">Target</p>
-                    <p className="text-sm font-semibold">{dsptIsInput ? formatRupiah(dspt.nominal_target) : '-'}</p>
+                    <p className="text-sm font-semibold tabular-nums">{dsptIsInput ? formatRupiah(dspt.nominal_target) : '-'}</p>
                   </div>
                   <div>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">Dibayar</p>
-                    <p className="text-sm font-semibold text-emerald-600">{dsptIsInput ? formatRupiah(dspt.total_dibayar) : '-'}</p>
+                    <p className="text-sm font-semibold tabular-nums text-emerald-600">{dsptIsInput ? formatRupiah(dspt.total_dibayar) : '-'}</p>
                   </div>
                   <div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">Diskon</p>
-                    <p className="text-sm font-semibold text-blue-600">{dsptIsInput ? formatRupiah(dspt.total_diskon) : '-'}</p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">Keringanan</p>
+                    <p className="text-sm font-semibold tabular-nums text-blue-600">{dsptIsInput ? formatRupiah(dspt.total_diskon) : '-'}</p>
                   </div>
                   <div>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">Sisa</p>
-                    <p className={`text-sm font-bold ${!dsptIsInput ? 'text-slate-500' : dsptSisa > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                    <p className={`text-sm font-bold tabular-nums ${!dsptIsInput ? 'text-slate-500' : dsptSisa > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                       {dsptIsInput ? formatRupiah(dsptSisa) : '-'}
                     </p>
                   </div>
                 </div>
-                {/* Progress bar */}
                 {dsptIsInput && (
-                <div className="mt-3">
-                  <div className="w-full h-2 bg-slate-100 dark:bg-slate-800/80 dark:bg-slate-800 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-emerald-500 rounded-full transition-all"
-                      style={{ width: `${dsptProgress}%` }}
-                    />
+                  <div className="mt-3">
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                      <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${dsptProgress}%` }} />
+                    </div>
+                    <p className="mt-1 text-[11px] tabular-nums text-slate-400">{dsptProgress}% terpenuhi</p>
                   </div>
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    {dsptProgress}% terpenuhi
-                  </p>
-                </div>
                 )}
 
                 {dsptDiskonList.length > 0 && (
-                  <div className="mt-4 border-t border-slate-100 dark:border-slate-800 pt-3">
-                    <p className="text-xs font-semibold text-slate-600 dark:text-slate-300 mb-2">Rincian Keringanan</p>
+                  <div className="mt-4 border-t border-slate-100 pt-3 dark:border-slate-800">
+                    <p className="mb-2 text-xs font-semibold text-slate-600 dark:text-slate-300">Rincian Keringanan</p>
                     <div className="space-y-2">
                       {dsptDiskonList.map((d: any) => (
                         <div key={d.id} className="flex items-center justify-between gap-3 rounded-md border border-blue-100 bg-blue-50 px-3 py-2 dark:border-blue-900/60 dark:bg-blue-900/20">
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">{formatRupiah(d.jumlah)}</p>
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                            <p className="text-sm font-semibold tabular-nums text-blue-700 dark:text-blue-300">{formatRupiah(d.jumlah)}</p>
+                            <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">
                               {d.alasan?.replace(/_/g, ' ') || 'keringanan'}
-                              {d.keterangan ? ` - ${d.keterangan}` : ''}
-                              {d.created_at ? ` - ${formatDateWIB(d.created_at, { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
+                              {d.keterangan ? ` · ${d.keterangan}` : ''}
+                              {d.created_at ? ` · ${formatDateWIB(d.created_at, { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
                             </p>
                           </div>
                           <Button
@@ -444,7 +435,7 @@ export function BukuBesarClient({
                             onClick={() => setBatalDiskonModal(d)}
                             disabled={isPending}
                           >
-                            <Trash2 className="h-3 w-3 mr-1" /> Batal
+                            <Trash2 className="mr-1 h-3 w-3" /> Batal
                           </Button>
                         </div>
                       ))}
@@ -453,11 +444,10 @@ export function BukuBesarClient({
                 )}
               </div>
 
-              {/* Janji Bayar */}
               {dsptIsInput && dsptSisa > 0 && (
-                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-4 flex items-center justify-between gap-3">
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
                   <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                    <Calendar className="h-4 w-4 shrink-0 text-amber-500" />
                     <div>
                       <p className="text-xs font-medium text-slate-700 dark:text-slate-300">Janji Bayar</p>
                       {getJanji('dspt', dspt.id)
@@ -481,67 +471,66 @@ export function BukuBesarClient({
         </TabsContent>
 
         {/* ── TAB SPP ── */}
-        <TabsContent value="spp" className="space-y-3 mt-0">
+        <TabsContent value="spp" className="mt-0 space-y-3">
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-900/10">
             <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">SPP: hanya tunggakan terdahulu</p>
             <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">Bagian ini khusus untuk mencatat dan menyelesaikan tunggakan SPP dari kebijakan lama.</p>
           </div>
 
-          {/* ── Tunggakan Awal (Migrasi) ── */}
           {sppSaldoAwal ? (
             <div className={`rounded-xl border px-4 py-3 ${
               sppSaldoAwal.status === 'lunas'
-                ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20'
+                ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/20'
                 : sppSaldoAwal.status === 'nyicil'
-                  ? 'border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20'
-                  : 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20'
+                  ? 'border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20'
+                  : 'border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20'
             }`}>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Tunggakan Awal (Migrasi)</p>
-                  <div className="flex gap-4 flex-wrap">
+                  <p className="mb-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Tunggakan Awal (Migrasi)</p>
+                  <div className="flex flex-wrap gap-4">
                     <div>
                       <p className="text-[11px] text-slate-400">Total</p>
-                      <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{formatRupiah(sppSaldoAwal.jumlah)}</p>
+                      <p className="text-sm font-bold tabular-nums text-slate-700 dark:text-slate-200">{formatRupiah(sppSaldoAwal.jumlah)}</p>
                     </div>
                     <div>
                       <p className="text-[11px] text-slate-400">Dibayar</p>
-                      <p className="text-sm font-bold text-emerald-600">{formatRupiah(sppSaldoAwal.total_dibayar ?? 0)}</p>
+                      <p className="text-sm font-bold tabular-nums text-emerald-600">{formatRupiah(sppSaldoAwal.total_dibayar ?? 0)}</p>
                     </div>
                     <div>
                       <p className="text-[11px] text-slate-400">Sisa</p>
-                      <p className={`text-sm font-bold ${sppSaldoAwal.status === 'lunas' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      <p className={`text-sm font-bold tabular-nums ${sppSaldoAwal.status === 'lunas' ? 'text-emerald-600' : 'text-rose-600'}`}>
                         {formatRupiah(sppSaldoAwal.jumlah - (sppSaldoAwal.total_dibayar ?? 0))}
                       </p>
                     </div>
                   </div>
                   {sppSaldoAwal.keterangan && (
-                    <p className="text-[11px] text-slate-400 mt-1">{sppSaldoAwal.keterangan}</p>
+                    <p className="mt-1 text-[11px] text-slate-400">{sppSaldoAwal.keterangan}</p>
                   )}
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex shrink-0 items-center gap-2">
                   {sppSaldoAwal.status === 'lunas' ? (
-                    <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">LUNAS</span>
+                    <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">LUNAS</span>
                   ) : (
-                    <Button size="sm" className="h-7 text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                    <Button size="sm" className="h-7 bg-blue-600 text-xs text-white hover:bg-blue-700"
                       onClick={() => { setSaldoAwalBayarJumlah(''); setSaldoAwalBayarModal(true) }}>
                       Catat Bayar
                     </Button>
                   )}
                   <button type="button"
                     onClick={() => { setSaldoAwalForm({ jumlah: String(sppSaldoAwal.jumlah), keterangan: sppSaldoAwal.keterangan ?? '' }); setSaldoAwalModal(true) }}
-                    className="text-[11px] px-2 py-1 rounded bg-white/60 dark:bg-slate-700/60 text-slate-500 hover:bg-white dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600">
+                    className="rounded border border-slate-200 bg-white/60 px-2 py-1 text-[11px] text-slate-500 hover:bg-white dark:border-slate-600 dark:bg-slate-700/60 dark:hover:bg-slate-600">
                     Edit
                   </button>
                 </div>
               </div>
               {sppSaldoAwal.jumlah > 0 && (
                 <div className="mt-2.5">
-                  <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-500 rounded-full transition-all"
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+                    <div className="h-full rounded-full bg-emerald-500 transition-all"
                       style={{ width: `${Math.min(100, Math.round(((sppSaldoAwal.total_dibayar ?? 0) / sppSaldoAwal.jumlah) * 100))}%` }} />
                   </div>
-                  <p className="text-[10px] text-slate-400 mt-0.5">
+                  <p className="mt-0.5 text-[10px] tabular-nums text-slate-400">
                     {Math.round(((sppSaldoAwal.total_dibayar ?? 0) / sppSaldoAwal.jumlah) * 100)}% terbayar
                   </p>
                 </div>
@@ -550,32 +539,32 @@ export function BukuBesarClient({
           ) : (
             <button type="button"
               onClick={() => { setSaldoAwalForm({ jumlah: '', keterangan: '' }); setSaldoAwalModal(true) }}
-              className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-400 dark:hover:text-slate-300 underline underline-offset-2 text-left">
+              className="text-left text-xs text-slate-400 underline underline-offset-2 hover:text-slate-600 dark:hover:text-slate-300">
               + Tambah tunggakan awal (data migrasi)
             </button>
           )}
 
           {/* Modal: Catat Bayar Saldo Awal */}
           <Dialog open={saldoAwalBayarModal} onOpenChange={v => { if (!v) setSaldoAwalBayarModal(false) }}>
-            <DialogContent className="sm:max-w-xs rounded-xl p-0 overflow-hidden">
-              <DialogHeader className="px-5 py-4 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800">
+            <DialogContent className="overflow-hidden rounded-xl p-0 sm:max-w-xs">
+              <DialogHeader className="border-b border-blue-200 bg-blue-50 px-5 py-4 dark:border-blue-800 dark:bg-blue-900/20">
                 <DialogTitle className="text-sm font-semibold text-blue-800 dark:text-blue-300">Catat Pembayaran Tunggakan Awal</DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleBayarSaldoAwal} className="p-5 space-y-3">
+              <form onSubmit={handleBayarSaldoAwal} className="space-y-3 p-5">
                 {sppSaldoAwal && (
-                  <div className="bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2 text-sm">
-                    Sisa: <strong className="text-rose-600">{formatRupiah(sppSaldoAwal.jumlah - (sppSaldoAwal.total_dibayar ?? 0))}</strong>
+                  <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800">
+                    Sisa: <strong className="tabular-nums text-rose-600">{formatRupiah(sppSaldoAwal.jumlah - (sppSaldoAwal.total_dibayar ?? 0))}</strong>
                   </div>
                 )}
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-medium">Jumlah Dibayar (Rp)</Label>
-                  <Input type="number" min={1} value={saldoAwalBayarJumlah}
-                    onChange={e => setSaldoAwalBayarJumlah(e.target.value)}
-                    className="h-9 text-sm" placeholder="0" autoFocus />
+                  <Label htmlFor="spp-bayar-jumlah" className="text-xs font-medium">Jumlah Dibayar</Label>
+                  <RupiahInput id="spp-bayar-jumlah" min={1} value={saldoAwalBayarJumlah}
+                    onValueChange={raw => setSaldoAwalBayarJumlah(raw)}
+                    placeholder="0" autoFocus required />
                 </div>
                 <div className="flex gap-2 pt-1">
-                  <Button type="button" variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => setSaldoAwalBayarModal(false)}>Batal</Button>
-                  <Button type="submit" size="sm" className="flex-1 h-9 text-sm" disabled={isPending || !saldoAwalBayarJumlah}>
+                  <Button type="button" variant="outline" size="sm" className="h-9 flex-1 text-sm" onClick={() => setSaldoAwalBayarModal(false)}>Batal</Button>
+                  <Button type="submit" size="sm" className="h-9 flex-1 text-sm" disabled={isPending || !saldoAwalBayarJumlah}>
                     {isPending ? 'Menyimpan...' : 'Simpan'}
                   </Button>
                 </div>
@@ -585,37 +574,36 @@ export function BukuBesarClient({
 
           {/* Modal: Saldo Awal SPP */}
           <Dialog open={saldoAwalModal} onOpenChange={v => { if (!v) setSaldoAwalModal(false) }}>
-            <DialogContent className="sm:max-w-xs rounded-xl p-0 overflow-hidden">
-              <DialogHeader className="px-5 py-4 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800">
+            <DialogContent className="overflow-hidden rounded-xl p-0 sm:max-w-xs">
+              <DialogHeader className="border-b border-amber-200 bg-amber-50 px-5 py-4 dark:border-amber-800 dark:bg-amber-900/20">
                 <DialogTitle className="text-sm font-semibold text-amber-800 dark:text-amber-300">Tunggakan Awal SPP</DialogTitle>
               </DialogHeader>
-              <form onSubmit={handleSaveSaldoAwal} className="p-5 space-y-3">
+              <form onSubmit={handleSaveSaldoAwal} className="space-y-3 p-5">
                 <p className="text-xs text-slate-500 dark:text-slate-400">Catat total hutang SPP dari periode sebelum sistem ini dipakai (tanpa rincian bulan).</p>
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-medium">Jumlah Tunggakan (Rp)</Label>
-                  <Input type="number" min={0} value={saldoAwalForm.jumlah}
-                    onChange={e => setSaldoAwalForm(f => ({ ...f, jumlah: e.target.value }))}
-                    className="h-9 text-sm" placeholder="0" />
+                  <Label htmlFor="spp-saldo-awal-jumlah" className="text-xs font-medium">Jumlah Tunggakan</Label>
+                  <RupiahInput id="spp-saldo-awal-jumlah" min={0} value={saldoAwalForm.jumlah}
+                    onValueChange={raw => setSaldoAwalForm(f => ({ ...f, jumlah: raw }))}
+                    placeholder="0" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-medium">Keterangan (opsional)</Label>
-                  <Input value={saldoAwalForm.keterangan}
+                  <Label htmlFor="spp-saldo-awal-ket" className="text-xs font-medium">Keterangan (opsional)</Label>
+                  <Input id="spp-saldo-awal-ket" value={saldoAwalForm.keterangan}
                     onChange={e => setSaldoAwalForm(f => ({ ...f, keterangan: e.target.value }))}
                     className="h-9 text-sm" placeholder="Misal: tunggakan SPP 2022-2023" />
                 </div>
                 <div className="flex gap-2 pt-1">
-                  <Button type="button" variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => setSaldoAwalModal(false)}>Batal</Button>
-                  <Button type="submit" size="sm" className="flex-1 h-9 text-sm" disabled={isPending}>Simpan</Button>
+                  <Button type="button" variant="outline" size="sm" className="h-9 flex-1 text-sm" onClick={() => setSaldoAwalModal(false)}>Batal</Button>
+                  <Button type="submit" size="sm" className="h-9 flex-1 text-sm" disabled={isPending}>Simpan</Button>
                 </div>
               </form>
             </DialogContent>
           </Dialog>
-
         </TabsContent>
 
         {/* ── TAB RIWAYAT TRANSAKSI ── */}
         <TabsContent value="riwayat" className="mt-0">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+          <div role="region" aria-label="Tabel riwayat transaksi siswa" tabIndex={0} className="overflow-x-auto rounded-lg border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
             <Table>
               <TableHeader>
                 <TableRow className="bg-slate-50 dark:bg-slate-800/50">
@@ -623,7 +611,7 @@ export function BukuBesarClient({
                   <TableHead className="text-xs font-semibold">Tanggal</TableHead>
                   <TableHead className="text-xs font-semibold">Kategori</TableHead>
                   <TableHead className="text-xs font-semibold">Metode</TableHead>
-                  <TableHead className="text-xs font-semibold text-right">Jumlah</TableHead>
+                  <TableHead className="text-right text-xs font-semibold">Jumlah</TableHead>
                   <TableHead className="text-xs font-semibold">Input oleh</TableHead>
                   <TableHead className="text-xs font-semibold">Status</TableHead>
                   <TableHead className="w-24" />
@@ -631,29 +619,29 @@ export function BukuBesarClient({
               </TableHeader>
               <TableBody>
                 {transaksi.length === 0 && (
-                  <TableRow><TableCell colSpan={8} className="text-center py-10 text-sm text-slate-400">Belum ada transaksi</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="py-10 text-center text-sm text-slate-400">Belum ada transaksi</TableCell></TableRow>
                 )}
                 {transaksi.map((trx: any) => (
                   <TableRow key={trx.id} className={trx.is_void ? 'opacity-50' : ''}>
-                    <TableCell className="text-[11px] font-mono text-slate-600 dark:text-slate-400 dark:text-slate-300">{trx.nomor_kuitansi}</TableCell>
-                    <TableCell className="text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                    <TableCell className="font-mono text-[11px] text-slate-600 dark:text-slate-300">{trx.nomor_kuitansi}</TableCell>
+                    <TableCell className="whitespace-nowrap text-xs text-slate-600 dark:text-slate-400">
                       {formatDateWIB(trx.created_at, { day: 'numeric', month: 'short', year: 'numeric' })}
                     </TableCell>
                     <TableCell>
-                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 font-medium uppercase">
+                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium uppercase text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
                         {trx.kategori}
                       </span>
                     </TableCell>
                     <TableCell className="text-xs text-slate-600 dark:text-slate-400">{trx.metode_bayar === 'tunai' ? 'Tunai' : 'Transfer'}</TableCell>
-                    <TableCell className="text-sm text-right font-semibold">{formatRupiah(trx.jumlah_total)}</TableCell>
+                    <TableCell className="text-right text-sm font-semibold tabular-nums">{formatRupiah(trx.jumlah_total)}</TableCell>
                     <TableCell className="text-xs text-slate-400">{trx.nama_input}</TableCell>
                     <TableCell>
                       {trx.is_void ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-rose-100 text-rose-600 font-medium">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-medium text-rose-600">
                           <Ban className="h-2.5 w-2.5" /> Void
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-400 font-medium">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400">
                           <CheckCircle2 className="h-2.5 w-2.5" /> SAH
                         </span>
                       )}
@@ -662,11 +650,11 @@ export function BukuBesarClient({
                       <div className="flex gap-1">
                         {!trx.is_void && !trx.is_synthetic && (
                           <>
-                            <Button size="sm" variant="outline" className="h-6 text-[11px] px-2 gap-1"
+                            <Button size="sm" variant="outline" className="h-6 gap-1 px-2 text-[11px]"
                               onClick={() => openKuitansiFromTrx(trx)}>
                               <Printer className="h-2.5 w-2.5" />
                             </Button>
-                            <Button size="sm" variant="ghost" className="h-6 text-[11px] px-2 text-rose-500 hover:bg-rose-50"
+                            <Button size="sm" variant="ghost" className="h-6 px-2 text-[11px] text-rose-500 hover:bg-rose-50"
                               onClick={() => { setVoidAlasan(''); setVoidModal(trx.id) }}>
                               Void
                             </Button>
@@ -684,45 +672,43 @@ export function BukuBesarClient({
 
       {/* ── Modal Bayar DSPT ── */}
       <Dialog open={!!bayarModal} onOpenChange={v => { if (!v) setBayarModal(null) }}>
-        <DialogContent className="sm:max-w-sm rounded-xl p-0 overflow-hidden">
-          <DialogHeader className="px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-b">
+        <DialogContent className="overflow-hidden rounded-xl p-0 sm:max-w-sm">
+          <DialogHeader className="border-b bg-slate-50 px-5 py-4 dark:bg-slate-800/50">
             <DialogTitle className="text-sm font-semibold">
               Catat Pembayaran {bayarModal?.type?.toUpperCase()}
             </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleBayar} className="p-5 space-y-4">
-            <div className="bg-slate-50 dark:bg-slate-800 rounded-lg px-3 py-2 text-sm">
-              Sisa tagihan: <strong className="text-rose-600">
-                {formatRupiah(dsptSisa)}
-              </strong>
+          <form onSubmit={handleBayar} className="space-y-4 p-5">
+            <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800">
+              Sisa tagihan: <strong className="tabular-nums text-rose-600">{formatRupiah(dsptSisa)}</strong>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Jumlah Dibayar (Rp)</Label>
-              <Input type="number" min={1} value={bayarForm.jumlah}
-                onChange={e => setBayarForm(f => ({ ...f, jumlah: e.target.value }))}
-                className="h-9 text-sm" placeholder="0" />
+              <Label htmlFor="dspt-bayar-jumlah" className="text-xs font-medium">Jumlah Dibayar</Label>
+              <RupiahInput id="dspt-bayar-jumlah" min={1} value={bayarForm.jumlah}
+                onValueChange={raw => setBayarForm(f => ({ ...f, jumlah: raw }))}
+                placeholder="0" autoFocus required />
               {isDsptOverpay && (
                 <p className="rounded-md bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 dark:bg-blue-900/20 dark:text-blue-300">
                   Nominal melebihi sisa DSPT. Target DSPT akan otomatis diperbarui menjadi {formatRupiah(dsptTargetAfterOverpay)}.
                 </p>
               )}
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Metode Pembayaran</Label>
-              <div className="flex gap-3">
+            <fieldset className="space-y-1.5">
+              <legend className="text-xs font-medium leading-none">Metode Pembayaran</legend>
+              <div className="flex gap-3 pt-1">
                 {['tunai', 'transfer'].map(m => (
-                  <label key={m} className="flex items-center gap-2 cursor-pointer">
+                  <label key={m} className="flex cursor-pointer items-center gap-2">
                     <input type="radio" name="metode" value={m} checked={bayarForm.metode === m}
                       onChange={() => setBayarForm(f => ({ ...f, metode: m }))} />
                     <span className="text-sm capitalize">{m === 'tunai' ? 'Tunai' : 'Transfer Bank'}</span>
                   </label>
                 ))}
               </div>
-            </div>
-            {msg && <p className="text-xs text-rose-600 bg-rose-50 px-3 py-2 rounded-md">{msg}</p>}
+            </fieldset>
+            {msg && <p className="rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-600">{msg}</p>}
             <div className="flex gap-2 pt-1">
-              <Button type="button" variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => setBayarModal(null)}>Batal</Button>
-              <Button type="submit" size="sm" className="flex-1 h-9 text-sm" disabled={isPending}>
+              <Button type="button" variant="outline" size="sm" className="h-9 flex-1 text-sm" onClick={() => setBayarModal(null)}>Batal</Button>
+              <Button type="submit" size="sm" className="h-9 flex-1 text-sm" disabled={isPending || !bayarForm.jumlah}>
                 {isPending ? 'Menyimpan...' : 'Simpan & Kuitansi'}
               </Button>
             </div>
@@ -732,18 +718,18 @@ export function BukuBesarClient({
 
       {/* ── Modal Diskon ── */}
       <Dialog open={!!diskonModal} onOpenChange={v => { if (!v) setDiskonModal(null) }}>
-        <DialogContent className="sm:max-w-sm rounded-xl p-0 overflow-hidden">
-          <DialogHeader className="px-5 py-4 bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800">
+        <DialogContent className="overflow-hidden rounded-xl p-0 sm:max-w-sm">
+          <DialogHeader className="border-b border-blue-200 bg-blue-50 px-5 py-4 dark:border-blue-800 dark:bg-blue-900/20">
             <DialogTitle className="text-sm font-semibold text-blue-700 dark:text-blue-400">
               Beri Keringanan — {diskonModal?.label}
             </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleDiskon} className="p-5 space-y-4">
+          <form onSubmit={handleDiskon} className="space-y-4 p-5">
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Jumlah Keringanan (Rp)</Label>
-              <Input type="number" min={1} value={diskonForm.jumlah}
-                onChange={e => setDiskonForm(f => ({ ...f, jumlah: e.target.value }))}
-                className="h-9 text-sm" placeholder="0" />
+              <Label htmlFor="diskon-dspt-jumlah" className="text-xs font-medium">Jumlah Keringanan</Label>
+              <RupiahInput id="diskon-dspt-jumlah" min={1} value={diskonForm.jumlah}
+                onValueChange={raw => setDiskonForm(f => ({ ...f, jumlah: raw }))}
+                placeholder="0" autoFocus required />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-medium">Alasan</Label>
@@ -758,12 +744,12 @@ export function BukuBesarClient({
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Keterangan Tambahan (opsional)</Label>
-              <Input value={diskonForm.keterangan} onChange={e => setDiskonForm(f => ({ ...f, keterangan: e.target.value }))} className="h-9 text-sm" />
+              <Label htmlFor="diskon-dspt-ket" className="text-xs font-medium">Keterangan Tambahan (opsional)</Label>
+              <Input id="diskon-dspt-ket" value={diskonForm.keterangan} onChange={e => setDiskonForm(f => ({ ...f, keterangan: e.target.value }))} className="h-9 text-sm" />
             </div>
             <div className="flex gap-2 pt-1">
-              <Button type="button" variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => setDiskonModal(null)}>Batal</Button>
-              <Button type="submit" size="sm" className="flex-1 h-9 text-sm bg-blue-600 hover:bg-blue-700" disabled={isPending}>
+              <Button type="button" variant="outline" size="sm" className="h-9 flex-1 text-sm" onClick={() => setDiskonModal(null)}>Batal</Button>
+              <Button type="submit" size="sm" className="h-9 flex-1 bg-blue-600 text-sm hover:bg-blue-700" disabled={isPending || !diskonForm.jumlah}>
                 {isPending ? 'Menyimpan...' : 'Beri Keringanan'}
               </Button>
             </div>
@@ -773,26 +759,26 @@ export function BukuBesarClient({
 
       {/* Modal Batal Diskon */}
       <Dialog open={!!batalDiskonModal} onOpenChange={v => { if (!v) setBatalDiskonModal(null) }}>
-        <DialogContent className="sm:max-w-sm rounded-xl p-0 overflow-hidden">
-          <DialogHeader className="px-5 py-4 bg-rose-50 dark:bg-rose-900/20 border-b border-rose-200 dark:border-rose-800">
+        <DialogContent className="overflow-hidden rounded-xl p-0 sm:max-w-sm">
+          <DialogHeader className="border-b border-rose-200 bg-rose-50 px-5 py-4 dark:border-rose-800 dark:bg-rose-900/20">
             <DialogTitle className="text-sm font-semibold text-rose-700 dark:text-rose-400">
               Batalkan Keringanan
             </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleBatalDiskon} className="p-5 space-y-4">
-            <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
-              <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+          <form onSubmit={handleBatalDiskon} className="space-y-4 p-5">
+            <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               Keringanan akan dihapus dari tagihan siswa dan status tagihan dihitung ulang.
             </div>
             {batalDiskonModal && (
               <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-slate-800">
                 <p className="text-xs text-slate-500 dark:text-slate-400">Nominal keringanan</p>
-                <p className="font-semibold text-rose-600">{formatRupiah(batalDiskonModal.jumlah)}</p>
+                <p className="font-semibold tabular-nums text-rose-600">{formatRupiah(batalDiskonModal.jumlah)}</p>
               </div>
             )}
             <div className="flex gap-2 pt-1">
-              <Button type="button" variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => setBatalDiskonModal(null)}>Tutup</Button>
-              <Button type="submit" variant="destructive" size="sm" className="flex-1 h-9 text-sm" disabled={isPending}>
+              <Button type="button" variant="outline" size="sm" className="h-9 flex-1 text-sm" onClick={() => setBatalDiskonModal(null)}>Tutup</Button>
+              <Button type="submit" variant="destructive" size="sm" className="h-9 flex-1 text-sm" disabled={isPending}>
                 {isPending ? 'Memproses...' : 'Batalkan'}
               </Button>
             </div>
@@ -802,26 +788,26 @@ export function BukuBesarClient({
 
       {/* Modal Void */}
       <Dialog open={!!voidModal} onOpenChange={v => { if (!v) setVoidModal(null) }}>
-        <DialogContent className="sm:max-w-sm rounded-xl p-0 overflow-hidden">
-          <DialogHeader className="px-5 py-4 bg-rose-50 dark:bg-rose-900/20 border-b border-rose-200 dark:border-rose-800">
+        <DialogContent className="overflow-hidden rounded-xl p-0 sm:max-w-sm">
+          <DialogHeader className="border-b border-rose-200 bg-rose-50 px-5 py-4 dark:border-rose-800 dark:bg-rose-900/20">
             <DialogTitle className="text-sm font-semibold text-rose-700 dark:text-rose-400">
               Batalkan Transaksi (Void)
             </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleVoid} className="p-5 space-y-4">
-            <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
-              <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
+          <form onSubmit={handleVoid} className="space-y-4 p-5">
+            <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               Void akan mengurangi total pembayaran siswa. Tindakan ini dicatat di log audit.
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Alasan Pembatalan <span className="text-rose-500">*</span></Label>
-              <Input value={voidAlasan} onChange={e => setVoidAlasan(e.target.value)}
+              <Label htmlFor="void-trx-alasan" className="text-xs font-medium">Alasan Pembatalan <span className="text-rose-500">*</span></Label>
+              <Input id="void-trx-alasan" value={voidAlasan} onChange={e => setVoidAlasan(e.target.value)}
                 className="h-9 text-sm" placeholder="Jelaskan alasan void..." />
             </div>
-            {msg && <p className="text-xs text-rose-600 bg-rose-50 px-3 py-2 rounded-md">{msg}</p>}
+            {msg && <p className="rounded-md bg-rose-50 px-3 py-2 text-xs text-rose-600">{msg}</p>}
             <div className="flex gap-2 pt-1">
-              <Button type="button" variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => setVoidModal(null)}>Batal</Button>
-              <Button type="submit" variant="destructive" size="sm" className="flex-1 h-9 text-sm" disabled={isPending || !voidAlasan.trim()}>
+              <Button type="button" variant="outline" size="sm" className="h-9 flex-1 text-sm" onClick={() => setVoidModal(null)}>Batal</Button>
+              <Button type="submit" variant="destructive" size="sm" className="h-9 flex-1 text-sm" disabled={isPending || !voidAlasan.trim()}>
                 {isPending ? 'Memproses...' : 'Konfirmasi Void'}
               </Button>
             </div>
@@ -831,22 +817,22 @@ export function BukuBesarClient({
 
       {/* ── Modal Janji Bayar ── */}
       <Dialog open={!!janjiModal} onOpenChange={v => { if (!v) setJanjiModal(null) }}>
-        <DialogContent className="sm:max-w-sm rounded-xl p-0 overflow-hidden">
-          <DialogHeader className="px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-b">
+        <DialogContent className="overflow-hidden rounded-xl p-0 sm:max-w-sm">
+          <DialogHeader className="border-b bg-slate-50 px-5 py-4 dark:bg-slate-800/50">
             <DialogTitle className="text-sm font-semibold">Atur Janji Bayar</DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleJanji} className="p-5 space-y-4">
+          <form onSubmit={handleJanji} className="space-y-4 p-5">
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Tanggal Janji</Label>
-              <Input type="date" value={janjiForm.tanggal} onChange={e => setJanjiForm(f => ({ ...f, tanggal: e.target.value }))} className="h-9 text-sm" />
+              <Label htmlFor="janji-tanggal" className="text-xs font-medium">Tanggal Janji</Label>
+              <Input id="janji-tanggal" type="date" value={janjiForm.tanggal} onChange={e => setJanjiForm(f => ({ ...f, tanggal: e.target.value }))} className="h-9 text-sm" />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Catatan (opsional)</Label>
-              <Input value={janjiForm.catatan} onChange={e => setJanjiForm(f => ({ ...f, catatan: e.target.value }))} className="h-9 text-sm" placeholder="Misal: akan bayar gajian bulan depan" />
+              <Label htmlFor="janji-catatan" className="text-xs font-medium">Catatan (opsional)</Label>
+              <Input id="janji-catatan" value={janjiForm.catatan} onChange={e => setJanjiForm(f => ({ ...f, catatan: e.target.value }))} className="h-9 text-sm" placeholder="Misal: akan bayar gajian bulan depan" />
             </div>
             <div className="flex gap-2 pt-1">
-              <Button type="button" variant="outline" size="sm" className="flex-1 h-9 text-sm" onClick={() => setJanjiModal(null)}>Batal</Button>
-              <Button type="submit" size="sm" className="flex-1 h-9 text-sm" disabled={isPending || !janjiForm.tanggal}>
+              <Button type="button" variant="outline" size="sm" className="h-9 flex-1 text-sm" onClick={() => setJanjiModal(null)}>Batal</Button>
+              <Button type="submit" size="sm" className="h-9 flex-1 text-sm" disabled={isPending || !janjiForm.tanggal}>
                 {isPending ? 'Menyimpan...' : 'Simpan'}
               </Button>
             </div>
@@ -854,7 +840,6 @@ export function BukuBesarClient({
         </DialogContent>
       </Dialog>
 
-      {/* ── Kuitansi Modal (react-to-print A4) ── */}
       <KuitansiModal
         data={kuitansiData}
         open={kuitansiOpen}

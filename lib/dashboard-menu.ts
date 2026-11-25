@@ -1,4 +1,6 @@
-import { MENU_ITEMS, type SidebarGroupConfig } from '@/config/menu'
+import { MENU_ITEMS, SIDEBAR_HIDDEN_SUBROUTE_IDS, type SidebarGroupConfig } from '@/config/menu'
+
+const HIDDEN_UNASSIGNED_IDS = new Set<string>(SIDEBAR_HIDDEN_SUBROUTE_IDS)
 
 export const MAX_DASHBOARD_SHORTCUTS = 8
 export type DashboardMenuItem = {
@@ -37,7 +39,8 @@ export function groupDashboardMenus(menus: DashboardMenuItem[], groups: SidebarG
     }
     if (items.length) result.push({ id: group.id, label: group.label, items })
   }
-  if (remaining.size) result.push({ id: 'dashboard-unassigned', label: 'Lainnya', items: [...remaining.values()] })
+  const unassigned = [...remaining.values()].filter(item => !HIDDEN_UNASSIGNED_IDS.has(item.id))
+  if (unassigned.length) result.push({ id: 'dashboard-unassigned', label: 'Lainnya', items: unassigned })
   return result
 }
 

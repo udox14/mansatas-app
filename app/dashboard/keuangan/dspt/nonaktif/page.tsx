@@ -9,7 +9,7 @@ import { DsptClient } from '../dspt-client'
 import { loadBillingPageData } from '../billing-page-data'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'DSPT & SPP Nonaktif | Keuangan MANSATAS' }
+export const metadata = { title: 'Tagihan DSPT & SPP Nonaktif | Keuangan MANSATAS' }
 
 async function NonaktifDataFetcher() {
   const result = await loadBillingPageData('inactive')
@@ -23,7 +23,7 @@ export default async function DsptNonaktifPage() {
   if (!(await checkFeatureAccess(db, session.user.id, 'keuangan-dspt'))) redirect('/dashboard')
   return (
     <div className="space-y-4 animate-in fade-in duration-500">
-      <PageHeader title="DSPT & SPP Nonaktif" description="Keuangan siswa lulus, pindah, keluar, dan status nonaktif lainnya" />
+      <PageHeader title="Tagihan DSPT & SPP — Siswa Nonaktif" description="Kelola sisa tagihan DSPT dan tunggakan SPP siswa lulus, pindah, atau keluar" />
       <Suspense fallback={<PageLoading text="Memuat data siswa nonaktif..." />}><NonaktifDataFetcher /></Suspense>
     </div>
   )

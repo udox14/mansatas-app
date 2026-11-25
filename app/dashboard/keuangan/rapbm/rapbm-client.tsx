@@ -9,237 +9,642 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { RupiahInput } from '@/components/ui/rupiah-input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatRupiah } from '@/lib/utils'
-import { filterRapbmGroups, rapbmStatusLabel, type RapbmActionResult, type RapbmAmounts, type RapbmGroup, type RapbmItem, type RapbmNote, type RapbmPageData } from '@/lib/rapbm'
+import {
+  filterRapbmGroups,
+  rapbmStatusLabel,
+  type RapbmActionResult,
+  type RapbmAmounts,
+  type RapbmGroup,
+  type RapbmItem,
+  type RapbmNote,
+  type RapbmPageData,
+} from '@/lib/rapbm'
 import { activateKomiteRapbm, configureKomiteRapbm, importInitialRapbmAction, publishRapbmAction } from './actions'
 
-const money=(value:number|null)=>value===null?'—':formatRupiah(value)
-const date=(value:string)=>new Intl.DateTimeFormat('id-ID',{dateStyle:'medium',timeZone:'Asia/Jakarta'}).format(new Date(value.includes('T')?value:`${value.replace(' ','T')}Z`))
+const money = (value: number | null) => (value === null ? '—' : formatRupiah(value))
+const date = (value: string) =>
+  new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeZone: 'Asia/Jakarta' }).format(
+    new Date(value.includes('T') ? value : `${value.replace(' ', 'T')}Z`),
+  )
 
-type BudgetData={
-  groups:{id:string;label:string;account:string|null;komite:number|null;detail:number}[]
-  positions:{group_id:string;label:string;account:string|null;amount:number;available:number;locked:number;realized:number}[]
-  history:{id:string;group_id:string;amount:number;state:string;cashflow_id:string|null;pengajuan_id:string|null;created_at:string;proof:string|null;description:string}[]
-  associations:{id:string;year:number;cohort:number|null;enabled:number|null;carry_forward:number|null;revision_reason:string|null}[]
-  remaining:{version_id:string;cohort:number;available:number}[]
+type BudgetData = {
+  groups: { id: string; label: string; account: string | null; komite: number | null; detail: number }[]
+  positions: { group_id: string; label: string; account: string | null; amount: number; available: number; locked: number; realized: number }[]
+  history: { id: string; group_id: string; amount: number; state: string; cashflow_id: string | null; pengajuan_id: string | null; created_at: string; proof: string | null; description: string }[]
+  associations: { id: string; year: number; cohort: number | null; enabled: number | null; carry_forward: number | null; revision_reason: string | null }[]
+  remaining: { version_id: string; cohort: number; available: number }[]
 }
 
-export function RapbmClient({data,budget}:{data:RapbmPageData;budget:BudgetData}) {
-  const router=useRouter()
-  const [pending,startTransition]=useTransition()
-  const [importOpen,setImportOpen]=useState(false)
-  const [message,setMessage]=useState<{text:string;error:boolean}|null>(null)
-  const [query,setQuery]=useState('')
-  const [funding,setFunding]=useState('all')
-  const [tab,setTab]=useState('expense')
-  const {selected,document,versions,canManage}=data
+export function RapbmClient({ data, budget }: { data: RapbmPageData; budget: BudgetData }) {
+  const router = useRouter()
+  const [pending, startTransition] = useTransition()
+  const [importOpen, setImportOpen] = useState(false)
+  const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null)
+  const [query, setQuery] = useState('')
+  const [funding, setFunding] = useState('all')
+  const { selected, document, versions, canManage } = data
 
-  const groups=document?filterRapbmGroups(document.expenses,query,funding):[]
-  const filtered=query.trim()!=='' || funding!=='all'
-  const [cohortFilter,setCohortFilter]=useState('all')
-  const cohorts=[...new Set(budget.associations.flatMap(row=>row.cohort?[row.cohort]:[]))].sort((a,b)=>b-a)
-  const filteredVersions=cohortFilter==='all' ? versions : versions.filter(v=>budget.associations.some(row=>row.id===v.id&&row.cohort===Number(cohortFilter)))
-  const years=[...new Set(filteredVersions.map(v=>v.year))]
-  const has2026=versions.some(v=>v.year===2026)
+  const showPaguTab = Boolean(budget.positions.length || (canManage && selected && selected.status !== 'draft'))
+  const [tab, setTab] = useState(() => (budget.positions.length > 0 ? 'pagu' : 'expense'))
+  const activeTab = tab === 'pagu' && !showPaguTab ? 'expense' : tab
 
-  function navigate(year:number,version?:string) {
-    const params=new URLSearchParams({year:String(year)})
-    if (version) params.set('version',version)
+  const groups = document ? filterRapbmGroups(document.expenses, query, funding) : []
+  const filtered = query.trim() !== '' || funding !== 'all'
+  const [cohortFilter, setCohortFilter] = useState('all')
+  const cohorts = [...new Set(budget.associations.flatMap(row => (row.cohort ? [row.cohort] : [])))].sort((a, b) => b - a)
+  const filteredVersions = cohortFilter === 'all' ? versions : versions.filter(v => budget.associations.some(row => row.id === v.id && row.cohort === Number(cohortFilter)))
+  const years = [...new Set(filteredVersions.map(v => v.year))]
+  const has2026 = versions.some(v => v.year === 2026)
+
+  function navigate(year: number, version?: string) {
+    const params = new URLSearchParams({ year: String(year) })
+    if (version) params.set('version', version)
     router.push(`/dashboard/keuangan/rapbm?${params}`)
   }
-  function run(task:()=>Promise<RapbmActionResult>,close?:()=>void) {
+
+  function run(task: () => Promise<RapbmActionResult>, close?: () => void) {
     setMessage(null)
-    startTransition(async()=>{
+    startTransition(async () => {
       try {
-        const result=await task()
-        if (result.error!==undefined) throw new Error(result.error)
-        setMessage({text:result.success,error:false})
+        const result = await task()
+        if (result.error !== undefined) throw new Error(result.error)
+        setMessage({ text: result.success, error: false })
         close?.()
-        navigate(result.year,result.id)
+        navigate(result.year, result.id)
         router.refresh()
-      } catch(error) {setMessage({text:error instanceof Error?error.message:'RAPBM belum dapat diproses. Silakan coba lagi.',error:true})}
+      } catch (error) {
+        setMessage({ text: error instanceof Error ? error.message : 'RAPBM belum dapat diproses. Silakan coba lagi.', error: true })
+      }
     })
   }
 
-  return <div className="space-y-4">
-    <div className="flex flex-col gap-4 border-b pb-5 sm:flex-row sm:items-end sm:justify-between">
-      <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
-        <div className="space-y-1.5"><Label htmlFor="rapbm-cohort">Angkatan</Label>
-          <Select value={cohortFilter} onValueChange={cohort=>{
-            setCohortFilter(cohort)
-            const version=versions.find(v=>cohort==='all'||budget.associations.some(row=>row.id===v.id&&row.cohort===Number(cohort)))
-            if(version) navigate(version.year,version.id)
-          }}>
-            <SelectTrigger id="rapbm-cohort" className="w-full sm:w-48"><SelectValue/></SelectTrigger>
-            <SelectContent><SelectItem value="all">Semua Angkatan</SelectItem>{cohorts.map(year=><SelectItem key={year} value={String(year)}>Angkatan {year}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5"><Label htmlFor="rapbm-year">Tahun anggaran</Label>
-          <Select value={selected?String(selected.year):''} disabled={pending||!years.length} onValueChange={year=>{const candidates=filteredVersions.filter(v=>v.year===Number(year));const version=candidates.find(v=>v.status==='published')??candidates[0];navigate(Number(year),version?.id)}}>
-            <SelectTrigger id="rapbm-year" className="w-full sm:w-36"><SelectValue placeholder="Pilih tahun" /></SelectTrigger><SelectContent>{years.map(year=><SelectItem key={year} value={String(year)}>{year}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1.5"><Label htmlFor="rapbm-version">Versi dokumen</Label>
-          <Select value={selected?.id||''} disabled={pending||!selected} onValueChange={id=>selected&&navigate(selected.year,id)}>
-            <SelectTrigger id="rapbm-version" className="w-full sm:w-60"><SelectValue placeholder="Pilih versi" /></SelectTrigger><SelectContent>{filteredVersions.filter(v=>v.year===selected?.year).map(v=><SelectItem key={v.id} value={v.id}>Versi {v.version} · {v.status==='draft'?'Draft':v.status==='published'?'Terbit':'Arsip'}</SelectItem>)}</SelectContent>
-          </Select>
-        </div>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {selected&&<Button asChild variant="outline" size="sm"><a href={`/api/keuangan/rapbm/${selected.id}/source`}><Download className="mr-2 h-4 w-4" />Excel sumber</a></Button>}
-        {canManage&&<Button size="sm" disabled={pending} onClick={()=>{setMessage(null);setImportOpen(true)}}><Upload className="mr-2 h-4 w-4" />Impor versi baru</Button>}
-      </div>
-    </div>
-
-    {message&&<div role={message.error?'alert':'status'} className={`rounded-lg border px-4 py-3 text-sm ${message.error?'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-200':'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200'}`}>{message.text}</div>}
-
-    {document&&selected?<>
-      <div className="flex flex-wrap items-start justify-between gap-2 text-sm">
-        <div><p className="font-semibold">{document.institution}</p><p className="mt-1 text-xs text-muted-foreground">{rapbmStatusLabel(selected.status)} · Versi {selected.version} · {selected.published_at?`Diterbitkan ${date(selected.published_at)}`:`Diimpor ${date(selected.created_at)}`}</p></div>
-        {selected.status==='superseded'&&<p className="text-xs text-muted-foreground">Anda sedang melihat arsip. Pilih versi terbit untuk dokumen terbaru.</p>}
-      </div>
-      <div className="grid divide-y rounded-xl border bg-card text-card-foreground md:grid-cols-2 md:divide-x md:divide-y-0">
-        <BudgetSummary label="Rencana pendapatan" amounts={document.incomeTotal} />
-        <BudgetSummary label="Rencana belanja" amounts={document.expenseTotal} />
-      </div>
-      <p className="-mt-3 text-xs text-muted-foreground">Nominal sesuai dokumen sumber. Tanda — berarti sel sumber kosong, bukan nol.</p>
-      {document.notes.length>0&&<Notes notes={document.notes} />}
-      {canManage&&selected.status==='draft'&&<PublishPanel key={selected.id} noteCount={document.notes.length} pending={pending} onPublish={ack=>run(()=>publishRapbmAction(selected.id,data.publicationRevision,ack))} />}
-
-      <OperationalBudget key={selected.id} version={selected.id} ready={selected.status!=='draft'} budget={budget} canManage={canManage} />
-      <Tabs value={tab} onValueChange={setTab}>
-        <TabsList><TabsTrigger value="income">Pendapatan</TabsTrigger><TabsTrigger value="expense">Belanja</TabsTrigger></TabsList>
-        <TabsContent value="income" className="mt-4 space-y-3">
-          <p className="text-sm text-muted-foreground">Sumber pendapatan yang direncanakan untuk tahun {document.year}.</p>
-          {document.income.map(group=><Group key={group.reference} group={group} income />)}
-        </TabsContent>
-        <TabsContent value="expense" className="mt-4 space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <div className="relative flex-1"><Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input aria-label="Cari uraian atau kode akun" value={query} onChange={event=>setQuery(event.target.value)} placeholder="Cari uraian atau kode akun…" className="pl-9" /></div>
-            <Select value={funding} onValueChange={setFunding}><SelectTrigger className="w-full sm:w-48" aria-label="Filter sumber dana"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Semua sumber dana</SelectItem><SelectItem value="apbn">APBN</SelectItem><SelectItem value="komite">Komite</SelectItem></SelectContent></Select>
+  return (
+    <div className="space-y-4 pb-8">
+      <div className="flex flex-col gap-4 border-b pb-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap">
+          <div className="space-y-1.5">
+            <Label htmlFor="rapbm-cohort" className="text-xs">Angkatan</Label>
+            <Select
+              value={cohortFilter}
+              onValueChange={cohort => {
+                setCohortFilter(cohort)
+                const version = versions.find(v => cohort === 'all' || budget.associations.some(row => row.id === v.id && row.cohort === Number(cohort)))
+                if (version) navigate(version.year, version.id)
+              }}
+            >
+              <SelectTrigger id="rapbm-cohort" className="h-9 w-full text-xs sm:w-44"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Angkatan</SelectItem>
+                {cohorts.map(year => <SelectItem key={year} value={String(year)}>Angkatan {year}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
-          <p className="text-xs text-muted-foreground">{groups.length} kelompok · {groups.reduce((sum,g)=>sum+g.items.length,0)} rincian{filtered?' cocok dengan pencarian. Subtotal tetap mengikuti dokumen lengkap.':''}</p>
-          <div className="space-y-3 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200" key={`${funding}:${query}`}>
-            {groups.map(group=><Group key={group.reference} group={group} filtered={filtered} />)}
-            {!groups.length&&<div className="rounded-xl border border-dashed py-12 text-center text-sm text-muted-foreground">Tidak ada rincian yang sesuai. Coba kata kunci atau sumber dana lain.</div>}
+          <div className="space-y-1.5">
+            <Label htmlFor="rapbm-year" className="text-xs">Tahun anggaran</Label>
+            <Select
+              value={selected ? String(selected.year) : ''}
+              disabled={pending || !years.length}
+              onValueChange={year => {
+                const candidates = filteredVersions.filter(v => v.year === Number(year))
+                const version = candidates.find(v => v.status === 'published') ?? candidates[0]
+                navigate(Number(year), version?.id)
+              }}
+            >
+              <SelectTrigger id="rapbm-year" className="h-9 w-full text-xs sm:w-32"><SelectValue placeholder="Pilih tahun" /></SelectTrigger>
+              <SelectContent>{years.map(year => <SelectItem key={year} value={String(year)}>{year}</SelectItem>)}</SelectContent>
+            </Select>
           </div>
-        </TabsContent>
-      </Tabs>
-      <p className="border-t pt-4 text-xs text-muted-foreground">Sumber: {selected.original_filename} · Lembar {document.sheet} · Diimpor oleh {selected.created_by_name}. Arsip tahun dan versi sebelumnya tetap tersimpan.</p>
-    </>:<div className="rounded-xl border border-dashed px-5 py-14 text-center">
-      <FileSpreadsheet className="mx-auto mb-3 h-9 w-9 text-slate-300" />
-      <h2 className="text-base font-semibold">{versions.length?'Pilih tahun dan versi RAPBM':'Belum ada RAPBM yang tersedia'}</h2>
-      <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">{canManage?'Impor Excel sebagai draft, periksa angka, lalu terbitkan agar dapat dibaca pengurus.':'RAPBM akan tampil setelah diterbitkan oleh Bendahara atau Super Admin.'}</p>
-      {canManage&&!has2026&&<Button className="mt-5" variant="outline" disabled={pending} onClick={()=>run(importInitialRapbmAction)}>{pending?<Loader2 className="mr-2 h-4 w-4 animate-spin" />:<FileSpreadsheet className="mr-2 h-4 w-4" />}Siapkan RAPBM 2026</Button>}
-    </div>}
+          <div className="col-span-2 space-y-1.5 sm:col-span-1">
+            <Label htmlFor="rapbm-version" className="text-xs">Versi dokumen</Label>
+            <Select value={selected?.id || ''} disabled={pending || !selected} onValueChange={id => selected && navigate(selected.year, id)}>
+              <SelectTrigger id="rapbm-version" className="h-9 w-full text-xs sm:w-56"><SelectValue placeholder="Pilih versi" /></SelectTrigger>
+              <SelectContent>
+                {filteredVersions.filter(v => v.year === selected?.year).map(v => (
+                  <SelectItem key={v.id} value={v.id}>
+                    Versi {v.version} · {v.status === 'draft' ? 'Draft' : v.status === 'published' ? 'Terbit' : 'Arsip'}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {selected && (
+            <Button asChild variant="outline" size="sm" className="h-9 text-xs">
+              <a href={`/api/keuangan/rapbm/${selected.id}/source`}><Download className="mr-1.5 h-3.5 w-3.5" />Excel Sumber</a>
+            </Button>
+          )}
+          {canManage && (
+            <Button size="sm" className="h-9 text-xs" disabled={pending} onClick={() => { setMessage(null); setImportOpen(true) }}>
+              <Upload className="mr-1.5 h-3.5 w-3.5" />Impor Versi Baru
+            </Button>
+          )}
+        </div>
+      </div>
 
-    <Dialog open={importOpen} onOpenChange={open=>!pending&&setImportOpen(open)}><DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg"><DialogHeader><DialogTitle>Impor versi RAPBM</DialogTitle><DialogDescription>Gunakan format Excel RAPBM yang sama dengan dokumen 2026. Tahun dibaca dari dokumen, bukan tahun ajaran aplikasi.</DialogDescription></DialogHeader>
-      <form className="space-y-4" onSubmit={event=>{
-        event.preventDefault()
-        const form=new FormData(event.currentTarget)
-        run(async()=>{
-          const response=await fetch('/api/keuangan/rapbm/import',{method:'POST',body:form,credentials:'include'})
-          const result=await response.json().catch(()=>({error:'Respons impor tidak dapat dibaca. Silakan coba kembali.'}))
-          if (!response.ok) throw new Error(result.error||'Impor gagal.')
-          return result
-        },()=>setImportOpen(false))
-      }}>
-        <div className="space-y-2"><Label htmlFor="rapbm-file">File Excel (.xlsx)</Label><label className="block text-sm">Angkatan sumber dana<Input name="cohort" required type="number" min={2026} max={2199} defaultValue={cohortFilter==='all'?2026:Number(cohortFilter)}/></label>
-      <Input id="rapbm-file" name="file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required disabled={pending} /><p className="text-xs text-muted-foreground">Maksimal 6 MB. Setiap impor menjadi versi baru; dokumen lama tidak ditimpa.</p></div>
-        {canManage&&!has2026&&<Button variant="outline" type="button" disabled={pending} onClick={()=>run(importInitialRapbmAction,()=>setImportOpen(false))}>Gunakan dokumen awal 2026</Button>}
-        {message?.error&&<p role="alert" className="text-sm text-rose-700">{message.text}</p>}
-        <div className="flex justify-end gap-2"><Button type="button" variant="outline" disabled={pending} onClick={()=>setImportOpen(false)}>Batal</Button><Button type="submit" disabled={pending}>{pending&&<Loader2 className="mr-2 h-4 w-4 animate-spin" />}Impor sebagai draft</Button></div>
-      </form>
-    </DialogContent></Dialog>
-  </div>
-}
+      {message && (
+        <div role={message.error ? 'alert' : 'status'} className={`rounded-lg border px-4 py-3 text-sm ${message.error ? 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-200' : 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200'}`}>
+          {message.text}
+        </div>
+      )}
 
-function BudgetSummary({label,amounts}:{label:string;amounts:RapbmAmounts}) {
-  return <section className="space-y-2 p-3 sm:space-y-3 sm:p-4"><h2 className="text-sm font-medium text-muted-foreground">{label}</h2><p className="text-xl font-bold tracking-tight tabular-nums sm:text-2xl">{money(amounts.total)}</p><dl className="flex flex-wrap gap-x-6 gap-y-2 text-xs"><div><dt className="text-muted-foreground">APBN</dt><dd className="mt-1 font-medium tabular-nums">{money(amounts.apbn)}</dd></div><div><dt className="text-muted-foreground">Komite</dt><dd className="mt-1 font-medium tabular-nums">{money(amounts.komite)}</dd></div></dl></section>
-}
+      {document && selected ? (
+        <>
+          <div className="flex flex-wrap items-start justify-between gap-2 text-sm">
+            <div>
+              <p className="font-semibold text-slate-900 dark:text-white">{document.institution}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {rapbmStatusLabel(selected.status)} · Versi {selected.version} · {selected.published_at ? `Diterbitkan ${date(selected.published_at)}` : `Diimpor ${date(selected.created_at)}`}
+              </p>
+            </div>
+            {selected.status === 'superseded' && (
+              <p className="rounded-md bg-amber-50 px-2.5 py-1 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                Sedang melihat versi arsip. Pilih versi terbit untuk dokumen aktif.
+              </p>
+            )}
+          </div>
 
-function Group({group,income=false,filtered=false}:{group:RapbmGroup;income?:boolean;filtered?:boolean}) {
-  return <details className="overflow-hidden rounded-xl border bg-card text-card-foreground" open={filtered||undefined}>
-    <summary className="flex cursor-pointer list-none items-start gap-3 p-4 transition-colors hover:bg-slate-50 dark:hover:bg-slate-900">
-      <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-      <div className="min-w-0 flex-1"><h3 className="text-sm font-semibold">{group.label}</h3><p className="mt-1 text-xs text-muted-foreground">{group.account?`${group.account} · `:''}{group.items.length} rincian</p></div>
-      <div className="shrink-0 text-right"><p className="text-sm font-semibold tabular-nums">{money(group.amounts.total)}</p><p className="mt-1 text-[11px] text-muted-foreground">Subtotal dokumen</p></div>
-    </summary>
-    <div className="border-t motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150">
-      <div className="hidden md:block"><Table><TableHeader><TableRow className="bg-muted/50"><TableHead className="w-[48%]">Uraian</TableHead>{!income&&<><TableHead className="text-right">APBN</TableHead><TableHead className="text-right">Komite</TableHead></>}<TableHead className="text-right">Jumlah</TableHead></TableRow></TableHeader>
-        <TableBody>{group.items.map(item=><TableRow key={item.reference}><TableCell><ItemDescription item={item} /></TableCell>{!income&&<><TableCell className="whitespace-nowrap text-right tabular-nums">{money(item.amounts.apbn)}</TableCell><TableCell className="whitespace-nowrap text-right tabular-nums">{money(item.amounts.komite)}</TableCell></>}<TableCell className="whitespace-nowrap text-right font-medium tabular-nums">{money(item.amounts.total)}</TableCell></TableRow>)}</TableBody></Table></div>
-      <div className="divide-y md:hidden">{group.items.map(item=><div className="space-y-3 p-4" key={item.reference}><ItemDescription item={item} /><dl className={`grid gap-3 text-xs ${income?'grid-cols-1':'grid-cols-3'}`}>{(income?[['Jumlah',item.amounts.total]]:[['APBN',item.amounts.apbn],['Komite',item.amounts.komite],['Jumlah',item.amounts.total]]).map(([label,value])=><div key={String(label)}><dt className="text-muted-foreground">{label}</dt><dd className="mt-1 break-words font-medium tabular-nums">{money(value as number|null)}</dd></div>)}</dl></div>)}</div>
-      <p className="border-t bg-slate-50/50 px-4 py-2 text-xs text-muted-foreground dark:bg-slate-900/30">Subtotal dokumen: APBN {money(group.amounts.apbn)} · Komite {money(group.amounts.komite)} · Jumlah {money(group.amounts.total)}<span className="mt-1 block">Sumber: {group.subtotalReference}</span></p>
+          <div className="grid divide-y rounded-xl border bg-card text-card-foreground md:grid-cols-2 md:divide-x md:divide-y-0">
+            <BudgetSummary label="Rencana Pendapatan" amounts={document.incomeTotal} />
+            <BudgetSummary label="Rencana Belanja" amounts={document.expenseTotal} />
+          </div>
+          <p className="-mt-2 text-xs text-muted-foreground">Nominal mengikuti dokumen sumber Excel. Tanda — menandakan sel kosong (bukan nol).</p>
+
+          {document.notes.length > 0 && <Notes notes={document.notes} />}
+          {canManage && selected.status === 'draft' && (
+            <PublishPanel key={selected.id} noteCount={document.notes.length} pending={pending} onPublish={ack => run(() => publishRapbmAction(selected.id, data.publicationRevision, ack))} />
+          )}
+
+          <Tabs value={activeTab} onValueChange={setTab} className="space-y-4">
+            <TabsList className="h-auto max-w-full justify-start overflow-x-auto p-1">
+              {showPaguTab && (
+                <TabsTrigger value="pagu" className="shrink-0 text-xs">
+                  Pagu Komite {budget.positions.length ? `(${budget.positions.length} Pos)` : ''}
+                </TabsTrigger>
+              )}
+              <TabsTrigger value="expense" className="shrink-0 text-xs">
+                Rincian Belanja ({document.expenses.length})
+              </TabsTrigger>
+              <TabsTrigger value="income" className="shrink-0 text-xs">
+                Rencana Pendapatan ({document.income.length})
+              </TabsTrigger>
+            </TabsList>
+
+            {showPaguTab && (
+              <TabsContent value="pagu" className="mt-0">
+                <OperationalBudget key={selected.id} version={selected.id} ready={selected.status !== 'draft'} budget={budget} canManage={canManage} />
+              </TabsContent>
+            )}
+
+            <TabsContent value="expense" className="mt-0 space-y-3">
+              <search aria-label="Filter rincian belanja RAPBM" className="flex flex-col gap-2.5 sm:flex-row">
+                <div className="relative flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    aria-label="Cari uraian atau kode akun"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    value={query}
+                    onChange={event => setQuery(event.target.value)}
+                    placeholder="Cari uraian kegiatan atau kode akun..."
+                    className="h-9 pl-9 text-sm"
+                  />
+                </div>
+                <Select value={funding} onValueChange={setFunding}>
+                  <SelectTrigger className="h-9 w-full text-xs sm:w-48" aria-label="Filter sumber dana"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua sumber dana</SelectItem>
+                    <SelectItem value="apbn">APBN</SelectItem>
+                    <SelectItem value="komite">Komite</SelectItem>
+                  </SelectContent>
+                </Select>
+              </search>
+              <p className="text-xs text-muted-foreground">
+                {groups.length} kelompok · {groups.reduce((sum, g) => sum + g.items.length, 0)} rincian{filtered ? ' cocok dengan pencarian (subtotal tetap mengikuti dokumen lengkap).' : ''}
+              </p>
+              <div className="space-y-3 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200" key={`${funding}:${query}`}>
+                {groups.map(group => <Group key={group.reference} group={group} filtered={filtered} />)}
+                {!groups.length && (
+                  <div className="rounded-xl border border-dashed py-12 text-center text-sm text-muted-foreground">
+                    Tidak ada rincian yang sesuai. Coba kata kunci atau sumber dana lain.
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="income" className="mt-0 space-y-3">
+              <p className="text-xs text-muted-foreground">Sumber pendapatan yang direncanakan untuk tahun anggaran {document.year}.</p>
+              {document.income.map(group => <Group key={group.reference} group={group} income />)}
+            </TabsContent>
+          </Tabs>
+
+          <p className="border-t pt-4 text-xs text-muted-foreground">
+            Sumber: {selected.original_filename} · Lembar {document.sheet} · Diimpor oleh {selected.created_by_name}. Arsip tahun dan versi sebelumnya tetap tersimpan.
+          </p>
+        </>
+      ) : (
+        <div className="rounded-xl border border-dashed px-5 py-14 text-center">
+          <FileSpreadsheet className="mx-auto mb-3 h-9 w-9 text-slate-300" />
+          <h2 className="text-base font-semibold">{versions.length ? 'Pilih tahun dan versi RAPBM' : 'Belum ada RAPBM yang tersedia'}</h2>
+          <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+            {canManage ? 'Impor Excel sebagai draft, periksa angka, lalu terbitkan agar dapat dibaca pengurus.' : 'RAPBM akan tampil setelah diterbitkan oleh Bendahara atau Super Admin.'}
+          </p>
+          {canManage && !has2026 && (
+            <Button className="mt-5" variant="outline" disabled={pending} onClick={() => run(importInitialRapbmAction)}>
+              {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileSpreadsheet className="mr-2 h-4 w-4" />}Siapkan RAPBM 2026
+            </Button>
+          )}
+        </div>
+      )}
+
+      <Dialog open={importOpen} onOpenChange={open => !pending && setImportOpen(open)}>
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Impor Versi RAPBM</DialogTitle>
+            <DialogDescription>
+              Gunakan format Excel RAPBM yang sama dengan dokumen 2026. Tahun anggaran dibaca otomatis dari isi dokumen.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={event => {
+              event.preventDefault()
+              const form = new FormData(event.currentTarget)
+              run(async () => {
+                const response = await fetch('/api/keuangan/rapbm/import', { method: 'POST', body: form, credentials: 'include' })
+                const result = await response.json().catch(() => ({ error: 'Respons impor tidak dapat dibaca. Silakan coba kembali.' }))
+                if (!response.ok) throw new Error(result.error || 'Impor gagal.')
+                return result
+              }, () => setImportOpen(false))
+            }}
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="rapbm-import-cohort">Angkatan sumber dana</Label>
+              <Input id="rapbm-import-cohort" name="cohort" required type="number" min={2026} max={2199} defaultValue={cohortFilter === 'all' ? 2026 : Number(cohortFilter)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="rapbm-file">File Excel (.xlsx)</Label>
+              <Input id="rapbm-file" name="file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required disabled={pending} />
+              <p className="text-xs text-muted-foreground">Maksimal 6 MB. Setiap impor menjadi versi baru; dokumen lama tidak ditimpa.</p>
+            </div>
+            {canManage && !has2026 && (
+              <Button variant="outline" type="button" disabled={pending} onClick={() => run(importInitialRapbmAction, () => setImportOpen(false))}>
+                Gunakan dokumen awal 2026
+              </Button>
+            )}
+            {message?.error && <p role="alert" className="text-sm text-rose-700">{message.text}</p>}
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" disabled={pending} onClick={() => setImportOpen(false)}>Batal</Button>
+              <Button type="submit" disabled={pending}>{pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Impor sebagai draft</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
-  </details>
+  )
 }
 
-function ItemDescription({item}:{item:RapbmItem}) {
-  return <details><summary className="cursor-pointer text-sm leading-6 marker:text-slate-400">{item.description}</summary><dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 rounded-md bg-slate-50 p-3 text-xs dark:bg-slate-900"><div><dt className="text-muted-foreground">Kode akun</dt><dd className="mt-1">{item.account||'—'}</dd></div><div><dt className="text-muted-foreground">Volume / satuan</dt><dd className="mt-1">{item.volume??'—'} {item.unit||''}</dd></div><div className="col-span-2"><dt className="text-muted-foreground">Baris sumber</dt><dd className="mt-1 break-all">{item.reference}</dd></div></dl></details>
+function BudgetSummary({ label, amounts }: { label: string; amounts: RapbmAmounts }) {
+  return (
+    <section className="space-y-2 p-3.5 sm:p-4">
+      <h2 className="text-xs font-medium text-muted-foreground">{label}</h2>
+      <p className="text-xl font-bold tracking-tight tabular-nums sm:text-2xl">{money(amounts.total)}</p>
+      <dl className="flex flex-wrap gap-x-6 gap-y-1.5 text-xs">
+        <div>
+          <dt className="text-muted-foreground">APBN</dt>
+          <dd className="mt-0.5 font-medium tabular-nums">{money(amounts.apbn)}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">Komite</dt>
+          <dd className="mt-0.5 font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">{money(amounts.komite)}</dd>
+        </div>
+      </dl>
+    </section>
+  )
 }
 
-function Notes({notes}:{notes:RapbmNote[]}) {
-  return <details className="rounded-lg border border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20"><summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-medium text-amber-900 dark:text-amber-200"><AlertCircle className="h-4 w-4 shrink-0" /><span className="flex-1">Catatan Angka · {notes.length} perlu diperhatikan</span><ChevronDown className="h-4 w-4" /></summary><div className="space-y-3 border-t border-amber-200 px-4 py-3 dark:border-amber-900"><p className="text-xs text-muted-foreground">Perbandingan ini tidak mengubah angka dokumen. Penjumlahan hanya memakai sel numerik yang tersedia; sel kosong tetap ditandai kosong.</p>{notes.map((note,index)=><div key={`${note.reference}:${index}`} className="border-b border-amber-200/70 pb-3 last:border-b-0 last:pb-0 dark:border-amber-900"><p className="text-sm leading-6">{note.message}</p><div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm font-medium text-foreground"><span>Dokumen: {money(note.source)}</span><span>Penjumlahan: {money(note.calculated)}</span><span className="basis-full break-all text-xs font-normal text-muted-foreground">{note.reference}</span></div></div>)}</div></details>
+function formatVolumeUnit(item: RapbmItem): string {
+  const vol = item.volume !== null && item.volume !== undefined ? String(item.volume) : ''
+  const unit = item.unit ? item.unit.trim() : ''
+  if (vol && unit) return `${vol} ${unit}`
+  return vol || unit || '—'
 }
 
-function PublishPanel({noteCount,pending,onPublish}:{noteCount:number;pending:boolean;onPublish:(acknowledged:boolean)=>void}) {
-  const [acknowledged,setAcknowledged]=useState(false)
-  return <section className="space-y-3 rounded-lg border border-border bg-muted/30 p-4"><div><h2 className="text-sm font-semibold">Periksa draft sebelum diterbitkan</h2><p className="mt-1 text-sm text-muted-foreground">Versi terbit dapat dibaca pengurus dan tidak dapat diubah. Koreksi berikutnya dilakukan melalui impor versi baru.</p></div>{noteCount>0&&<div className="flex items-start gap-2"><Checkbox id="rapbm-ack" className="mt-0.5" checked={acknowledged} disabled={pending} onCheckedChange={value=>setAcknowledged(value===true)} /><Label htmlFor="rapbm-ack" className="text-sm font-normal leading-5">Saya telah membaca Catatan Angka dan akan menerbitkan nominal sesuai dokumen sumber.</Label></div>}<Button size="sm" disabled={pending||(noteCount>0&&!acknowledged)} onClick={()=>onPublish(acknowledged)}>{pending&&<Loader2 className="mr-2 h-4 w-4 animate-spin" />}Terbitkan versi ini</Button></section>
+function Group({ group, income = false, filtered = false }: { group: RapbmGroup; income?: boolean; filtered?: boolean }) {
+  return (
+    <details className="overflow-hidden rounded-xl border bg-card text-card-foreground" open={filtered || undefined}>
+      <summary className="flex cursor-pointer list-none items-start gap-3 p-3.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-900 sm:p-4">
+        <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+        <div className="min-w-0 flex-1">
+          <h3 className="text-sm font-semibold">{group.label}</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {group.account ? `${group.account} · ` : ''}{group.items.length} rincian
+            {!income && group.amounts.komite !== null ? ` · Komite ${money(group.amounts.komite)}` : ''}
+          </p>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-sm font-semibold tabular-nums">{money(group.amounts.total)}</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">Subtotal</p>
+        </div>
+      </summary>
+      <div className="border-t motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150">
+        <div role="region" aria-label={group.label} tabIndex={0} className="hidden overflow-x-auto md:block">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/50">
+                <TableHead className="w-[42%] text-xs font-semibold">Uraian & Kode Akun</TableHead>
+                <TableHead className="w-[14%] text-xs font-semibold">Vol / Satuan</TableHead>
+                {!income && (
+                  <>
+                    <TableHead className="text-right text-xs font-semibold">APBN</TableHead>
+                    <TableHead className="text-right text-xs font-semibold">Komite</TableHead>
+                  </>
+                )}
+                <TableHead className="text-right text-xs font-semibold">Jumlah</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {group.items.map(item => (
+                <TableRow key={item.reference}>
+                  <TableCell>
+                    <p className="text-sm leading-snug text-slate-900 dark:text-slate-100">{item.description}</p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      {item.account ? `Akun ${item.account}` : 'Tanpa kode akun'}
+                    </p>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-xs text-slate-600 dark:text-slate-300">
+                    {formatVolumeUnit(item)}
+                  </TableCell>
+                  {!income && (
+                    <>
+                      <TableCell className="whitespace-nowrap text-right text-sm tabular-nums">{money(item.amounts.apbn)}</TableCell>
+                      <TableCell className="whitespace-nowrap text-right text-sm font-medium tabular-nums text-emerald-700 dark:text-emerald-400">{money(item.amounts.komite)}</TableCell>
+                    </>
+                  )}
+                  <TableCell className="whitespace-nowrap text-right text-sm font-semibold tabular-nums">{money(item.amounts.total)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+
+        <div className="divide-y md:hidden">
+          {group.items.map(item => (
+            <div className="space-y-2 p-3.5" key={item.reference}>
+              <div>
+                <p className="text-sm font-medium leading-snug">{item.description}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {item.account ? `${item.account} · ` : ''}Vol: {formatVolumeUnit(item)}
+                </p>
+              </div>
+              <dl className={`grid gap-2 text-xs ${income ? 'grid-cols-1' : 'grid-cols-3'}`}>
+                {(income ? [['Jumlah', item.amounts.total]] : [['APBN', item.amounts.apbn], ['Komite', item.amounts.komite], ['Jumlah', item.amounts.total]]).map(([label, value]) => (
+                  <div key={String(label)}>
+                    <dt className="text-muted-foreground">{label}</dt>
+                    <dd className="mt-0.5 break-words font-medium tabular-nums">{money(value as number | null)}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          ))}
+        </div>
+
+        <p className="border-t bg-slate-50/50 px-4 py-2 text-xs text-muted-foreground dark:bg-slate-900/30">
+          Subtotal dokumen: APBN {money(group.amounts.apbn)} · Komite {money(group.amounts.komite)} · Jumlah {money(group.amounts.total)}
+          <span className="mt-0.5 block text-[11px]">Referensi sel: {group.subtotalReference}</span>
+        </p>
+      </div>
+    </details>
+  )
 }
 
-function OperationalBudget({version,ready,budget,canManage}:{version:string;ready:boolean;budget:BudgetData;canManage:boolean}) {
-  const router=useRouter()
-  const association=budget.associations.find(row=>row.id===version)
-  const [cohort,setCohort]=useState(association?.cohort??2026)
-  const [values,setValues]=useState<Record<string,string>>(()=>Object.fromEntries(budget.groups.map(g=>[g.id,String(g.komite??0)])))
-  const [message,setMessage]=useState('')
-  const [pending,start]=useTransition()
-  const [reconciled,setReconciled]=useState(false)
-  const total=Object.values(values).reduce((sum,value)=>sum+Number(value),0)
-  const prior=budget.remaining.find(r=>r.cohort===cohort)
-  function submit(action:()=>Promise<{success?:string;error?:string}>) {
-    start(async()=>{const result=await action();setMessage(result.error??result.success??'');if(result.success)router.refresh()})
+function Notes({ notes }: { notes: RapbmNote[] }) {
+  return (
+    <details className="rounded-lg border border-amber-200 bg-amber-50/50 dark:border-amber-900 dark:bg-amber-950/20">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-medium text-amber-900 dark:text-amber-200">
+        <AlertCircle className="h-4 w-4 shrink-0" />
+        <span className="flex-1">Catatan Angka · {notes.length} perlu diperhatikan</span>
+        <ChevronDown className="h-4 w-4" />
+      </summary>
+      <div className="space-y-3 border-t border-amber-200 px-4 py-3 dark:border-amber-900">
+        <p className="text-xs text-muted-foreground">Perbandingan ini tidak mengubah angka dokumen. Penjumlahan hanya memakai sel numerik yang tersedia; sel kosong tetap ditandai kosong.</p>
+        {notes.map((note, index) => (
+          <div key={`${note.reference}:${index}`} className="border-b border-amber-200/70 pb-3 last:border-b-0 last:pb-0 dark:border-amber-900">
+            <p className="text-sm leading-6">{note.message}</p>
+            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm font-medium tabular-nums text-foreground">
+              <span>Dokumen: {money(note.source)}</span>
+              <span>Penjumlahan: {money(note.calculated)}</span>
+              <span className="basis-full break-all text-xs font-normal text-muted-foreground">{note.reference}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </details>
+  )
+}
+
+function PublishPanel({ noteCount, pending, onPublish }: { noteCount: number; pending: boolean; onPublish: (acknowledged: boolean) => void }) {
+  const [acknowledged, setAcknowledged] = useState(false)
+  return (
+    <section className="space-y-3 rounded-lg border border-border bg-muted/30 p-4">
+      <div>
+        <h2 className="text-sm font-semibold">Periksa draft sebelum diterbitkan</h2>
+        <p className="mt-1 text-sm text-muted-foreground">Versi terbit dapat dibaca pengurus dan tidak dapat diubah. Koreksi berikutnya dilakukan melalui impor versi baru.</p>
+      </div>
+      {noteCount > 0 && (
+        <div className="flex items-start gap-2">
+          <Checkbox id="rapbm-ack" className="mt-0.5" checked={acknowledged} disabled={pending} onCheckedChange={value => setAcknowledged(value === true)} />
+          <Label htmlFor="rapbm-ack" className="text-sm font-normal leading-5">Saya telah membaca Catatan Angka dan akan menerbitkan nominal sesuai dokumen sumber.</Label>
+        </div>
+      )}
+      <Button size="sm" disabled={pending || (noteCount > 0 && !acknowledged)} onClick={() => onPublish(acknowledged)}>
+        {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Terbitkan versi ini
+      </Button>
+    </section>
+  )
+}
+
+function OperationalBudget({ version, ready, budget, canManage }: { version: string; ready: boolean; budget: BudgetData; canManage: boolean }) {
+  const router = useRouter()
+  const association = budget.associations.find(row => row.id === version)
+  const [cohort, setCohort] = useState(association?.cohort ?? 2026)
+  const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(budget.groups.map(g => [g.id, String(g.komite ?? 0)])))
+  const [message, setMessage] = useState('')
+  const [pending, start] = useTransition()
+  const [reconciled, setReconciled] = useState(false)
+  const total = Object.values(values).reduce((sum, value) => sum + Number(value || 0), 0)
+  const prior = budget.remaining.find(r => r.cohort === cohort)
+
+  const totalPagu = budget.positions.reduce((s, p) => s + p.amount, 0)
+  const totalLocked = budget.positions.reduce((s, p) => s + p.locked, 0)
+  const totalRealized = budget.positions.reduce((s, p) => s + p.realized, 0)
+  const totalAvailable = budget.positions.reduce((s, p) => s + p.available, 0)
+
+  function submit(action: () => Promise<{ success?: string; error?: string }>) {
+    start(async () => {
+      const result = await action()
+      setMessage(result.error ?? result.success ?? '')
+      if (result.success) router.refresh()
+    })
   }
-  if (!budget.positions.length && (!canManage||!ready)) return null
-  return <Card>
-    <CardHeader className="pb-3"><CardTitle className="text-base">Pagu Komite {association?.cohort ? `Angkatan ${association.cohort}` : ''}</CardTitle></CardHeader>
-    <CardContent className="space-y-3">
-    {budget.positions.length ? <>
-      {association?.carry_forward!==null && <p className="text-sm text-muted-foreground">Sisa dari versi sebelumnya {formatRupiah(association?.carry_forward??0)}{association?.revision_reason ? ` · ${association.revision_reason}` : ''}</p>}
-      <Accordion type="multiple" className="space-y-2">
-      {budget.positions.map(position=><AccordionItem value={position.group_id} key={position.group_id}>
-        <AccordionTrigger className="gap-3 text-left text-sm">
-          <span>{position.account} · {position.label}<span className="ml-2 text-muted-foreground">Sisa {formatRupiah(position.available)}</span></span>
-        </AccordionTrigger>
-        <AccordionContent className="space-y-2 text-sm">
-        <p>Pagu {formatRupiah(position.amount)} · Terkunci {formatRupiah(position.locked)} · Realisasi {formatRupiah(position.realized)}</p>
-        {budget.history.filter(row=>row.group_id===position.group_id).map(row=><p key={row.id} className="py-1">
-          <a className="underline" href={row.pengajuan_id ? `/dashboard/komite/pengajuan?id=${row.pengajuan_id}` : `/dashboard/keuangan/kas-keluar?fund=${cohort}&entry=${row.cashflow_id}`}>{row.description} {row.proof}</a> · {row.created_at.slice(0,10)} · {formatRupiah(row.amount)} · {row.state==='locked'?'Terkunci':row.state==='realized'?'Realisasi':'Dilepas'}
-        </p>)}
-        </AccordionContent>
-      </AccordionItem>)}
-      </Accordion>
-      {canManage&&association?.enabled===0&&<div className="space-y-2">
-        <div className="flex items-start gap-2"><Checkbox id="rapbm-reconciled" checked={reconciled} onCheckedChange={value=>setReconciled(value===true)}/><Label htmlFor="rapbm-reconciled" className="font-normal leading-5">Histori SPB dan Arus Kas sudah dipetakan dan saldo sudah direkonsiliasi.</Label></div>
-        <Button disabled={!reconciled||pending} onClick={()=>submit(()=>activateKomiteRapbm(version,reconciled))}>Aktifkan pagu</Button>
-      </div>}
-    </> : <form className="space-y-3" action={form=>submit(()=>configureKomiteRapbm(form))}>
-      <input type="hidden" name="version" value={version}/><input type="hidden" name="prior_version" value={prior?.version_id??''}/><input type="hidden" name="prior_snapshot" value={prior?.available??''}/>
-      <label className="block text-sm">Angkatan<Input name="cohort" required type="number" min={2026} max={2199} value={cohort} readOnly={!!association?.cohort} onChange={e=>setCohort(Number(e.target.value))}/></label>
-      {prior&&<p className="text-sm">Sisa sebelumnya {formatRupiah(prior.available)} · Pagu baru {formatRupiah(total)} · Selisih {formatRupiah(total-prior.available)}</p>}
-      {budget.groups.map(group=><div key={group.id} className="grid items-end gap-2 border-b pb-2 sm:grid-cols-3">
-        <div className="text-sm">{group.account} · {group.label}<p className="text-xs text-muted-foreground">Subtotal {money(group.komite)} · Rincian {money(group.detail)}</p></div>
-        <label className="text-sm">Pagu operasional<Input name={`pagu:${group.id}`} required type="number" min={0} value={values[group.id]} onChange={e=>setValues({...values,[group.id]:e.target.value})}/></label>
-        <label className="text-sm">Alasan selisih<Input name={`alasan:${group.id}`} required={Number(values[group.id])!==(group.komite??0)||Number(values[group.id])!==group.detail} maxLength={300}/></label>
-      </div>)}
-      {prior&&<label className="block text-sm">Alasan perubahan total<Input name="revision_reason" required={prior.available!==total} maxLength={300}/></label>}
-      <Button disabled={pending}>{prior?'Terbitkan revisi pagu':'Konfirmasi pagu untuk pemetaan'}</Button>
-    </form>}
-    {message&&<p role="status" className="text-sm">{message}</p>}
-    </CardContent>
-  </Card>
+
+  if (!budget.positions.length && (!canManage || !ready)) return null
+
+  return (
+    <Card className="shadow-none">
+      <CardHeader className="pb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle className="text-base">
+            Pagu Operasional Komite {association?.cohort ? `Angkatan ${association.cohort}` : ''}
+          </CardTitle>
+          {association && (
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${association.enabled ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300' : 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300'}`}>
+              {association.enabled ? 'Pagu Aktif' : 'Menunggu Aktivasi'}
+            </span>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {budget.positions.length ? (
+          <>
+            <div className="grid grid-cols-2 divide-y divide-slate-100 rounded-xl border border-slate-200 bg-slate-50/60 dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900/60 sm:grid-cols-4 sm:divide-x sm:divide-y-0">
+              <div className="px-3.5 py-2.5">
+                <p className="text-[11px] text-slate-500">Total Pagu Komite</p>
+                <p className="mt-0.5 text-sm font-bold tabular-nums">{formatRupiah(totalPagu)}</p>
+              </div>
+              <div className="px-3.5 py-2.5">
+                <p className="text-[11px] text-slate-500">Terkunci (SPB)</p>
+                <p className="mt-0.5 text-sm font-bold tabular-nums text-amber-600 dark:text-amber-400">{formatRupiah(totalLocked)}</p>
+              </div>
+              <div className="px-3.5 py-2.5">
+                <p className="text-[11px] text-slate-500">Realisasi Cair</p>
+                <p className="mt-0.5 text-sm font-bold tabular-nums text-blue-600 dark:text-blue-400">{formatRupiah(totalRealized)}</p>
+              </div>
+              <div className="px-3.5 py-2.5">
+                <p className="text-[11px] text-slate-500">Sisa Pagu Tersedia</p>
+                <p className="mt-0.5 text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{formatRupiah(totalAvailable)}</p>
+              </div>
+            </div>
+
+            {association?.carry_forward !== null && association?.carry_forward !== undefined && (
+              <p className="text-xs text-muted-foreground">
+                Sisa dari versi sebelumnya: <span className="font-medium tabular-nums">{formatRupiah(association.carry_forward)}</span>
+                {association.revision_reason ? ` · ${association.revision_reason}` : ''}
+              </p>
+            )}
+
+            <Accordion type="multiple" className="space-y-2">
+              {budget.positions.map(position => {
+                const used = position.locked + position.realized
+                const pct = position.amount > 0 ? Math.min(100, Math.round((used / position.amount) * 100)) : 0
+                const posHistory = budget.history.filter(row => row.group_id === position.group_id)
+                return (
+                  <AccordionItem value={position.group_id} key={position.group_id} className="rounded-lg border px-3">
+                    <AccordionTrigger className="gap-3 py-3 text-left text-sm hover:no-underline">
+                      <div className="min-w-0 flex-1 space-y-1.5 pr-2">
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <span className="font-medium text-slate-900 dark:text-slate-100">
+                            {position.account ? `${position.account} · ` : ''}{position.label}
+                          </span>
+                          <span className="shrink-0 text-xs font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
+                            Sisa {formatRupiah(position.available)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                            <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="w-10 text-right text-[11px] tabular-nums text-slate-400">{pct}%</span>
+                        </div>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="space-y-2 border-t pt-2.5 text-xs">
+                      <p className="tabular-nums text-slate-600 dark:text-slate-300">
+                        Pagu: <strong>{formatRupiah(position.amount)}</strong> · Terkunci SPB: <strong>{formatRupiah(position.locked)}</strong> · Realisasi: <strong>{formatRupiah(position.realized)}</strong>
+                      </p>
+                      {posHistory.length === 0 ? (
+                        <p className="text-slate-400">Belum ada riwayat penggunaan pada pos ini.</p>
+                      ) : (
+                        posHistory.map(row => (
+                          <p key={row.id} className="border-t border-slate-100 py-1.5 tabular-nums dark:border-slate-800">
+                            <a
+                              className="font-medium text-emerald-700 underline hover:text-emerald-800 dark:text-emerald-400"
+                              href={row.pengajuan_id ? `/dashboard/komite/pengajuan?id=${row.pengajuan_id}` : `/dashboard/keuangan/kas-keluar?fund=${cohort}&entry=${row.cashflow_id}`}
+                            >
+                              {row.description} {row.proof}
+                            </a>{' '}
+                            · {row.created_at.slice(0, 10)} · {formatRupiah(row.amount)} · {row.state === 'locked' ? 'Terkunci' : row.state === 'realized' ? 'Realisasi' : 'Dilepas'}
+                          </p>
+                        ))
+                      )}
+                    </AccordionContent>
+                  </AccordionItem>
+                )
+              })}
+            </Accordion>
+
+            {canManage && association?.enabled === 0 && (
+              <div className="space-y-2.5 rounded-lg border border-amber-200 bg-amber-50/60 p-3 dark:border-amber-900/60 dark:bg-amber-950/20">
+                <div className="flex items-start gap-2">
+                  <Checkbox id="rapbm-reconciled" checked={reconciled} onCheckedChange={value => setReconciled(value === true)} />
+                  <Label htmlFor="rapbm-reconciled" className="text-xs font-normal leading-5">
+                    Histori SPB dan Arus Kas sudah dipetakan dan saldo sudah direkonsiliasi.
+                  </Label>
+                </div>
+                <Button size="sm" disabled={!reconciled || pending} onClick={() => submit(() => activateKomiteRapbm(version, reconciled))}>
+                  Aktifkan Pagu Operasional
+                </Button>
+              </div>
+            )}
+          </>
+        ) : (
+          <form className="space-y-3" action={form => submit(() => configureKomiteRapbm(form))}>
+            <input type="hidden" name="version" value={version} />
+            <input type="hidden" name="prior_version" value={prior?.version_id ?? ''} />
+            <input type="hidden" name="prior_snapshot" value={prior?.available ?? ''} />
+            <div className="max-w-xs space-y-1.5">
+              <Label htmlFor="pagu-cohort">Angkatan</Label>
+              <Input id="pagu-cohort" name="cohort" required type="number" min={2026} max={2199} value={cohort} readOnly={!!association?.cohort} onChange={e => setCohort(Number(e.target.value))} />
+            </div>
+            {prior && (
+              <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs tabular-nums dark:bg-slate-900">
+                Sisa sebelumnya {formatRupiah(prior.available)} · Pagu baru {formatRupiah(total)} · Selisih {formatRupiah(total - prior.available)}
+              </p>
+            )}
+            {budget.groups.map(group => (
+              <div key={group.id} className="grid items-end gap-2.5 border-b pb-3 sm:grid-cols-3">
+                <div className="text-sm">
+                  <p className="font-medium">{group.account} · {group.label}</p>
+                  <p className="text-xs tabular-nums text-muted-foreground">Subtotal {money(group.komite)} · Rincian {money(group.detail)}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor={`pagu-val-${group.id}`} className="text-xs">Pagu operasional</Label>
+                  <RupiahInput id={`pagu-val-${group.id}`} name={`pagu:${group.id}`} required min={0} value={values[group.id]} onValueChange={raw => setValues({ ...values, [group.id]: raw })} />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor={`pagu-reason-${group.id}`} className="text-xs">Alasan selisih</Label>
+                  <Input id={`pagu-reason-${group.id}`} name={`alasan:${group.id}`} required={Number(values[group.id] || 0) !== (group.komite ?? 0) || Number(values[group.id] || 0) !== group.detail} maxLength={300} placeholder="Wajib jika berbeda dari dokumen" />
+                </div>
+              </div>
+            ))}
+            {prior && (
+              <div className="space-y-1.5">
+                <Label htmlFor="pagu-rev-reason">Alasan perubahan total</Label>
+                <Input id="pagu-rev-reason" name="revision_reason" required={prior.available !== total} maxLength={300} />
+              </div>
+            )}
+            <Button disabled={pending}>{prior ? 'Terbitkan Revisi Pagu' : 'Konfirmasi Pagu untuk Pemetaan'}</Button>
+          </form>
+        )}
+        {message && <p role="status" className="text-xs font-medium text-emerald-700 dark:text-emerald-400">{message}</p>}
+      </CardContent>
+    </Card>
+  )
 }

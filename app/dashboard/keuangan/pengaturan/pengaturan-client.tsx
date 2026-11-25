@@ -29,6 +29,7 @@ export function PengaturanKomiteClient({ initialSettings, canUpdate }: { initial
       {([10, 11, 12] as const).map(value => (
         <div key={value} hidden={grade !== value}>
           <fieldset disabled={!canUpdate}>
+            <legend className="sr-only">Pengaturan pembayaran kelas {value}</legend>
             <GradePaymentForm grade={value} initialSettings={initialSettings.byGrade[value]} whatsapp={whatsapp} setWhatsapp={setWhatsapp} />
           </fieldset>
         </div>
@@ -140,8 +141,8 @@ function GradePaymentForm({ grade, initialSettings, whatsapp, setWhatsapp }: {
 
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor={`whatsapp-${grade}`} className="text-xs">Nomor WhatsApp komite</Label>
-            <Input id={`whatsapp-${grade}`} name="whatsapp" value={whatsapp} onChange={(event) => setWhatsapp(event.target.value)} className="h-9" placeholder="628..." />
+            <Label htmlFor={`whatsapp-${grade}`} className="text-xs">Nomor WhatsApp komite (berlaku semua tingkat)</Label>
+            <Input id={`whatsapp-${grade}`} name="whatsapp" inputMode="tel" autoComplete="tel" value={whatsapp} onChange={(event) => setWhatsapp(event.target.value)} className="h-9" placeholder="628..." />
           </div>
           <div className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
             <Label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-200">

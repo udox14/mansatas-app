@@ -12,7 +12,7 @@ import { loadBillingPageData } from './billing-page-data'
 import { DsptReminderDialog } from './reminder-dialog'
 
 export const dynamic = 'force-dynamic'
-export const metadata = { title: 'DSPT & SPP | Keuangan MANSATAS' }
+export const metadata = { title: 'Tagihan DSPT & SPP | Keuangan MANSATAS' }
 
 async function DsptDataFetcher() {
   const db=await getDB()
@@ -46,8 +46,8 @@ export default async function DsptPage() {
   return (
     <div className="space-y-4 animate-in fade-in duration-500">
       <PageHeader
-        title="DSPT & SPP"
-        description="Keuangan khusus siswa aktif: DSPT dan tunggakan SPP terdahulu"
+        title="Tagihan DSPT & SPP"
+        description="Kelola target DSPT, konfirmasi bukti pembayaran, dan tunggakan SPP terdahulu"
       >
         {canSendReminder && <DsptReminderDialog />}
       </PageHeader>

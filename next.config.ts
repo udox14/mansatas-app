@@ -1,4 +1,16 @@
 import type { NextConfig } from "next";
+import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
+
+if (process.env.NODE_ENV === "development") {
+  initOpenNextCloudflareForDev(
+    process.env.CLOUDFLARE_REMOTE_CONFIG_PATH
+      ? {
+          configPath: process.env.CLOUDFLARE_REMOTE_CONFIG_PATH,
+          remoteBindings: true,
+        }
+      : undefined
+  );
+}
 
 const nextConfig: NextConfig = {
   async headers() {

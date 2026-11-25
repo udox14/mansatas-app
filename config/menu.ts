@@ -423,11 +423,11 @@ export const MENU_ITEMS: MenuItem[] = [
   // ── KEUANGAN ──────────────────────────────────────────────────────
   {
     id: 'keuangan-transaksi',
-    title: 'Riwayat Transaksi',
+    title: 'Pembayaran Siswa',
     href: '/dashboard/keuangan/transaksi',
     icon: ReceiptText,
     roles: ['super_admin', 'bendahara_komite'],
-    desc: 'Melihat histori rinci seluruh transaksi pembayaran uang komite lintas siswa'
+    desc: 'Melihat histori pembayaran uang komite lintas siswa dan mencetak ulang kuitansi'
   },
   {
     id: 'keuangan-daftar-ulang',
@@ -439,11 +439,11 @@ export const MENU_ITEMS: MenuItem[] = [
   },
   {
     id: 'keuangan-dspt',
-    title: 'DSPT & SPP',
+    title: 'Tagihan DSPT & SPP',
     href: '/dashboard/keuangan/dspt',
     icon: HandCoins,
     roles: ['super_admin', 'bendahara_komite'],
-    desc: 'Mengelola DSPT dan tunggakan SPP terdahulu dalam satu daftar tagihan'
+    desc: 'Mengelola tagihan DSPT dan tunggakan SPP siswa aktif maupun nonaktif/alumni'
   },
   {
     id: 'keuangan-dspt-nonaktif',
@@ -467,15 +467,15 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/keuangan/kas-keluar',
     icon: TrendingDown,
     roles: ['super_admin', 'bendahara_komite'],
-    desc: 'Mencatat pemasukan lain dan pengeluaran serta menganalisis arus kas madrasah'
+    desc: 'Mencatat pemasukan lain dan pengeluaran serta memetakan sumber dana arus kas'
   },
   {
     id: 'keuangan-laporan',
-    title: 'Laporan Keuangan',
+    title: 'Laporan & BKU',
     href: '/dashboard/keuangan/laporan',
     icon: BarChart3,
     roles: ['super_admin', 'bendahara_komite'],
-    desc: 'Melihat ringkasan kas, total transaksi, tunggakan siswa, dan pencetakan laporan bulanan'
+    desc: 'Ringkasan kas, unduh Buku Kas Umum (BKU) resmi PDF/Excel, dan rekap tunggakan'
   },
   {
     id: 'keuangan-pengaturan',
@@ -483,7 +483,7 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/keuangan/pengaturan',
     icon: Settings,
     roles: ['super_admin', 'bendahara_komite'],
-    desc: 'Mengonfigurasi rekening tujuan transfer, kontak bendahara, dan QR code pembayaran komite'
+    desc: 'Mengonfigurasi rekening tujuan transfer, QRIS, target DSPT, saldo awal, dan penandatangan laporan'
   },
   {
     id: 'keuangan-rapbm',
@@ -491,15 +491,15 @@ export const MENU_ITEMS: MenuItem[] = [
     href: '/dashboard/keuangan/rapbm',
     icon: FileSpreadsheet,
     roles: ['super_admin', 'bendahara_komite', 'ketua_komite', 'anggota_komite', 'kepsek'],
-    desc: 'Membaca rencana pendapatan dan belanja madrasah serta arsip versi RAPBM per tahun'
+    desc: 'Mengelola pagu anggaran Komite serta rencana pendapatan dan belanja madrasah per angkatan'
   },
   {
     id: 'komite-pengajuan',
-    title: 'Pengajuan',
+    title: 'Pengajuan & SPB',
     href: '/dashboard/komite/pengajuan',
     icon: FileCheck,
     roles: ['super_admin', 'kepsek', 'wakamad', 'pembina_ekstrakurikuler', 'bendahara_komite', 'ketua_komite', 'anggota_komite'],
-    desc: 'Mengajukan, mereview, dan memantau persetujuan pencairan dana Komite'
+    desc: 'Mengajukan, mereview, memetakan sumber dana, dan mencairkan SPB Komite'
   },
   // ──────────────────────────────────────────────────────────────────
   {
@@ -585,12 +585,14 @@ export const DEFAULT_SIDEBAR_GROUPS: SidebarGroupConfig[] = [
   { id: 'program-khusus', label: 'Program Khusus', items: ['tahfidz'] },
   { id: 'kesiswaan-bk', label: 'Kesiswaan & BK', items: ['kelas-binaan', 'keterangan-absensi', 'jadwal-piket', 'izin', 'kedisiplinan', 'sp', 'bk', 'psikotes', 'tka', 'penerimaan-pt'] },
   { id: 'administrasi-hr', label: 'Administrasi & HR', items: ['cuti-guru', 'tpg-dokumen', 'documentation', 'surat', 'rapat', 'kelola-ppl', 'buku-tamu'] },
-  { id: 'keuangan', label: 'Komite', items: ['komite-pengajuan', 'keuangan-rapbm', 'keuangan-daftar-ulang', 'keuangan-transaksi', 'keuangan-dspt', 'keuangan-dspt-nonaktif', 'keuangan-export', 'keuangan-kas-keluar', 'keuangan-laporan', 'keuangan-pengaturan'] },
+  { id: 'keuangan', label: 'Komite', items: ['komite-pengajuan', 'keuangan-rapbm', 'keuangan-dspt', 'keuangan-daftar-ulang', 'keuangan-transaksi', 'keuangan-kas-keluar', 'keuangan-laporan', 'keuangan-pengaturan'] },
   { id: 'sistem', label: 'Sistem', items: ['settings', 'log-aktivitas', 'settings-notifications', 'settings-mobile-app', 'settings-fitur', 'pengumuman-ortu', 'kotak-saran-ortu', 'monitoring-login-ortu'] },
 ]
 
 export const SIDEBAR_ROOT_ITEM_IDS = ['dashboard'] as const
 const SIDEBAR_ROOT_ITEM_ID_SET = new Set<string>(SIDEBAR_ROOT_ITEM_IDS)
+export const SIDEBAR_HIDDEN_SUBROUTE_IDS = ['keuangan-dspt-nonaktif', 'keuangan-export'] as const
+const SIDEBAR_HIDDEN_SUBROUTE_ID_SET = new Set<string>(SIDEBAR_HIDDEN_SUBROUTE_IDS)
 
 function uniqueStrings(values: unknown): string[] {
   if (!Array.isArray(values)) return []
@@ -607,7 +609,7 @@ export function parseSidebarGroups(raw?: string | null, fallback: SidebarGroupCo
       .map((group: any, index: number) => ({
         id: typeof group?.id === 'string' && group.id.trim() ? group.id.trim() : `group-${index + 1}`,
         label: typeof group?.label === 'string' && group.label.trim() ? group.label.trim() : `Group ${index + 1}`,
-        items: uniqueStrings(group?.items).filter(id => knownIds.has(id) && !SIDEBAR_ROOT_ITEM_ID_SET.has(id)),
+        items: uniqueStrings(group?.items).filter(id => knownIds.has(id) && !SIDEBAR_ROOT_ITEM_ID_SET.has(id) && !SIDEBAR_HIDDEN_SUBROUTE_ID_SET.has(id)),
       }))
       .filter(group => group.items.length > 0)
     return groups.length > 0 ? groups : fallback
@@ -659,9 +661,10 @@ export function getSidebarFeatureIds(allowedFeatures: string[] = []): string[] {
   const allowedSet = new Set(allowedFeatures)
   const ids = MENU_ITEMS
     .filter(item =>
-      (allowedSet.has(item.id) && !SIDEBAR_ROOT_ITEM_ID_SET.has(item.id)) ||
-      (item.id === 'keuangan-transaksi' && allowedSet.has('keuangan-laporan')) ||
-      (item.id === 'keuangan-export' && allowedSet.has('keuangan-dspt'))
+      !SIDEBAR_HIDDEN_SUBROUTE_ID_SET.has(item.id) && (
+        (allowedSet.has(item.id) && !SIDEBAR_ROOT_ITEM_ID_SET.has(item.id)) ||
+        (item.id === 'keuangan-transaksi' && allowedSet.has('keuangan-laporan'))
+      )
     )
     .map(item => item.id)
   return Array.from(new Set(ids))
@@ -676,7 +679,7 @@ export function resolveSidebarGroups(
   const sidebarFeatureIds = allowedFeatures ? getSidebarFeatureIds(allowedFeatures) : []
   const allowedSet = allowedFeatures ? new Set(sidebarFeatureIds) : null
   const hiddenGroups = new Set(override.hiddenGroupIds || [])
-  const hiddenItems = new Set(override.hiddenItemIds || [])
+  const hiddenItems = new Set([...(override.hiddenItemIds || []), ...SIDEBAR_HIDDEN_SUBROUTE_IDS])
   const templateMap = new Map(template.map(group => [group.id, group]))
   const placementGroups = Object.keys(override.itemPlacements || {})
   const orderedGroupIds = [
