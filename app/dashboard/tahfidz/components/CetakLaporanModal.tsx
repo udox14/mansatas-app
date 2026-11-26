@@ -35,6 +35,28 @@ function formatTgl(dateStr: string) {
   }
 }
 
+// [1,2,3,5,6,9] -> "1-3, 5-6, 9"
+function formatRentang(ayat: number[]): string {
+  const sorted = [...new Set(ayat)].sort((a, b) => a - b)
+  const out: string[] = []
+  let i = 0
+  while (i < sorted.length) {
+    let j = i
+    while (j + 1 < sorted.length && sorted[j + 1] === sorted[j] + 1) j++
+    out.push(sorted[i] === sorted[j] ? `${sorted[i]}` : `${sorted[i]}-${sorted[j]}`)
+    i = j + 1
+  }
+  return out.join(', ')
+}
+
+// Satu surat per baris (<br>), misal "Al-Baqarah (1-30)"
+function formatSuratHafalan(progress: Record<number, number[]>): string {
+  const parts = SURAH_LIST
+    .filter(sr => (progress[sr.nomor] || []).length > 0)
+    .map(sr => `${sr.namaLatin} (${formatRentang(progress[sr.nomor])})`)
+  return parts.join('<br>') || '-'
+}
+
 function getTahunPelajaran() {
   const now = new Date()
   const y = now.getFullYear()
@@ -65,6 +87,7 @@ const PRINT_CSS = `
   th { background: #d9d9d9; border: 0.75pt solid #333; padding: 4pt 5pt; text-align: center; font-weight: bold; font-size: 10pt; }
   td { border: 0.75pt solid #444; padding: 3pt 5pt; vertical-align: middle; }
   td.c { text-align: center; }
+  tr { page-break-inside: avoid; }
   .juz-row td { background: #e8f5e9; font-weight: bold; font-size: 10.5pt; }
   .total-row td { background: #f0f0f0; font-weight: bold; }
   .tt-section { margin-top: 28pt; display: flex; justify-content: flex-end; }
@@ -122,25 +145,26 @@ function generateLaporanSiswa(
       return sum + prog.filter(a => a >= sr.startAyat && a <= sr.endAyat).length
     }, 0)
     rekapRows += `<tr class="juz-row">
-      <td colspan="3" style="padding-left:8pt">Juz ${jd.juz}</td>
+      <td colspan="4" style="padding-left:8pt">Juz ${jd.juz}</td>
       <td class="c">${totalJuz} ayat</td>
       <td class="c">—</td>
     </tr>`
     for (const s of jd.surahs) {
       const prog = progress[s.nomor] || []
       const hafal = prog.filter(a => a >= s.startAyat && a <= s.endAyat).length
-      const rangeSuffix = s.startAyat > 1 || s.endAyat < (s.startAyat + s.jumlahAyat - 1) ? ` (${s.startAyat}-${s.endAyat})` : ''
+      const ayatDihafal = formatRentang(prog.filter(a => a >= s.startAyat && a <= s.endAyat))
       rekapRows += `<tr>
         <td class="c">${no++}</td>
-        <td>${s.namaLatin}${rangeSuffix}</td>
+        <td>${s.namaLatin}</td>
         <td class="c" style="font-size:11pt">${s.nama}</td>
+        <td class="c">${ayatDihafal}</td>
         <td class="c">${hafal} / ${s.jumlahAyat}</td>
         <td class="c">${hafal === s.jumlahAyat ? '✓' : ''}</td>
       </tr>`
     }
   }
   rekapRows += `<tr class="total-row">
-    <td colspan="3" class="c">TOTAL KESELURUHAN</td>
+    <td colspan="4" class="c">TOTAL KESELURUHAN</td>
     <td class="c">${totalAyat} Ayat dari ${totalSurah} Surah</td>
     <td></td>
   </tr>`
@@ -149,7 +173,7 @@ function generateLaporanSiswa(
   const riwayatAsc = [...riwayat].reverse()
   let riwayatRows = ''
   if (riwayatAsc.length === 0) {
-    riwayatRows = `<tr><td colspan="6" class="c" style="padding:10pt;color:#666">Belum ada riwayat setoran tercatat</td></tr>`
+    riwayatRows = `<tr><td colspan="7" class="c" style="padding:10pt;color:#666">Belum ada riwayat setoran tercatat</td></tr>`
   } else {
     riwayatAsc.forEach((r, i) => {
       const ayatBaru: number[] = (() => { try { return JSON.parse(r.ayat_baru) } catch { return [] } })()
@@ -159,6 +183,7 @@ function generateLaporanSiswa(
         <td class="c">${formatTgl(r.created_at)}</td>
         <td>${sr?.namaLatin || '-'} <span style="font-size:11pt">(${sr?.nama || '-'})</span></td>
         <td class="c">${r.juz}</td>
+        <td class="c">${formatRentang(ayatBaru)}</td>
         <td class="c">${ayatBaru.length}</td>
         <td>${r.guru_nama || '-'}</td>
       </tr>`
@@ -196,6 +221,7 @@ function generateLaporanSiswa(
         <th style="width:28pt">No</th>
         <th>Nama Surah</th>
         <th style="width:65pt">Nama Arab</th>
+        <th style="width:80pt">Ayat Dihafal</th>
         <th style="width:75pt">Hafalan</th>
         <th style="width:32pt">Hafal</th>
       </tr></thead>
@@ -209,7 +235,8 @@ function generateLaporanSiswa(
         <th style="width:95pt">Tanggal</th>
         <th>Surah</th>
         <th style="width:32pt">Juz</th>
-        <th style="width:55pt">Jml Ayat</th>
+        <th style="width:60pt">Ayat</th>
+        <th style="width:45pt">Jml</th>
         <th style="width:90pt">Guru</th>
       </tr></thead>
       <tbody>${riwayatRows}</tbody>
@@ -248,7 +275,7 @@ function generateLaporanRingkasan(
 
   let rows = ''
   if (sorted.length === 0) {
-    rows = `<tr><td colspan="${isSemua ? 6 : 5}" class="c" style="padding:12pt;color:#666">Tidak ada siswa yang memiliki record hafalan</td></tr>`
+    rows = `<tr><td colspan="${isSemua ? 7 : 6}" class="c" style="padding:12pt;color:#666">Tidak ada siswa yang memiliki record hafalan</td></tr>`
   } else {
     sorted.forEach((s, i) => {
       rows += `<tr>
@@ -257,6 +284,7 @@ function generateLaporanRingkasan(
         <td class="c">${s.nisn || '-'}</td>
         ${isSemua ? `<td class="c">${s.tingkat}-${s.nomor_kelas} ${s.kelompok}</td>` : ''}
         <td class="c">${s.totalAyat}</td>
+        <td style="font-size:9pt;line-height:1.35">${formatSuratHafalan(s.progress)}</td>
         <td>${getJuzList(s.progress)}</td>
       </tr>`
     })
@@ -292,8 +320,9 @@ function generateLaporanRingkasan(
         <th>Nama Siswa</th>
         <th style="width:80pt">NISN</th>
         ${isSemua ? `<th style="width:90pt">Kelas</th>` : ''}
-        <th style="width:65pt">Total Ayat</th>
-        <th>Juz yang Dihafalkan</th>
+        <th style="width:50pt">Total Ayat</th>
+        <th>Surat yang Dihafalkan</th>
+        <th style="width:60pt">Juz</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>

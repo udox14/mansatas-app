@@ -207,6 +207,34 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
 
   return (
     <div id="tahfidz-top" className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+      {/* Cetak laporan — selalu terjangkau tanpa perlu memilih siswa */}
+      <div className="md:col-span-12 flex justify-end -mb-2">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1.5 text-slate-600 dark:text-slate-400">
+              <Printer className="h-4 w-4" /> Cetak Laporan <ChevronDown className="h-3 w-3" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              disabled={!selectedSiswa}
+              onClick={() => openCetak('siswa')}
+            >
+              <Printer className="h-4 w-4 mr-2" />
+              Laporan Siswa Ini
+              {!selectedSiswa && <span className="ml-2 text-xs text-slate-400">(pilih siswa dulu)</span>}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => openCetak('kelas')}>
+              Laporan Per Kelas
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => openCetak('semua')}>
+              Laporan Seluruh Siswa
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
       {/* KIRI: Daftar Siswa */}
       <div className="md:col-span-4 lg:col-span-3 flex flex-col gap-4">
         <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border shadow-sm flex flex-col gap-3">
@@ -317,30 +345,6 @@ export function TahfidzClient({ kelasList }: { kelasList: any[] }) {
                     </span>
                   )}
                 </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="gap-1.5 text-slate-600 dark:text-slate-400">
-                      <Printer className="h-4 w-4" /> Cetak Laporan <ChevronDown className="h-3 w-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      disabled={!selectedSiswa}
-                      onClick={() => openCetak('siswa')}
-                    >
-                      <Printer className="h-4 w-4 mr-2" />
-                      Laporan Siswa Ini
-                      {!selectedSiswa && <span className="ml-2 text-xs text-slate-400">(pilih siswa dulu)</span>}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => openCetak('kelas')}>
-                      Laporan Per Kelas
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => openCetak('semua')}>
-                      Laporan Seluruh Siswa
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-10 gap-3">
                 {JUZ_DATA.map(j => (

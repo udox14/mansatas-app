@@ -29,7 +29,9 @@ export function middleware(request: NextRequest) {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
     "font-src 'self' data:",
-    "connect-src 'self'",
+    // blob: dibutuhkan agar fetch(blobUrl) pada alur unduh/cetak (lib/pdf/download.ts) tidak
+    // diblokir CSP — di WebView Android gejalanya "unable to fetch / Failed to fetch".
+    "connect-src 'self' blob:",
     "worker-src 'self' blob:",
     "manifest-src 'self'",
     "object-src 'none'",

@@ -284,7 +284,7 @@ export const APP_MODULES: ModuleItem[] = [
     summary: 'Pencatatan setoran hafalan Al-Qur\'an dan capaian target juz siswa.',
     description: 'Memantau perkembangan hafalan santri/siswa, mutabaah harian, serta evaluasi ujian tahfidz berkala.',
     roles: ['guru_tahfidz', 'super_admin', 'kepsek', 'wakamad'],
-    keyFeatures: ['Input setoran juz/surat/ayat', 'Histori hafalan siswa', 'Laporan mutabaah tahfidz'],
+    keyFeatures: ['Input setoran juz/surat/ayat', 'Histori hafalan siswa', 'Laporan mutabaah tahfidz', 'Cetak laporan (siswa/kelas/seluruh) dari tombol di bagian atas halaman, memuat daftar surat & rentang ayat'],
     inputs: ['Setoran hafalan', 'Nilai kelancaran & tajwid'],
     outputs: ['Sertifikat tahfidz', 'Rekap juz yang telah dihafal'],
   },
