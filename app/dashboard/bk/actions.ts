@@ -15,27 +15,11 @@ import {
 import { publicServerError } from '@/lib/security-log'
 import { createSignedMediaUrl } from '@/lib/media-security'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
-import { z } from 'zod'
 import { emitConfiguredNotification, getStudentNotificationContext } from '@/lib/notification-engine'
 import { syncBkParentCommunication } from '@/lib/bk-parent-sync'
+import { bkCreateSchema, bkUpdateSchema, ensureBkRekamanSchema } from '@/lib/bk-schema'
 
-const bkIdSchema = z.string().trim().min(1).max(100)
-const bkCreateSchema = z.object({
-  siswa_id: bkIdSchema,
-  guru_bk_id: bkIdSchema,
-  tahun_ajaran_id: bkIdSchema,
-  bidang: z.enum(['Pribadi', 'Karir', 'Sosial', 'Akademik']),
-  topik_id: bkIdSchema.nullable(),
-  deskripsi: z.string().max(5000),
-  tindak_lanjut: z.string().max(500),
-  catatan_tindak_lanjut: z.string().max(5000).optional(),
-}).strict()
-const bkUpdateSchema = bkCreateSchema.pick({
-  topik_id: true,
-  deskripsi: true,
-  tindak_lanjut: true,
-  catatan_tindak_lanjut: true,
-}).partial().strict()
+
 
 function involvesParentFollowup(value: unknown) {
   return /orang\s*tua|pemanggilan|kolaborasi/i.test(String(value || ''))
@@ -83,7 +67,14 @@ export type RekamanBKLaporan = {
   siswa_id: string
   bidang: BidangBK
   topik_nama: string | null
+  tanggal: string
+  tempat: string
+  waktu: string
+  teknik_konseling: string
+  media: string
   deskripsi: string
+  akar_masalah: string
+  hasil_konsultasi: string
   penanganan: SesiPenanganan[]
   tindak_lanjut: string
   catatan_tindak_lanjut: string | null
@@ -302,8 +293,12 @@ export async function getRekamanSiswa(siswa_id: string, tahun_ajaran_id: string)
   const actor = await requireActionAccess('bk', 'read')
   await assertStudentScope(actor, siswa_id, 'bk')
   const db = await getDB()
+  await ensureBkRekamanSchema(db)
   const res = await db.prepare(`
-    SELECT r.id, r.bidang, r.topik_id, r.deskripsi, r.penanganan, r.tindak_lanjut, r.catatan_tindak_lanjut,
+    SELECT r.id, r.bidang, r.topik_id,
+      r.tanggal, r.tempat, r.waktu, r.teknik_konseling, r.media,
+      r.deskripsi, r.akar_masalah, r.hasil_konsultasi,
+      r.penanganan, r.tindak_lanjut, r.catatan_tindak_lanjut,
       r.created_at, r.updated_at,
       t.nama as topik_nama,
       u.nama_lengkap as guru_nama
@@ -311,10 +306,17 @@ export async function getRekamanSiswa(siswa_id: string, tahun_ajaran_id: string)
     LEFT JOIN bk_topik t ON r.topik_id = t.id
     LEFT JOIN "user" u ON r.guru_bk_id = u.id
     WHERE r.siswa_id = ? AND r.tahun_ajaran_id = ?
-    ORDER BY r.created_at DESC
+    ORDER BY COALESCE(NULLIF(r.tanggal, ''), substr(r.created_at, 1, 10)) DESC, r.created_at DESC
   `).bind(siswa_id, tahun_ajaran_id).all<any>()
   return (res.results || []).map((r: any) => ({
     ...r,
+    tanggal: r.tanggal || '',
+    tempat: r.tempat || '',
+    waktu: r.waktu || '',
+    teknik_konseling: r.teknik_konseling || '',
+    media: r.media || '',
+    akar_masalah: r.akar_masalah || '',
+    hasil_konsultasi: r.hasil_konsultasi || '',
     penanganan: (() => { try { return JSON.parse(r.penanganan || '[]') } catch { return [] } })(),
   }))
 }
@@ -327,6 +329,7 @@ export async function tambahRekamanBK(payload: unknown) {
   const identity = resolveBkIdentity(actor, safePayload.guru_bk_id)
   await assertStudentScope(actor, safePayload.siswa_id, 'bk')
   const db = await getDB()
+  await ensureBkRekamanSchema(db)
   // Validasi akses: siswa harus dari kelas binaan guru BK di TA ini
   const binaanRes = await db.prepare(
     'SELECT kelas_id FROM kelas_binaan_bk WHERE guru_bk_id = ? AND tahun_ajaran_id = ?'
@@ -337,7 +340,15 @@ export async function tambahRekamanBK(payload: unknown) {
   const result = await dbInsert(db, 'bk_rekaman', {
     siswa_id: safePayload.siswa_id, guru_bk_id: identity.guruId,
     tahun_ajaran_id: safePayload.tahun_ajaran_id, bidang: safePayload.bidang,
-    topik_id: safePayload.topik_id || null, deskripsi: safePayload.deskripsi || '',
+    topik_id: safePayload.topik_id || null,
+    tanggal: safePayload.tanggal || '',
+    tempat: safePayload.tempat || '',
+    waktu: safePayload.waktu || '',
+    teknik_konseling: safePayload.teknik_konseling || '',
+    media: safePayload.media || '',
+    deskripsi: safePayload.deskripsi || '',
+    akar_masalah: safePayload.akar_masalah || '',
+    hasil_konsultasi: safePayload.hasil_konsultasi || '',
     penanganan: '[]', tindak_lanjut: safePayload.tindak_lanjut || '',
     catatan_tindak_lanjut: safePayload.catatan_tindak_lanjut || '',
   })
@@ -353,8 +364,8 @@ export async function tambahRekamanBK(payload: unknown) {
           context: {
             ...student,
             tindak_lanjut: safePayload.tindak_lanjut || '-',
-            catatan: safePayload.catatan_tindak_lanjut || '-',
-            tanggal: new Date().toISOString().slice(0, 10),
+            catatan: safePayload.catatan_tindak_lanjut || safePayload.hasil_konsultasi || '-',
+            tanggal: safePayload.tanggal || new Date().toISOString().slice(0, 10),
           },
           db,
           parentType: /pemanggilan/i.test(safePayload.tindak_lanjut) ? 'pemanggilan' : 'kolaborasi',
@@ -373,8 +384,9 @@ export async function editRekamanBK(id: string, payload: unknown) {
   const parsed = bkUpdateSchema.safeParse(payload)
   if (!parsed.success || Object.keys(parsed.data).length === 0) return { error: 'Data rekaman BK tidak valid.' }
   const db = await getDB()
+  await ensureBkRekamanSchema(db)
   if (!(await assertRekamanScope(db, actor, id))) return { error: 'Rekaman tidak ditemukan.' }
-  const before = await db.prepare('SELECT siswa_id, tindak_lanjut, catatan_tindak_lanjut FROM bk_rekaman WHERE id = ? LIMIT 1').bind(id).first<{ siswa_id: string; tindak_lanjut: string; catatan_tindak_lanjut: string | null }>()
+  const before = await db.prepare('SELECT siswa_id, tanggal, tindak_lanjut, catatan_tindak_lanjut, hasil_konsultasi FROM bk_rekaman WHERE id = ? LIMIT 1').bind(id).first<{ siswa_id: string; tanggal: string | null; tindak_lanjut: string; catatan_tindak_lanjut: string | null; hasil_konsultasi: string | null }>()
   const safePayload = {
     ...parsed.data,
     updated_at: new Date().toISOString(),
@@ -392,8 +404,8 @@ export async function editRekamanBK(id: string, payload: unknown) {
           context: {
             ...student,
             tindak_lanjut: safePayload.tindak_lanjut || '-',
-            catatan: safePayload.catatan_tindak_lanjut || before.catatan_tindak_lanjut || '-',
-            tanggal: new Date().toISOString().slice(0, 10),
+            catatan: safePayload.catatan_tindak_lanjut || before.catatan_tindak_lanjut || safePayload.hasil_konsultasi || before.hasil_konsultasi || '-',
+            tanggal: safePayload.tanggal || before.tanggal || new Date().toISOString().slice(0, 10),
           },
           db,
           parentType: /pemanggilan/i.test(String(safePayload.tindak_lanjut)) ? 'pemanggilan' : 'kolaborasi',
@@ -521,6 +533,7 @@ export async function getLaporanBKSiswa(siswa_id: string, tahun_ajaran_id: strin
   await assertStudentScope(actor, siswa_id, 'bk')
   const db = await getDB()
   try {
+    await ensureBkRekamanSchema(db)
     const siswa = await db.prepare(`
       SELECT s.id, s.nama_lengkap, s.nisn,
         k.id as kelas_id, k.tingkat, k.nomor_kelas, k.kelompok as kelas_kelompok
@@ -541,7 +554,9 @@ export async function getLaporanBKSiswa(siswa_id: string, tahun_ajaran_id: strin
     if (!guru) return { error: 'Data Guru BK penanda tangan tidak ditemukan.' }
 
     const rekamanRes = await db.prepare(`
-      SELECT r.id, r.siswa_id, r.bidang, r.deskripsi, r.penanganan,
+      SELECT r.id, r.siswa_id, r.bidang,
+        r.tanggal, r.tempat, r.waktu, r.teknik_konseling, r.media,
+        r.deskripsi, r.akar_masalah, r.hasil_konsultasi, r.penanganan,
         r.tindak_lanjut, r.catatan_tindak_lanjut, r.created_at, r.updated_at,
         t.nama as topik_nama,
         u.nama_lengkap as guru_nama
@@ -549,7 +564,7 @@ export async function getLaporanBKSiswa(siswa_id: string, tahun_ajaran_id: strin
       LEFT JOIN bk_topik t ON r.topik_id = t.id
       LEFT JOIN "user" u ON r.guru_bk_id = u.id
       WHERE r.siswa_id = ? AND r.tahun_ajaran_id = ?
-      ORDER BY r.created_at DESC
+      ORDER BY COALESCE(NULLIF(r.tanggal, ''), substr(r.created_at, 1, 10)) DESC, r.created_at DESC
     `).bind(siswa_id, tahun_ajaran_id).all<any>()
 
     const laporan: LaporanBKSiswa = {
@@ -568,7 +583,14 @@ export async function getLaporanBKSiswa(siswa_id: string, tahun_ajaran_id: strin
         siswa_id: r.siswa_id,
         bidang: r.bidang,
         topik_nama: r.topik_nama,
+        tanggal: r.tanggal || '',
+        tempat: r.tempat || '',
+        waktu: r.waktu || '',
+        teknik_konseling: r.teknik_konseling || '',
+        media: r.media || '',
         deskripsi: r.deskripsi || '',
+        akar_masalah: r.akar_masalah || '',
+        hasil_konsultasi: r.hasil_konsultasi || '',
         penanganan: parsePenanganan(r.penanganan),
         tindak_lanjut: r.tindak_lanjut || '',
         catatan_tindak_lanjut: r.catatan_tindak_lanjut || '',

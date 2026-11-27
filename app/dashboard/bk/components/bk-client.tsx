@@ -1,7 +1,7 @@
 // Lokasi: app/dashboard/bk/components/bk-client.tsx
 'use client'
 
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useId } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,7 +12,7 @@ import {
   Search, Plus, Loader2, X, ChevronRight, HeartHandshake,
   BookOpen, Users, Pencil, Trash2, CheckCircle2, AlertCircle,
   CalendarDays, Clock, FileText, Tag, ChevronDown, ChevronUp,
-  UserSearch, ClipboardList, History
+  UserSearch, ClipboardList, History, MapPin
 } from 'lucide-react'
 import {
   searchSiswaBinaan, getRekamanSiswa, getListSiswaBerrekaman,
@@ -33,6 +33,9 @@ type KelasInfo = { id: string; tingkat: number; nomor_kelas: string; kelompok: s
 type SiswaResult = { id: string; nisn: string; nama_lengkap: string; foto_url: string | null; tingkat: number; nomor_kelas: string; kelas_kelompok: string }
 type Rekaman = {
   id: string; bidang: BidangBK; deskripsi: string
+  tanggal?: string; tempat?: string; waktu?: string
+  teknik_konseling?: string; media?: string
+  akar_masalah?: string; hasil_konsultasi?: string
   penanganan: SesiPenanganan[]; tindak_lanjut: string; catatan_tindak_lanjut?: string
   topik_id: string | null; topik_nama: string | null; guru_nama: string; created_at: string; updated_at: string
 }
@@ -56,6 +59,20 @@ const TIPE_COLOR: Record<TipePenanganan, string> = {
   HOME_VISIT:         'bg-amber-50 text-amber-700 border-amber-200',
 }
 const NO_TOPIK_VALUE = '__no_topik__'
+const TEMPAT_SUGGESTIONS = ['Ruang BK', 'Ruang Kelas', 'Ruang Guru', 'Rumah Siswa (Home Visit)', 'Online / Daring']
+const TEKNIK_SUGGESTIONS = [
+  'Konseling Individu',
+  'Konseling Kelompok',
+  'Home Visit',
+  'Wawancara & Observasi',
+  'Cognitive Behavioral Therapy (CBT)',
+  'Konseling Realita',
+  'Client-Centered',
+  'Konseling Behavioral',
+  'Mediasi',
+  'Konsultasi',
+]
+const MEDIA_SUGGESTIONS = ['Tatap Muka', 'WhatsApp', 'Telepon', 'Video Call', 'Buku Kasus', 'Lembar Refleksi']
 
 function Badge({ label, colorClass }: { label: string; colorClass: string }) {
   return <span className={cn('text-[10px] font-semibold px-1.5 py-0.5 rounded border', colorClass)}>{label}</span>
@@ -70,13 +87,31 @@ function escapeHtml(value: unknown) {
     .replace(/'/g, '&#39;')
 }
 
+function parseTanggalAman(value?: string | null) {
+  if (!value) return null
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? `${trimmed}T00:00:00` : trimmed
+  const d = new Date(normalized)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+function getTanggalRekaman(rekaman: { tanggal?: string | null; created_at: string }) {
+  return rekaman.tanggal && rekaman.tanggal.trim() ? rekaman.tanggal.trim() : rekaman.created_at
+}
+
 function formatTanggalCetak(value?: string | null) {
   if (!value) return '-'
-  try {
-    return new Date(value).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
-  } catch {
-    return value
-  }
+  const parsed = parseTanggalAman(value)
+  if (!parsed) return value
+  return parsed.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+}
+
+function formatTanggalRingkas(value?: string | null) {
+  if (!value) return '-'
+  const parsed = parseTanggalAman(value)
+  if (!parsed) return value
+  return parsed.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
 function formatNamaKelasLaporan(kelas: { tingkat?: number | null; nomor_kelas?: string | number | null; kelas_kelompok?: string | null; kelompok?: string | null }) {
@@ -118,6 +153,11 @@ const BK_PRINT_CSS = `
   .record { break-inside: avoid; page-break-inside: avoid; border: .75pt solid #555; margin-bottom: 7pt; }
   .record-head { display: flex; justify-content: space-between; gap: 8pt; background: #f0f0f0; border-bottom: .75pt solid #555; padding: 4pt 6pt; font-weight: 700; }
   .record-body { padding: 5pt 6pt; }
+  .record-grid { width: 100%; border-collapse: collapse; margin-bottom: 6pt; font-size: 8.8pt; }
+  .record-grid td { border: .6pt solid #777; padding: 3pt 5pt; vertical-align: top; }
+  .record-grid td.lbl { background: #f5f5f5; font-weight: 700; width: 19%; white-space: nowrap; }
+  .record-block { margin-top: 5pt; }
+  .record-block:first-child { margin-top: 0; }
   .muted { color: #555; }
   .empty { padding: 10pt; text-align: center; border: .75pt solid #555; color: #555; }
   .conclusion { margin-top: 10pt; padding: 6pt 8pt; border: .75pt solid #555; }
@@ -177,29 +217,46 @@ function buildLaporanSiswaHtml(data: LaporanBKSiswa) {
   const tindakLanjutCount = data.rekaman.filter(r => r.tindak_lanjut?.trim()).length
   const kelas = formatNamaKelasLaporan(data.siswa)
   const riwayat = data.rekaman.length
-    ? data.rekaman.map((r, idx) => `
+    ? data.rekaman.map((r, idx) => {
+      const tanggalDisplay = getTanggalRekaman(r)
+      const hasMeta = Boolean(r.tempat?.trim() || r.waktu?.trim() || r.teknik_konseling?.trim() || r.media?.trim())
+      const hasStructuredFields = Boolean(hasMeta || r.akar_masalah?.trim() || r.hasil_konsultasi?.trim())
+      const metaTable = hasMeta
+        ? `<table class="record-grid">
+            <tr>
+              <td class="lbl">Tanggal</td><td>${escapeHtml(formatTanggalCetak(tanggalDisplay))}</td>
+              <td class="lbl">Tempat</td><td>${escapeHtml(r.tempat || '-')}</td>
+              <td class="lbl">Waktu</td><td>${escapeHtml(r.waktu || '-')}</td>
+            </tr>
+            <tr>
+              <td class="lbl">Teknik Konseling</td><td colspan="2">${escapeHtml(r.teknik_konseling || '-')}</td>
+              <td class="lbl">Media</td><td colspan="2">${escapeHtml(r.media || '-')}</td>
+            </tr>
+          </table>`
+        : ''
+      return `
       <div class="record">
         <div class="record-head">
-          <span>${idx + 1}. ${escapeHtml(formatTanggalCetak(r.created_at))} - ${escapeHtml(r.bidang)}</span>
+          <span>${idx + 1}. ${escapeHtml(formatTanggalCetak(tanggalDisplay))} - ${escapeHtml(r.bidang)}</span>
           <span>${escapeHtml(r.topik_nama || 'Tanpa topik')}</span>
         </div>
         <div class="record-body">
-          <div><strong>Uraian masalah:</strong><br>${escapeHtml(r.deskripsi || '-').replace(/\n/g, '<br>')}</div>
-          <div style="margin-top:5pt"><strong>Penanganan:</strong> ${
-            r.penanganan.length
-              ? `<ol style="margin:3pt 0 0 16pt;padding:0">${r.penanganan.map(s => `<li>${escapeHtml(formatTanggalCetak(s.tanggal))} - ${escapeHtml(sesiLabel(s.tipe))}${s.catatan ? `: ${escapeHtml(s.catatan)}` : ''}</li>`).join('')}</ol>`
-              : '<span class="muted">Belum ada sesi penanganan.</span>'
-          }</div>
-          <div style="margin-top:5pt"><strong>Tindak lanjut:</strong> ${escapeHtml(r.tindak_lanjut || '-')}</div>
-          ${r.catatan_tindak_lanjut ? `<div><strong>Catatan tindak lanjut:</strong> ${escapeHtml(r.catatan_tindak_lanjut)}</div>` : ''}
+          ${metaTable}
+          <div class="record-block"><strong>Gejala yang nampak atau Keluhan:</strong><br>${escapeHtml(r.deskripsi || '-').replace(/\n/g, '<br>')}</div>
+          ${(hasStructuredFields || r.akar_masalah?.trim()) ? `<div class="record-block"><strong>Akar Penyebab Masalah:</strong><br>${escapeHtml(r.akar_masalah || '-').replace(/\n/g, '<br>')}</div>` : ''}
+          ${(hasStructuredFields || r.hasil_konsultasi?.trim()) ? `<div class="record-block"><strong>Hasil Konsultasi:</strong><br>${escapeHtml(r.hasil_konsultasi || '-').replace(/\n/g, '<br>')}</div>` : ''}
+          <div class="record-block"><strong>Rencana Tindak Lanjut:</strong><br>${escapeHtml(r.tindak_lanjut || '-').replace(/\n/g, '<br>')}</div>
+          ${r.catatan_tindak_lanjut ? `<div class="record-block"><strong>Catatan Tindak Lanjut:</strong><br>${escapeHtml(r.catatan_tindak_lanjut).replace(/\n/g, '<br>')}</div>` : ''}
+          ${r.penanganan.length ? `<div class="record-block"><strong>Sesi Penanganan Tambahan:</strong><ol style="margin:3pt 0 0 16pt;padding:0">${r.penanganan.map(s => `<li>${escapeHtml(formatTanggalCetak(s.tanggal))} - ${escapeHtml(sesiLabel(s.tipe))}${s.catatan ? `: ${escapeHtml(s.catatan)}` : ''}</li>`).join('')}</ol></div>` : ''}
         </div>
-      </div>`).join('')
+      </div>`
+    }).join('')
     : '<div class="empty">Belum ada rekaman BK pada tahun ajaran ini.</div>'
 
   const kesimpulanBidang = bidangList.length ? bidangList.join(', ') : 'belum ada bidang layanan tercatat'
   const body = `
     <div class="title">
-      <h1>Laporan Layanan Bimbingan Konseling Perorangan</h1>
+      <h1>Laporan Layanan Bimbingan Konseling Individu</h1>
       <p>Tahun Ajaran ${escapeHtml(data.ta.nama)} - Semester ${data.ta.semester === 1 ? 'Ganjil' : 'Genap'}</p>
     </div>
     <table class="meta">
@@ -456,96 +513,230 @@ function SesiPenangananPanel({ rekamanId, sesiList, canEdit, onChanged }: {
   )
 }
 
-// ── Form Tambah/Edit Rekaman ───────────────────────────────────────────
+// ── Form Tambah/Edit Rekaman (Catatan Penanganan Siswa) ───────────────
 function FormRekaman({ siswa, taId, guruBkId, topikAll, onSaved, onClose, editData }: {
   siswa: SiswaResult; taId: string; guruBkId: string; topikAll: Topik[]
-  onSaved: (r: Rekaman) => void; onClose: () => void; editData?: Rekaman
+  onSaved: (r?: Rekaman) => void; onClose: () => void; editData?: Rekaman
 }) {
+  const formUid = useId()
+  const tempatListId = `${formUid}-tempat`
+  const teknikListId = `${formUid}-teknik`
+  const mediaListId = `${formUid}-media`
+
   const [bidang, setBidang] = useState<BidangBK>(editData?.bidang ?? 'Pribadi')
   const [topikId, setTopikId] = useState(editData?.topik_id ?? NO_TOPIK_VALUE)
+  const [tanggal, setTanggal] = useState(
+    editData
+      ? (editData.tanggal?.trim() || (editData.created_at ? editData.created_at.slice(0, 10) : todayWIB()))
+      : todayWIB()
+  )
+  const [tempat, setTempat] = useState(editData?.tempat ?? '')
+  const [waktu, setWaktu] = useState(editData?.waktu ?? '')
+  const [teknikKonseling, setTeknikKonseling] = useState(editData?.teknik_konseling ?? '')
+  const [media, setMedia] = useState(editData?.media ?? '')
   const [deskripsi, setDeskripsi] = useState(editData?.deskripsi ?? '')
+  const [akarMasalah, setAkarMasalah] = useState(editData?.akar_masalah ?? '')
+  const [hasilKonsultasi, setHasilKonsultasi] = useState(editData?.hasil_konsultasi ?? '')
   const [tindakLanjut, setTindakLanjut] = useState(editData?.tindak_lanjut ?? '')
   const [catatanTL, setCatatanTL] = useState(editData?.catatan_tindak_lanjut ?? '')
   const [isSaving, setIsSaving] = useState(false)
 
   const topikFiltered = topikAll.filter(t => t.bidang === bidang)
   const selectedTopikId = !topikId || topikId === NO_TOPIK_VALUE ? null : topikId
+  const kelasLabel = siswa.tingkat ? formatNamaKelas(siswa.tingkat, siswa.nomor_kelas, siswa.kelas_kelompok) : ''
+  const hasLegacyCatatanTL = Boolean(editData?.catatan_tindak_lanjut?.trim())
 
   const handleSave = async () => {
     setIsSaving(true)
     try {
       if (editData) {
-        const res = await editRekamanBK(editData.id, { topik_id: selectedTopikId, deskripsi, tindak_lanjut: tindakLanjut, catatan_tindak_lanjut: catatanTL })
+        const res = await editRekamanBK(editData.id, {
+          bidang,
+          topik_id: selectedTopikId,
+          tanggal,
+          tempat,
+          waktu,
+          teknik_konseling: teknikKonseling,
+          media,
+          deskripsi,
+          akar_masalah: akarMasalah,
+          hasil_konsultasi: hasilKonsultasi,
+          tindak_lanjut: tindakLanjut,
+          ...(hasLegacyCatatanTL ? { catatan_tindak_lanjut: catatanTL } : {}),
+        })
         if (res.error) { alert(res.error); return }
-        onSaved({ ...editData, topik_id: selectedTopikId, deskripsi, tindak_lanjut: tindakLanjut, catatan_tindak_lanjut: catatanTL })
+        onSaved({
+          ...editData,
+          bidang,
+          topik_id: selectedTopikId,
+          tanggal,
+          tempat,
+          waktu,
+          teknik_konseling: teknikKonseling,
+          media,
+          deskripsi,
+          akar_masalah: akarMasalah,
+          hasil_konsultasi: hasilKonsultasi,
+          tindak_lanjut: tindakLanjut,
+          catatan_tindak_lanjut: hasLegacyCatatanTL ? catatanTL : editData.catatan_tindak_lanjut,
+        })
       } else {
-        const res = await tambahRekamanBK({ siswa_id: siswa.id, guru_bk_id: guruBkId, tahun_ajaran_id: taId, bidang, topik_id: selectedTopikId, deskripsi, tindak_lanjut: '', catatan_tindak_lanjut: '' })
+        const res = await tambahRekamanBK({
+          siswa_id: siswa.id,
+          guru_bk_id: guruBkId,
+          tahun_ajaran_id: taId,
+          bidang,
+          topik_id: selectedTopikId,
+          tanggal,
+          tempat,
+          waktu,
+          teknik_konseling: teknikKonseling,
+          media,
+          deskripsi,
+          akar_masalah: akarMasalah,
+          hasil_konsultasi: hasilKonsultasi,
+          tindak_lanjut: tindakLanjut,
+          catatan_tindak_lanjut: '',
+        })
         if (res.error) { alert(res.error); return }
-        onClose()
+        onSaved()
       }
     } finally { setIsSaving(false) }
   }
 
   return (
     <div className="space-y-4">
-      {!editData && (
+      {/* Nama dan Kelas Siswa (otomatis dari siswa terpilih) */}
+      {siswa.nama_lengkap && (
+        <div className="rounded-xl border border-surface bg-surface-2/80 px-3.5 py-2.5">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Nama dan Kelas Siswa</p>
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 mt-0.5">
+            {siswa.nama_lengkap}
+            {kelasLabel && <span className="font-normal text-slate-500 dark:text-slate-400"> · Kelas {kelasLabel}</span>}
+          </p>
+        </div>
+      )}
+
+      {/* Tanggal, Tempat, Waktu */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Tanggal</label>
+          <Input type="date" value={tanggal} onChange={e => setTanggal(e.target.value)}
+            className="h-9 text-sm rounded-lg bg-surface-2 border-surface" />
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Tempat</label>
+          <Input list={tempatListId} value={tempat} onChange={e => setTempat(e.target.value)}
+            placeholder="Contoh: Ruang BK"
+            className="h-9 text-sm rounded-lg bg-surface-2 border-surface" />
+          <datalist id={tempatListId}>
+            {TEMPAT_SUGGESTIONS.map(item => <option key={item} value={item} />)}
+          </datalist>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Waktu</label>
+          <Input value={waktu} onChange={e => setWaktu(e.target.value)}
+            placeholder="Contoh: 09:00 - 09:45"
+            className="h-9 text-sm rounded-lg bg-surface-2 border-surface" />
+        </div>
+      </div>
+
+      {/* Klasifikasi Bidang & Topik */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-0.5">
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Bidang Layanan <span className="text-rose-500">*</span></label>
-          <div className="flex flex-wrap gap-2">
+          <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Bidang Layanan <span className="text-rose-500">*</span></label>
+          <div className="flex flex-wrap gap-1.5">
             {BIDANG_LIST.map(b => (
               <button key={b} type="button" onClick={() => { setBidang(b); setTopikId(NO_TOPIK_VALUE) }}
-                className={cn('px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all',
+                className={cn('px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all',
                   bidang === b ? BIDANG_COLORS[b] : 'bg-surface-2 text-slate-500 dark:text-slate-400 border-surface hover:bg-surface-3')}>
                 {b}
               </button>
             ))}
           </div>
         </div>
-      )}
-
-      <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Topik Permasalahan</label>
-        <Select value={topikId} onValueChange={setTopikId}>
-          <SelectTrigger className="h-9 text-sm rounded-lg bg-surface-2 border-surface"><SelectValue placeholder="Pilih topik (opsional)..." /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value={NO_TOPIK_VALUE} className="text-xs italic text-slate-400">Tidak dipilih</SelectItem>
-            {topikFiltered.map(t => <SelectItem key={t.id} value={t.id} className="text-sm">{t.nama}</SelectItem>)}
-            {topikFiltered.length === 0 && <div className="px-3 py-2 text-xs text-slate-400 italic">Belum ada topik untuk bidang ini</div>}
-          </SelectContent>
-        </Select>
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Topik Permasalahan</label>
+          <Select value={topikId} onValueChange={setTopikId}>
+            <SelectTrigger className="h-9 text-sm rounded-lg bg-surface-2 border-surface"><SelectValue placeholder="Pilih topik (opsional)..." /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_TOPIK_VALUE} className="text-xs italic text-slate-400">Tidak dipilih</SelectItem>
+              {topikFiltered.map(t => <SelectItem key={t.id} value={t.id} className="text-sm">{t.nama}</SelectItem>)}
+              {topikFiltered.length === 0 && <div className="px-3 py-2 text-xs text-slate-400 italic">Belum ada topik untuk bidang ini</div>}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
+      {/* Teknik Konseling & Media */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Teknik Konseling</label>
+          <Input list={teknikListId} value={teknikKonseling} onChange={e => setTeknikKonseling(e.target.value)}
+            placeholder="Contoh: Konseling Individu, CBT, Realita..."
+            className="h-9 text-sm rounded-lg bg-surface-2 border-surface" />
+          <datalist id={teknikListId}>
+            {TEKNIK_SUGGESTIONS.map(item => <option key={item} value={item} />)}
+          </datalist>
+        </div>
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Media</label>
+          <Input list={mediaListId} value={media} onChange={e => setMedia(e.target.value)}
+            placeholder="Contoh: Tatap Muka, WhatsApp..."
+            className="h-9 text-sm rounded-lg bg-surface-2 border-surface" />
+          <datalist id={mediaListId}>
+            {MEDIA_SUGGESTIONS.map(item => <option key={item} value={item} />)}
+          </datalist>
+        </div>
+      </div>
+
+      {/* Gejala yang nampak atau Keluhan */}
       <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Deskripsi</label>
+        <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Gejala yang nampak atau Keluhan</label>
         <textarea value={deskripsi} onChange={e => setDeskripsi(e.target.value)} rows={3}
-          className="w-full rounded-lg border border-surface bg-surface-2 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-300 resize-none"
-          placeholder="Tuliskan deskripsi masalah secara bebas..." />
+          className="w-full rounded-lg border border-surface bg-surface-2 px-3 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-300 resize-y"
+          placeholder="Tuliskan gejala yang nampak atau keluhan yang disampaikan siswa..." />
       </div>
 
-      {editData && (
-        <>
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">Tindak Lanjut</label>
-            <Input value={tindakLanjut} onChange={e => setTindakLanjut(e.target.value)}
-              placeholder="Contoh: Konseling lanjutan, Panggil wali murid, Monitoring 2 minggu..."
-              className="h-9 text-sm rounded-lg bg-surface-2 border-surface" />
-          </div>
+      {/* Akar Penyebab Masalah */}
+      <div className="space-y-1.5">
+        <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Akar Penyebab Masalah</label>
+        <textarea value={akarMasalah} onChange={e => setAkarMasalah(e.target.value)} rows={3}
+          className="w-full rounded-lg border border-surface bg-surface-2 px-3 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-300 resize-y"
+          placeholder="Tuliskan hasil analisis akar penyebab masalah..." />
+      </div>
 
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 dark:text-slate-300">
-              Catatan Tindak Lanjut <span className="text-slate-400 font-normal">(opsional)</span>
-            </label>
-            <textarea value={catatanTL} onChange={e => setCatatanTL(e.target.value)} rows={2}
-              className="w-full rounded-lg border border-surface bg-surface-2 px-3 py-2 text-sm text-slate-800 dark:text-slate-200 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-300 resize-none"
-              placeholder="Catatan tambahan terkait tindak lanjut..." />
-          </div>
-        </>
+      {/* Hasil Konsultasi */}
+      <div className="space-y-1.5">
+        <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Hasil Konsultasi</label>
+        <textarea value={hasilKonsultasi} onChange={e => setHasilKonsultasi(e.target.value)} rows={3}
+          className="w-full rounded-lg border border-surface bg-surface-2 px-3 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-300 resize-y"
+          placeholder="Tuliskan hasil konsultasi dan komitmen/kesepakatan siswa..." />
+      </div>
+
+      {/* Rencana Tindak Lanjut */}
+      <div className="space-y-1.5">
+        <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Rencana Tindak Lanjut</label>
+        <textarea value={tindakLanjut} onChange={e => setTindakLanjut(e.target.value)} rows={2}
+          className="w-full rounded-lg border border-surface bg-surface-2 px-3 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-300 resize-y"
+          placeholder="Contoh: Konseling lanjutan, Kolaborasi dengan orang tua, Pemanggilan orang tua, Monitoring 2 minggu..." />
+      </div>
+
+      {hasLegacyCatatanTL && (
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+            Catatan Tindak Lanjut Tambahan <span className="text-slate-400 font-normal">(data lama)</span>
+          </label>
+          <textarea value={catatanTL} onChange={e => setCatatanTL(e.target.value)} rows={2}
+            className="w-full rounded-lg border border-surface bg-surface-2 px-3 py-2 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-slate-300 resize-y"
+            placeholder="Catatan tambahan terkait tindak lanjut..." />
+        </div>
       )}
 
       <div className="flex gap-2 pt-1">
         <Button variant="outline" type="button" onClick={onClose} className="flex-1 h-9 text-sm rounded-lg">Batal</Button>
         <Button onClick={handleSave} disabled={isSaving} className="flex-1 h-9 text-sm rounded-lg bg-rose-600 hover:bg-rose-700 text-white">
-          {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Menyimpan...</> : editData ? 'Simpan Perubahan' : 'Simpan Kasus'}
+          {isSaving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Menyimpan...</> : editData ? 'Simpan Perubahan' : 'Simpan Catatan'}
         </Button>
       </div>
     </div>
@@ -553,13 +744,15 @@ function FormRekaman({ siswa, taId, guruBkId, topikAll, onSaved, onClose, editDa
 }
 
 // ── Rekaman Item (untuk tab Riwayat) ───────────────────────────────────
-function RekamanItem({ rekaman, canEdit, topikAll, guruBkId, taId, onChanged, onDeleted, defaultOpen = false }: {
-  rekaman: Rekaman; canEdit: boolean; topikAll: Topik[]; guruBkId: string; taId: string
+function RekamanItem({ rekaman, siswa, canEdit, topikAll, guruBkId, taId, onChanged, onDeleted, defaultOpen = false }: {
+  rekaman: Rekaman; siswa: SiswaResult; canEdit: boolean; topikAll: Topik[]; guruBkId: string; taId: string
   onChanged: () => void; onDeleted: () => void; defaultOpen?: boolean
 }) {
   const [sesiList, setSesiList] = useState<SesiPenanganan[]>(rekaman.penanganan)
   const [isEditing, setIsEditing] = useState(false)
   const [expanded, setExpanded] = useState(defaultOpen)
+  const tanggalDisplay = getTanggalRekaman(rekaman)
+  const hasMeta = Boolean(rekaman.tempat?.trim() || rekaman.waktu?.trim() || rekaman.teknik_konseling?.trim() || rekaman.media?.trim())
 
   return (
     <div className="rounded-xl border border-surface bg-surface overflow-hidden shadow-sm">
@@ -567,8 +760,8 @@ function RekamanItem({ rekaman, canEdit, topikAll, guruBkId, taId, onChanged, on
         className="w-full px-4 py-3 hover:bg-surface-2 transition-colors text-left">
         <div className="flex items-center gap-2">
           <Badge label={rekaman.bidang} colorClass={BIDANG_COLORS[rekaman.bidang]} />
-          <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 dark:text-slate-200 truncate flex-1 min-w-0">
-            {rekaman.topik_nama || <span className="text-slate-400 italic font-normal">Tanpa topik</span>}
+          <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate flex-1 min-w-0">
+            {rekaman.topik_nama || rekaman.teknik_konseling || <span className="text-slate-400 italic font-normal">Tanpa topik</span>}
           </span>
           {sesiList.length > 0 && (
             <span className="text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded-full shrink-0">{sesiList.length} sesi</span>
@@ -576,18 +769,26 @@ function RekamanItem({ rekaman, canEdit, topikAll, guruBkId, taId, onChanged, on
           <span className="shrink-0 text-slate-400">{expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}</span>
         </div>
         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-          <span className="text-[10px] text-slate-400">{new Date(rekaman.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+          <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">{formatTanggalRingkas(tanggalDisplay)}</span>
+          {rekaman.waktu && <span className="text-[10px] text-slate-400">· {rekaman.waktu}</span>}
+          {rekaman.tempat && (
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 inline-flex items-center gap-0.5">
+              <MapPin className="h-2.5 w-2.5" /> {rekaman.tempat}
+            </span>
+          )}
           {rekaman.tindak_lanjut && (
-            <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 bg-surface-3 border border-surface-2 px-2 py-0.5 rounded-full">{rekaman.tindak_lanjut}</span>
+            <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-300 bg-surface-3 border border-surface-2 px-2 py-0.5 rounded-full max-w-[220px] truncate">
+              {rekaman.tindak_lanjut}
+            </span>
           )}
         </div>
       </button>
 
       {expanded && (
-        <div className="border-t border-surface-2 px-4 py-4 space-y-4 bg-slate-50 dark:bg-slate-800/50 dark:bg-slate-900/20">
+        <div className="border-t border-surface-2 px-4 py-4 space-y-3 bg-slate-50 dark:bg-slate-900/20">
           {isEditing ? (
             <FormRekaman
-              siswa={{ id: '', nisn: '', nama_lengkap: '', foto_url: null, tingkat: 0, nomor_kelas: '', kelas_kelompok: '' }}
+              siswa={siswa}
               taId={taId} guruBkId={guruBkId} topikAll={topikAll} editData={rekaman}
               onSaved={() => { setIsEditing(false); onChanged() }}
               onClose={() => setIsEditing(false)}
@@ -596,30 +797,65 @@ function RekamanItem({ rekaman, canEdit, topikAll, guruBkId, taId, onChanged, on
             <>
               <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
                 <Clock className="h-3 w-3 shrink-0" />
-                Dicatat oleh {rekaman.guru_nama?.split(',')[0]} · {new Date(rekaman.updated_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                Dicatat oleh {rekaman.guru_nama?.split(',')[0] || 'Guru BK'} · diperbarui {formatTanggalRingkas(rekaman.updated_at)}
               </div>
+
+              {hasMeta && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 rounded-lg bg-surface border border-surface-2 p-3 text-xs">
+                  <div>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase">Tempat</p>
+                    <p className="text-slate-700 dark:text-slate-200 font-medium mt-0.5">{rekaman.tempat || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase">Waktu</p>
+                    <p className="text-slate-700 dark:text-slate-200 font-medium mt-0.5">{rekaman.waktu || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase">Teknik Konseling</p>
+                    <p className="text-slate-700 dark:text-slate-200 font-medium mt-0.5">{rekaman.teknik_konseling || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-semibold text-slate-400 uppercase">Media</p>
+                    <p className="text-slate-700 dark:text-slate-200 font-medium mt-0.5">{rekaman.media || '-'}</p>
+                  </div>
+                </div>
+              )}
 
               {rekaman.deskripsi ? (
                 <div className="rounded-lg bg-surface border border-surface-2 px-4 py-3">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1.5">Deskripsi</p>
-                  <p className="text-sm text-slate-700 dark:text-slate-300 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">{rekaman.deskripsi}</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Gejala yang nampak atau Keluhan</p>
+                  <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">{rekaman.deskripsi}</p>
                 </div>
               ) : (
-                <p className="text-xs text-slate-400 italic">Tidak ada deskripsi.</p>
+                <p className="text-xs text-slate-400 italic">Tidak ada catatan gejala/keluhan.</p>
+              )}
+
+              {rekaman.akar_masalah && (
+                <div className="rounded-lg bg-surface border border-surface-2 px-4 py-3">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Akar Penyebab Masalah</p>
+                  <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">{rekaman.akar_masalah}</p>
+                </div>
+              )}
+
+              {rekaman.hasil_konsultasi && (
+                <div className="rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/70 dark:border-emerald-900/50 px-4 py-3">
+                  <p className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wide mb-1">Hasil Konsultasi</p>
+                  <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">{rekaman.hasil_konsultasi}</p>
+                </div>
+              )}
+
+              {(rekaman.tindak_lanjut || rekaman.catatan_tindak_lanjut) && (
+                <div className="rounded-lg bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/70 dark:border-amber-900/50 px-4 py-3 space-y-1.5">
+                  <p className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wide">Rencana Tindak Lanjut</p>
+                  {rekaman.tindak_lanjut && <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">{rekaman.tindak_lanjut}</p>}
+                  {rekaman.catatan_tindak_lanjut && <p className="text-xs text-slate-600 dark:text-slate-300 italic leading-relaxed whitespace-pre-wrap">{rekaman.catatan_tindak_lanjut}</p>}
+                </div>
               )}
 
               <div className="rounded-xl border border-surface bg-surface px-3 py-3">
                 <SesiPenangananPanel rekamanId={rekaman.id} sesiList={sesiList} canEdit={canEdit}
                   onChanged={newList => { setSesiList(newList); onChanged() }} />
               </div>
-
-              {(rekaman.tindak_lanjut || rekaman.catatan_tindak_lanjut) && (
-                <div className="rounded-lg bg-amber-50/60 border border-amber-100 px-4 py-3 space-y-1.5">
-                  <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wide">Tindak Lanjut</p>
-                  {rekaman.tindak_lanjut && <p className="text-sm font-semibold text-slate-700 dark:text-slate-300 dark:text-slate-200">{rekaman.tindak_lanjut}</p>}
-                  {rekaman.catatan_tindak_lanjut && <p className="text-xs text-slate-600 dark:text-slate-400 dark:text-slate-300 italic leading-relaxed">{rekaman.catatan_tindak_lanjut}</p>}
-                </div>
-              )}
 
               {canEdit && (
                 <div className="flex gap-3 pt-1 border-t border-surface-2">
@@ -799,7 +1035,7 @@ function ModalDetailSiswa({ siswa, taId, guruBkId, userRole, isAdmin, topikAll, 
                 ? 'border-rose-600 text-rose-600 bg-rose-50/50 dark:bg-rose-900/10'
                 : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-surface-2')}>
             <ClipboardList className="h-3.5 w-3.5" />
-            Input Kasus Baru
+            Input Konseling
           </button>
           <button onClick={() => setActiveTab('riwayat')}
             className={cn('flex-1 flex items-center justify-center gap-2 py-3 text-xs font-semibold border-b-2 transition-all',
@@ -825,14 +1061,13 @@ function ModalDetailSiswa({ siswa, taId, guruBkId, userRole, isAdmin, topikAll, 
                       <ClipboardList className="h-4 w-4 text-rose-600" />
                     </div>
                     <div>
-                      <p className="text-sm font-bold text-slate-800 dark:text-slate-200 dark:text-slate-100">Kasus Bimbingan Baru</p>
-                      <p className="text-[11px] text-slate-400">Catat pokok masalah untuk {siswa.nama_lengkap.split(' ')[0]}</p>
+                      <p className="text-sm font-bold text-slate-800 dark:text-slate-100">Catatan Penanganan Siswa</p>
+                      <p className="text-[11px] text-slate-400">Rekam layanan konseling untuk {siswa.nama_lengkap.split(' ')[0]}</p>
                     </div>
                   </div>
                   <FormRekaman siswa={siswa} taId={taId} guruBkId={guruBkId} topikAll={topikAll}
-                    onSaved={() => {}}
-                    onClose={async () => { await refreshRekaman(); setActiveTab('riwayat') }} />
-                  <p className="mt-3 text-[11px] text-slate-400">Sesi penanganan dan tindak lanjut dicatat setelah rekaman kasus tersimpan.</p>
+                    onSaved={async () => { await refreshRekaman(); setActiveTab('riwayat') }}
+                    onClose={() => { if (rekamanList.length > 0) setActiveTab('riwayat'); else onClose() }} />
                 </>
               ) : (
                 <div className="text-center py-10 text-slate-400">
@@ -883,9 +1118,9 @@ function ModalDetailSiswa({ siswa, taId, guruBkId, userRole, isAdmin, topikAll, 
               )}
 
               {!isLoading && rekamanFiltered.map((r, idx) => (
-                <RekamanItem key={r.id} rekaman={r} canEdit={canEdit} topikAll={topikAll}
+                <RekamanItem key={r.id} rekaman={r} siswa={siswa} canEdit={canEdit} topikAll={topikAll}
                   guruBkId={guruBkId} taId={taId} defaultOpen={idx === 0}
-                  onChanged={() => onDataChanged()}
+                  onChanged={() => { refreshRekaman() }}
                   onDeleted={() => { setRekamanList(prev => prev.filter(x => x.id !== r.id)); onDataChanged() }}
                 />
               ))}
