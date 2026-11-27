@@ -6,7 +6,7 @@ import { useMemo, useState, useTransition } from 'react'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import {
   AlertTriangle, ArrowDownRight, ArrowUpRight, Eye, FileText, Filter,
-  Pencil, Plus, RefreshCcw, Search, SlidersHorizontal, Tag, TrendingDown, TrendingUp, XCircle,
+  Pencil, Plus, Printer, RefreshCcw, Search, SlidersHorizontal, Tag, TrendingDown, TrendingUp, XCircle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -22,6 +22,7 @@ import type { CashDirection, CashflowCategory, CashflowEntry, CashflowFilters, C
 import { BudgetPositionSelect, FundSourceSelect } from '@/components/dashboard/komite-fund-fields'
 import { komiteFundLabel } from '@/lib/komite-funds'
 import { CashflowPrintDialog } from './cashflow-print-dialog'
+import { KuitansiPrintDialog } from '@/components/dashboard/kuitansi-print-dialog'
 import { createCashflowEntry, mapHistoricalCashflow, getCashflowPage, updateCashflowEntry, voidCashflowEntry } from './actions'
 import type { ProofNumberMode } from '@/lib/komite-report-settings'
 
@@ -197,6 +198,8 @@ export function KasKeluarClient({
   const [editing, setEditing] = useState<CashflowEntry | null>(null)
   const [voiding, setVoiding] = useState<CashflowEntry | null>(null)
   const [voidReason, setVoidReason] = useState('')
+  const [printingReceipt, setPrintingReceipt] = useState<{ id: string; subtitle: string; defaultAttachment: boolean } | null>(null)
+  const [lastCreatedExpense, setLastCreatedExpense] = useState<{ id: string; subtitle: string } | null>(null)
   const [proof, setProof] = useState<File | null>(null)
   const [form, setForm] = useState<FormState>(() => emptyForm(initialData.categories))
   const activeCategories = useMemo(
@@ -253,6 +256,7 @@ export function KasKeluarClient({
   function saveEntry(event: React.FormEvent) {
     event.preventDefault()
     setMessage('')
+    setLastCreatedExpense(null)
     const payload = { ...form, amount: Number(form.amount) }
     const fd = new FormData()
     if (proof) fd.set('proof', proof)
@@ -264,6 +268,18 @@ export function KasKeluarClient({
           : await createCashflowEntry(payload, fd)
       setMessage(result.error ?? result.success ?? '')
       if (!result.error) {
+        if (
+          !editing &&
+          'entryId' in result &&
+          typeof result.entryId === 'string' &&
+          'direction' in result &&
+          result.direction === 'expense'
+        ) {
+          setLastCreatedExpense({
+            id: result.entryId,
+            subtitle: [formatRupiah(payload.amount), payload.counterparty || payload.description].filter(Boolean).join(' · '),
+          })
+        }
         setFormOpen(false)
         setData(await getCashflowPage(filters))
       }
@@ -478,8 +494,19 @@ export function KasKeluarClient({
       </search>
 
       {message && (
-        <div role="status" className={`rounded-lg px-3 py-2 text-xs font-medium ${message.toLowerCase().includes('berhasil') || message.toLowerCase().includes('dipetakan') ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300'}`}>
-          {message}
+        <div role="status" className={`flex flex-wrap items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs font-medium ${message.toLowerCase().includes('berhasil') || message.toLowerCase().includes('dipetakan') ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300'}`}>
+          <span>{message}</span>
+          {lastCreatedExpense && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-7 gap-1.5 border-emerald-300 bg-white px-2.5 text-xs text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
+              onClick={() => setPrintingReceipt({ ...lastCreatedExpense, defaultAttachment: false })}
+            >
+              <Printer className="h-3.5 w-3.5" /> Cetak Kuitansi
+            </Button>
+          )}
         </div>
       )}
 
@@ -500,6 +527,8 @@ export function KasKeluarClient({
                 data.entries.map(entry => {
                   const isUnmapped = entry.fundSource === 'unmapped'
                   const canEditRow = entry.origin === 'manual' && !entry.linkedSpb && entry.status === 'active'
+                  const canPrintReceipt = entry.origin === 'manual' && entry.direction === 'expense' && entry.status === 'active'
+                  const receiptSubtitle = [entry.proofNumber, formatRupiah(entry.amount), entry.counterparty || entry.description].filter(Boolean).join(' · ')
                   return (
                     <div key={`m-${entry.id}`} className={`space-y-2 p-3.5 ${entry.status === 'void' ? 'opacity-55' : ''}`}>
                       <div className="flex items-start justify-between gap-2">
@@ -527,6 +556,17 @@ export function KasKeluarClient({
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[11px] text-slate-400">No. bukti: {entry.proofNumber || '-'}</span>
                         <div className="flex items-center gap-1">
+                          {canPrintReceipt && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => setPrintingReceipt({ id: entry.id, subtitle: receiptSubtitle, defaultAttachment: Boolean(entry.linkedSpb) })}
+                            >
+                              <Printer className="mr-1 h-3 w-3" /> Kuitansi
+                            </Button>
+                          )}
                           {entry.proofUrl && (
                             <Button asChild variant="outline" size="sm" className="h-7 px-2 text-xs">
                               <a href={entry.proofUrl} target="_blank" rel="noreferrer"><Eye className="mr-1 h-3 w-3" /> Bukti</a>
@@ -580,6 +620,8 @@ export function KasKeluarClient({
                   {data.entries.map(entry => {
                     const isUnmapped = entry.fundSource === 'unmapped'
                     const canEditRow = entry.origin === 'manual' && !entry.linkedSpb && entry.status === 'active'
+                    const canPrintReceipt = entry.origin === 'manual' && entry.direction === 'expense' && entry.status === 'active'
+                    const receiptSubtitle = [entry.proofNumber, formatRupiah(entry.amount), entry.counterparty || entry.description].filter(Boolean).join(' · ')
                     return (
                       <TableRow key={entry.id} className={entry.status === 'void' ? 'opacity-55' : ''}>
                         <TableCell className="whitespace-nowrap text-xs text-slate-600 dark:text-slate-300">
@@ -614,6 +656,19 @@ export function KasKeluarClient({
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
+                            {canPrintReceipt && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 w-7 p-0"
+                                title="Cetak kuitansi"
+                                aria-label="Cetak kuitansi"
+                                onClick={() => setPrintingReceipt({ id: entry.id, subtitle: receiptSubtitle, defaultAttachment: Boolean(entry.linkedSpb) })}
+                              >
+                                <Printer className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                             {entry.proofUrl && (
                               <Button asChild variant="ghost" size="sm" className="h-7 w-7 p-0">
                                 <a href={entry.proofUrl} target="_blank" rel="noreferrer" aria-label="Lihat bukti"><Eye className="h-3.5 w-3.5" /></a>
@@ -791,6 +846,14 @@ export function KasKeluarClient({
           </div>
         </DialogContent>
       </Dialog>
+
+      <KuitansiPrintDialog
+        open={!!printingReceipt}
+        onOpenChange={open => { if (!open) setPrintingReceipt(null) }}
+        hrefBase={printingReceipt ? `/api/keuangan/kas-keluar/${printingReceipt.id}/kuitansi` : ''}
+        subtitle={printingReceipt?.subtitle}
+        defaultAttachment={printingReceipt?.defaultAttachment ?? false}
+      />
     </div>
   )
 }

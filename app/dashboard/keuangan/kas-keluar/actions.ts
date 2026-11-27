@@ -257,7 +257,12 @@ export async function createCashflowEntry(input: ManualEntryInput, proof?: FormD
     return { error: await komiteCashError(db,cause,[{source: allocation.source,amount: -value.amount}]), success:null }
   }
   revalidateCashflow()
-  return { error: null, success: value.direction === 'income' ? 'Pemasukan berhasil dicatat.' : 'Pengeluaran berhasil dicatat.' }
+  return {
+    error: null,
+    success: value.direction === 'income' ? 'Pemasukan berhasil dicatat.' : 'Pengeluaran berhasil dicatat.',
+    entryId: id,
+    direction: value.direction,
+  }
 }
 
 export async function updateCashflowEntry(id: string, input: ManualEntryInput, proof?: FormData) {

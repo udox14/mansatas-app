@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { RupiahInput } from '@/components/ui/rupiah-input'
 import {
   ArrowLeft, CheckCircle2, ChevronDown, ChevronRight, CircleHelp, Download, FileText, Loader2,
-  Pencil, Plus, RotateCcw, Search, Send, Trash2, XCircle,
+  Pencil, Plus, Printer, RotateCcw, Search, Send, Trash2, XCircle,
 } from 'lucide-react'
 import {
   deleteKomiteAction, deleteKomiteDraftAction, reviewKomiteAction,
@@ -29,6 +29,7 @@ import { komiteFundLabel, type BudgetPosition } from '@/lib/komite-funds'
 import { formatRupiah } from '@/lib/utils'
 import { todayWIB } from '@/lib/time'
 import { ApprovalSheetButton } from './approval-sheet-button'
+import { KuitansiPrintDialog } from '@/components/dashboard/kuitansi-print-dialog'
 
 type Item = any
 type RincianRow = { uraian: string; penerima_penyedia: string; jumlah: string }
@@ -716,6 +717,7 @@ function Empty() { return <div className="rounded-xl border border-dashed bg-whi
 function Status({ status }: { status: string }) { return <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusStyle[status] || ''}`}>{statusLabel[status] || status}</span> }
 
 function DetailPage({ item, isReviewer, onBack, actions, reportControls }: { item: Item; isReviewer: boolean; onBack: () => void; actions?: React.ReactNode; reportControls?: React.ReactNode }) {
+  const [kuitansiOpen, setKuitansiOpen] = useState(false)
   const followUp = spbFollowUpBadge(item)
   return <div className="animate-in fade-in slide-in-from-right-2 duration-200">
     <button type="button" onClick={onBack} className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-950 dark:text-slate-300 dark:hover:text-white"><ArrowLeft className="h-4 w-4" />Kembali ke daftar</button>
@@ -751,6 +753,17 @@ function DetailPage({ item, isReviewer, onBack, actions, reportControls }: { ite
           <Button asChild variant="outline" size="sm">
             <a href={`/api/komite/pengajuan/${item.id}/spb`} target="_blank" rel="noreferrer"><Download className="mr-2 h-4 w-4" />Unduh / Cetak SPB</a>
           </Button>
+          <Button type="button" variant="outline" size="sm" onClick={() => setKuitansiOpen(true)}>
+            <Printer className="mr-2 h-4 w-4" />Cetak Kuitansi
+          </Button>
+          <KuitansiPrintDialog
+            open={kuitansiOpen}
+            onOpenChange={setKuitansiOpen}
+            hrefBase={`/api/komite/pengajuan/${item.id}/kuitansi`}
+            title="Cetak Kuitansi SPB"
+            subtitle={[item.nomor_spb, money(item.nominal), item.penerima_pembayaran || item.judul].filter(Boolean).join(' · ')}
+            defaultAttachment
+          />
         </div>
       )}
       <div><p className="mb-3 text-sm font-semibold">Dokumen per versi</p><div className="space-y-3">{item.versions.map((version: any) => <div key={version.id} className="rounded-lg border p-3"><div className="mb-2 flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-medium">Versi {version.version_number}</p><span className="text-xs text-slate-500">{version.submitted_at ? `Dikirim ${date(version.submitted_at)}` : 'Belum dikirim'}</span></div><div className="space-y-1.5">{version.files.map((file: any) => <a key={file.id} href={`/api/komite/pengajuan/${item.id}/files/${file.id}`} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-2 rounded-md bg-slate-50 px-2.5 py-2 text-sm hover:bg-slate-100 dark:bg-slate-800"><FileText className="h-4 w-4 shrink-0 text-rose-500" /><span className="min-w-0 flex-1 truncate">{file.original_filename}</span><span className="shrink-0 text-xs text-slate-400">{size(file.size_bytes)}</span></a>)}</div></div>)}</div></div>

@@ -10,11 +10,11 @@ function ucap(n: number): string {
   if (n < 100) {
     const puluhan = Math.floor(n / 10)
     const satuan = n % 10
-    return (puluhan === 1 ? 'se' : SATUAN[puluhan]) + 'puluh' + (satuan ? ' ' + SATUAN[satuan] : '')
+    return (puluhan === 1 ? 'sepuluh' : `${SATUAN[puluhan]} puluh`) + (satuan ? ' ' + SATUAN[satuan] : '')
   }
   const ratus = Math.floor(n / 100)
   const sisa = n % 100
-  return (ratus === 1 ? 'se' : SATUAN[ratus]) + 'ratus' + (sisa ? ' ' + ucap(sisa) : '')
+  return (ratus === 1 ? 'seratus' : `${SATUAN[ratus]} ratus`) + (sisa ? ' ' + ucap(sisa) : '')
 }
 
 export function terbilang(angka: number): string {
