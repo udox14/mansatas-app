@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import * as XLSX from 'xlsx'
 import source from '@/data/rapbm-2026-source.json'
 import { parseRapbm } from './rapbm-parser'
-import { filterRapbmGroups } from './rapbm'
+import { filterRapbmBySource, filterRapbmGroups, hasKomiteAllocation } from './rapbm'
 
 const bytes = () => new Uint8Array(Buffer.from(source.base64,'base64'))
 function changed(change: (ws: Record<string, any>) => void) {
@@ -55,5 +55,26 @@ describe('RAPBM source parser', () => {
     expect(result[0].items).toHaveLength(1)
     expect(result[0].amounts.total).toBe(715413000)
     expect(filterRapbmGroups(doc.expenses,'Internet','komite')).toHaveLength(0)
+  })
+  it('separates Komite and APBN items cleanly for both expenses and income', () => {
+    const doc = parseRapbm(bytes())
+    const komiteExpenses = filterRapbmBySource(doc.expenses, 'komite')
+    const apbnExpenses = filterRapbmBySource(doc.expenses, 'apbn')
+    expect(komiteExpenses.length).toBeGreaterThan(0)
+    expect(apbnExpenses.length).toBeGreaterThan(0)
+    expect(komiteExpenses.every(g => g.items.every(i => (i.amounts.komite ?? 0) > 0))).toBe(true)
+    expect(apbnExpenses.every(g => g.items.every(i => (i.amounts.apbn ?? 0) > 0))).toBe(true)
+
+    const komiteIncome = filterRapbmBySource(doc.income, 'komite')
+    const apbnIncome = filterRapbmBySource(doc.income, 'apbn')
+    expect(komiteIncome).toHaveLength(1)
+    expect(apbnIncome).toHaveLength(1)
+    expect(komiteIncome[0].label).toMatch(/KOMITE/i)
+    expect(apbnIncome[0].label).toMatch(/APBN/i)
+
+    expect(hasKomiteAllocation({ komite: 1000, detail: 0 })).toBe(true)
+    expect(hasKomiteAllocation({ komite: null, detail: 500 })).toBe(true)
+    expect(hasKomiteAllocation({ komite: null, detail: 0 })).toBe(false)
+    expect(hasKomiteAllocation({ komite: 0, detail: 0 })).toBe(false)
   })
 })

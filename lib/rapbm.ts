@@ -58,12 +58,22 @@ export type RapbmPageData = {
   publicationRevision: number
 }
 
+export type RapbmFundingView = 'komite' | 'apbn' | 'all'
+
 export function filterRapbmGroups(groups: RapbmGroup[], query: string, source: string) {
   const term = query.trim().toLocaleLowerCase('id-ID')
   return groups.map(group => ({ ...group, items: group.items.filter(item => {
     const matches = !term || `${group.label} ${group.account || ''} ${item.description} ${item.account || ''}`.toLocaleLowerCase('id-ID').includes(term)
     return matches && (source === 'all' || (source === 'apbn' ? (item.amounts.apbn ?? 0) > 0 : (item.amounts.komite ?? 0) > 0))
   }) })).filter(group => group.items.length > 0)
+}
+
+export function filterRapbmBySource(groups: RapbmGroup[], source: 'komite' | 'apbn', query = '') {
+  return filterRapbmGroups(groups, query, source)
+}
+
+export function hasKomiteAllocation(group: { komite: number | null; detail: number }) {
+  return (group.komite ?? 0) > 0 || group.detail > 0
 }
 
 export function rapbmStatusLabel(status: RapbmVersion['status']) {

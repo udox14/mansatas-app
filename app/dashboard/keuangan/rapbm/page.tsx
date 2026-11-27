@@ -33,7 +33,7 @@ export default async function RapbmPage({searchParams}:{searchParams:Promise<{ye
     db.prepare('SELECT version_id,cohort,available FROM fin_komite_revision_balance').all<{version_id:string;cohort:number;available:number}>(),
   ])
   return <div className="space-y-4 pb-10 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-300">
-    <PageHeader title="RAPBM" description="Rencana Anggaran Pendapatan dan Belanja Madrasah" />
+    <PageHeader title="RAPBM" description="Anggaran Komite Madrasah dan informasi referensi APBN dari dokumen RAPBM" />
     <RapbmClient data={data} budget={{ groups:groups.results,positions:positions.results,history:history.results,associations:associations.results,remaining:remaining.results }} />
   </div>
 }

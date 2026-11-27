@@ -46,8 +46,8 @@ export async function listKomiteFundOptions(db: D1Database) {
       UNION SELECT cohort FROM fin_komite_rapbm_versions
       UNION SELECT komite_cohort FROM fin_rapbm_versions WHERE status='published' AND komite_cohort IS NOT NULL
       ORDER BY year DESC`),
-    db.prepare('SELECT group_id,cohort,label,account,available FROM fin_komite_budget_balances WHERE active=1 ORDER BY cohort DESC,label,account'),
-    db.prepare('SELECT group_id,cohort,label,account,available FROM fin_komite_budget_balances WHERE active=1 OR enabled=0 ORDER BY cohort DESC,label,account'),
+    db.prepare('SELECT group_id,cohort,label,account,available FROM fin_komite_budget_balances WHERE active=1 AND amount>0 ORDER BY cohort DESC,label,account'),
+    db.prepare('SELECT group_id,cohort,label,account,available FROM fin_komite_budget_balances WHERE (active=1 OR enabled=0) AND amount>0 ORDER BY cohort DESC,label,account'),
   ])
   return {
     years: (years.results as { year: number }[]).map(row => row.year),

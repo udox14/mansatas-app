@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { AlertCircle, ChevronDown, Download, FileSpreadsheet, Loader2, Search, Upload } from 'lucide-react'
+import { AlertCircle, ArrowRight, ChevronDown, Download, FileSpreadsheet, Info, Loader2, Search, Upload } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -16,10 +16,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatRupiah } from '@/lib/utils'
 import {
+  filterRapbmBySource,
   filterRapbmGroups,
+  hasKomiteAllocation,
   rapbmStatusLabel,
   type RapbmActionResult,
   type RapbmAmounts,
+  type RapbmFundingView,
   type RapbmGroup,
   type RapbmItem,
   type RapbmNote,
@@ -46,16 +49,31 @@ export function RapbmClient({ data, budget }: { data: RapbmPageData; budget: Bud
   const [pending, startTransition] = useTransition()
   const [importOpen, setImportOpen] = useState(false)
   const [message, setMessage] = useState<{ text: string; error: boolean } | null>(null)
-  const [query, setQuery] = useState('')
-  const [funding, setFunding] = useState('all')
+  const [komiteQuery, setKomiteQuery] = useState('')
+  const [komiteSection, setKomiteSection] = useState<'expense' | 'income'>('expense')
+  const [apbnQuery, setApbnQuery] = useState('')
+  const [apbnSection, setApbnSection] = useState<'expense' | 'income'>('expense')
+  const [combinedQuery, setCombinedQuery] = useState('')
+  const [combinedFunding, setCombinedFunding] = useState('all')
+  const [combinedSection, setCombinedSection] = useState<'expense' | 'income'>('expense')
   const { selected, document, versions, canManage } = data
 
+  const activeKomitePositions = budget.positions.filter(p => p.amount > 0 || p.locked > 0 || p.realized > 0)
   const showPaguTab = Boolean(budget.positions.length || (canManage && selected && selected.status !== 'draft'))
-  const [tab, setTab] = useState(() => (budget.positions.length > 0 ? 'pagu' : 'expense'))
-  const activeTab = tab === 'pagu' && !showPaguTab ? 'expense' : tab
+  const [tab, setTab] = useState(() => (budget.positions.length > 0 ? 'pagu' : 'komite'))
+  const activeTab = tab === 'pagu' && !showPaguTab ? 'komite' : tab
 
-  const groups = document ? filterRapbmGroups(document.expenses, query, funding) : []
-  const filtered = query.trim() !== '' || funding !== 'all'
+  const komiteExpensesAll = document ? filterRapbmBySource(document.expenses, 'komite') : []
+  const komiteExpenses = document ? filterRapbmBySource(document.expenses, 'komite', komiteQuery) : []
+  const komiteIncome = document ? filterRapbmBySource(document.income, 'komite') : []
+
+  const apbnExpensesAll = document ? filterRapbmBySource(document.expenses, 'apbn') : []
+  const apbnExpenses = document ? filterRapbmBySource(document.expenses, 'apbn', apbnQuery) : []
+  const apbnIncome = document ? filterRapbmBySource(document.income, 'apbn') : []
+
+  const combinedGroups = document ? filterRapbmGroups(document.expenses, combinedQuery, combinedFunding) : []
+  const combinedFiltered = combinedQuery.trim() !== '' || combinedFunding !== 'all'
+
   const [cohortFilter, setCohortFilter] = useState('all')
   const cohorts = [...new Set(budget.associations.flatMap(row => (row.cohort ? [row.cohort] : [])))].sort((a, b) => b - a)
   const filteredVersions = cohortFilter === 'all' ? versions : versions.filter(v => budget.associations.some(row => row.id === v.id && row.cohort === Number(cohortFilter)))
@@ -170,11 +188,15 @@ export function RapbmClient({ data, budget }: { data: RapbmPageData; budget: Bud
             )}
           </div>
 
-          <div className="grid divide-y rounded-xl border bg-card text-card-foreground md:grid-cols-2 md:divide-x md:divide-y-0">
-            <BudgetSummary label="Rencana Pendapatan" amounts={document.incomeTotal} />
-            <BudgetSummary label="Rencana Belanja" amounts={document.expenseTotal} />
+          <div className="space-y-2.5">
+            <KomiteBudgetSummary income={document.incomeTotal} expense={document.expenseTotal} />
+            <ApbnReferenceStrip
+              income={document.incomeTotal}
+              expense={document.expenseTotal}
+              onOpenApbn={() => setTab('apbn')}
+            />
           </div>
-          <p className="-mt-2 text-xs text-muted-foreground">Nominal mengikuti dokumen sumber Excel. Tanda — menandakan sel kosong (bukan nol).</p>
+          <p className="-mt-1 text-xs text-muted-foreground">Nominal mengikuti dokumen sumber Excel. Tanda — menandakan sel kosong (bukan nol).</p>
 
           {document.notes.length > 0 && <Notes notes={document.notes} />}
           {canManage && selected.status === 'draft' && (
@@ -185,14 +207,17 @@ export function RapbmClient({ data, budget }: { data: RapbmPageData; budget: Bud
             <TabsList className="h-auto max-w-full justify-start overflow-x-auto p-1">
               {showPaguTab && (
                 <TabsTrigger value="pagu" className="shrink-0 text-xs">
-                  Pagu Komite {budget.positions.length ? `(${budget.positions.length} Pos)` : ''}
+                  Pagu Komite {activeKomitePositions.length ? `(${activeKomitePositions.length} Pos)` : ''}
                 </TabsTrigger>
               )}
-              <TabsTrigger value="expense" className="shrink-0 text-xs">
-                Rincian Belanja ({document.expenses.length})
+              <TabsTrigger value="komite" className="shrink-0 text-xs">
+                Anggaran Komite ({komiteExpensesAll.length})
               </TabsTrigger>
-              <TabsTrigger value="income" className="shrink-0 text-xs">
-                Rencana Pendapatan ({document.income.length})
+              <TabsTrigger value="apbn" className="shrink-0 text-xs">
+                Info APBN ({apbnExpensesAll.length})
+              </TabsTrigger>
+              <TabsTrigger value="combined" className="shrink-0 text-xs">
+                Dokumen Gabungan ({document.expenses.length})
               </TabsTrigger>
             </TabsList>
 
@@ -202,46 +227,177 @@ export function RapbmClient({ data, budget }: { data: RapbmPageData; budget: Bud
               </TabsContent>
             )}
 
-            <TabsContent value="expense" className="mt-0 space-y-3">
-              <search aria-label="Filter rincian belanja RAPBM" className="flex flex-col gap-2.5 sm:flex-row">
-                <div className="relative flex-1">
-                  <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    aria-label="Cari uraian atau kode akun"
-                    autoComplete="off"
-                    autoCorrect="off"
-                    spellCheck={false}
-                    value={query}
-                    onChange={event => setQuery(event.target.value)}
-                    placeholder="Cari uraian kegiatan atau kode akun..."
-                    className="h-9 pl-9 text-sm"
-                  />
-                </div>
-                <Select value={funding} onValueChange={setFunding}>
-                  <SelectTrigger className="h-9 w-full text-xs sm:w-48" aria-label="Filter sumber dana"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua sumber dana</SelectItem>
-                    <SelectItem value="apbn">APBN</SelectItem>
-                    <SelectItem value="komite">Komite</SelectItem>
-                  </SelectContent>
-                </Select>
-              </search>
-              <p className="text-xs text-muted-foreground">
-                {groups.length} kelompok · {groups.reduce((sum, g) => sum + g.items.length, 0)} rincian{filtered ? ' cocok dengan pencarian (subtotal tetap mengikuti dokumen lengkap).' : ''}
-              </p>
-              <div className="space-y-3 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200" key={`${funding}:${query}`}>
-                {groups.map(group => <Group key={group.reference} group={group} filtered={filtered} />)}
-                {!groups.length && (
-                  <div className="rounded-xl border border-dashed py-12 text-center text-sm text-muted-foreground">
-                    Tidak ada rincian yang sesuai. Coba kata kunci atau sumber dana lain.
-                  </div>
-                )}
+            <TabsContent value="komite" className="mt-0 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <SectionToggle
+                  section={komiteSection}
+                  onChange={setKomiteSection}
+                  expenseLabel={`Belanja Komite (${komiteExpensesAll.length})`}
+                  incomeLabel={`Pendapatan Komite (${komiteIncome.length})`}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Menampilkan khusus rencana anggaran yang bersumber dari dana Komite.
+                </p>
               </div>
+
+              {komiteSection === 'expense' ? (
+                <>
+                  <search aria-label="Filter rincian belanja Komite" className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      aria-label="Cari uraian atau kode akun belanja Komite"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      value={komiteQuery}
+                      onChange={event => setKomiteQuery(event.target.value)}
+                      placeholder="Cari uraian kegiatan atau kode akun belanja Komite..."
+                      className="h-9 pl-9 text-sm"
+                    />
+                  </search>
+                  <p className="text-xs text-muted-foreground">
+                    {komiteExpenses.length} kelompok · {komiteExpenses.reduce((sum, g) => sum + g.items.length, 0)} rincian Komite{komiteQuery.trim() ? ' cocok dengan pencarian (subtotal tetap mengikuti dokumen lengkap).' : ''}
+                  </p>
+                  <div className="space-y-3 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200" key={`komite:${komiteQuery}`}>
+                    {komiteExpenses.map(group => (
+                      <Group key={group.reference} group={group} mode="komite" filtered={komiteQuery.trim() !== ''} />
+                    ))}
+                    {!komiteExpenses.length && (
+                      <div className="rounded-xl border border-dashed py-12 text-center text-sm text-muted-foreground">
+                        Tidak ada rincian belanja Komite yang sesuai.
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground">Sumber pendapatan Komite yang direncanakan untuk tahun anggaran {document.year}.</p>
+                  {komiteIncome.map(group => <Group key={group.reference} group={group} mode="komite" income />)}
+                  {!komiteIncome.length && (
+                    <div className="rounded-xl border border-dashed py-12 text-center text-sm text-muted-foreground">
+                      Belum ada rincian pendapatan Komite pada dokumen ini.
+                    </div>
+                  )}
+                </div>
+              )}
             </TabsContent>
 
-            <TabsContent value="income" className="mt-0 space-y-3">
-              <p className="text-xs text-muted-foreground">Sumber pendapatan yang direncanakan untuk tahun anggaran {document.year}.</p>
-              {document.income.map(group => <Group key={group.reference} group={group} income />)}
+            <TabsContent value="apbn" className="mt-0 space-y-3">
+              <div className="flex items-start gap-2.5 rounded-xl border border-slate-200 bg-slate-50/80 px-3.5 py-3 text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300">
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
+                <div>
+                  <p className="font-semibold text-slate-900 dark:text-slate-100">Informasi Referensi APBN (Hanya Baca)</p>
+                  <p className="mt-0.5 leading-5 text-slate-600 dark:text-slate-400">
+                    Data APBN di bawah ini berasal dari dokumen RAPBM madrasah hanya sebagai referensi. Pengeluaran, SPB, dan pencatatan Arus Kas di aplikasi ini khusus mengelola anggaran Komite.
+                  </p>
+                </div>
+              </div>
+
+              <SectionToggle
+                section={apbnSection}
+                onChange={setApbnSection}
+                expenseLabel={`Belanja APBN (${apbnExpensesAll.length})`}
+                incomeLabel={`Pendapatan APBN (${apbnIncome.length})`}
+              />
+
+              {apbnSection === 'expense' ? (
+                <>
+                  <search aria-label="Filter rincian belanja APBN" className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      aria-label="Cari uraian atau kode akun belanja APBN"
+                      autoComplete="off"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      value={apbnQuery}
+                      onChange={event => setApbnQuery(event.target.value)}
+                      placeholder="Cari uraian kegiatan atau kode akun referensi APBN..."
+                      className="h-9 pl-9 text-sm"
+                    />
+                  </search>
+                  <p className="text-xs text-muted-foreground">
+                    {apbnExpenses.length} kelompok · {apbnExpenses.reduce((sum, g) => sum + g.items.length, 0)} rincian APBN{apbnQuery.trim() ? ' cocok dengan pencarian (subtotal tetap mengikuti dokumen lengkap).' : ''}
+                  </p>
+                  <div className="space-y-3 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200" key={`apbn:${apbnQuery}`}>
+                    {apbnExpenses.map(group => (
+                      <Group key={group.reference} group={group} mode="apbn" filtered={apbnQuery.trim() !== ''} />
+                    ))}
+                    {!apbnExpenses.length && (
+                      <div className="rounded-xl border border-dashed py-12 text-center text-sm text-muted-foreground">
+                        Tidak ada rincian APBN yang sesuai.
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground">Referensi sumber pendapatan APBN untuk tahun anggaran {document.year}.</p>
+                  {apbnIncome.map(group => <Group key={group.reference} group={group} mode="apbn" income />)}
+                  {!apbnIncome.length && (
+                    <div className="rounded-xl border border-dashed py-12 text-center text-sm text-muted-foreground">
+                      Tidak ada rincian pendapatan APBN pada dokumen ini.
+                    </div>
+                  )}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="combined" className="mt-0 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <SectionToggle
+                  section={combinedSection}
+                  onChange={setCombinedSection}
+                  expenseLabel={`Rincian Belanja (${document.expenses.length})`}
+                  incomeLabel={`Rencana Pendapatan (${document.income.length})`}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Tampilan dokumen utuh APBN + Komite sesuai kolom Excel sumber.
+                </p>
+              </div>
+
+              {combinedSection === 'expense' ? (
+                <>
+                  <search aria-label="Filter dokumen gabungan RAPBM" className="flex flex-col gap-2.5 sm:flex-row">
+                    <div className="relative flex-1">
+                      <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        aria-label="Cari uraian atau kode akun"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        spellCheck={false}
+                        value={combinedQuery}
+                        onChange={event => setCombinedQuery(event.target.value)}
+                        placeholder="Cari uraian kegiatan atau kode akun..."
+                        className="h-9 pl-9 text-sm"
+                      />
+                    </div>
+                    <Select value={combinedFunding} onValueChange={setCombinedFunding}>
+                      <SelectTrigger className="h-9 w-full text-xs sm:w-48" aria-label="Filter sumber dana"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Semua sumber dana</SelectItem>
+                        <SelectItem value="komite">Komite</SelectItem>
+                        <SelectItem value="apbn">APBN</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </search>
+                  <p className="text-xs text-muted-foreground">
+                    {combinedGroups.length} kelompok · {combinedGroups.reduce((sum, g) => sum + g.items.length, 0)} rincian{combinedFiltered ? ' cocok dengan pencarian (subtotal tetap mengikuti dokumen lengkap).' : ''}
+                  </p>
+                  <div className="space-y-3 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-200" key={`all:${combinedFunding}:${combinedQuery}`}>
+                    {combinedGroups.map(group => <Group key={group.reference} group={group} mode="all" filtered={combinedFiltered} />)}
+                    {!combinedGroups.length && (
+                      <div className="rounded-xl border border-dashed py-12 text-center text-sm text-muted-foreground">
+                        Tidak ada rincian yang sesuai. Coba kata kunci atau sumber dana lain.
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground">Seluruh sumber pendapatan (APBN dan Komite) sesuai dokumen RAPBM tahun {document.year}.</p>
+                  {document.income.map(group => <Group key={group.reference} group={group} mode="all" income />)}
+                </div>
+              )}
             </TabsContent>
           </Tabs>
 
@@ -311,22 +467,96 @@ export function RapbmClient({ data, budget }: { data: RapbmPageData; budget: Bud
   )
 }
 
-function BudgetSummary({ label, amounts }: { label: string; amounts: RapbmAmounts }) {
+function KomiteBudgetSummary({ income, expense }: { income: RapbmAmounts; expense: RapbmAmounts }) {
   return (
-    <section className="space-y-2 p-3.5 sm:p-4">
-      <h2 className="text-xs font-medium text-muted-foreground">{label}</h2>
-      <p className="text-xl font-bold tracking-tight tabular-nums sm:text-2xl">{money(amounts.total)}</p>
-      <dl className="flex flex-wrap gap-x-6 gap-y-1.5 text-xs">
-        <div>
-          <dt className="text-muted-foreground">APBN</dt>
-          <dd className="mt-0.5 font-medium tabular-nums">{money(amounts.apbn)}</dd>
+    <div className="grid divide-y rounded-xl border bg-card text-card-foreground md:grid-cols-2 md:divide-x md:divide-y-0">
+      <section className="space-y-1 p-3.5 sm:p-4">
+        <p className="text-xs font-medium text-muted-foreground">Rencana Pendapatan Komite</p>
+        <p className="text-xl font-bold tracking-tight tabular-nums text-emerald-700 dark:text-emerald-400 sm:text-2xl">
+          {money(income.komite)}
+        </p>
+        <p className="text-[11px] text-muted-foreground">Anggaran dikelola melalui kas &amp; pembayaran Komite</p>
+      </section>
+      <section className="space-y-1 p-3.5 sm:p-4">
+        <p className="text-xs font-medium text-muted-foreground">Rencana Belanja Komite</p>
+        <p className="text-xl font-bold tracking-tight tabular-nums text-slate-900 dark:text-white sm:text-2xl">
+          {money(expense.komite)}
+        </p>
+        <p className="text-[11px] text-muted-foreground">Acuan pagu SPB dan pengeluaran Arus Kas Komite</p>
+      </section>
+    </div>
+  )
+}
+
+function ApbnReferenceStrip({
+  income,
+  expense,
+  onOpenApbn,
+}: {
+  income: RapbmAmounts
+  expense: RapbmAmounts
+  onOpenApbn: () => void
+}) {
+  return (
+    <div className="flex flex-col gap-2.5 rounded-xl border border-slate-200 bg-slate-50/75 px-3.5 py-2.5 text-xs dark:border-slate-800 dark:bg-slate-900/50 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-start gap-2.5">
+        <Info className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <span className="font-semibold text-slate-800 dark:text-slate-200">Referensi APBN (Info Saja)</span>
+            <span className="text-slate-500 dark:text-slate-400">· Tidak dikelola dan tidak memengaruhi pengeluaran Komite</span>
+          </div>
+          <dl className="flex flex-wrap gap-x-5 gap-y-1 tabular-nums text-slate-600 dark:text-slate-300">
+            <div className="flex gap-1.5">
+              <dt className="text-slate-500">Pendapatan APBN:</dt>
+              <dd className="font-medium">{money(income.apbn)}</dd>
+            </div>
+            <div className="flex gap-1.5">
+              <dt className="text-slate-500">Belanja APBN:</dt>
+              <dd className="font-medium">{money(expense.apbn)}</dd>
+            </div>
+            <div className="flex gap-1.5">
+              <dt className="text-slate-500">Total RAPBM Gabungan:</dt>
+              <dd className="font-medium">{money(expense.total)}</dd>
+            </div>
+          </dl>
         </div>
-        <div>
-          <dt className="text-muted-foreground">Komite</dt>
-          <dd className="mt-0.5 font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">{money(amounts.komite)}</dd>
-        </div>
-      </dl>
-    </section>
+      </div>
+      <Button type="button" variant="ghost" size="sm" className="h-7 shrink-0 self-start gap-1 px-2 text-xs text-slate-600 hover:text-slate-900 dark:text-slate-300 sm:self-center" onClick={onOpenApbn}>
+        Lihat Info APBN <ArrowRight className="h-3.5 w-3.5" />
+      </Button>
+    </div>
+  )
+}
+
+function SectionToggle({
+  section,
+  onChange,
+  expenseLabel,
+  incomeLabel,
+}: {
+  section: 'expense' | 'income'
+  onChange: (next: 'expense' | 'income') => void
+  expenseLabel: string
+  incomeLabel: string
+}) {
+  return (
+    <div className="inline-flex rounded-lg border bg-muted/40 p-0.5 text-xs">
+      <button
+        type="button"
+        onClick={() => onChange('expense')}
+        className={`rounded-md px-3 py-1.5 font-medium transition ${section === 'expense' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+      >
+        {expenseLabel}
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange('income')}
+        className={`rounded-md px-3 py-1.5 font-medium transition ${section === 'income' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+      >
+        {incomeLabel}
+      </button>
+    </div>
   )
 }
 
@@ -337,7 +567,23 @@ function formatVolumeUnit(item: RapbmItem): string {
   return vol || unit || '—'
 }
 
-function Group({ group, income = false, filtered = false }: { group: RapbmGroup; income?: boolean; filtered?: boolean }) {
+function Group({
+  group,
+  mode,
+  income = false,
+  filtered = false,
+}: {
+  group: RapbmGroup
+  mode: RapbmFundingView
+  income?: boolean
+  filtered?: boolean
+}) {
+  const singleSource = mode !== 'all'
+  const sourceValue = (amounts: RapbmAmounts) => (mode === 'komite' ? amounts.komite : mode === 'apbn' ? amounts.apbn : amounts.total)
+  const subtotalValue = singleSource ? sourceValue(group.amounts) : group.amounts.total
+  const subtotalCaption = mode === 'komite' ? 'Subtotal Komite' : mode === 'apbn' ? 'Subtotal APBN' : 'Subtotal'
+  const columnHeading = mode === 'komite' ? 'Anggaran Komite' : mode === 'apbn' ? 'Anggaran APBN' : 'Jumlah'
+
   return (
     <details className="overflow-hidden rounded-xl border bg-card text-card-foreground" open={filtered || undefined}>
       <summary className="flex cursor-pointer list-none items-start gap-3 p-3.5 transition-colors hover:bg-slate-50 dark:hover:bg-slate-900 sm:p-4">
@@ -346,12 +592,14 @@ function Group({ group, income = false, filtered = false }: { group: RapbmGroup;
           <h3 className="text-sm font-semibold">{group.label}</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {group.account ? `${group.account} · ` : ''}{group.items.length} rincian
-            {!income && group.amounts.komite !== null ? ` · Komite ${money(group.amounts.komite)}` : ''}
+            {mode === 'all' && !income && group.amounts.komite !== null ? ` · Komite ${money(group.amounts.komite)}` : ''}
           </p>
         </div>
         <div className="shrink-0 text-right">
-          <p className="text-sm font-semibold tabular-nums">{money(group.amounts.total)}</p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">Subtotal</p>
+          <p className={`text-sm font-semibold tabular-nums ${mode === 'komite' ? 'text-emerald-700 dark:text-emerald-400' : ''}`}>
+            {money(subtotalValue)}
+          </p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">{subtotalCaption}</p>
         </div>
       </summary>
       <div className="border-t motion-safe:animate-in motion-safe:fade-in motion-safe:duration-150">
@@ -359,15 +607,15 @@ function Group({ group, income = false, filtered = false }: { group: RapbmGroup;
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
-                <TableHead className="w-[42%] text-xs font-semibold">Uraian & Kode Akun</TableHead>
-                <TableHead className="w-[14%] text-xs font-semibold">Vol / Satuan</TableHead>
-                {!income && (
+                <TableHead className={singleSource ? 'w-[56%] text-xs font-semibold' : 'w-[42%] text-xs font-semibold'}>Uraian &amp; Kode Akun</TableHead>
+                <TableHead className="w-[16%] text-xs font-semibold">Vol / Satuan</TableHead>
+                {mode === 'all' && !income && (
                   <>
                     <TableHead className="text-right text-xs font-semibold">APBN</TableHead>
                     <TableHead className="text-right text-xs font-semibold">Komite</TableHead>
                   </>
                 )}
-                <TableHead className="text-right text-xs font-semibold">Jumlah</TableHead>
+                <TableHead className="text-right text-xs font-semibold">{columnHeading}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -382,13 +630,15 @@ function Group({ group, income = false, filtered = false }: { group: RapbmGroup;
                   <TableCell className="whitespace-nowrap text-xs text-slate-600 dark:text-slate-300">
                     {formatVolumeUnit(item)}
                   </TableCell>
-                  {!income && (
+                  {mode === 'all' && !income && (
                     <>
                       <TableCell className="whitespace-nowrap text-right text-sm tabular-nums">{money(item.amounts.apbn)}</TableCell>
                       <TableCell className="whitespace-nowrap text-right text-sm font-medium tabular-nums text-emerald-700 dark:text-emerald-400">{money(item.amounts.komite)}</TableCell>
                     </>
                   )}
-                  <TableCell className="whitespace-nowrap text-right text-sm font-semibold tabular-nums">{money(item.amounts.total)}</TableCell>
+                  <TableCell className={`whitespace-nowrap text-right text-sm font-semibold tabular-nums ${mode === 'komite' ? 'text-emerald-700 dark:text-emerald-400' : ''}`}>
+                    {money(sourceValue(item.amounts))}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -404,20 +654,38 @@ function Group({ group, income = false, filtered = false }: { group: RapbmGroup;
                   {item.account ? `${item.account} · ` : ''}Vol: {formatVolumeUnit(item)}
                 </p>
               </div>
-              <dl className={`grid gap-2 text-xs ${income ? 'grid-cols-1' : 'grid-cols-3'}`}>
-                {(income ? [['Jumlah', item.amounts.total]] : [['APBN', item.amounts.apbn], ['Komite', item.amounts.komite], ['Jumlah', item.amounts.total]]).map(([label, value]) => (
-                  <div key={String(label)}>
-                    <dt className="text-muted-foreground">{label}</dt>
-                    <dd className="mt-0.5 break-words font-medium tabular-nums">{money(value as number | null)}</dd>
-                  </div>
-                ))}
-              </dl>
+              {singleSource ? (
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">{columnHeading}</span>
+                  <span className={`font-semibold tabular-nums ${mode === 'komite' ? 'text-emerald-700 dark:text-emerald-400' : ''}`}>
+                    {money(sourceValue(item.amounts))}
+                  </span>
+                </div>
+              ) : (
+                <dl className={`grid gap-2 text-xs ${income ? 'grid-cols-1' : 'grid-cols-3'}`}>
+                  {(income ? [['Jumlah', item.amounts.total]] : [['APBN', item.amounts.apbn], ['Komite', item.amounts.komite], ['Jumlah', item.amounts.total]]).map(([label, value]) => (
+                    <div key={String(label)}>
+                      <dt className="text-muted-foreground">{label}</dt>
+                      <dd className="mt-0.5 break-words font-medium tabular-nums">{money(value as number | null)}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
             </div>
           ))}
         </div>
 
         <p className="border-t bg-slate-50/50 px-4 py-2 text-xs text-muted-foreground dark:bg-slate-900/30">
-          Subtotal dokumen: APBN {money(group.amounts.apbn)} · Komite {money(group.amounts.komite)} · Jumlah {money(group.amounts.total)}
+          {mode === 'komite' ? (
+            <>
+              Subtotal Komite: {money(group.amounts.komite)}
+              {!income && (group.amounts.apbn ?? 0) > 0 && ` · Catatan referensi: kelompok ini juga memiliki porsi APBN ${money(group.amounts.apbn)} di dokumen sumber`}
+            </>
+          ) : mode === 'apbn' ? (
+            <>Subtotal referensi APBN: {money(group.amounts.apbn)}</>
+          ) : (
+            <>Subtotal dokumen: APBN {money(group.amounts.apbn)} · Komite {money(group.amounts.komite)} · Jumlah {money(group.amounts.total)}</>
+          )}
           <span className="mt-0.5 block text-[11px]">Referensi sel: {group.subtotalReference}</span>
         </p>
       </div>
@@ -482,6 +750,11 @@ function OperationalBudget({ version, ready, budget, canManage }: { version: str
   const total = Object.values(values).reduce((sum, value) => sum + Number(value || 0), 0)
   const prior = budget.remaining.find(r => r.cohort === cohort)
 
+  const activePositions = budget.positions.filter(p => p.amount > 0 || p.locked > 0 || p.realized > 0)
+  const zeroPositions = budget.positions.filter(p => p.amount === 0 && p.locked === 0 && p.realized === 0)
+  const komiteGroups = budget.groups.filter(hasKomiteAllocation)
+  const apbnOnlyGroups = budget.groups.filter(g => !hasKomiteAllocation(g))
+
   const totalPagu = budget.positions.reduce((s, p) => s + p.amount, 0)
   const totalLocked = budget.positions.reduce((s, p) => s + p.locked, 0)
   const totalRealized = budget.positions.reduce((s, p) => s + p.realized, 0)
@@ -541,7 +814,7 @@ function OperationalBudget({ version, ready, budget, canManage }: { version: str
             )}
 
             <Accordion type="multiple" className="space-y-2">
-              {budget.positions.map(position => {
+              {activePositions.map(position => {
                 const used = position.locked + position.realized
                 const pct = position.amount > 0 ? Math.min(100, Math.round((used / position.amount) * 100)) : 0
                 const posHistory = budget.history.filter(row => row.group_id === position.group_id)
@@ -590,6 +863,22 @@ function OperationalBudget({ version, ready, budget, canManage }: { version: str
               })}
             </Accordion>
 
+            {zeroPositions.length > 0 && (
+              <details className="rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
+                <summary className="cursor-pointer font-medium">
+                  {zeroPositions.length} pos khusus APBN / tanpa pagu Komite (Rp 0) disembunyikan dari daftar operasional
+                </summary>
+                <ul className="mt-2 space-y-1 border-t pt-2">
+                  {zeroPositions.map(pos => (
+                    <li key={pos.group_id} className="flex justify-between gap-2">
+                      <span>{pos.account ? `${pos.account} · ` : ''}{pos.label}</span>
+                      <span className="tabular-nums">{formatRupiah(pos.amount)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+
             {canManage && association?.enabled === 0 && (
               <div className="space-y-2.5 rounded-lg border border-amber-200 bg-amber-50/60 p-3 dark:border-amber-900/60 dark:bg-amber-950/20">
                 <div className="flex items-start gap-2">
@@ -618,11 +907,11 @@ function OperationalBudget({ version, ready, budget, canManage }: { version: str
                 Sisa sebelumnya {formatRupiah(prior.available)} · Pagu baru {formatRupiah(total)} · Selisih {formatRupiah(total - prior.available)}
               </p>
             )}
-            {budget.groups.map(group => (
+            {komiteGroups.map(group => (
               <div key={group.id} className="grid items-end gap-2.5 border-b pb-3 sm:grid-cols-3">
                 <div className="text-sm">
                   <p className="font-medium">{group.account} · {group.label}</p>
-                  <p className="text-xs tabular-nums text-muted-foreground">Subtotal {money(group.komite)} · Rincian {money(group.detail)}</p>
+                  <p className="text-xs tabular-nums text-muted-foreground">Subtotal Komite {money(group.komite)} · Rincian {money(group.detail)}</p>
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor={`pagu-val-${group.id}`} className="text-xs">Pagu operasional</Label>
@@ -634,6 +923,31 @@ function OperationalBudget({ version, ready, budget, canManage }: { version: str
                 </div>
               </div>
             ))}
+            {apbnOnlyGroups.length > 0 && (
+              <details className="rounded-lg border border-dashed px-3 py-2.5">
+                <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+                  {apbnOnlyGroups.length} pos khusus APBN (pagu Komite bawaan Rp 0) — klik jika ingin meninjau
+                </summary>
+                <div className="mt-3 space-y-3 border-t pt-3">
+                  {apbnOnlyGroups.map(group => (
+                    <div key={group.id} className="grid items-end gap-2.5 border-b pb-3 last:border-b-0 last:pb-0 sm:grid-cols-3">
+                      <div className="text-sm">
+                        <p className="font-medium text-slate-700 dark:text-slate-300">{group.account} · {group.label}</p>
+                        <p className="text-xs tabular-nums text-muted-foreground">Khusus APBN · Komite {money(group.komite)}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor={`pagu-val-${group.id}`} className="text-xs">Pagu operasional</Label>
+                        <RupiahInput id={`pagu-val-${group.id}`} name={`pagu:${group.id}`} required min={0} value={values[group.id]} onValueChange={raw => setValues({ ...values, [group.id]: raw })} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor={`pagu-reason-${group.id}`} className="text-xs">Alasan selisih</Label>
+                        <Input id={`pagu-reason-${group.id}`} name={`alasan:${group.id}`} required={Number(values[group.id] || 0) !== (group.komite ?? 0) || Number(values[group.id] || 0) !== group.detail} maxLength={300} placeholder="Wajib jika berbeda dari dokumen" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
             {prior && (
               <div className="space-y-1.5">
                 <Label htmlFor="pagu-rev-reason">Alasan perubahan total</Label>
